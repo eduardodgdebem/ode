@@ -56,7 +56,6 @@ Token Lexer::GetNextToken() {
 
     value += currValue;
     prevTokenType = currTokenType;
-    prevTokenType = currTokenType;
   }
 
   return Token{};
