@@ -4,28 +4,31 @@
 enum TokenTypes {
   NUMBER,
   STRING,
-  IDENT,
+  IDENTITY,
   PLUS,
   MINUS,
   MULTIPLY,
   DIVIDE,
-  INVALID
+  SKIP,
+  END
 };
 
 struct Token {
   TokenTypes type;
   std::string value;
+
+  void Print();
 };
 
 class Lexer {
 private:
-  std::string _src;
   size_t pos;
+  std::string _src;
 
   TokenTypes getTokenType(char character);
 
 public:
   Lexer(std::string src) { _src = src; }
 
-  Token GetNextToken();
+  void GetNextToken(Token *token);
 };

@@ -14,13 +14,10 @@ int main(int argc, char *argv[]) {
   std::println("{}", fileText);
 
   auto lexer = std::make_unique<Lexer>(fileText);
-  auto token = lexer->GetNextToken();
+  Token token{};
 
-  while (!token.value.empty()) {
-    std::println("==========");
-    std::println("type: {}", static_cast<int>(token.type));
-    std::println("value: {}", token.value);
-
-    token = lexer->GetNextToken();
+  while (token.type != END) {
+    lexer->GetNextToken(&token);
+    token.Print();
   }
 }

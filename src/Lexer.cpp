@@ -1,8 +1,17 @@
 #include "include/Lexer.h"
+#include <print>
+#include <string>
+
+void Token::Print() {
+  std::println("{}", '{');
+  std::println("  type: {}", static_cast<int>(type));
+  std::println("  value: {}", value);
+  std::println("{}", '}');
+}
 
 TokenTypes Lexer::getTokenType(char character) {
   if (std::isspace(character)) {
-    return INVALID;
+    return SKIP;
   }
 
   if (std::isdigit(character)) {
@@ -29,34 +38,38 @@ TokenTypes Lexer::getTokenType(char character) {
     return DIVIDE;
   }
 
-  return INVALID;
+  return SKIP;
 }
 
-Token Lexer::GetNextToken() {
-  TokenTypes currTokenType = INVALID;
-  TokenTypes prevTokenType = INVALID;
+void Lexer::GetNextToken(Token *token) {
+  TokenTypes currTokenType = SKIP;
+  TokenTypes prevTokenType = SKIP;
   std::string value;
 
   while (pos <= _src.length()) {
     auto currValue = _src[pos++];
     currTokenType = getTokenType(currValue);
 
-    if (currTokenType == INVALID) {
+    if (currTokenType == SKIP) {
       if (!value.empty()) {
-        return Token{.type = prevTokenType, .value = value};
+        token->type = prevTokenType;
+        token->value = value;
+        return;
       }
       continue;
     }
 
-    if (prevTokenType != INVALID && prevTokenType != currTokenType &&
-        !value.empty()) {
+    if (prevTokenType != currTokenType && !value.empty()) {
       pos--;
-      return Token{.type = prevTokenType, .value = value};
+      token->type = prevTokenType;
+      token->value = value;
+      return;
     }
 
     value += currValue;
     prevTokenType = currTokenType;
   }
 
-  return Token{};
+  token->type = END;
+  token->value = "";
 }
