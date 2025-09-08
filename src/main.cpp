@@ -4,6 +4,7 @@
 
 #include "include/Lexer.h"
 #include "include/Reader.h"
+#include "include/Token.h"
 
 const std::string FILE_PATH = "../../sla.txt";
 
@@ -16,8 +17,7 @@ int main(int argc, char *argv[]) {
   auto lexer = std::make_unique<Lexer>(fileText);
   Token token{};
 
-  while (token.type != END) {
-    lexer->GetNextToken(&token);
-    token.Print();
+  while (lexer->GetNextToken(&token)) {
+    printToken(&token);
   }
 }

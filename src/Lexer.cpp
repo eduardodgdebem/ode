@@ -1,60 +1,22 @@
-#include "include/Lexer.h"
-#include <print>
 #include <string>
 
-void Token::Print() {
-  std::println("{}", '{');
-  std::println("  type: {}", static_cast<int>(type));
-  std::println("  value: {}", value);
-  std::println("{}", '}');
-}
+#include "include/Lexer.h"
+#include "include/Token.h"
 
-TokenTypes Lexer::getTokenType(char character) {
-  if (std::isspace(character)) {
-    return SKIP;
-  }
-
-  if (std::isdigit(character)) {
-    return NUMBER;
-  }
-
-  if (std::isalpha(character)) {
-    return STRING;
-  }
-
-  if (character == '+') {
-    return PLUS;
-  }
-
-  if (character == '-') {
-    return MINUS;
-  }
-
-  if (character == '*') {
-    return MULTIPLY;
-  }
-
-  if (character == '/') {
-    return DIVIDE;
-  }
-
-  return SKIP;
-}
-
-void Lexer::GetNextToken(Token *token) {
+bool Lexer::GetNextToken(Token *token) {
   TokenTypes currTokenType = SKIP;
   TokenTypes prevTokenType = SKIP;
   std::string value;
 
   while (pos <= _src.length()) {
     auto currValue = _src[pos++];
-    currTokenType = getTokenType(currValue);
+    currTokenType = getTokenTypeByChar(currValue);
 
     if (currTokenType == SKIP) {
       if (!value.empty()) {
         token->type = prevTokenType;
         token->value = value;
-        return;
+        return true;
       }
       continue;
     }
@@ -63,7 +25,7 @@ void Lexer::GetNextToken(Token *token) {
       pos--;
       token->type = prevTokenType;
       token->value = value;
-      return;
+      return true;
     }
 
     value += currValue;
@@ -72,4 +34,5 @@ void Lexer::GetNextToken(Token *token) {
 
   token->type = END;
   token->value = "";
+  return false;
 }
