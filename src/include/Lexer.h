@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 #include "Token.h"
 
@@ -12,4 +13,6 @@ public:
   Lexer(std::string src) { _src = src; }
 
   bool GetNextToken(Token *token);
+
+  std::vector<Token> Tokenize();
 };

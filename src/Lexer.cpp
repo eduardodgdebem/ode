@@ -1,7 +1,6 @@
-#include <string>
-
 #include "include/Lexer.h"
 #include "include/Token.h"
+#include <vector>
 
 bool Lexer::GetNextToken(Token *token) {
   TokenTypes currTokenType = SKIP;
@@ -35,4 +34,15 @@ bool Lexer::GetNextToken(Token *token) {
   token->type = END;
   token->value = "";
   return false;
+}
+
+std::vector<Token> Lexer::Tokenize() {
+  std::vector<Token> list{};
+  Token currToken;
+
+  while (GetNextToken(&currToken)) {
+    list.push_back(currToken);
+  }
+
+  return list;
 }
