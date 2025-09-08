@@ -2,7 +2,7 @@
 #include "include/Token.h"
 #include <vector>
 
-bool Lexer::GetNextToken(Token *token) {
+bool Lexer::getNextToken(Token *token) {
   TokenTypes currTokenType = SKIP;
   TokenTypes prevTokenType = SKIP;
   std::string value;
@@ -36,11 +36,11 @@ bool Lexer::GetNextToken(Token *token) {
   return false;
 }
 
-std::vector<Token> Lexer::Tokenize() {
+std::vector<Token> Lexer::tokenize() {
   std::vector<Token> list{};
   Token currToken;
 
-  while (GetNextToken(&currToken)) {
+  while (getNextToken(&currToken)) {
     list.push_back(currToken);
   }
 

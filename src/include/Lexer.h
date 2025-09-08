@@ -12,7 +12,7 @@ private:
 public:
   Lexer(std::string src) { _src = src; }
 
-  bool GetNextToken(Token *token);
+  bool getNextToken(Token *token);
 
-  std::vector<Token> Tokenize();
+  std::vector<Token> tokenize();
 };

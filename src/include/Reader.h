@@ -13,7 +13,7 @@ public:
 
   ~Reader() { _inputFile.close(); }
 
-  void ForEachLine(std::function<void(std::string)> callBack);
+  void forEachLine(std::function<void(std::string)> callBack);
 
-  std::string ReadAll();
+  std::string readAll();
 };

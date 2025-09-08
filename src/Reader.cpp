@@ -1,6 +1,6 @@
 #include "include/Reader.h"
 
-void Reader::ForEachLine(std::function<void(std::string)> callBack) {
+void Reader::forEachLine(std::function<void(std::string)> callBack) {
   if (!_inputFile.is_open()) {
     return;
   }
@@ -12,10 +12,10 @@ void Reader::ForEachLine(std::function<void(std::string)> callBack) {
   }
 }
 
-std::string Reader::ReadAll() {
+std::string Reader::readAll() {
   std::string fullText{};
 
-  ForEachLine([&fullText](auto line) { fullText += line; });
+  forEachLine([&fullText](auto line) { fullText += line; });
 
   return fullText;
 }
