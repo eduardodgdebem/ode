@@ -21,6 +21,26 @@ void printTree(ASTNode *node, int depth) {
   printTree(node->right, depth + 1);
 }
 
+float evaluate(ASTNode *node) {
+  if (!node->left && !node->right) {
+    return std::stoi(node->value.value);
+  }
+
+  float leftVal = evaluate(node->left);
+  float rightVal = evaluate(node->right);
+
+  if (node->value.type == PLUS)
+    return leftVal + rightVal;
+  if (node->value.type == MINUS)
+    return leftVal - rightVal;
+  if (node->value.type == MULTIPLY)
+    return leftVal * rightVal;
+  if (node->value.type == DIVIDE)
+    return leftVal / rightVal;
+
+  throw std::runtime_error("Operador desconhecido");
+}
+
 int main(int argc, char *argv[]) {
   auto filePath = argc >= 1 ? argv[1] : "../../sla.txt";
 
@@ -34,4 +54,8 @@ int main(int argc, char *argv[]) {
   auto root = parser->parse();
 
   printTree(root, 0);
+
+  float result = evaluate(root);
+
+  std::println("{}", result);
 }

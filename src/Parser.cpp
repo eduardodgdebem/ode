@@ -4,6 +4,10 @@
 
 ASTNode *Parser::parse() {
   ASTNode *node = parseExpr();
+  auto last = currentToken();
+  if (currentToken().type != END) {
+    throw std::runtime_error("Extra tokens after valid expression");
+  }
   return node;
 }
 
