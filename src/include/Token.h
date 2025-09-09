@@ -10,6 +10,8 @@ enum TokenTypes {
   MULTIPLY,
   DIVIDE,
   SKIP,
+  LPAREN,
+  RPAREN,
   END
 };
 

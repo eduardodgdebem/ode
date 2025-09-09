@@ -37,12 +37,13 @@ bool Lexer::getNextToken(Token *token) {
 }
 
 std::vector<Token> Lexer::tokenize() {
-  std::vector<Token> list{};
+  std::vector<Token> list;
   Token currToken;
 
   while (getNextToken(&currToken)) {
     list.push_back(currToken);
   }
+  list.push_back(currToken);
 
   return list;
 }

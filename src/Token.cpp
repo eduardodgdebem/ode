@@ -31,6 +31,14 @@ TokenTypes getTokenTypeByChar(char character) {
     return DIVIDE;
   }
 
+  if (character == '(') {
+    return LPAREN;
+  }
+
+  if (character == ')') {
+    return RPAREN;
+  }
+
   return SKIP;
 }
 
@@ -52,6 +60,10 @@ std::string tokenTypeToString(TokenTypes TokenType) {
     return "DIVIDE";
   case SKIP:
     return "SKIP";
+  case LPAREN:
+    return "LPAREN";
+  case RPAREN:
+    return "RPAREN";
   case END:
     return "END";
   }

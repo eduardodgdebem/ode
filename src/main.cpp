@@ -1,9 +1,25 @@
 #include <cctype>
 #include <memory>
+#include <print>
 
 #include "include/Lexer.h"
 #include "include/Parser.h"
 #include "include/Reader.h"
+#include "include/Token.h"
+
+void printTree(ASTNode *node, int depth) {
+  if (node == nullptr)
+    return;
+
+  for (int i = 0; i < depth; ++i) {
+    std::print("  ");
+  }
+
+  std::println("value: {}", node->value.value);
+
+  printTree(node->left, depth + 1);
+  printTree(node->right, depth + 1);
+}
 
 int main(int argc, char *argv[]) {
   auto filePath = argc >= 1 ? argv[1] : "../../sla.txt";
@@ -16,4 +32,6 @@ int main(int argc, char *argv[]) {
 
   auto parser = std::make_unique<Parser>(tokens);
   auto root = parser->parse();
+
+  printTree(root, 0);
 }

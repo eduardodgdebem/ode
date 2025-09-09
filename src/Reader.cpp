@@ -13,7 +13,7 @@ void Reader::forEachLine(std::function<void(std::string)> callBack) {
 }
 
 std::string Reader::readAll() {
-  std::string fullText{};
+  std::string fullText;
 
   forEachLine([&fullText](auto line) { fullText += line; });
 
