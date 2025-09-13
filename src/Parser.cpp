@@ -133,7 +133,11 @@ ASTNode *Parser::parseFactor() {
     ASTNode *node = parseExpr();
     consumeToken();
     return node;
+  } else if (curr.type == IDENT) {
+    consumeToken();
+    return new ASTNode(FACTOR, curr);
   } else {
-    return nullptr;
+    printToken(&curr);
+    throw std::runtime_error("Expected number, identifier, or '('");
   }
 }
