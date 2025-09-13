@@ -1,6 +1,8 @@
 #include <cctype>
 #include <memory>
 #include <print>
+#include <stdexcept>
+#include <string>
 
 #include "include/Lexer.h"
 #include "include/Parser.h"
@@ -11,38 +13,23 @@ void printTree(ASTNode *node, int depth) {
   if (node == nullptr)
     return;
 
+  std::string padding = "";
   for (int i = 0; i < depth; ++i) {
-    std::print("  ");
+    padding += "  ";
   }
+  std::println("{}value: {}", padding, node->token.value);
+  std::println("{}type: {}", padding, tokenTypeToString(node->token.type));
 
-  std::println("value: {}", node->value.value);
-
-  printTree(node->left, depth + 1);
-  printTree(node->right, depth + 1);
-}
-
-float evaluate(ASTNode *node) {
-  if (!node->left && !node->right) {
-    return std::stoi(node->value.value);
+  for (auto c : node->children) {
+    printTree(c, depth + 1);
   }
-
-  float leftVal = evaluate(node->left);
-  float rightVal = evaluate(node->right);
-
-  if (node->value.type == PLUS)
-    return leftVal + rightVal;
-  if (node->value.type == MINUS)
-    return leftVal - rightVal;
-  if (node->value.type == MULTIPLY)
-    return leftVal * rightVal;
-  if (node->value.type == DIVIDE)
-    return leftVal / rightVal;
-
-  throw std::runtime_error("Operador desconhecido");
 }
 
 int main(int argc, char *argv[]) {
-  auto filePath = argc >= 1 ? argv[1] : "../../sla.txt";
+  const char *filePath = argc >= 1 ? argv[1] : nullptr;
+  if (filePath == nullptr) {
+    throw std::runtime_error("No input file found");
+  }
 
   std::unique_ptr<Reader> reader = std::make_unique<Reader>(filePath);
   auto fileText = reader->readAll();
@@ -54,8 +41,4 @@ int main(int argc, char *argv[]) {
   auto root = parser->parse();
 
   printTree(root, 0);
-
-  float result = evaluate(root);
-
-  std::println("{}", result);
 }

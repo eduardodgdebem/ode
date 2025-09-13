@@ -2,16 +2,23 @@
 #include <string>
 
 enum TokenTypes {
+  LET,
+  IDENT,
+  IF,
+  ELSE,
+  FN,
+  WHILE,
+  EQUAL,
+  LPAREN,
+  RPAREN,
+  SEMICOLUMN,
   NUMBER,
-  STRING,
-  IDENTITY,
+  CHAR,
   PLUS,
   MINUS,
   MULTIPLY,
   DIVIDE,
   SKIP,
-  LPAREN,
-  RPAREN,
   END
 };
 
@@ -25,3 +32,4 @@ std::string tokenTypeToString(TokenTypes TokenType);
 void printToken(Token *token);
 
 TokenTypes getTokenTypeByChar(char character);
+TokenTypes getTokenTypeByString(std::string value);

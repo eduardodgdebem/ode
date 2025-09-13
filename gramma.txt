@@ -1,0 +1,16 @@
+Program     → Statement*
+Statement   → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ReturnStmt | ExprStmt
+VarDecl     → "let" IDENT "=" Expr ";"
+Assign      → IDENT "=" Expr ";"
+IfStmt      → "if" "(" Expr ")" Block ("else" Block)?
+WhileStmt   → "while" "(" Expr ")" Block
+FuncDecl    → "fn" IDENT "(" ParamList? ")" Block
+ParamList   → IDENT ("," IDENT)*
+ReturnStmt  → "return" Expr ";"
+ExprStmt    → Expr ";"
+
+Block       → "{" Statement* "}"
+
+Expr        → Term (("+" | "-") Term)*
+Term        → Factor (("*" | "/") Factor)*
+Factor      → NUMBER | IDENT | "(" Expr ")"
