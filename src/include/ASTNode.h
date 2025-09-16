@@ -3,7 +3,7 @@
 
 #include "Token.h"
 
-enum ASTType {
+enum class ASTType {
   Program,
   Statement,
   VarDecl,
@@ -20,7 +20,8 @@ enum ASTType {
   Factor
 };
 
-struct ASTNode {
+class ASTNode {
+public:
   ASTType type;
   Token token;
   std::vector<ASTNode *> children;

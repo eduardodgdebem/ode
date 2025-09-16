@@ -8,84 +8,88 @@
 
 constexpr std::string getAstTypeName(ASTType t) {
   switch (t) {
-  case Program:
+  case ASTType::Program:
     return "PROGRAM";
-  case Statement:
+  case ASTType::Statement:
     return "STATEMENT";
-  case VarDecl:
+  case ASTType::VarDecl:
     return "VARDECL";
-  case Assign:
+  case ASTType::Assign:
     return "ASSIGN";
-  case IfStmt:
+  case ASTType::IfStmt:
     return "IFSTMT";
-  case WhileStmt:
+  case ASTType::WhileStmt:
     return "WHILESTMT";
-  case FuncDecl:
+  case ASTType::FuncDecl:
     return "FUNCDECL";
-  case ParamList:
+  case ASTType::ParamList:
     return "PARAMLIST";
-  case ReturnStmt:
+  case ASTType::ReturnStmt:
     return "RETURNSTMT";
-  case ExprStmt:
+  case ASTType::ExprStmt:
     return "EXPRSTMT";
-  case Block:
+  case ASTType::Block:
     return "BLOCK";
-  case Expr:
+  case ASTType::Expr:
     return "EXPR";
-  case Term:
+  case ASTType::Term:
     return "TERM";
-  case Factor:
+  case ASTType::Factor:
     return "FACTOR";
   }
   return "UNKNOWN";
 }
 
-constexpr std::string getTokenTypeName(TokenTypes TokenType) {
+constexpr std::string getTokenTypeName(TokenType TokenType) {
   switch (TokenType) {
-  case Number:
+  case TokenType::Number:
     return "NUMBER";
-  case Char:
+  case TokenType::Char:
     return "CHAR";
-  case Ident:
+  case TokenType::Ident:
     return "IDENTITY";
-  case Plus:
+  case TokenType::Plus:
     return "PLUS";
-  case Minus:
+  case TokenType::Minus:
     return "MINUS";
-  case Multiply:
+  case TokenType::Multiply:
     return "MULTIPLY";
-  case Divide:
+  case TokenType::Divide:
     return "DIVIDE";
-  case Skip:
+  case TokenType::Skip:
     return "SKIP";
-  case LParen:
+  case TokenType::LParen:
     return "LPAREN";
-  case RParen:
+  case TokenType::RParen:
     return "RPAREN";
-  case LBraket:
+  case TokenType::LBraket:
     return "LBRAKET";
-  case RBraket:
+  case TokenType::RBraket:
     return "RBRAKET";
-  case End:
+  case TokenType::End:
     return "END";
-  case Let:
+  case TokenType::Let:
     return "LET";
-  case If:
+  case TokenType::If:
     return "IF";
-  case Else:
+  case TokenType::Else:
     return "ELSE";
-  case Fn:
+  case TokenType::Fn:
     return "FN";
-  case While:
+  case TokenType::While:
     return "WHILE";
-  case Equal:
+  case TokenType::Equal:
     return "EQUAL";
-  case Semicolumn:
+  case TokenType::Semicolumn:
     return "SEMICOLUMN";
-  case DoubleQuotes:
+  case TokenType::DoubleQuotes:
     return "DOUBLEQUOTES";
-  case EqualOp:
+  case TokenType::EqualOp:
     return "EQUALOP";
+  case TokenType::False:
+    return "FALSE";
+  case TokenType::True:
+    return "TRUE";
   }
 
   return "";

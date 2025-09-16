@@ -8,7 +8,7 @@ ASTNode *Parser::parse() { return parseProgram(); }
 
 Token Parser::currentToken() {
   if (pos >= tokens.size()) {
-    return Token{End, ""};
+    return Token{TokenType::End, ""};
   }
   return tokens.at(pos);
 }
@@ -20,9 +20,9 @@ void Parser::consumeToken() {
 }
 
 ASTNode *Parser::parseProgram() {
-  ASTNode *program = new ASTNode(Program);
+  ASTNode *program = new ASTNode(ASTType::Program);
 
-  while (currentToken().type != End) {
+  while (currentToken().type != TokenType::End) {
     ASTNode *stm = parseStatement();
     if (stm)
       program->addChild(stm);
@@ -32,20 +32,21 @@ ASTNode *Parser::parseProgram() {
 }
 
 ASTNode *Parser::parseBlock() {
-  if (currentToken().type != LBraket) {
+  if (currentToken().type != TokenType::LBraket) {
     std::runtime_error("Block should initialize with {");
   }
 
   consumeToken();
 
-  ASTNode *newNode = new ASTNode(Block);
-  while (currentToken().type != RBraket && currentToken().type != End) {
+  ASTNode *newNode = new ASTNode(ASTType::Block);
+  while (currentToken().type != TokenType::RBraket &&
+         currentToken().type != TokenType::End) {
 
     ASTNode *statement = parseStatement();
     newNode->addChild(statement);
   }
 
-  if (currentToken().type != RBraket) {
+  if (currentToken().type != TokenType::RBraket) {
     std::runtime_error("Block should end with }");
   }
 
@@ -55,15 +56,15 @@ ASTNode *Parser::parseBlock() {
 }
 
 ASTNode *Parser::parseIfStmnt() {
-  if (currentToken().type != If) {
+  if (currentToken().type != TokenType::If) {
     throw std::runtime_error("If should start with If");
   }
 
-  ASTNode *newNode = new ASTNode(IfStmt, currentToken());
+  ASTNode *newNode = new ASTNode(ASTType::IfStmt, currentToken());
 
   consumeToken();
 
-  if (currentToken().type != LParen) {
+  if (currentToken().type != TokenType::LParen) {
     throw std::runtime_error("Missing expr");
   }
 
@@ -90,13 +91,13 @@ ASTNode *Parser::parseStatement() {
   Token token = currentToken();
 
   switch (token.type) {
-  case Let:
+  case TokenType::Let:
     return parseVarDecl();
-  case Ident:
+  case TokenType::Ident:
     return parseAssign();
-  case LBraket:
+  case TokenType::LBraket:
     return parseBlock();
-  case If:
+  case TokenType::If:
     return parseIfStmnt();
   default:
     return parseExprStm();
@@ -104,7 +105,7 @@ ASTNode *Parser::parseStatement() {
 }
 
 ASTNode *Parser::parseVarDecl() {
-  if (currentToken().type != Let) {
+  if (currentToken().type != TokenType::Let) {
     throw std::runtime_error("Assign should start with LET");
   }
 
@@ -114,19 +115,20 @@ ASTNode *Parser::parseVarDecl() {
 }
 
 ASTNode *Parser::parseAssign(bool isVarDecl) {
-  if (currentToken().type != Ident) {
+  if (currentToken().type != TokenType::Ident) {
     throw std::runtime_error("After LET should be an IDENT");
   }
   Token ident = currentToken();
   consumeToken();
 
-  if (currentToken().type != Equal) {
+  if (currentToken().type != TokenType::Equal) {
     throw std::runtime_error("Expected a =");
   }
   consumeToken();
 
   ASTNode *expr = parseExpr();
-  ASTNode *assignNode = new ASTNode(isVarDecl ? VarDecl : Assign, ident);
+  ASTNode *assignNode =
+      new ASTNode(isVarDecl ? ASTType::VarDecl : ASTType::Assign, ident);
   assignNode->addChild(expr);
 
   consumeToken();
@@ -140,12 +142,12 @@ ASTNode *Parser::parseExprStm() {
     throw std::runtime_error("Expected expression before ;");
   }
 
-  if (currentToken().type != Semicolumn) {
+  if (currentToken().type != TokenType::Semicolumn) {
     throw std::runtime_error("Expected ; after expression");
   }
   consumeToken();
 
-  ASTNode *exprStmt = new ASTNode(ExprStmt);
+  ASTNode *exprStmt = new ASTNode(ASTType::ExprStmt);
   exprStmt->addChild(expr);
   return exprStmt;
 }
@@ -153,14 +155,15 @@ ASTNode *Parser::parseExprStm() {
 ASTNode *Parser::parseExpr() {
   ASTNode *node = parseTerm();
 
-  while (currentToken().type == Plus || currentToken().type == Minus) {
+  while (currentToken().type == TokenType::Plus ||
+         currentToken().type == TokenType::Minus) {
     Token op = currentToken();
     consumeToken();
     ASTNode *right = parseTerm();
     if (!right)
       throw std::runtime_error("Expected term after operator");
 
-    ASTNode *newNode = new ASTNode(Expr, op);
+    ASTNode *newNode = new ASTNode(ASTType::Expr, op);
     newNode->addChild(node);
     newNode->addChild(right);
 
@@ -173,14 +176,15 @@ ASTNode *Parser::parseExpr() {
 ASTNode *Parser::parseTerm() {
   ASTNode *node = parseFactor();
 
-  while (currentToken().type == Multiply || currentToken().type == Divide) {
+  while (currentToken().type == TokenType::Multiply ||
+         currentToken().type == TokenType::Divide) {
     Token op = currentToken();
     consumeToken();
     ASTNode *right = parseFactor();
     if (!right)
       throw std::runtime_error("Expected factor after operator");
 
-    ASTNode *newNode = new ASTNode(Term, op);
+    ASTNode *newNode = new ASTNode(ASTType::Term, op);
     newNode->addChild(node);
     newNode->addChild(right);
 
@@ -192,17 +196,17 @@ ASTNode *Parser::parseTerm() {
 
 ASTNode *Parser::parseFactor() {
   auto curr = currentToken();
-  if (curr.type == Number) {
+  if (curr.type == TokenType::Number) {
     consumeToken();
-    return new ASTNode(Factor, curr);
-  } else if (curr.type == LParen) {
+    return new ASTNode(ASTType::Factor, curr);
+  } else if (curr.type == TokenType::LParen) {
     consumeToken();
     ASTNode *node = parseExpr();
     consumeToken();
     return node;
-  } else if (curr.type == Ident) {
+  } else if (curr.type == TokenType::Ident) {
     consumeToken();
-    return new ASTNode(Factor, curr);
+    return new ASTNode(ASTType::Factor, curr);
   } else {
     throw std::runtime_error("Expected number, identifier, or '('");
   }

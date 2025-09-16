@@ -1,105 +1,76 @@
+#include "include/Token.h"
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <unordered_map>
 
-#include "include/Token.h"
-
+namespace {
 bool is_digits(const std::string &str) {
-  return std::all_of(str.begin(), str.end(), ::isdigit);
+  return !str.empty() && std::all_of(str.begin(), str.end(), ::isdigit);
 }
+} // namespace
 
-TokenTypes getTokenTypeByChar(char character) {
+TokenType getTokenTypeByChar(char character) {
   if (std::isalpha(character)) {
-    return Ident;
+    return TokenType::Ident;
   }
-
   if (std::isspace(character)) {
-    return Skip;
+    return TokenType::Skip;
   }
-
   if (std::isdigit(character)) {
-    return Number;
+    return TokenType::Number;
   }
 
-  if (character == '+') {
-    return Plus;
+  switch (character) {
+  case '+':
+    return TokenType::Plus;
+  case '-':
+    return TokenType::Minus;
+  case '*':
+    return TokenType::Multiply;
+  case '/':
+    return TokenType::Divide;
+  case '(':
+    return TokenType::LParen;
+  case ')':
+    return TokenType::RParen;
+  case '=':
+    return TokenType::Equal;
+  case ';':
+    return TokenType::Semicolumn;
+  case '"':
+    return TokenType::DoubleQuotes;
+  case '{':
+    return TokenType::LBraket;
+  case '}':
+    return TokenType::RBraket;
+  case '>':
+    return TokenType::GreaterOp;
+  default:
+    return TokenType::Skip;
   }
-
-  if (character == '-') {
-    return Minus;
-  }
-
-  if (character == '*') {
-    return Multiply;
-  }
-
-  if (character == '/') {
-    return Divide;
-  }
-
-  if (character == '(') {
-    return LParen;
-  }
-
-  if (character == ')') {
-    return RParen;
-  }
-
-  if (character == '=') {
-    return Equal;
-  }
-
-  if (character == ';') {
-    return Semicolumn;
-  }
-
-  if (character == '"') {
-    return DoubleQuotes;
-  }
-
-  if (character == '{') {
-    return LBraket;
-  }
-
-  if (character == '}') {
-    return RBraket;
-  }
-
-  if (character == '>') {
-    return GreaterOp;
-  }
-
-  return Skip;
 }
 
-TokenTypes getTokenTypeByString(std::string value) {
+TokenType getTokenTypeByString(std::string value) {
   if (value.size() == 1) {
     return getTokenTypeByChar(value.at(0));
   }
 
-  if (value == "let") {
-    return Let;
-  }
+  static const std::unordered_map<std::string, TokenType> keywordMap = {
+      {"let", TokenType::Let},     {"while", TokenType::While},
+      {"fn", TokenType::Fn},       {"if", TokenType::If},
+      {"false", TokenType::False}, {"==", TokenType::EqualOp},
+      {"true", TokenType::True},   {"<=", TokenType::True},
+      {"||", TokenType::False},    {">=", TokenType::True},
+  };
 
-  if (value == "while") {
-    return While;
-  }
-
-  if (value == "fn") {
-    return Fn;
-  }
-
-  if (value == "if") {
-    return If;
-  }
-
-  if (value == "==") {
-    return EqualOp;
+  if (auto it = keywordMap.find(value); it != keywordMap.end()) {
+    return it->second;
   }
 
   if (is_digits(value)) {
-    return Number;
+    return TokenType::Number;
   }
 
-  return Ident;
+  return TokenType::Ident;
 }

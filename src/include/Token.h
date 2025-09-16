@@ -1,12 +1,14 @@
 #pragma once
 #include <string>
 
-enum TokenTypes {
+enum class TokenType {
   None,
   Let,
   Ident,
   If,
   Else,
+  True,
+  False,
   Fn,
   While,
   Equal,
@@ -30,9 +32,9 @@ enum TokenTypes {
 };
 
 struct Token {
-  TokenTypes type;
+  TokenType type;
   std::string value;
 };
 
-TokenTypes getTokenTypeByChar(char character);
-TokenTypes getTokenTypeByString(std::string value);
+TokenType getTokenTypeByChar(char character);
+TokenType getTokenTypeByString(std::string value);
