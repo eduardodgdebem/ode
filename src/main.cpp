@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "include/Helper.h"
 #include "include/Lexer.h"
 #include "include/Parser.h"
 #include "include/Reader.h"
@@ -17,8 +18,11 @@ void printTree(ASTNode *node, int depth) {
   for (int i = 0; i < depth; ++i) {
     padding += "  ";
   }
+
+  std::println("");
+  std::println("{}AST type: {}", padding, getAstTypeName(node->type));
   std::println("{}value: {}", padding, node->token.value);
-  std::println("{}type: {}", padding, tokenTypeToString(node->token.type));
+  std::println("{}type: {}", padding, getTokenTypeName(node->token.type));
 
   for (auto c : node->children) {
     printTree(c, depth + 1);

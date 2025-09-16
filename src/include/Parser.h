@@ -1,37 +1,8 @@
 #pragma once
 #include <vector>
 
+#include "ASTNode.h"
 #include "Token.h"
-
-enum ASTType {
-  PROGRAM,
-  STATEMENT,
-  VARDECL,
-  ASSIGN,
-  IFSTMT,
-  WHILESTMT,
-  FUNCDECL,
-  PARAMLIST,
-  RETURNSTMT,
-  EXPRSTMT,
-  BLOCK,
-  EXPR,
-  TERM,
-  FACTOR
-};
-
-struct ASTNode {
-  ASTType type;
-  Token token;
-  std::vector<ASTNode *> children;
-
-  ASTNode(ASTType t, Token tok = Token()) : type(t), token(tok) {}
-
-  void addChild(ASTNode *child) {
-    if (child)
-      children.push_back(child);
-  }
-};
 
 class Parser {
 private:
@@ -44,6 +15,7 @@ private:
   ASTNode *parseTerm();
   ASTNode *parseFactor();
   ASTNode *parseVarDecl();
+  ASTNode *parseAssign();
   ASTNode *parseExprStm();
 
   Token currentToken();

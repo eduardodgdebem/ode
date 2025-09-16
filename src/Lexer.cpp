@@ -4,15 +4,15 @@
 #include <vector>
 
 bool Lexer::getNextToken(Token *token) {
-  TokenTypes currTokenType = SKIP;
-  TokenTypes prevTokenType = SKIP;
+  TokenTypes currTokenType = Skip;
+  TokenTypes prevTokenType = Skip;
   std::string value;
 
   while (pos <= _src.length()) {
     auto currValue = _src[pos++];
     currTokenType = getTokenTypeByChar(currValue);
 
-    if (currTokenType == SKIP) {
+    if (currTokenType == Skip) {
       if (!value.empty()) {
         token->type = getTokenTypeByString(value);
         token->value = value;
@@ -32,7 +32,7 @@ bool Lexer::getNextToken(Token *token) {
     prevTokenType = currTokenType;
   }
 
-  token->type = END;
+  token->type = End;
   token->value = "";
   return false;
 }

@@ -11,126 +11,75 @@ bool is_digits(const std::string &str) {
 
 TokenTypes getTokenTypeByChar(char character) {
   if (std::isspace(character)) {
-    return SKIP;
+    return Skip;
   }
 
   if (std::isalpha(character)) {
-    return CHAR;
+    return Char;
   }
 
   if (std::isdigit(character)) {
-    return NUMBER;
+    return Number;
   }
 
   if (character == '+') {
-    return PLUS;
+    return Plus;
   }
 
   if (character == '-') {
-    return MINUS;
+    return Minus;
   }
 
   if (character == '*') {
-    return MULTIPLY;
+    return Multiply;
   }
 
   if (character == '/') {
-    return DIVIDE;
+    return Divide;
   }
 
   if (character == '(') {
-    return LPAREN;
+    return Lparen;
   }
 
   if (character == ')') {
-    return RPAREN;
+    return Rparen;
   }
 
   if (character == '=') {
-    return EQUAL;
+    return Equal;
   }
 
   if (character == ';') {
-    return SEMICOLUMN;
+    return Semicolumn;
   }
 
-  return SKIP;
+  return Skip;
 }
-
-std::string tokenTypeToString(TokenTypes TokenType) {
-  switch (TokenType) {
-  case NUMBER:
-    return "NUMBER";
-  case CHAR:
-    return "CHAR";
-  case IDENT:
-    return "IDENTITY";
-  case PLUS:
-    return "PLUS";
-  case MINUS:
-    return "MINUS";
-  case MULTIPLY:
-    return "MULTIPLY";
-  case DIVIDE:
-    return "DIVIDE";
-  case SKIP:
-    return "SKIP";
-  case LPAREN:
-    return "LPAREN";
-  case RPAREN:
-    return "RPAREN";
-  case END:
-    return "END";
-  case LET:
-    return "LET";
-  case IF:
-    return "IF";
-  case ELSE:
-    return "ELSE";
-  case FN:
-    return "FN";
-  case WHILE:
-    return "WHILE";
-  case EQUAL:
-    return "EQUAL";
-  case SEMICOLUMN:
-    return "SEMICOLUMN";
-  }
-
-  return "";
-}
-
 TokenTypes getTokenTypeByString(std::string value) {
   if (value.size() == 1) {
     return getTokenTypeByChar(value.at(0));
   }
 
   if (value == "let") {
-    return LET;
+    return Let;
   }
 
   if (value == "while") {
-    return WHILE;
+    return While;
   }
 
   if (value == "fn") {
-    return FN;
+    return Fn;
   }
 
   if (value == "if") {
-    return ELSE;
+    return Else;
   }
 
   if (is_digits(value)) {
-    return NUMBER;
+    return Number;
   }
 
-  return IDENT;
-}
-
-void printToken(Token *token) {
-  std::println("{}", '{');
-  std::println("  type: {}", tokenTypeToString(token->type));
-  std::println("  value: {}", token->value);
-  std::println("{}", '}');
+  return Ident;
 }
