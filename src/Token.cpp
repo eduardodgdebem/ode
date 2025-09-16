@@ -65,6 +65,10 @@ TokenTypes getTokenTypeByChar(char character) {
     return RBraket;
   }
 
+  if (character == '>') {
+    return GreaterOp;
+  }
+
   return Skip;
 }
 
@@ -86,7 +90,11 @@ TokenTypes getTokenTypeByString(std::string value) {
   }
 
   if (value == "if") {
-    return Else;
+    return If;
+  }
+
+  if (value == "==") {
+    return EqualOp;
   }
 
   if (is_digits(value)) {

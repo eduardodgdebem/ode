@@ -1,0 +1,5 @@
+let num = 0;
+
+if (num) {
+  num = 9;
+}

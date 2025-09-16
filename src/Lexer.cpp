@@ -42,7 +42,7 @@ std::vector<Token> Lexer::tokenize() {
   Token currToken;
 
   while (getNextToken(&currToken)) {
-    // printToken(&currToken);
+    printToken(&currToken);
     list.push_back(currToken);
   }
   list.push_back(currToken);

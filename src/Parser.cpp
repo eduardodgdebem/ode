@@ -1,4 +1,3 @@
-#include <print>
 #include <stdexcept>
 
 #include "include/ASTNode.h"
@@ -18,7 +17,7 @@ void Parser::consumeToken() {
   if (pos < tokens.size()) {
     pos++;
   }
-};
+}
 
 ASTNode *Parser::parseProgram() {
   ASTNode *program = new ASTNode(Program);
@@ -55,16 +54,51 @@ ASTNode *Parser::parseBlock() {
   return newNode;
 }
 
+ASTNode *Parser::parseIfStmnt() {
+  if (currentToken().type != If) {
+    throw std::runtime_error("If should start with If");
+  }
+
+  ASTNode *newNode = new ASTNode(IfStmt, currentToken());
+
+  consumeToken();
+
+  if (currentToken().type != LParen) {
+    throw std::runtime_error("Missing expr");
+  }
+
+  ASTNode *expr = parseExpr();
+
+  if (expr == nullptr) {
+    throw std::runtime_error("There should be a expresion for a If");
+  }
+
+  newNode->addChild(expr);
+
+  ASTNode *block = parseBlock();
+
+  if (block == nullptr) {
+    throw std::runtime_error("There should be a block for the if");
+  }
+
+  newNode->addChild(block);
+
+  return newNode;
+}
+
 ASTNode *Parser::parseStatement() {
   Token token = currentToken();
 
-  if (token.type == Let) {
+  switch (token.type) {
+  case Let:
     return parseVarDecl();
-  } else if (token.type == Ident) {
+  case Ident:
     return parseAssign();
-  } else if (token.type == LBraket) {
+  case LBraket:
     return parseBlock();
-  } else {
+  case If:
+    return parseIfStmnt();
+  default:
     return parseExprStm();
   }
 }

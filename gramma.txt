@@ -9,8 +9,13 @@
 [ ] ReturnStmt  → "return" Expr ";"
 [X] ExprStmt    → Expr ";"
 
-[] Block       → "{" Statement* "}"
+[X] Block       → "{" Statement* "}"
 
-[X] Expr        → Term (("+" | "-") Term)*
-[X] Term        → Factor (("*" | "/") Factor)*
-[X] Factor      → NUMBER | IDENT | "(" Expr ")"
+[ ] Expr        → LogicOr
+[ ] LogicOr     → LogicAnd ( "||" LogicAnd )*
+[ ] LogicAnd    → Equality ( "&&" Equality )*
+[ ] Equality    → Comparison ( ("==" | "!=") Comparison )*
+[ ] Comparison  → Term ( ("<" | "<=" | ">" | ">=") Term )*
+[ ] Term        → Factor ( ("+" | "-") Factor )*
+[ ] Factor      → Primary ( ("*" | "/") Primary )*
+[ ] Primary     → NUMBER | IDENT | "true" | "false" | "(" Expr ")"

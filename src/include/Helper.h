@@ -84,6 +84,8 @@ constexpr std::string getTokenTypeName(TokenTypes TokenType) {
     return "SEMICOLUMN";
   case DoubleQuotes:
     return "DOUBLEQUOTES";
+  case EqualOp:
+    return "EQUALOP";
   }
 
   return "";

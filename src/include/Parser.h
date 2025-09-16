@@ -12,6 +12,7 @@ private:
   ASTNode *parseProgram();
   ASTNode *parseStatement();
   ASTNode *parseBlock();
+  ASTNode *parseIfStmnt();
   ASTNode *parseExpr();
   ASTNode *parseTerm();
   ASTNode *parseFactor();
