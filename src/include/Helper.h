@@ -39,7 +39,7 @@ constexpr std::string getAstTypeName(ASTType t) {
   return "UNKNOWN";
 }
 
-std::string getTokenTypeName(TokenTypes TokenType) {
+constexpr std::string getTokenTypeName(TokenTypes TokenType) {
   switch (TokenType) {
   case Number:
     return "NUMBER";
@@ -82,7 +82,7 @@ std::string getTokenTypeName(TokenTypes TokenType) {
   return "";
 }
 
-void printToken(Token *token) {
+constexpr void printToken(Token *token) {
   std::println("{}", '{');
   std::println("  type: {}", getTokenTypeName(token->type));
   std::println("  value: {}", token->value);

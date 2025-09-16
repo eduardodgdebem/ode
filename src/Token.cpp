@@ -13,10 +13,6 @@ TokenTypes getTokenTypeByChar(char character) {
     return Skip;
   }
 
-  if (std::isalpha(character)) {
-    return Char;
-  }
-
   if (std::isdigit(character)) {
     return Number;
   }
@@ -53,8 +49,13 @@ TokenTypes getTokenTypeByChar(char character) {
     return Semicolumn;
   }
 
-  return Skip;
+  if (character == '"') {
+    return DoubleQuotes;
+  }
+
+  return Ident;
 }
+
 TokenTypes getTokenTypeByString(std::string value) {
   if (value.size() == 1) {
     return getTokenTypeByChar(value.at(0));

@@ -1,2 +1,5 @@
 let num = 45;
 num = 46;
+
+let x = 1;
+(x * num);

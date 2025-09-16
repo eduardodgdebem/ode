@@ -2,6 +2,7 @@
 #include <string>
 
 enum TokenTypes {
+  None,
   Let,
   Ident,
   If,
@@ -12,6 +13,7 @@ enum TokenTypes {
   Lparen,
   Rparen,
   Semicolumn,
+  DoubleQuotes,
   Number,
   Char,
   Plus,

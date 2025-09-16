@@ -1,7 +1,8 @@
-#include "include/Parser.h"
-#include "include/ASTNode.h"
-#include "include/Token.h"
 #include <stdexcept>
+
+#include "include/ASTNode.h"
+#include "include/Parser.h"
+#include "include/Token.h"
 
 ASTNode *Parser::parse() { return parseProgram(); }
 
