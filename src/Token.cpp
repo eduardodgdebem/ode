@@ -9,6 +9,10 @@ bool is_digits(const std::string &str) {
 }
 
 TokenTypes getTokenTypeByChar(char character) {
+  if (std::isalpha(character)) {
+    return Ident;
+  }
+
   if (std::isspace(character)) {
     return Skip;
   }
@@ -34,11 +38,11 @@ TokenTypes getTokenTypeByChar(char character) {
   }
 
   if (character == '(') {
-    return Lparen;
+    return LParen;
   }
 
   if (character == ')') {
-    return Rparen;
+    return RParen;
   }
 
   if (character == '=') {
@@ -53,7 +57,15 @@ TokenTypes getTokenTypeByChar(char character) {
     return DoubleQuotes;
   }
 
-  return Ident;
+  if (character == '{') {
+    return LBraket;
+  }
+
+  if (character == '}') {
+    return RBraket;
+  }
+
+  return Skip;
 }
 
 TokenTypes getTokenTypeByString(std::string value) {

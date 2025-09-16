@@ -4,6 +4,7 @@
 #include <string>
 
 #include "ASTNode.h"
+#include "Token.h"
 
 constexpr std::string getAstTypeName(ASTType t) {
   switch (t) {
@@ -57,10 +58,14 @@ constexpr std::string getTokenTypeName(TokenTypes TokenType) {
     return "DIVIDE";
   case Skip:
     return "SKIP";
-  case Lparen:
+  case LParen:
     return "LPAREN";
-  case Rparen:
+  case RParen:
     return "RPAREN";
+  case LBraket:
+    return "LBRAKET";
+  case RBraket:
+    return "RBRAKET";
   case End:
     return "END";
   case Let:
@@ -77,6 +82,8 @@ constexpr std::string getTokenTypeName(TokenTypes TokenType) {
     return "EQUAL";
   case Semicolumn:
     return "SEMICOLUMN";
+  case DoubleQuotes:
+    return "DOUBLEQUOTES";
   }
 
   return "";

@@ -1,4 +1,5 @@
 #include "include/Lexer.h"
+#include "include/Helper.h"
 #include "include/Token.h"
 #include <vector>
 
@@ -41,6 +42,7 @@ std::vector<Token> Lexer::tokenize() {
   Token currToken;
 
   while (getNextToken(&currToken)) {
+    // printToken(&currToken);
     list.push_back(currToken);
   }
   list.push_back(currToken);

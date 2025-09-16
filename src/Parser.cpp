@@ -1,3 +1,4 @@
+#include <print>
 #include <stdexcept>
 
 #include "include/ASTNode.h"
@@ -31,6 +32,29 @@ ASTNode *Parser::parseProgram() {
   return program;
 }
 
+ASTNode *Parser::parseBlock() {
+  if (currentToken().type != LBraket) {
+    std::runtime_error("Block should initialize with {");
+  }
+
+  consumeToken();
+
+  ASTNode *newNode = new ASTNode(Block);
+  while (currentToken().type != RBraket && currentToken().type != End) {
+
+    ASTNode *statement = parseStatement();
+    newNode->addChild(statement);
+  }
+
+  if (currentToken().type != RBraket) {
+    std::runtime_error("Block should end with }");
+  }
+
+  consumeToken();
+
+  return newNode;
+}
+
 ASTNode *Parser::parseStatement() {
   Token token = currentToken();
 
@@ -38,6 +62,8 @@ ASTNode *Parser::parseStatement() {
     return parseVarDecl();
   } else if (token.type == Ident) {
     return parseAssign();
+  } else if (token.type == LBraket) {
+    return parseBlock();
   } else {
     return parseExprStm();
   }
@@ -47,6 +73,7 @@ ASTNode *Parser::parseVarDecl() {
   if (currentToken().type != Let) {
     throw std::runtime_error("Assign should start with LET");
   }
+
   consumeToken();
 
   return parseAssign(true);
@@ -134,7 +161,7 @@ ASTNode *Parser::parseFactor() {
   if (curr.type == Number) {
     consumeToken();
     return new ASTNode(Factor, curr);
-  } else if (curr.type == Lparen) {
+  } else if (curr.type == LParen) {
     consumeToken();
     ASTNode *node = parseExpr();
     consumeToken();
