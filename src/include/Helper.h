@@ -11,7 +11,7 @@ constexpr std::string getAstTypeName(ASTType t) {
     return "PROGRAM";
   case Statement:
     return "STATEMENT";
-  case Vardecl:
+  case VarDecl:
     return "VARDECL";
   case Assign:
     return "ASSIGN";

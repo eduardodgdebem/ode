@@ -1,4 +1,5 @@
 #include "include/Parser.h"
+#include "include/ASTNode.h"
 #include "include/Token.h"
 #include <stdexcept>
 
@@ -47,27 +48,10 @@ ASTNode *Parser::parseVarDecl() {
   }
   consumeToken();
 
-  if (currentToken().type != Ident) {
-    throw std::runtime_error("After LET should be an IDENT");
-  }
-  Token ident = currentToken();
-  consumeToken();
-
-  if (currentToken().type != Equal) {
-    throw std::runtime_error("Expected a =");
-  }
-  consumeToken();
-
-  ASTNode *expr = parseExpr();
-
-  ASTNode *assignNode = new ASTNode(Vardecl, ident);
-  assignNode->addChild(expr);
-
-  consumeToken();
-  return assignNode;
+  return parseAssign(true);
 }
 
-ASTNode *Parser::parseAssign() {
+ASTNode *Parser::parseAssign(bool isVarDecl) {
   if (currentToken().type != Ident) {
     throw std::runtime_error("After LET should be an IDENT");
   }
@@ -80,8 +64,7 @@ ASTNode *Parser::parseAssign() {
   consumeToken();
 
   ASTNode *expr = parseExpr();
-
-  ASTNode *assignNode = new ASTNode(Assign, ident);
+  ASTNode *assignNode = new ASTNode(isVarDecl ? VarDecl : Assign, ident);
   assignNode->addChild(expr);
 
   consumeToken();

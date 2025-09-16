@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cctype>
-#include <print>
 #include <string>
 
 #include "include/Token.h"

@@ -15,7 +15,7 @@ private:
   ASTNode *parseTerm();
   ASTNode *parseFactor();
   ASTNode *parseVarDecl();
-  ASTNode *parseAssign();
+  ASTNode *parseAssign(bool isVarDecl = false);
   ASTNode *parseExprStm();
 
   Token currentToken();

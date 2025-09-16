@@ -1,6 +1,5 @@
 #include "include/Lexer.h"
 #include "include/Token.h"
-#include <print>
 #include <vector>
 
 bool Lexer::getNextToken(Token *token) {

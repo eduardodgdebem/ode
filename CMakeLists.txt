@@ -9,5 +9,5 @@ include_directories(include)
 
 file(GLOB SOURCES src/*.cpp)
 
-add_executable(my-compiler ${SOURCES})
+add_executable(ode ${SOURCES})
 

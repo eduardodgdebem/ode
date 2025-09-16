@@ -6,7 +6,7 @@
 enum ASTType {
   Program,
   Statement,
-  Vardecl,
+  VarDecl,
   Assign,
   IfStmt,
   WhileStmt,
