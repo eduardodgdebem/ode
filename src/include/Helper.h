@@ -30,18 +30,30 @@ constexpr std::string getAstTypeName(ASTType t) {
     return "EXPRSTMT";
   case ASTType::Block:
     return "BLOCK";
-  case ASTType::Expr:
-    return "EXPR";
   case ASTType::Term:
     return "TERM";
   case ASTType::Factor:
     return "FACTOR";
+  case ASTType::Primary:
+    return "PRIMARY";
+  case ASTType::Expr:
+    return "EXPR";
+  case ASTType::LogicAnd:
+    return "LOGICAND";
+  case ASTType::LogicOr:
+    return "LogicOr";
+  case ASTType::Comparison:
+    return "COMPARISON";
+  case ASTType::Equality:
+    return "EQUALITY";
   }
   return "UNKNOWN";
 }
 
 constexpr std::string getTokenTypeName(TokenType TokenType) {
   switch (TokenType) {
+  case TokenType::None:
+    return "None";
   case TokenType::Number:
     return "NUMBER";
   case TokenType::Char:
@@ -90,6 +102,20 @@ constexpr std::string getTokenTypeName(TokenType TokenType) {
     return "FALSE";
   case TokenType::True:
     return "TRUE";
+  case TokenType::And:
+    return "AND";
+  case TokenType::Or:
+    return "OR";
+  case TokenType::GreaterEqualOp:
+    return "GREATEREQUALOP";
+  case TokenType::GreaterOp:
+    return "GREATEROP";
+  case TokenType::DiffOp:
+    return "DIFFOP";
+  case TokenType::LesserOp:
+    return "LESSEROP";
+  case TokenType::LesserEqualOp:
+    return "LESSEREQUALOP";
   }
 
   return "";

@@ -16,8 +16,13 @@ enum class ASTType {
   ExprStmt,
   Block,
   Expr,
+  LogicOr,
+  LogicAnd,
+  Equality,
+  Comparison,
   Term,
-  Factor
+  Factor,
+  Primary
 };
 
 class ASTNode {

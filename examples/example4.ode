@@ -1,0 +1,6 @@
+let num = 3;
+let sla = num < 4;
+
+if(sla) {
+num = num * 2;
+  }

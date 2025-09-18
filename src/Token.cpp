@@ -13,11 +13,9 @@ bool is_digits(const std::string &str) {
 TokenType getTokenTypeByChar(char character) {
   if (std::isalpha(character)) {
     return TokenType::Ident;
-  }
-  if (std::isspace(character)) {
+  } else if (std::isspace(character)) {
     return TokenType::Skip;
-  }
-  if (std::isdigit(character)) {
+  } else if (std::isdigit(character)) {
     return TokenType::Number;
   }
 
@@ -46,6 +44,8 @@ TokenType getTokenTypeByChar(char character) {
     return TokenType::RBraket;
   case '>':
     return TokenType::GreaterOp;
+  case '<':
+    return TokenType::LesserOp;
   default:
     return TokenType::Skip;
   }
@@ -57,11 +57,18 @@ TokenType getTokenTypeByString(std::string value) {
   }
 
   static const std::unordered_map<std::string, TokenType> keywordMap = {
-      {"let", TokenType::Let},     {"while", TokenType::While},
-      {"fn", TokenType::Fn},       {"if", TokenType::If},
-      {"false", TokenType::False}, {"==", TokenType::EqualOp},
-      {"true", TokenType::True},   {"<=", TokenType::True},
-      {"||", TokenType::False},    {">=", TokenType::True},
+      {"let", TokenType::Let},
+      {"while", TokenType::While},
+      {"fn", TokenType::Fn},
+      {"if", TokenType::If},
+      {"true", TokenType::True},
+      {"false", TokenType::False},
+      {"==", TokenType::EqualOp},
+      {"!=", TokenType::DiffOp},
+      {"||", TokenType::Or},
+      {"&&", TokenType::And},
+      {"<=", TokenType::LesserEqualOp},
+      {">=", TokenType::GreaterEqualOp},
   };
 
   if (auto it = keywordMap.find(value); it != keywordMap.end()) {

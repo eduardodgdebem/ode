@@ -1,6 +1,9 @@
+#include <ios>
+#include <print>
 #include <stdexcept>
 
 #include "include/ASTNode.h"
+#include "include/Helper.h"
 #include "include/Parser.h"
 #include "include/Token.h"
 
@@ -41,7 +44,6 @@ ASTNode *Parser::parseBlock() {
   ASTNode *newNode = new ASTNode(ASTType::Block);
   while (currentToken().type != TokenType::RBraket &&
          currentToken().type != TokenType::End) {
-
     ASTNode *statement = parseStatement();
     newNode->addChild(statement);
   }
@@ -56,6 +58,7 @@ ASTNode *Parser::parseBlock() {
 }
 
 ASTNode *Parser::parseIfStmnt() {
+  std::println("OPA");
   if (currentToken().type != TokenType::If) {
     throw std::runtime_error("If should start with If");
   }
@@ -88,9 +91,7 @@ ASTNode *Parser::parseIfStmnt() {
 }
 
 ASTNode *Parser::parseStatement() {
-  Token token = currentToken();
-
-  switch (token.type) {
+  switch (currentToken().type) {
   case TokenType::Let:
     return parseVarDecl();
   case TokenType::Ident:
@@ -132,6 +133,7 @@ ASTNode *Parser::parseAssign(bool isVarDecl) {
   assignNode->addChild(expr);
 
   consumeToken();
+
   return assignNode;
 }
 
@@ -141,6 +143,8 @@ ASTNode *Parser::parseExprStm() {
   if (!expr) {
     throw std::runtime_error("Expected expression before ;");
   }
+
+  auto curr = currentToken();
 
   if (currentToken().type != TokenType::Semicolumn) {
     throw std::runtime_error("Expected ; after expression");
@@ -153,17 +157,91 @@ ASTNode *Parser::parseExprStm() {
 }
 
 ASTNode *Parser::parseExpr() {
-  ASTNode *node = parseTerm();
+  ASTNode *node = parseLogicOr();
+  if (!node) {
+    throw std::runtime_error("Invalid expression");
+  }
+  ASTNode *exprNode = new ASTNode(ASTType::Expr);
+  exprNode->addChild(node);
+  return exprNode;
+}
 
-  while (currentToken().type == TokenType::Plus ||
-         currentToken().type == TokenType::Minus) {
+ASTNode *Parser::parseLogicOr() {
+  ASTNode *node = parseLogicAnd();
+
+  while (currentToken().type == TokenType::Or) {
     Token op = currentToken();
     consumeToken();
+    ASTNode *right = parseLogicAnd();
+    if (!right)
+      throw std::runtime_error("Expected expression after ||");
+
+    ASTNode *newNode = new ASTNode(ASTType::LogicOr, op);
+    newNode->addChild(node);
+    newNode->addChild(right);
+
+    node = newNode;
+  }
+
+  return node;
+}
+
+ASTNode *Parser::parseLogicAnd() {
+  ASTNode *node = parseEquality();
+
+  while (currentToken().type == TokenType::And) {
+    Token op = currentToken();
+    consumeToken();
+    ASTNode *right = parseEquality();
+    if (!right)
+      throw std::runtime_error("Expected expression after &&");
+
+    ASTNode *newNode = new ASTNode(ASTType::LogicAnd, op);
+    newNode->addChild(node);
+    newNode->addChild(right);
+
+    node = newNode;
+  }
+
+  return node;
+}
+
+ASTNode *Parser::parseEquality() {
+  ASTNode *node = parseComparison();
+
+  while (currentToken().type == TokenType::EqualOp ||
+         currentToken().type == TokenType::DiffOp) {
+    Token op = currentToken();
+    consumeToken();
+    ASTNode *right = parseComparison();
+    if (!right)
+      throw std::runtime_error("Expected expression after equality operator");
+
+    ASTNode *newNode = new ASTNode(ASTType::Equality, op);
+    newNode->addChild(node);
+    newNode->addChild(right);
+
+    node = newNode;
+  }
+
+  return node;
+}
+
+ASTNode *Parser::parseComparison() {
+  ASTNode *node = parseTerm();
+
+  while (currentToken().type == TokenType::GreaterOp ||
+         currentToken().type == TokenType::GreaterEqualOp ||
+         currentToken().type == TokenType::LesserOp ||
+         currentToken().type == TokenType::LesserEqualOp) {
+    Token op = currentToken();
+    consumeToken();
+
     ASTNode *right = parseTerm();
     if (!right)
-      throw std::runtime_error("Expected term after operator");
+      throw std::runtime_error("Expected factor after operator");
 
-    ASTNode *newNode = new ASTNode(ASTType::Expr, op);
+    ASTNode *newNode = new ASTNode(ASTType::Comparison, op);
     newNode->addChild(node);
     newNode->addChild(right);
 
@@ -176,8 +254,8 @@ ASTNode *Parser::parseExpr() {
 ASTNode *Parser::parseTerm() {
   ASTNode *node = parseFactor();
 
-  while (currentToken().type == TokenType::Multiply ||
-         currentToken().type == TokenType::Divide) {
+  while (currentToken().type == TokenType::Plus ||
+         currentToken().type == TokenType::Minus) {
     Token op = currentToken();
     consumeToken();
     ASTNode *right = parseFactor();
@@ -195,19 +273,52 @@ ASTNode *Parser::parseTerm() {
 }
 
 ASTNode *Parser::parseFactor() {
-  auto curr = currentToken();
-  if (curr.type == TokenType::Number) {
+  ASTNode *node = parsePrimary();
+
+  while (currentToken().type == TokenType::Multiply ||
+         currentToken().type == TokenType::Divide) {
+    Token op = currentToken();
     consumeToken();
-    return new ASTNode(ASTType::Factor, curr);
-  } else if (curr.type == TokenType::LParen) {
+    ASTNode *right = parsePrimary();
+    if (!right)
+      throw std::runtime_error("Expected primary after operator");
+
+    ASTNode *newNode = new ASTNode(ASTType::Factor, op);
+    newNode->addChild(node);
+    newNode->addChild(right);
+
+    node = newNode;
+  }
+
+  return node;
+}
+
+ASTNode *Parser::parsePrimary() {
+  auto curr = currentToken();
+  switch (curr.type) {
+  case TokenType::Number: {
+    consumeToken();
+    return new ASTNode(ASTType::Primary, curr);
+  }
+  case TokenType::LParen: {
     consumeToken();
     ASTNode *node = parseExpr();
+    if (currentToken().type != TokenType::RParen) {
+      throw std::runtime_error("Expected ')' after expression");
+    }
     consumeToken();
     return node;
-  } else if (curr.type == TokenType::Ident) {
+  }
+  case TokenType::Ident: {
     consumeToken();
-    return new ASTNode(ASTType::Factor, curr);
-  } else {
-    throw std::runtime_error("Expected number, identifier, or '('");
+    return new ASTNode(ASTType::Primary, curr);
+  }
+  case TokenType::True: {
+    consumeToken();
+    return new ASTNode(ASTType::Primary, curr);
+  }
+  default:
+    throw std::runtime_error(
+        "Expected number, true, false, identifier, or '('");
   }
 }

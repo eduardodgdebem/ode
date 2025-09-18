@@ -2,7 +2,7 @@
 [O] Statement   → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ReturnStmt | ExprStmt
 [X] VarDecl     → "let" IDENT "=" Expr ";"
 [X] Assign      → IDENT "=" Expr ";"
-[ ] IfStmt      → "if" "(" Expr ")" Block ("else" Block)?
+[O] IfStmt      → "if" "(" Expr ")" Block ("else" Block)?
 [ ] WhileStmt   → "while" "(" Expr ")" Block
 [ ] FuncDecl    → "fn" IDENT "(" ParamList? ")" Block
 [ ] ParamList   → IDENT ("," IDENT)*
@@ -11,11 +11,11 @@
 
 [X] Block       → "{" Statement* "}"
 
-[ ] Expr        → LogicOr
-[ ] LogicOr     → LogicAnd ( "||" LogicAnd )*
-[ ] LogicAnd    → Equality ( "&&" Equality )*
-[ ] Equality    → Comparison ( ("==" | "!=") Comparison )*
-[ ] Comparison  → Term ( ("<" | "<=" | ">" | ">=") Term )*
-[ ] Term        → Factor ( ("+" | "-") Factor )*
-[ ] Factor      → Primary ( ("*" | "/") Primary )*
-[ ] Primary     → NUMBER | IDENT | "true" | "false" | "(" Expr ")"
+[X] Expr        → LogicOr
+[X] LogicOr     → LogicAnd ( "||" LogicAnd )*
+[X] LogicAnd    → Equality ( "&&" Equality )*
+[X] Equality    → Comparison ( ("==" | "!=") Comparison )*
+[X] Comparison  → Term ( ("<" | "<=" | ">" | ">=") Term )*
+[X] Term        → Factor ( ("+" | "-") Factor )*
+[X] Factor      → Primary ( ("*" | "/") Primary )*
+[X] Primary     → NUMBER | IDENT | "true" | "false" | "(" Expr ")"

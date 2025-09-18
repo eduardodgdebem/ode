@@ -13,12 +13,17 @@ private:
   ASTNode *parseStatement();
   ASTNode *parseBlock();
   ASTNode *parseIfStmnt();
-  ASTNode *parseExpr();
-  ASTNode *parseTerm();
-  ASTNode *parseFactor();
   ASTNode *parseVarDecl();
   ASTNode *parseAssign(bool isVarDecl = false);
   ASTNode *parseExprStm();
+  ASTNode *parseExpr();
+  ASTNode *parseLogicOr();
+  ASTNode *parseLogicAnd();
+  ASTNode *parseEquality();
+  ASTNode *parseComparison();
+  ASTNode *parseTerm();
+  ASTNode *parseFactor();
+  ASTNode *parsePrimary();
 
   Token currentToken();
   void consumeToken();
