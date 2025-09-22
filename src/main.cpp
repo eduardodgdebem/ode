@@ -11,7 +11,7 @@
 #include "include/Reader.h"
 #include "include/Token.h"
 
-void printTree(ASTNode *node, int depth) {
+void printTree(std::unique_ptr<ASTNode> &node, int depth) {
   if (node == nullptr)
     return;
 
@@ -25,7 +25,7 @@ void printTree(ASTNode *node, int depth) {
   std::println("{}value: {}", padding, node->token.value);
   std::println("{}type: {}", padding, getTokenTypeName(node->token.type));
 
-  for (auto c : node->children) {
+  for (auto &c : node->children) {
     printTree(c, depth + 1);
   }
 }
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
   std::vector<Token> tokens = lexer->tokenize();
 
   std::unique_ptr<Parser> parser = std::make_unique<Parser>(tokens);
-  ASTNode *root = parser->parse();
+  std::unique_ptr<ASTNode> root = parser->parse();
 
   printTree(root, 0);
 }

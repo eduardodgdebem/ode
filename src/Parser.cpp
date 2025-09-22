@@ -1,3 +1,4 @@
+#include <memory>
 #include <print>
 #include <stdexcept>
 
@@ -6,7 +7,7 @@
 #include "include/Parser.h"
 #include "include/Token.h"
 
-ASTNode *Parser::parse() { return parseProgram(); }
+std::unique_ptr<ASTNode> Parser::parse() { return parseProgram(); }
 
 Token Parser::currentToken() {
   if (pos >= tokens.size()) {
@@ -21,30 +22,30 @@ void Parser::consumeToken() {
   }
 }
 
-ASTNode *Parser::parseProgram() {
-  ASTNode *program = new ASTNode(ASTType::Program);
+std::unique_ptr<ASTNode> Parser::parseProgram() {
+  auto program = std::make_unique<ASTNode>(ASTType::Program);
 
   while (currentToken().type != TokenType::End) {
-    ASTNode *stm = parseStatement();
+    auto stm = parseStatement();
     if (stm)
-      program->addChild(stm);
+      program->addChild(std::move(stm));
   }
 
   return program;
 }
 
-ASTNode *Parser::parseBlock() {
+std::unique_ptr<ASTNode> Parser::parseBlock() {
   if (currentToken().type != TokenType::LBraket) {
     std::runtime_error("Block should initialize with {");
   }
 
   consumeToken();
 
-  ASTNode *newNode = new ASTNode(ASTType::Block);
+  auto newNode = std::make_unique<ASTNode>(ASTType::Block);
   while (currentToken().type != TokenType::RBraket &&
          currentToken().type != TokenType::End) {
-    ASTNode *statement = parseStatement();
-    newNode->addChild(statement);
+    auto statement = parseStatement();
+    newNode->addChild(std::move(statement));
   }
 
   if (currentToken().type != TokenType::RBraket) {
@@ -56,13 +57,13 @@ ASTNode *Parser::parseBlock() {
   return newNode;
 }
 
-ASTNode *Parser::parseIfStmnt() {
+std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
   std::println("OPA");
   if (currentToken().type != TokenType::If) {
     throw std::runtime_error("If should start with If");
   }
 
-  ASTNode *newNode = new ASTNode(ASTType::IfStmt, currentToken());
+  auto newNode = std::make_unique<ASTNode>(ASTType::IfStmt, currentToken());
 
   consumeToken();
 
@@ -70,26 +71,26 @@ ASTNode *Parser::parseIfStmnt() {
     throw std::runtime_error("Missing expr");
   }
 
-  ASTNode *expr = parseExpr();
+  auto expr = parseExpr();
 
   if (expr == nullptr) {
     throw std::runtime_error("There should be a expresion for a If");
   }
 
-  newNode->addChild(expr);
+  newNode->addChild(std::move(expr));
 
-  ASTNode *block = parseBlock();
+  auto block = parseBlock();
 
   if (block == nullptr) {
     throw std::runtime_error("There should be a block for the if");
   }
 
-  newNode->addChild(block);
+  newNode->addChild(std::move(block));
 
   return newNode;
 }
 
-ASTNode *Parser::parseStatement() {
+std::unique_ptr<ASTNode> Parser::parseStatement() {
   switch (currentToken().type) {
   case TokenType::Let:
     return parseVarDecl();
@@ -104,7 +105,7 @@ ASTNode *Parser::parseStatement() {
   }
 }
 
-ASTNode *Parser::parseVarDecl() {
+std::unique_ptr<ASTNode> Parser::parseVarDecl() {
   if (currentToken().type != TokenType::Let) {
     throw std::runtime_error("Assign should start with LET");
   }
@@ -114,7 +115,7 @@ ASTNode *Parser::parseVarDecl() {
   return parseAssign(true);
 }
 
-ASTNode *Parser::parseAssign(bool isVarDecl) {
+std::unique_ptr<ASTNode> Parser::parseAssign(bool isVarDecl) {
   if (currentToken().type != TokenType::Ident) {
     throw std::runtime_error("After LET should be an IDENT");
   }
@@ -126,18 +127,18 @@ ASTNode *Parser::parseAssign(bool isVarDecl) {
   }
   consumeToken();
 
-  ASTNode *expr = parseExpr();
-  ASTNode *assignNode =
-      new ASTNode(isVarDecl ? ASTType::VarDecl : ASTType::Assign, ident);
-  assignNode->addChild(expr);
+  auto expr = parseExpr();
+  auto assignNode = std::make_unique<ASTNode>(
+      isVarDecl ? ASTType::VarDecl : ASTType::Assign, ident);
+  assignNode->addChild(std::move(expr));
 
   consumeToken();
 
   return assignNode;
 }
 
-ASTNode *Parser::parseExprStm() {
-  ASTNode *expr = parseExpr();
+std::unique_ptr<ASTNode> Parser::parseExprStm() {
+  auto expr = parseExpr();
 
   if (!expr) {
     throw std::runtime_error("Expected expression before ;");
@@ -150,84 +151,84 @@ ASTNode *Parser::parseExprStm() {
   }
   consumeToken();
 
-  ASTNode *exprStmt = new ASTNode(ASTType::ExprStmt);
-  exprStmt->addChild(expr);
+  auto exprStmt = std::make_unique<ASTNode>(ASTType::ExprStmt);
+  exprStmt->addChild(std::move(expr));
   return exprStmt;
 }
 
-ASTNode *Parser::parseExpr() {
-  ASTNode *node = parseLogicOr();
+std::unique_ptr<ASTNode> Parser::parseExpr() {
+  auto node = parseLogicOr();
   if (!node) {
     throw std::runtime_error("Invalid expression");
   }
-  ASTNode *exprNode = new ASTNode(ASTType::Expr);
-  exprNode->addChild(node);
+  auto exprNode = std::make_unique<ASTNode>(ASTType::Expr);
+  exprNode->addChild(std::move(node));
   return exprNode;
 }
 
-ASTNode *Parser::parseLogicOr() {
-  ASTNode *node = parseLogicAnd();
+std::unique_ptr<ASTNode> Parser::parseLogicOr() {
+  auto node = parseLogicAnd();
 
   while (currentToken().type == TokenType::Or) {
     Token op = currentToken();
     consumeToken();
-    ASTNode *right = parseLogicAnd();
+    auto right = parseLogicAnd();
     if (!right)
       throw std::runtime_error("Expected expression after ||");
 
-    ASTNode *newNode = new ASTNode(ASTType::LogicOr, op);
-    newNode->addChild(node);
-    newNode->addChild(right);
+    auto newNode = std::make_unique<ASTNode>(ASTType::LogicOr, op);
+    newNode->addChild(std::move(node));
+    newNode->addChild(std::move(right));
 
-    node = newNode;
+    node = std::move(newNode);
   }
 
   return node;
 }
 
-ASTNode *Parser::parseLogicAnd() {
-  ASTNode *node = parseEquality();
+std::unique_ptr<ASTNode> Parser::parseLogicAnd() {
+  auto node = parseEquality();
 
   while (currentToken().type == TokenType::And) {
     Token op = currentToken();
     consumeToken();
-    ASTNode *right = parseEquality();
+    auto right = parseEquality();
     if (!right)
       throw std::runtime_error("Expected expression after &&");
 
-    ASTNode *newNode = new ASTNode(ASTType::LogicAnd, op);
-    newNode->addChild(node);
-    newNode->addChild(right);
+    auto newNode = std::make_unique<ASTNode>(ASTType::LogicAnd, op);
+    newNode->addChild(std::move(node));
+    newNode->addChild(std::move(right));
 
-    node = newNode;
+    node = std::move(newNode);
   }
 
   return node;
 }
 
-ASTNode *Parser::parseEquality() {
-  ASTNode *node = parseComparison();
+std::unique_ptr<ASTNode> Parser::parseEquality() {
+  auto node = parseComparison();
 
   while (currentToken().type == TokenType::EqualOp ||
          currentToken().type == TokenType::DiffOp) {
     Token op = currentToken();
     consumeToken();
-    ASTNode *right = parseComparison();
+    auto right = parseComparison();
     if (!right)
       throw std::runtime_error("Expected expression after equality operator");
 
-    ASTNode *newNode = new ASTNode(ASTType::Equality, op);
-    newNode->addChild(node);
-    newNode->addChild(right);
+    auto newNode = std::make_unique<ASTNode>(ASTType::Equality, op);
+    newNode->addChild(std::move(node));
+    newNode->addChild(std::move(right));
 
-    node = newNode;
+    node = std::move(newNode);
   }
 
   return node;
 }
 
-ASTNode *Parser::parseComparison() {
-  ASTNode *node = parseTerm();
+std::unique_ptr<ASTNode> Parser::parseComparison() {
+  auto node = parseTerm();
 
   while (currentToken().type == TokenType::GreaterOp ||
          currentToken().type == TokenType::GreaterEqualOp ||
@@ -236,68 +237,68 @@ ASTNode *Parser::parseComparison() {
     Token op = currentToken();
     consumeToken();
 
-    ASTNode *right = parseTerm();
+    auto right = parseTerm();
     if (!right)
       throw std::runtime_error("Expected factor after operator");
 
-    ASTNode *newNode = new ASTNode(ASTType::Comparison, op);
-    newNode->addChild(node);
-    newNode->addChild(right);
+    auto newNode = std::make_unique<ASTNode>(ASTType::Comparison, op);
+    newNode->addChild(std::move(node));
+    newNode->addChild(std::move(right));
 
-    node = newNode;
+    node = std::move(newNode);
   }
 
   return node;
 }
 
-ASTNode *Parser::parseTerm() {
-  ASTNode *node = parseFactor();
+std::unique_ptr<ASTNode> Parser::parseTerm() {
+  auto node = parseFactor();
 
   while (currentToken().type == TokenType::Plus ||
          currentToken().type == TokenType::Minus) {
     Token op = currentToken();
     consumeToken();
-    ASTNode *right = parseFactor();
+    auto right = parseFactor();
     if (!right)
       throw std::runtime_error("Expected factor after operator");
 
-    ASTNode *newNode = new ASTNode(ASTType::Term, op);
-    newNode->addChild(node);
-    newNode->addChild(right);
+    auto newNode = std::make_unique<ASTNode>(ASTType::Term, op);
+    newNode->addChild(std::move(node));
+    newNode->addChild(std::move(right));
 
-    node = newNode;
+    node = std::move(newNode);
   }
 
   return node;
 }
 
-ASTNode *Parser::parseFactor() {
-  ASTNode *node = parsePrimary();
+std::unique_ptr<ASTNode> Parser::parseFactor() {
+  auto node = parsePrimary();
 
   while (currentToken().type == TokenType::Multiply ||
          currentToken().type == TokenType::Divide) {
     Token op = currentToken();
     consumeToken();
-    ASTNode *right = parsePrimary();
+    auto right = parsePrimary();
     if (!right)
       throw std::runtime_error("Expected primary after operator");
 
-    ASTNode *newNode = new ASTNode(ASTType::Factor, op);
-    newNode->addChild(node);
-    newNode->addChild(right);
+    auto newNode = std::make_unique<ASTNode>(ASTType::Factor, op);
+    newNode->addChild(std::move(node));
+    newNode->addChild(std::move(right));
 
-    node = newNode;
+    node = std::move(newNode);
   }
 
   return node;
 }
 
-ASTNode *Parser::parsePrimary() {
+std::unique_ptr<ASTNode> Parser::parsePrimary() {
   auto curr = currentToken();
   switch (curr.type) {
   case TokenType::LParen: {
     consumeToken();
-    ASTNode *node = parseExpr();
+    auto node = parseExpr();
     if (currentToken().type != TokenType::RParen) {
       throw std::runtime_error("Expected ')' after expression");
     }
@@ -306,15 +307,15 @@ ASTNode *Parser::parsePrimary() {
   }
   case TokenType::Number: {
     consumeToken();
-    return new ASTNode(ASTType::Primary, curr);
+    return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   case TokenType::Ident: {
     consumeToken();
-    return new ASTNode(ASTType::Primary, curr);
+    return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   case TokenType::Boolean: {
     consumeToken();
-    return new ASTNode(ASTType::Primary, curr);
+    return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   default:
     throw std::runtime_error(

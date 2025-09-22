@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <vector>
 
 #include "ASTNode.h"
@@ -9,21 +10,21 @@ private:
   std::vector<Token> tokens;
   size_t pos;
 
-  ASTNode *parseProgram();
-  ASTNode *parseStatement();
-  ASTNode *parseBlock();
-  ASTNode *parseIfStmnt();
-  ASTNode *parseVarDecl();
-  ASTNode *parseAssign(bool isVarDecl = false);
-  ASTNode *parseExprStm();
-  ASTNode *parseExpr();
-  ASTNode *parseLogicOr();
-  ASTNode *parseLogicAnd();
-  ASTNode *parseEquality();
-  ASTNode *parseComparison();
-  ASTNode *parseTerm();
-  ASTNode *parseFactor();
-  ASTNode *parsePrimary();
+  std::unique_ptr<ASTNode> parseProgram();
+  std::unique_ptr<ASTNode> parseStatement();
+  std::unique_ptr<ASTNode> parseBlock();
+  std::unique_ptr<ASTNode> parseIfStmnt();
+  std::unique_ptr<ASTNode> parseVarDecl();
+  std::unique_ptr<ASTNode> parseAssign(bool isVarDecl = false);
+  std::unique_ptr<ASTNode> parseExprStm();
+  std::unique_ptr<ASTNode> parseExpr();
+  std::unique_ptr<ASTNode> parseLogicOr();
+  std::unique_ptr<ASTNode> parseLogicAnd();
+  std::unique_ptr<ASTNode> parseEquality();
+  std::unique_ptr<ASTNode> parseComparison();
+  std::unique_ptr<ASTNode> parseTerm();
+  std::unique_ptr<ASTNode> parseFactor();
+  std::unique_ptr<ASTNode> parsePrimary();
 
   Token currentToken();
   void consumeToken();
@@ -31,5 +32,5 @@ private:
 public:
   Parser(std::vector<Token> &t) : tokens(t), pos(0) {}
 
-  ASTNode *parse();
+  std::unique_ptr<ASTNode> parse();
 };

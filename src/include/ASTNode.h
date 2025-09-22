@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <vector>
 
 #include "Token.h"
@@ -29,12 +30,10 @@ class ASTNode {
 public:
   ASTType type;
   Token token;
-  std::vector<ASTNode *> children;
+  std::vector<std::unique_ptr<ASTNode>> children;
 
-  ASTNode(ASTType t, Token tok = Token()) : type(t), token(tok) {}
+  ASTNode(ASTType t, Token tok = Token());
+  ~ASTNode();
 
-  void addChild(ASTNode *child) {
-    if (child)
-      children.push_back(child);
-  }
+  void addChild(std::unique_ptr<ASTNode> child);
 };
