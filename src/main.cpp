@@ -3,6 +3,7 @@
 #include <print>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "include/Helper.h"
 #include "include/Lexer.h"
@@ -36,13 +37,13 @@ int main(int argc, char *argv[]) {
   }
 
   std::unique_ptr<Reader> reader = std::make_unique<Reader>(filePath);
-  auto fileText = reader->readAll();
+  std::string fileText = reader->readAll();
 
-  auto lexer = std::make_unique<Lexer>(fileText);
-  auto tokens = lexer->tokenize();
+  std::unique_ptr<Lexer> lexer = std::make_unique<Lexer>(fileText);
+  std::vector<Token> tokens = lexer->tokenize();
 
-  auto parser = std::make_unique<Parser>(tokens);
-  auto root = parser->parse();
+  std::unique_ptr<Parser> parser = std::make_unique<Parser>(tokens);
+  ASTNode *root = parser->parse();
 
   printTree(root, 0);
 }

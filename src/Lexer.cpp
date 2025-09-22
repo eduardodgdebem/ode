@@ -8,8 +8,8 @@ bool Lexer::nextToken(Token *token) {
   TokenType prevTokenType = TokenType::Skip;
   std::string value;
 
-  while (pos <= _src.length()) {
-    auto currValue = _src[pos++];
+  while (pos <= fileText.length()) {
+    auto currValue = fileText[pos++];
     currTokenType = getTokenTypeByChar(currValue);
 
     if (currTokenType == TokenType::Skip) {

@@ -1,4 +1,3 @@
-#include <ios>
 #include <print>
 #include <stdexcept>
 
@@ -296,10 +295,6 @@ ASTNode *Parser::parseFactor() {
 ASTNode *Parser::parsePrimary() {
   auto curr = currentToken();
   switch (curr.type) {
-  case TokenType::Number: {
-    consumeToken();
-    return new ASTNode(ASTType::Primary, curr);
-  }
   case TokenType::LParen: {
     consumeToken();
     ASTNode *node = parseExpr();
@@ -309,11 +304,15 @@ ASTNode *Parser::parsePrimary() {
     consumeToken();
     return node;
   }
+  case TokenType::Number: {
+    consumeToken();
+    return new ASTNode(ASTType::Primary, curr);
+  }
   case TokenType::Ident: {
     consumeToken();
     return new ASTNode(ASTType::Primary, curr);
   }
-  case TokenType::True: {
+  case TokenType::Boolean: {
     consumeToken();
     return new ASTNode(ASTType::Primary, curr);
   }

@@ -7,10 +7,10 @@
 class Lexer {
 private:
   size_t pos;
-  std::string _src;
+  std::string fileText;
 
 public:
-  Lexer(std::string src) { _src = src; }
+  Lexer(std::string &src) : fileText(src), pos(0) {}
 
   bool nextToken(Token *token);
 

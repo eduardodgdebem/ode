@@ -98,10 +98,8 @@ constexpr std::string getTokenTypeName(TokenType TokenType) {
     return "DOUBLEQUOTES";
   case TokenType::EqualOp:
     return "EQUALOP";
-  case TokenType::False:
-    return "FALSE";
-  case TokenType::True:
-    return "TRUE";
+  case TokenType::Boolean:
+    return "BOOLEAN";
   case TokenType::And:
     return "AND";
   case TokenType::Or:

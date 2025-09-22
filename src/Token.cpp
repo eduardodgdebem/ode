@@ -47,7 +47,7 @@ TokenType getTokenTypeByChar(char character) {
   case '<':
     return TokenType::LesserOp;
   default:
-    return TokenType::Skip;
+    return TokenType::Ident;
   }
 }
 
@@ -61,8 +61,8 @@ TokenType getTokenTypeByString(std::string value) {
       {"while", TokenType::While},
       {"fn", TokenType::Fn},
       {"if", TokenType::If},
-      {"true", TokenType::True},
-      {"false", TokenType::False},
+      {"true", TokenType::Boolean},
+      {"false", TokenType::Boolean},
       {"==", TokenType::EqualOp},
       {"!=", TokenType::DiffOp},
       {"||", TokenType::Or},

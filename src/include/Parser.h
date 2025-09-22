@@ -29,7 +29,7 @@ private:
   void consumeToken();
 
 public:
-  Parser(std::vector<Token> t) : tokens(t), pos(0) {}
+  Parser(std::vector<Token> &t) : tokens(t), pos(0) {}
 
   ASTNode *parse();
 };
