@@ -7,7 +7,7 @@
 - [X] **IfStmt** → `if` `(` Expr `)` Block (`else` Block)?
 - [X] **WhileStmt** → `while` `(` Expr `)` Block
 - [ ] **FuncDecl** → `fn` IDENT `(` ParamList? `)` Block
-- [ ] **ParamList** → IDENT (`,` IDENT)*
+- [X] **ParamList** → Primary (`,` Primary)*
 - [ ] **ReturnStmt** → `return` Expr `;`
 - [X] **ExprStmt** → Expr `;`
 
@@ -24,4 +24,4 @@
 - [X] **Comparison** → Term ((`<` | `<=` | `>` | `>=`) Term)*
 - [X] **Term** → Factor ((`+` | `-`) Factor)*
 - [X] **Factor** → Primary ((`*` | `/`) Primary)*
-- [X] **Primary** → NUMBER | IDENT | `true` | `false` | `(` Expr `)`
+- [X] **Primary** → NUMBER | IDENT | BOOLEAN | `(` Expr `)`
