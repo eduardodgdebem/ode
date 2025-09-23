@@ -79,13 +79,24 @@ std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
 
   newNode->addChild(std::move(expr));
 
-  auto block = parseBlock();
+  auto ifBlock = parseBlock();
 
-  if (block == nullptr) {
+  if (ifBlock == nullptr) {
     throw std::runtime_error("There should be a block for the if");
   }
 
-  newNode->addChild(std::move(block));
+  newNode->addChild(std::move(ifBlock));
+
+  if (currentToken().type == TokenType::Else) {
+    consumeToken();
+
+    auto elseBlock = parseBlock();
+    if (!elseBlock) {
+      throw std::runtime_error("There should be a block for the else");
+    }
+
+    newNode->addChild(std::move(elseBlock));
+  }
 
   return newNode;
 }
@@ -94,7 +105,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
   switch (currentToken().type) {
   case TokenType::Let:
     return parseVarDecl();
-  case TokenType::Ident:
+  case TokenType::Identifier:
     return parseAssign();
   case TokenType::LBraket:
     return parseBlock();
@@ -116,7 +127,7 @@ std::unique_ptr<ASTNode> Parser::parseVarDecl() {
 }
 
 std::unique_ptr<ASTNode> Parser::parseAssign(bool isVarDecl) {
-  if (currentToken().type != TokenType::Ident) {
+  if (currentToken().type != TokenType::Identifier) {
     throw std::runtime_error("After LET should be an IDENT");
   }
   Token ident = currentToken();
@@ -309,7 +320,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
     consumeToken();
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
-  case TokenType::Ident: {
+  case TokenType::Identifier: {
     consumeToken();
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }

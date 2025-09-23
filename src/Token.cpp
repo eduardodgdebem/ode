@@ -12,7 +12,7 @@ bool is_digits(const std::string &str) {
 
 TokenType getTokenTypeByChar(char character) {
   if (std::isalpha(character)) {
-    return TokenType::Ident;
+    return TokenType::Identifier;
   } else if (std::isspace(character)) {
     return TokenType::Skip;
   } else if (std::isdigit(character)) {
@@ -47,7 +47,7 @@ TokenType getTokenTypeByChar(char character) {
   case '<':
     return TokenType::LesserOp;
   default:
-    return TokenType::Ident;
+    return TokenType::Identifier;
   }
 }
 
@@ -61,6 +61,7 @@ TokenType getTokenTypeByString(std::string value) {
       {"while", TokenType::While},
       {"fn", TokenType::Fn},
       {"if", TokenType::If},
+      {"else", TokenType::Else},
       {"true", TokenType::Boolean},
       {"false", TokenType::Boolean},
       {"==", TokenType::EqualOp},
@@ -79,5 +80,5 @@ TokenType getTokenTypeByString(std::string value) {
     return TokenType::Number;
   }
 
-  return TokenType::Ident;
+  return TokenType::Identifier;
 }

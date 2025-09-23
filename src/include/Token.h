@@ -4,7 +4,7 @@
 enum class TokenType {
   None,
   Let,
-  Ident,
+  Identifier,
   If,
   Else,
   Boolean,

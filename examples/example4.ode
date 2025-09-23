@@ -4,4 +4,6 @@ let te = true;
 
 if(sla && te) {
   num = num * 2;
+} else {
+  num = num * 2;
 }
