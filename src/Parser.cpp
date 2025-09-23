@@ -57,8 +57,39 @@ std::unique_ptr<ASTNode> Parser::parseBlock() {
   return newNode;
 }
 
+std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
+  if (currentToken().type != TokenType::While) {
+    throw std::runtime_error("while should start with while");
+  }
+
+  auto newNode = std::make_unique<ASTNode>(ASTType::WhileStmt, currentToken());
+
+  consumeToken();
+
+  if (currentToken().type != TokenType::LParen) {
+    throw std::runtime_error("Missing expr");
+  }
+
+  auto expr = parseExpr();
+
+  if (expr == nullptr) {
+    throw std::runtime_error("There should be a expresion for a If");
+  }
+
+  newNode->addChild(std::move(expr));
+
+  auto block = parseBlock();
+
+  if (block == nullptr) {
+    throw std::runtime_error("There should be a block for the if");
+  }
+
+  newNode->addChild(std::move(block));
+
+  return newNode;
+}
+
 std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
-  std::println("OPA");
   if (currentToken().type != TokenType::If) {
     throw std::runtime_error("If should start with If");
   }
@@ -111,6 +142,8 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     return parseBlock();
   case TokenType::If:
     return parseIfStmnt();
+  case TokenType::While:
+    return parseWhileStmnt();
   default:
     return parseExprStm();
   }

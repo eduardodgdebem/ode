@@ -5,7 +5,7 @@
 - [X] **VarDecl** → `let` IDENT `=` Expr `;`
 - [X] **Assign** → IDENT `=` Expr `;`
 - [X] **IfStmt** → `if` `(` Expr `)` Block (`else` Block)?
-- [ ] **WhileStmt** → `while` `(` Expr `)` Block
+- [X] **WhileStmt** → `while` `(` Expr `)` Block
 - [ ] **FuncDecl** → `fn` IDENT `(` ParamList? `)` Block
 - [ ] **ParamList** → IDENT (`,` IDENT)*
 - [ ] **ReturnStmt** → `return` Expr `;`
