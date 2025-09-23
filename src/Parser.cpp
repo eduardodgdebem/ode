@@ -57,6 +57,46 @@ std::unique_ptr<ASTNode> Parser::parseBlock() {
   return newNode;
 }
 
+std::unique_ptr<ASTNode> Parser::parseParamList() {
+  if (currentToken().type != TokenType::LParen) {
+    throw std::runtime_error("param list should start with (");
+  }
+  consumeToken();
+
+  auto newNode = std::make_unique<ASTNode>(ASTType::ParamList, currentToken());
+
+  if (currentToken().type == TokenType::RParen) {
+    consumeToken();
+    return newNode;
+  }
+
+  auto param = parsePrimary();
+  if (!param) {
+    throw std::runtime_error("expected parameter name but got: " +
+                             currentToken().value);
+  }
+  newNode->addChild(std::move(param));
+
+  while (currentToken().type == TokenType::Comma) {
+    consumeToken();
+
+    auto nextParam = parsePrimary();
+    if (!nextParam) {
+      throw std::runtime_error("expected parameter after ',' but got: " +
+                               currentToken().value);
+    }
+    newNode->addChild(std::move(nextParam));
+  }
+
+  if (currentToken().type != TokenType::RParen) {
+    throw std::runtime_error("param list should end with ')' but got: " +
+                             currentToken().value);
+  }
+  consumeToken();
+
+  return newNode;
+}
+
 std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
   if (currentToken().type != TokenType::While) {
     throw std::runtime_error("while should start with while");
@@ -363,6 +403,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
   }
   default:
     throw std::runtime_error(
-        "Expected number, true, false, identifier, or '('");
+        "Expected number, true, false, identifier, or '(' but got " +
+        currentToken().value);
   }
 }
