@@ -57,6 +57,59 @@ std::unique_ptr<ASTNode> Parser::parseBlock() {
   return newNode;
 }
 
+std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
+  if (currentToken().type != TokenType::Fn) {
+    throw std::runtime_error("Function should start with fn");
+  }
+  consumeToken();
+
+  if (currentToken().type != TokenType::Identifier) {
+    throw std::runtime_error("Function should have a name");
+  }
+
+  auto newNode = std::make_unique<ASTNode>(ASTType::FuncDecl, currentToken());
+  consumeToken();
+
+  auto paramList = parseParamList();
+  if (!paramList) {
+    throw std::runtime_error("Invalid param list for function");
+  }
+  newNode->addChild(std::move(paramList));
+
+  auto block = parseBlock();
+  if (!block) {
+    throw std::runtime_error("function should have a body");
+  }
+  newNode->addChild(std::move(block));
+
+  return newNode;
+}
+
+std::unique_ptr<ASTNode> Parser::parseReturnStmt() {
+  if (currentToken().type != TokenType::Return) {
+    throw std::runtime_error("Return should start with return");
+  }
+
+  auto newNode = std::make_unique<ASTNode>(ASTType::ReturnStmt, currentToken());
+
+  consumeToken();
+
+  auto expr = parseExpr();
+  if (!expr) {
+    throw std::runtime_error("Return should have an expression");
+  }
+
+  newNode->addChild(std::move(expr));
+
+  if (currentToken().type != TokenType::Semicolumn) {
+    throw std::runtime_error("Return should end with ;");
+  }
+
+  consumeToken();
+
+  return newNode;
+}
+
 std::unique_ptr<ASTNode> Parser::parseParamList() {
   if (currentToken().type != TokenType::LParen) {
     throw std::runtime_error("param list should start with (");
@@ -184,11 +237,14 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     return parseIfStmnt();
   case TokenType::While:
     return parseWhileStmnt();
+  case TokenType::Fn:
+    return parseFuncDecl();
+  case TokenType::Return:
+    return parseReturnStmt();
   default:
     return parseExprStm();
   }
 }
-
 std::unique_ptr<ASTNode> Parser::parseVarDecl() {
   if (currentToken().type != TokenType::Let) {
     throw std::runtime_error("Assign should start with LET");
@@ -377,6 +433,29 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
   return node;
 }
 
+std::unique_ptr<ASTNode> Parser::parseCall(Token token) {
+  auto callNode = std::make_unique<ASTNode>(ASTType::FuncCall, token);
+
+  consumeToken();
+
+  while (currentToken().type != TokenType::RParen) {
+    auto arg = parseExpr();
+    if (!arg) {
+      throw std::runtime_error("Invalid expression in function call");
+    }
+    callNode->addChild(std::move(arg));
+
+    if (currentToken().type == TokenType::Comma) {
+      consumeToken();
+    } else if (currentToken().type != TokenType::RParen) {
+      throw std::runtime_error("Expected ')' or ',' in function call");
+    }
+  }
+
+  consumeToken();
+  return callNode;
+}
+
 std::unique_ptr<ASTNode> Parser::parsePrimary() {
   auto curr = currentToken();
   switch (curr.type) {
@@ -395,6 +474,9 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
   }
   case TokenType::Identifier: {
     consumeToken();
+    if (currentToken().type == TokenType::LParen) {
+      return parseCall(curr);
+    }
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   case TokenType::Boolean: {

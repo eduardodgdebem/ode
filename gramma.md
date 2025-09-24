@@ -6,9 +6,9 @@
 - [X] **Assign** → IDENT `=` Expr `;`
 - [X] **IfStmt** → `if` `(` Expr `)` Block (`else` Block)?
 - [X] **WhileStmt** → `while` `(` Expr `)` Block
-- [ ] **FuncDecl** → `fn` IDENT `(` ParamList? `)` Block
+- [X] **FuncDecl** → `fn` IDENT `(` ParamList? `)` Block
 - [X] **ParamList** → Primary (`,` Primary)*
-- [ ] **ReturnStmt** → `return` Expr `;`
+- [X] **ReturnStmt** → `return` Expr `;`
 - [X] **ExprStmt** → Expr `;`
 
 ---

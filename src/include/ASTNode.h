@@ -23,7 +23,8 @@ enum class ASTType {
   Comparison,
   Term,
   Factor,
-  Primary
+  Primary,
+  FuncCall
 };
 
 class ASTNode {

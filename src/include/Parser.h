@@ -13,9 +13,12 @@ private:
   std::unique_ptr<ASTNode> parseProgram();
   std::unique_ptr<ASTNode> parseStatement();
   std::unique_ptr<ASTNode> parseBlock();
-  std::unique_ptr<ASTNode> parseParamList();
   std::unique_ptr<ASTNode> parseWhileStmnt();
   std::unique_ptr<ASTNode> parseIfStmnt();
+  std::unique_ptr<ASTNode> parseFuncDecl();
+  std::unique_ptr<ASTNode> parseCall(Token token);
+  std::unique_ptr<ASTNode> parseParamList();
+  std::unique_ptr<ASTNode> parseReturnStmt();
   std::unique_ptr<ASTNode> parseVarDecl();
   std::unique_ptr<ASTNode> parseAssign(bool isVarDecl = false);
   std::unique_ptr<ASTNode> parseExprStm();
