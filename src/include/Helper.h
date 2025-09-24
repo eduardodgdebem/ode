@@ -46,6 +46,8 @@ constexpr std::string getAstTypeName(ASTType t) {
     return "COMPARISON";
   case ASTType::Equality:
     return "EQUALITY";
+  case ASTType::FuncCall:
+    return "FUNCCALL";
   }
   return "UNKNOWN";
 }
@@ -114,6 +116,10 @@ constexpr std::string getTokenTypeName(TokenType TokenType) {
     return "LESSEROP";
   case TokenType::LesserEqualOp:
     return "LESSEREQUALOP";
+  case TokenType::Comma:
+    return "Comma";
+  case TokenType::Return:
+    return "Return";
   }
 
   return "";

@@ -1,50 +1,125 @@
 #include "include/Lexer.h"
-#include "include/Helper.h"
 #include "include/Token.h"
+#include <optional>
+#include <tuple>
 #include <vector>
 
-bool Lexer::nextToken(Token *token) {
-  TokenType currTokenType = TokenType::Skip;
-  TokenType prevTokenType = TokenType::Skip;
-  std::string value;
+std::vector<Token> Lexer::tokenize() const {
+  std::vector<Token> list;
+  while (auto token = nextToken()) {
+    list.push_back(token.value());
+  }
+  return list;
+}
 
-  while (pos <= fileText.length()) {
-    auto currValue = fileText[pos++];
-    currTokenType = getTokenTypeByChar(currValue);
+std::optional<Token> Lexer::nextToken() const {
+  while (pos < fileText.length()) {
+    char currentChar = fileText[pos];
 
-    if (currTokenType == TokenType::Skip) {
-      if (!value.empty()) {
-        token->type = getTokenTypeByString(value);
-        token->value = value;
-        return true;
-      }
+    if (isspace(currentChar)) {
+      pos++;
       continue;
     }
 
-    if (prevTokenType != currTokenType && !value.empty()) {
-      pos--;
-      token->type = getTokenTypeByString(value);
-      token->value = value;
-      return true;
+    if (isalpha(currentChar) || currentChar == '_') {
+      std::string value;
+      while (pos < fileText.length() &&
+             (isalnum(fileText[pos]) || fileText[pos] == '_')) {
+        value += fileText[pos];
+        pos++;
+      }
+      return Token{getTokenTypeByString(value), value};
     }
 
-    value += currValue;
-    prevTokenType = currTokenType;
-  }
+    if (isdigit(currentChar)) {
+      std::string value;
+      while (pos < fileText.length() && isdigit(fileText[pos])) {
+        value += fileText[pos];
+        pos++;
+      }
+      return Token{TokenType::Number, value};
+    }
 
-  token->type = TokenType::End;
-  token->value = "";
-  return false;
+    auto [type, value] = getTokenDetails();
+    return Token{type, value};
+  }
+  return std::nullopt;
 }
 
-std::vector<Token> Lexer::tokenize() {
-  std::vector<Token> list;
-  Token currToken;
-
-  while (nextToken(&currToken)) {
-    list.push_back(currToken);
+std::tuple<TokenType, std::string> Lexer::getTokenDetails() const {
+  char currentChar = fileText[pos];
+  switch (currentChar) {
+  case '{':
+    pos++;
+    return {TokenType::LBraket, "{"};
+  case '}':
+    pos++;
+    return {TokenType::RBraket, "}"};
+  case '(':
+    pos++;
+    return {TokenType::LParen, "("};
+  case ')':
+    pos++;
+    return {TokenType::RParen, ")"};
+  case ';':
+    pos++;
+    return {TokenType::Semicolumn, ";"};
+  case '+':
+    pos++;
+    return {TokenType::Plus, "+"};
+  case '-':
+    pos++;
+    return {TokenType::Minus, "-"};
+  case '*':
+    pos++;
+    return {TokenType::Multiply, "*"};
+  case '/':
+    pos++;
+    return {TokenType::Divide, "/"};
+  case ',':
+    pos++;
+    return {TokenType::Comma, ","};
+  case '=':
+    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
+      pos += 2;
+      return {TokenType::EqualOp, "=="};
+    }
+    pos++;
+    return {TokenType::Equal, "="};
+  case '!':
+    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
+      pos += 2;
+      return {TokenType::DiffOp, "!="};
+    }
+    break;
+  case '|':
+    if (pos + 1 < fileText.length() && fileText[pos + 1] == '|') {
+      pos += 2;
+      return {TokenType::Or, "||"};
+    }
+    break;
+  case '&':
+    if (pos + 1 < fileText.length() && fileText[pos + 1] == '&') {
+      pos += 2;
+      return {TokenType::And, "&&"};
+    }
+    break;
+  case '<':
+    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
+      pos += 2;
+      return {TokenType::LesserEqualOp, "<="};
+    }
+    pos++;
+    return {TokenType::LesserOp, "<"};
+  case '>':
+    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
+      pos += 2;
+      return {TokenType::GreaterEqualOp, ">="};
+    }
+    pos++;
+    return {TokenType::GreaterOp, ">"};
   }
-  list.push_back(currToken);
 
-  return list;
+  pos++;
+  return {TokenType::Identifier, std::string(1, currentChar)};
 }

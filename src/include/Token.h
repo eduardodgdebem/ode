@@ -11,6 +11,7 @@ enum class TokenType {
   Else,
   Boolean,
   Fn,
+  Return,
   While,
   Equal,
   Or,
@@ -111,6 +112,7 @@ constexpr TokenType getTokenTypeByString(std::string value) {
       {"&&", TokenType::And},
       {"<=", TokenType::LesserEqualOp},
       {">=", TokenType::GreaterEqualOp},
+      {"return", TokenType::Return},
   };
 
   if (auto it = keywordMap.find(value); it != keywordMap.end()) {

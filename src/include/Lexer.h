@@ -1,18 +1,19 @@
 #pragma once
-#include <string>
-#include <vector>
 
 #include "Token.h"
+#include <optional>
+#include <string>
+#include <tuple>
+#include <vector>
 
 class Lexer {
-private:
-  size_t pos;
-  std::string fileText;
-
-  bool nextToken(Token *token);
-
 public:
-  Lexer(std::string &src) : fileText(src), pos(0) {}
+  Lexer(std::string fileText) : fileText(fileText), pos(0) {}
+  std::vector<Token> tokenize() const;
 
-  std::vector<Token> tokenize();
+private:
+  std::string fileText;
+  mutable int pos;
+  std::optional<Token> nextToken() const;
+  std::tuple<TokenType, std::string> getTokenDetails() const;
 };
