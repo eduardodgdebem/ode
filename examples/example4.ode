@@ -1,6 +1,6 @@
-let num = 3;
-let sla = num < 4;
-let te = true;
+let num: i64 = 3;
+let sla: bool = num < 4;
+let te: bool = true;
 
 if(sla && te) {
   num = num * 2;

@@ -35,6 +35,8 @@ enum class TokenType {
   Multiply,
   Divide,
   Comma,
+  Colon,
+  Type,
   Skip,
   End
 };
@@ -88,6 +90,8 @@ constexpr TokenType getTokenTypeByChar(char character) {
     return TokenType::LesserOp;
   case ',':
     return TokenType::Comma;
+  case ':':
+    return TokenType::Colon;
   default:
     return TokenType::Identifier;
   }
@@ -113,6 +117,9 @@ constexpr TokenType getTokenTypeByString(std::string value) {
       {"<=", TokenType::LesserEqualOp},
       {">=", TokenType::GreaterEqualOp},
       {"return", TokenType::Return},
+      {"i32", TokenType::Type},
+      {"i64", TokenType::Type},
+      {"bool", TokenType::Type},
   };
 
   if (auto it = keywordMap.find(value); it != keywordMap.end()) {

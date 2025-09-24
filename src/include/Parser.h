@@ -20,7 +20,7 @@ private:
   std::unique_ptr<ASTNode> parseParamList();
   std::unique_ptr<ASTNode> parseReturnStmt();
   std::unique_ptr<ASTNode> parseVarDecl();
-  std::unique_ptr<ASTNode> parseAssign(bool isVarDecl = false);
+  std::unique_ptr<ASTNode> parseAssign();
   std::unique_ptr<ASTNode> parseExprStm();
   std::unique_ptr<ASTNode> parseExpr();
   std::unique_ptr<ASTNode> parseLogicOr();
@@ -30,6 +30,7 @@ private:
   std::unique_ptr<ASTNode> parseTerm();
   std::unique_ptr<ASTNode> parseFactor();
   std::unique_ptr<ASTNode> parsePrimary();
+  std::unique_ptr<ASTNode> parseType();
 
   Token currentToken();
   void consumeToken();

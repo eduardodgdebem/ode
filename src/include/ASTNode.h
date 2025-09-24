@@ -24,7 +24,8 @@ enum class ASTType {
   Term,
   Factor,
   Primary,
-  FuncCall
+  FuncCall,
+  Type
 };
 
 class ASTNode {

@@ -79,6 +79,9 @@ std::tuple<TokenType, std::string> Lexer::getTokenDetails() const {
   case ',':
     pos++;
     return {TokenType::Comma, ","};
+  case ':':
+    pos++;
+    return {TokenType::Colon, ":"};
   case '=':
     if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
       pos += 2;

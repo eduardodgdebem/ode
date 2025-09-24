@@ -74,6 +74,18 @@ std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
   if (!paramList) {
     throw std::runtime_error("Invalid param list for function");
   }
+
+  if (currentToken().type != TokenType::Colon) {
+    throw std::runtime_error("Function should have a return type");
+  }
+  consumeToken();
+
+  auto type = parseType();
+  if (!type) {
+    throw std::runtime_error("Invalid type for function return");
+  }
+  newNode->addChild(std::move(type));
+
   newNode->addChild(std::move(paramList));
 
   auto block = parseBlock();
@@ -123,22 +135,31 @@ std::unique_ptr<ASTNode> Parser::parseParamList() {
     return newNode;
   }
 
-  auto param = parsePrimary();
-  if (!param) {
-    throw std::runtime_error("expected parameter name but got: " +
-                             currentToken().value);
-  }
-  newNode->addChild(std::move(param));
-
-  while (currentToken().type == TokenType::Comma) {
-    consumeToken();
-
-    auto nextParam = parsePrimary();
-    if (!nextParam) {
-      throw std::runtime_error("expected parameter after ',' but got: " +
+  while (currentToken().type != TokenType::RParen) {
+    if (currentToken().type != TokenType::Identifier) {
+      throw std::runtime_error("expected parameter name but got: " +
                                currentToken().value);
     }
-    newNode->addChild(std::move(nextParam));
+    auto param = std::make_unique<ASTNode>(ASTType::Primary, currentToken());
+    consumeToken();
+
+    if (currentToken().type != TokenType::Colon) {
+      throw std::runtime_error("expected : after parameter name but got: " +
+                               currentToken().value);
+    }
+    consumeToken();
+
+    auto type = parseType();
+    if (!type) {
+      throw std::runtime_error("expected type after : but got: " +
+                               currentToken().value);
+    }
+    param->addChild(std::move(type));
+    newNode->addChild(std::move(param));
+
+    if (currentToken().type == TokenType::Comma) {
+      consumeToken();
+    }
   }
 
   if (currentToken().type != TokenType::RParen) {
@@ -252,10 +273,42 @@ std::unique_ptr<ASTNode> Parser::parseVarDecl() {
 
   consumeToken();
 
-  return parseAssign(true);
+  if (currentToken().type != TokenType::Identifier) {
+    throw std::runtime_error("After LET should be an IDENT");
+  }
+  Token ident = currentToken();
+  consumeToken();
+
+  if (currentToken().type != TokenType::Colon) {
+    throw std::runtime_error("Expected a : after identifier");
+  }
+  consumeToken();
+
+  auto type = parseType();
+  if (!type) {
+    throw std::runtime_error("Expected a type");
+  }
+
+  if (currentToken().type != TokenType::Equal) {
+    throw std::runtime_error("Expected a =");
+  }
+  consumeToken();
+
+  auto expr = parseExpr();
+  auto assignNode = std::make_unique<ASTNode>(ASTType::VarDecl, ident);
+  assignNode->addChild(std::move(type));
+  assignNode->addChild(std::move(expr));
+
+  if (currentToken().type != TokenType::Semicolumn) {
+    throw std::runtime_error("Expected ; after expression");
+  }
+
+  consumeToken();
+
+  return assignNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseAssign(bool isVarDecl) {
+std::unique_ptr<ASTNode> Parser::parseAssign() {
   if (currentToken().type != TokenType::Identifier) {
     throw std::runtime_error("After LET should be an IDENT");
   }
@@ -268,9 +321,12 @@ std::unique_ptr<ASTNode> Parser::parseAssign(bool isVarDecl) {
   consumeToken();
 
   auto expr = parseExpr();
-  auto assignNode = std::make_unique<ASTNode>(
-      isVarDecl ? ASTType::VarDecl : ASTType::Assign, ident);
+  auto assignNode = std::make_unique<ASTNode>(ASTType::Assign, ident);
   assignNode->addChild(std::move(expr));
+
+  if (currentToken().type != TokenType::Semicolumn) {
+    throw std::runtime_error("Expected ; after expression");
+  }
 
   consumeToken();
 
@@ -488,4 +544,14 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
         "Expected number, true, false, identifier, or '(' but got " +
         currentToken().value);
   }
+}
+
+std::unique_ptr<ASTNode> Parser::parseType() {
+  if (currentToken().type != TokenType::Type) {
+    return nullptr;
+  }
+
+  auto node = std::make_unique<ASTNode>(ASTType::Type, currentToken());
+  consumeToken();
+  return node;
 }

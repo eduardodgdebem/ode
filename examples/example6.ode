@@ -1,4 +1,4 @@
-fn fib(num) {
+fn fib(num: i32): i32 {
   if(num == 0 || num == 1) {
     return num;
   }
@@ -6,6 +6,6 @@ fn fib(num) {
   return fib(num-1) + fib(num-2);
 }
 
-fn main() {
-  let local_num = 9;
+fn main(): i32 {
+  let local_num: i32 = 9;
 }
