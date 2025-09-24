@@ -1,5 +1,11 @@
 #include "include/Reader.h"
 
+Reader::Reader(std::string fileName) {
+  _inputFile.open(fileName, std::ios::in);
+}
+
+Reader::~Reader() { _inputFile.close(); }
+
 void Reader::forEachLine(std::function<void(std::string)> callBack) {
   if (!_inputFile.is_open()) {
     return;
