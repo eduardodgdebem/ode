@@ -1,8 +1,8 @@
-#include "include/Helper.h"
-#include "include/Lexer.h"
-#include "include/Parser.h"
-#include "include/Reader.h"
-#include "include/Token.h"
+#include "include/Helper.hpp"
+#include "include/Lexer.hpp"
+#include "include/Parser.hpp"
+#include "include/Reader.hpp"
+#include "include/Token.hpp"
 
 void printTree(std::unique_ptr<ASTNode> &node, int depth) {
   if (node == nullptr)

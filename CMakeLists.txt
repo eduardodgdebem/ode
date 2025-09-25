@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories(include)
 
-file(GLOB SOURCES src/*.cpp src/include/*.h)
+file(GLOB SOURCES src/*.cpp src/include/*.hpp)
 
 add_executable(ode ${SOURCES})
 

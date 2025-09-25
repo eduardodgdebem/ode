@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 
-#include "Token.h"
+#include "Token.hpp"
 
 enum class ASTType {
   Program,

@@ -2,8 +2,8 @@
 #include <memory>
 #include <vector>
 
-#include "ASTNode.h"
-#include "Token.h"
+#include "ASTNode.hpp"
+#include "Token.hpp"
 
 class Parser {
 private:

@@ -1,4 +1,4 @@
-#include "include/ASTNode.h"
+#include "include/ASTNode.hpp"
 #include <utility>
 
 ASTNode::ASTNode(ASTType t, Token tok) : type(t), token(std::move(tok)) {}

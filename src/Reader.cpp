@@ -1,4 +1,4 @@
-#include "include/Reader.h"
+#include "include/Reader.hpp"
 
 Reader::Reader(std::string fileName) {
   _inputFile.open(fileName, std::ios::in);

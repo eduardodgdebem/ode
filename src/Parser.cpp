@@ -2,10 +2,10 @@
 #include <memory>
 #include <stdexcept>
 
-#include "include/ASTNode.h"
-#include "include/Helper.h"
-#include "include/Parser.h"
-#include "include/Token.h"
+#include "include/ASTNode.hpp"
+#include "include/Helper.hpp"
+#include "include/Parser.hpp"
+#include "include/Token.hpp"
 
 std::unique_ptr<ASTNode> Parser::parse() { return parseProgram(); }
 
@@ -50,7 +50,8 @@ std::unique_ptr<ASTNode> Parser::parseBlock() {
   }
 
   if (currentToken().type != TokenType::RBraket) {
-    throw std::logic_error(std::format("Expected '}}' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected '}}' but got {}", currentToken().value));
   }
 
   consumeToken();
@@ -60,13 +61,14 @@ std::unique_ptr<ASTNode> Parser::parseBlock() {
 
 std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
   if (currentToken().type != TokenType::Fn) {
-    throw std::logic_error(std::format("Expected 'fn' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected 'fn' but got {}", currentToken().value));
   }
   consumeToken();
 
   if (currentToken().type != TokenType::Identifier) {
-    throw std::logic_error(std::format("Expected identifier but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected identifier but got {}", currentToken().value));
   }
 
   auto newNode = std::make_unique<ASTNode>(ASTType::FuncDecl, currentToken());
@@ -74,18 +76,20 @@ std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
 
   auto paramList = parseParamList();
   if (!paramList) {
-    throw std::logic_error(std::format("Expected function parameters but got {}",
-                             currentToken().value));
+    throw std::logic_error(std::format(
+        "Expected function parameters but got {}", currentToken().value));
   }
 
   if (currentToken().type != TokenType::Colon) {
-    throw std::logic_error(std::format("Expected ':' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected ':' but got {}", currentToken().value));
   }
   consumeToken();
 
   auto type = parseType();
   if (!type) {
-    throw std::logic_error(std::format("Expected type but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected type but got {}", currentToken().value));
   }
   newNode->addChild(std::move(type));
 
@@ -93,8 +97,8 @@ std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
 
   auto block = parseBlock();
   if (!block) {
-    throw std::logic_error(std::format("Expected function body but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected function body but got {}", currentToken().value));
   }
   newNode->addChild(std::move(block));
 
@@ -103,7 +107,8 @@ std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
 
 std::unique_ptr<ASTNode> Parser::parseReturnStmt() {
   if (currentToken().type != TokenType::Return) {
-    throw std::logic_error(std::format("Expected 'return' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected 'return' but got {}", currentToken().value));
   }
 
   auto newNode = std::make_unique<ASTNode>(ASTType::ReturnStmt, currentToken());
@@ -112,14 +117,15 @@ std::unique_ptr<ASTNode> Parser::parseReturnStmt() {
 
   auto expr = parseExpr();
   if (!expr) {
-    throw std::logic_error(std::format("Expected expression but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected expression but got {}", currentToken().value));
   }
 
   newNode->addChild(std::move(expr));
 
   if (currentToken().type != TokenType::Semicolumn) {
-    throw std::logic_error(std::format("Expected ';' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected ';' but got {}", currentToken().value));
   }
 
   consumeToken();
@@ -129,7 +135,8 @@ std::unique_ptr<ASTNode> Parser::parseReturnStmt() {
 
 std::unique_ptr<ASTNode> Parser::parseParamList() {
   if (currentToken().type != TokenType::LParen) {
-    throw std::logic_error(std::format("Expected '(' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected '(' but got {}", currentToken().value));
   }
   consumeToken();
 
@@ -143,7 +150,7 @@ std::unique_ptr<ASTNode> Parser::parseParamList() {
   while (currentToken().type != TokenType::RParen) {
     if (currentToken().type != TokenType::Identifier) {
       throw std::logic_error(std::format("expected parameter name but got: {}",
-                               currentToken().value));
+                                         currentToken().value));
     }
     auto param = std::make_unique<ASTNode>(ASTType::Primary, currentToken());
     consumeToken();
@@ -158,7 +165,7 @@ std::unique_ptr<ASTNode> Parser::parseParamList() {
     auto type = parseType();
     if (!type) {
       throw std::logic_error(std::format("expected type after ':' but got: {}",
-                               currentToken().value));
+                                         currentToken().value));
     }
     param->addChild(std::move(type));
     newNode->addChild(std::move(param));
@@ -169,9 +176,8 @@ std::unique_ptr<ASTNode> Parser::parseParamList() {
   }
 
   if (currentToken().type != TokenType::RParen) {
-    throw std::logic_error(
-        std::format("param list should end with ')' but got: {}",
-                    currentToken().value));
+    throw std::logic_error(std::format(
+        "param list should end with ')' but got: {}", currentToken().value));
   }
   consumeToken();
 
@@ -180,7 +186,8 @@ std::unique_ptr<ASTNode> Parser::parseParamList() {
 
 std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
   if (currentToken().type != TokenType::While) {
-    throw std::logic_error(std::format("Expected 'while' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected 'while' but got {}", currentToken().value));
   }
 
   auto newNode = std::make_unique<ASTNode>(ASTType::WhileStmt, currentToken());
@@ -188,14 +195,15 @@ std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
   consumeToken();
 
   if (currentToken().type != TokenType::LParen) {
-    throw std::logic_error(std::format("Expected '(' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected '(' but got {}", currentToken().value));
   }
 
   auto expr = parseExpr();
 
   if (expr == nullptr) {
-    throw std::logic_error(std::format("Expected expression but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected expression but got {}", currentToken().value));
   }
 
   newNode->addChild(std::move(expr));
@@ -203,7 +211,8 @@ std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
   auto block = parseBlock();
 
   if (block == nullptr) {
-    throw std::logic_error(std::format("Expected block but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected block but got {}", currentToken().value));
   }
 
   newNode->addChild(std::move(block));
@@ -213,7 +222,8 @@ std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
 
 std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
   if (currentToken().type != TokenType::If) {
-    throw std::logic_error(std::format("Expected 'if' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected 'if' but got {}", currentToken().value));
   }
 
   auto newNode = std::make_unique<ASTNode>(ASTType::IfStmt, currentToken());
@@ -221,14 +231,15 @@ std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
   consumeToken();
 
   if (currentToken().type != TokenType::LParen) {
-    throw std::logic_error(std::format("Expected '(' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected '(' but got {}", currentToken().value));
   }
 
   auto expr = parseExpr();
 
   if (expr == nullptr) {
-    throw std::logic_error(std::format("Expected expression but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected expression but got {}", currentToken().value));
   }
 
   newNode->addChild(std::move(expr));
@@ -236,7 +247,8 @@ std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
   auto ifBlock = parseBlock();
 
   if (ifBlock == nullptr) {
-    throw std::logic_error(std::format("Expected block but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected block but got {}", currentToken().value));
   }
 
   newNode->addChild(std::move(ifBlock));
@@ -246,8 +258,8 @@ std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
 
     auto elseBlock = parseBlock();
     if (!elseBlock) {
-      throw std::logic_error(std::format("Expected block but got {}",
-                               currentToken().value));
+      throw std::logic_error(
+          std::format("Expected block but got {}", currentToken().value));
     }
 
     newNode->addChild(std::move(elseBlock));
@@ -278,30 +290,34 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
 }
 std::unique_ptr<ASTNode> Parser::parseVarDecl() {
   if (currentToken().type != TokenType::Let) {
-    throw std::logic_error(std::format("Expected 'let' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected 'let' but got {}", currentToken().value));
   }
 
   consumeToken();
 
   if (currentToken().type != TokenType::Identifier) {
-    throw std::logic_error(std::format("Expected identifier but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected identifier but got {}", currentToken().value));
   }
   Token ident = currentToken();
   consumeToken();
 
   if (currentToken().type != TokenType::Colon) {
-    throw std::logic_error(std::format("Expected ':' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected ':' but got {}", currentToken().value));
   }
   consumeToken();
 
   auto type = parseType();
   if (!type) {
-    throw std::logic_error(std::format("Expected type but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected type but got {}", currentToken().value));
   }
 
   if (currentToken().type != TokenType::Equal) {
-    throw std::logic_error(std::format("Expected '=' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected '=' but got {}", currentToken().value));
   }
   consumeToken();
 
@@ -311,7 +327,8 @@ std::unique_ptr<ASTNode> Parser::parseVarDecl() {
   assignNode->addChild(std::move(expr));
 
   if (currentToken().type != TokenType::Semicolumn) {
-    throw std::logic_error(std::format("Expected ';' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected ';' but got {}", currentToken().value));
   }
 
   consumeToken();
@@ -321,14 +338,15 @@ std::unique_ptr<ASTNode> Parser::parseVarDecl() {
 
 std::unique_ptr<ASTNode> Parser::parseAssign() {
   if (currentToken().type != TokenType::Identifier) {
-    throw std::logic_error(std::format("Expected identifier but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected identifier but got {}", currentToken().value));
   }
   Token ident = currentToken();
   consumeToken();
 
   if (currentToken().type != TokenType::Equal) {
-    throw std::logic_error(std::format("Expected '=' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected '=' but got {}", currentToken().value));
   }
   consumeToken();
 
@@ -337,7 +355,8 @@ std::unique_ptr<ASTNode> Parser::parseAssign() {
   assignNode->addChild(std::move(expr));
 
   if (currentToken().type != TokenType::Semicolumn) {
-    throw std::logic_error(std::format("Expected ';' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected ';' but got {}", currentToken().value));
   }
 
   consumeToken();
@@ -349,14 +368,15 @@ std::unique_ptr<ASTNode> Parser::parseExprStm() {
   auto expr = parseExpr();
 
   if (!expr) {
-    throw std::logic_error(std::format("Expected expression but got {}",
-                             currentToken().value));
+    throw std::logic_error(
+        std::format("Expected expression but got {}", currentToken().value));
   }
 
   auto curr = currentToken();
 
   if (currentToken().type != TokenType::Semicolumn) {
-    throw std::logic_error(std::format("Expected ';' but got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Expected ';' but got {}", currentToken().value));
   }
   consumeToken();
 
@@ -368,7 +388,8 @@ std::unique_ptr<ASTNode> Parser::parseExprStm() {
 std::unique_ptr<ASTNode> Parser::parseExpr() {
   auto node = parseLogicOr();
   if (!node) {
-    throw std::logic_error(std::format("Invalid expression, got {}", currentToken().value));
+    throw std::logic_error(
+        std::format("Invalid expression, got {}", currentToken().value));
   }
   auto exprNode = std::make_unique<ASTNode>(ASTType::Expr);
   exprNode->addChild(std::move(node));
@@ -383,8 +404,8 @@ std::unique_ptr<ASTNode> Parser::parseLogicOr() {
     consumeToken();
     auto right = parseLogicAnd();
     if (!right)
-      throw std::logic_error(std::format("Expected expression after '||' but got {}",
-                               currentToken().value));
+      throw std::logic_error(std::format(
+          "Expected expression after '||' but got {}", currentToken().value));
 
     auto newNode = std::make_unique<ASTNode>(ASTType::LogicOr, op);
     newNode->addChild(std::move(node));
@@ -404,8 +425,8 @@ std::unique_ptr<ASTNode> Parser::parseLogicAnd() {
     consumeToken();
     auto right = parseEquality();
     if (!right)
-      throw std::logic_error(std::format("Expected expression after '&&' but got {}",
-                               currentToken().value));
+      throw std::logic_error(std::format(
+          "Expected expression after '&&' but got {}", currentToken().value));
 
     auto newNode = std::make_unique<ASTNode>(ASTType::LogicAnd, op);
     newNode->addChild(std::move(node));
@@ -452,8 +473,9 @@ std::unique_ptr<ASTNode> Parser::parseComparison() {
 
     auto right = parseTerm();
     if (!right)
-      throw std::logic_error(std::format("Expected expression after operator but got {}",
-                               currentToken().value));
+      throw std::logic_error(
+          std::format("Expected expression after operator but got {}",
+                      currentToken().value));
 
     auto newNode = std::make_unique<ASTNode>(ASTType::Comparison, op);
     newNode->addChild(std::move(node));
@@ -474,8 +496,9 @@ std::unique_ptr<ASTNode> Parser::parseTerm() {
     consumeToken();
     auto right = parseFactor();
     if (!right)
-      throw std::logic_error(std::format("Expected expression after operator but got {}",
-                               currentToken().value));
+      throw std::logic_error(
+          std::format("Expected expression after operator but got {}",
+                      currentToken().value));
 
     auto newNode = std::make_unique<ASTNode>(ASTType::Term, op);
     newNode->addChild(std::move(node));
@@ -496,8 +519,9 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
     consumeToken();
     auto right = parsePrimary();
     if (!right)
-      throw std::logic_error(std::format("Expected expression after operator but got {}",
-                               currentToken().value));
+      throw std::logic_error(
+          std::format("Expected expression after operator but got {}",
+                      currentToken().value));
 
     auto newNode = std::make_unique<ASTNode>(ASTType::Factor, op);
     newNode->addChild(std::move(node));
@@ -517,8 +541,8 @@ std::unique_ptr<ASTNode> Parser::parseCall(Token token) {
   while (currentToken().type != TokenType::RParen) {
     auto arg = parseExpr();
     if (!arg) {
-      throw std::logic_error(std::format("Invalid expression in function call, got {}",
-                               currentToken().value));
+      throw std::logic_error(std::format(
+          "Invalid expression in function call, got {}", currentToken().value));
     }
     callNode->addChild(std::move(arg));
 
@@ -542,8 +566,8 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
     consumeToken();
     auto node = parseExpr();
     if (currentToken().type != TokenType::RParen) {
-      throw std::logic_error(std::format("Expected ')' after expression but got {}",
-                               currentToken().value));
+      throw std::logic_error(std::format(
+          "Expected ')' after expression but got {}", currentToken().value));
     }
     consumeToken();
     return node;
@@ -564,9 +588,9 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   default:
-    throw std::logic_error(
-        std::format("Expected number, true, false, identifier, or '(' but got {}",
-                    currentToken().value));
+    throw std::logic_error(std::format(
+        "Expected number, true, false, identifier, or '(' but got {}",
+        currentToken().value));
   }
 }
 

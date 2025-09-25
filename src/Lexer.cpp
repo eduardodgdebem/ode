@@ -1,5 +1,5 @@
-#include "include/Lexer.h"
-#include "include/Token.h"
+#include "include/Lexer.hpp"
+#include "include/Token.hpp"
 #include <optional>
 #include <tuple>
 #include <vector>

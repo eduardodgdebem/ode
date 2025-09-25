@@ -3,8 +3,8 @@
 #include <print>
 #include <string>
 
-#include "ASTNode.h"
-#include "Token.h"
+#include "ASTNode.hpp"
+#include "Token.hpp"
 
 constexpr std::string getAstTypeName(ASTType t) {
   switch (t) {
