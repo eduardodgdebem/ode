@@ -1,10 +1,11 @@
+#include "include/ASTNode.hpp"
 #include "include/Helper.hpp"
 #include "include/Lexer.hpp"
 #include "include/Parser.hpp"
 #include "include/Reader.hpp"
 #include "include/Token.hpp"
 
-void printTree(std::unique_ptr<ASTNode> &node, int depth) {
+void printTree(ASTNodePointer &node, int depth) {
   if (node == nullptr)
     return;
 
@@ -36,7 +37,7 @@ int main(int argc, char *argv[]) {
   std::vector<Token> tokens = lexer->tokenize();
 
   std::unique_ptr<Parser> parser = std::make_unique<Parser>(tokens);
-  std::unique_ptr<ASTNode> root = parser->parse();
+  ASTNodePointer root = parser->parse();
 
   printTree(root, 0);
 }

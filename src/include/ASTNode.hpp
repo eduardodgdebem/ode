@@ -39,3 +39,5 @@ public:
 
   void addChild(std::unique_ptr<ASTNode> child);
 };
+
+using ASTNodePointer = std::unique_ptr<ASTNode>;

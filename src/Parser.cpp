@@ -3,11 +3,10 @@
 #include <stdexcept>
 
 #include "include/ASTNode.hpp"
-#include "include/Helper.hpp"
 #include "include/Parser.hpp"
 #include "include/Token.hpp"
 
-std::unique_ptr<ASTNode> Parser::parse() { return parseProgram(); }
+ASTNodePointer Parser::parse() { return parseProgram(); }
 
 Token Parser::currentToken() {
   if (pos >= tokens.size()) {
@@ -22,7 +21,7 @@ void Parser::consumeToken() {
   }
 }
 
-std::unique_ptr<ASTNode> Parser::parseProgram() {
+ASTNodePointer Parser::parseProgram() {
   auto program = std::make_unique<ASTNode>(ASTType::Program);
 
   while (currentToken().type != TokenType::End) {
@@ -34,7 +33,7 @@ std::unique_ptr<ASTNode> Parser::parseProgram() {
   return program;
 }
 
-std::unique_ptr<ASTNode> Parser::parseBlock() {
+ASTNodePointer Parser::parseBlock() {
   if (currentToken().type != TokenType::LBraket) {
     throw std::logic_error(
         std::format("Expected '{}' but got {}", "{", currentToken().value));
@@ -59,7 +58,7 @@ std::unique_ptr<ASTNode> Parser::parseBlock() {
   return newNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
+ASTNodePointer Parser::parseFuncDecl() {
   if (currentToken().type != TokenType::Fn) {
     throw std::logic_error(
         std::format("Expected 'fn' but got {}", currentToken().value));
@@ -105,7 +104,7 @@ std::unique_ptr<ASTNode> Parser::parseFuncDecl() {
   return newNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseReturnStmt() {
+ASTNodePointer Parser::parseReturnStmt() {
   if (currentToken().type != TokenType::Return) {
     throw std::logic_error(
         std::format("Expected 'return' but got {}", currentToken().value));
@@ -133,7 +132,7 @@ std::unique_ptr<ASTNode> Parser::parseReturnStmt() {
   return newNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseParamList() {
+ASTNodePointer Parser::parseParamList() {
   if (currentToken().type != TokenType::LParen) {
     throw std::logic_error(
         std::format("Expected '(' but got {}", currentToken().value));
@@ -184,7 +183,7 @@ std::unique_ptr<ASTNode> Parser::parseParamList() {
   return newNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
+ASTNodePointer Parser::parseWhileStmnt() {
   if (currentToken().type != TokenType::While) {
     throw std::logic_error(
         std::format("Expected 'while' but got {}", currentToken().value));
@@ -220,7 +219,7 @@ std::unique_ptr<ASTNode> Parser::parseWhileStmnt() {
   return newNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
+ASTNodePointer Parser::parseIfStmnt() {
   if (currentToken().type != TokenType::If) {
     throw std::logic_error(
         std::format("Expected 'if' but got {}", currentToken().value));
@@ -268,7 +267,7 @@ std::unique_ptr<ASTNode> Parser::parseIfStmnt() {
   return newNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseStatement() {
+ASTNodePointer Parser::parseStatement() {
   switch (currentToken().type) {
   case TokenType::Let:
     return parseVarDecl();
@@ -288,7 +287,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     return parseExprStm();
   }
 }
-std::unique_ptr<ASTNode> Parser::parseVarDecl() {
+ASTNodePointer Parser::parseVarDecl() {
   if (currentToken().type != TokenType::Let) {
     throw std::logic_error(
         std::format("Expected 'let' but got {}", currentToken().value));
@@ -336,7 +335,7 @@ std::unique_ptr<ASTNode> Parser::parseVarDecl() {
   return assignNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseAssign() {
+ASTNodePointer Parser::parseAssign() {
   if (currentToken().type != TokenType::Identifier) {
     throw std::logic_error(
         std::format("Expected identifier but got {}", currentToken().value));
@@ -364,7 +363,7 @@ std::unique_ptr<ASTNode> Parser::parseAssign() {
   return assignNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseExprStm() {
+ASTNodePointer Parser::parseExprStm() {
   auto expr = parseExpr();
 
   if (!expr) {
@@ -385,7 +384,7 @@ std::unique_ptr<ASTNode> Parser::parseExprStm() {
   return exprStmt;
 }
 
-std::unique_ptr<ASTNode> Parser::parseExpr() {
+ASTNodePointer Parser::parseExpr() {
   auto node = parseLogicOr();
   if (!node) {
     throw std::logic_error(
@@ -396,7 +395,7 @@ std::unique_ptr<ASTNode> Parser::parseExpr() {
   return exprNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parseLogicOr() {
+ASTNodePointer Parser::parseLogicOr() {
   auto node = parseLogicAnd();
 
   while (currentToken().type == TokenType::Or) {
@@ -417,7 +416,7 @@ std::unique_ptr<ASTNode> Parser::parseLogicOr() {
   return node;
 }
 
-std::unique_ptr<ASTNode> Parser::parseLogicAnd() {
+ASTNodePointer Parser::parseLogicAnd() {
   auto node = parseEquality();
 
   while (currentToken().type == TokenType::And) {
@@ -438,7 +437,7 @@ std::unique_ptr<ASTNode> Parser::parseLogicAnd() {
   return node;
 }
 
-std::unique_ptr<ASTNode> Parser::parseEquality() {
+ASTNodePointer Parser::parseEquality() {
   auto node = parseComparison();
 
   while (currentToken().type == TokenType::EqualOp ||
@@ -461,7 +460,7 @@ std::unique_ptr<ASTNode> Parser::parseEquality() {
   return node;
 }
 
-std::unique_ptr<ASTNode> Parser::parseComparison() {
+ASTNodePointer Parser::parseComparison() {
   auto node = parseTerm();
 
   while (currentToken().type == TokenType::GreaterOp ||
@@ -487,7 +486,7 @@ std::unique_ptr<ASTNode> Parser::parseComparison() {
   return node;
 }
 
-std::unique_ptr<ASTNode> Parser::parseTerm() {
+ASTNodePointer Parser::parseTerm() {
   auto node = parseFactor();
 
   while (currentToken().type == TokenType::Plus ||
@@ -510,7 +509,7 @@ std::unique_ptr<ASTNode> Parser::parseTerm() {
   return node;
 }
 
-std::unique_ptr<ASTNode> Parser::parseFactor() {
+ASTNodePointer Parser::parseFactor() {
   auto node = parsePrimary();
 
   while (currentToken().type == TokenType::Multiply ||
@@ -533,7 +532,7 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
   return node;
 }
 
-std::unique_ptr<ASTNode> Parser::parseCall(Token token) {
+ASTNodePointer Parser::parseCall(Token token) {
   auto callNode = std::make_unique<ASTNode>(ASTType::FuncCall, token);
 
   consumeToken();
@@ -559,7 +558,7 @@ std::unique_ptr<ASTNode> Parser::parseCall(Token token) {
   return callNode;
 }
 
-std::unique_ptr<ASTNode> Parser::parsePrimary() {
+ASTNodePointer Parser::parsePrimary() {
   auto curr = currentToken();
   switch (curr.type) {
   case TokenType::LParen: {
@@ -594,7 +593,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
   }
 }
 
-std::unique_ptr<ASTNode> Parser::parseType() {
+ASTNodePointer Parser::parseType() {
   if (currentToken().type != TokenType::Type) {
     return nullptr;
   }
