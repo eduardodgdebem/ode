@@ -1,9 +1,9 @@
-#include "include/ASTNode.hpp"
-#include "include/Helper.hpp"
-#include "include/Lexer.hpp"
-#include "include/Parser.hpp"
-#include "include/Reader.hpp"
-#include "include/Token.hpp"
+#include "ASTNode.hpp"
+#include "Helper.hpp"
+#include "Lexer.hpp"
+#include "Parser.hpp"
+#include "Reader.hpp"
+#include "Token.hpp"
 
 void printTree(ASTNodePointer &node, int depth) {
   if (node == nullptr)

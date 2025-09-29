@@ -2,9 +2,9 @@
 #include <memory>
 #include <stdexcept>
 
-#include "include/ASTNode.hpp"
-#include "include/Parser.hpp"
-#include "include/Token.hpp"
+#include "ASTNode.hpp"
+#include "Parser.hpp"
+#include "Token.hpp"
 
 ASTNodePointer Parser::parse() { return parseProgram(); }
 
