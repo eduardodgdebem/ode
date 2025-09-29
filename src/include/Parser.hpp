@@ -1,5 +1,4 @@
 #pragma once
-#include <memory>
 #include <vector>
 
 #include "ASTNode.hpp"
@@ -16,7 +15,7 @@ private:
   ASTNodePointer parseWhileStmnt();
   ASTNodePointer parseIfStmnt();
   ASTNodePointer parseFuncDecl();
-  ASTNodePointer parseCall(Token token);
+  ASTNodePointer parseCall();
   ASTNodePointer parseParamList();
   ASTNodePointer parseReturnStmt();
   ASTNodePointer parseVarDecl();
@@ -38,5 +37,5 @@ private:
 public:
   Parser(std::vector<Token> &t) : tokens(t), pos(0) {}
 
-  std::unique_ptr<ASTNode> parse();
+  ASTNodePointer parse();
 };

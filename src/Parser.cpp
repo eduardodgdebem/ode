@@ -532,7 +532,8 @@ ASTNodePointer Parser::parseFactor() {
   return node;
 }
 
-ASTNodePointer Parser::parseCall(Token token) {
+ASTNodePointer Parser::parseCall() {
+  auto token = currentToken();
   auto callNode = std::make_unique<ASTNode>(ASTType::FuncCall, token);
 
   consumeToken();
@@ -578,7 +579,7 @@ ASTNodePointer Parser::parsePrimary() {
   case TokenType::Identifier: {
     consumeToken();
     if (currentToken().type == TokenType::LParen) {
-      return parseCall(curr);
+      return parseCall();
     }
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
