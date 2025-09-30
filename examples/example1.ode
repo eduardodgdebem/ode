@@ -2,3 +2,4 @@ let num: i32 = 45;
 num = 46;
 let x: i32 = 1;
 (x * num);
+let num: i32 = 45;
