@@ -1,12 +1,10 @@
-#include "Analyzer.hpp"
-#include "ASTNode.hpp"
-#include "Helper.hpp"
 #include <format>
-#include <functional>
 #include <memory>
 #include <optional>
-#include <print>
 #include <stdexcept>
+
+#include "ASTNode.hpp"
+#include "Analyzer.hpp"
 
 void ScopedSymbolTable::enterScope() { scopes.push_back({}); }
 
@@ -22,7 +20,6 @@ void ScopedSymbolTable::declare(SymbolPointer symbol) {
     throw std::runtime_error(std::format(
         "Symbol already declared in this scope: {}", symbol->getId()));
   }
-
   current[symbol->getId()] = symbol;
 }
 
@@ -33,7 +30,6 @@ std::optional<SymbolPointer> ScopedSymbolTable::lookup(SymbolID id) {
       return found->second;
     }
   }
-
   return std::nullopt;
 }
 
@@ -53,10 +49,13 @@ void Analyzer::validateNode(ASTNode *node) {
     validateVarDecl(node);
     break;
   case ASTType::Assign:
+    validateAssign(node);
     break;
     // case ASTType::FuncDecl:
+    //   validateFuncDecl(node);
     //   break;
     // case ASTType::FuncCall:
+    //   validateFuncCall(node);
     //   break;
   }
 }
@@ -65,37 +64,289 @@ void Analyzer::validateBlock(ASTNode *block) {
   if (block->type != ASTType::Block) {
     throw std::logic_error("ValidateBlock should only validate a Block node");
   }
-
   symbolsTable.enterScope();
-
   for (auto &child : block->children) {
     validateNode(child.get());
   }
-
   symbolsTable.exitScope();
 }
 
 void Analyzer::validateVarDecl(ASTNode *node) {
   if (node->type != ASTType::VarDecl) {
-    throw std::logic_error("ValidateVarDecl should only validate a Block node");
+    throw std::logic_error(
+        "ValidateVarDecl should only validate a VarDecl node");
   }
 
   auto symbol = symbolsTable.lookup(node->token.value);
-
   if (symbol.has_value()) {
-    throw std::logic_error(
-        std::format("variable {} cannot be declared more than once",
+    throw std::runtime_error(
+        std::format("variable '{}' cannot be declared more than once",
                     symbol.value()->getId()));
   }
 
-  SymbolPointer newSymbol =
-      std::make_shared<Symbol>(node->token.value, VarType::I32);
+  if (node->children.empty()) {
+    throw std::logic_error("VarDecl node missing type child");
+  }
 
+  VarType declaredType = tokenTypeToVarType(node->children[0]->token.value);
+
+  if (node->children.size() < 2) {
+    throw std::logic_error("VarDecl node missing expression child");
+  }
+
+  VarType exprType = validateExpr(node->children[1].get());
+
+  if (declaredType != exprType) {
+    throw std::runtime_error(
+        std::format("type mismatch in variable '{}' declaration: declared as "
+                    "'{}' but assigned '{}'",
+                    node->token.value, node->children[0]->token.value,
+                    exprType == VarType::I32   ? "i32"
+                    : exprType == VarType::I64 ? "i64"
+                                               : "bool"));
+  }
+
+  SymbolPointer newSymbol =
+      std::make_shared<Symbol>(node->token.value, declaredType);
   symbolsTable.declare(newSymbol);
 }
 
 void Analyzer::validateAssign(ASTNode *node) {
   if (node->type != ASTType::Assign) {
-    throw std::logic_error("ValidateAssign should only validate a Block node");
+    throw std::logic_error(
+        "ValidateAssign should only validate an Assign node");
+  }
+
+  auto symbol = symbolsTable.lookup(node->token.value);
+
+  if (!symbol.has_value()) {
+    throw std::runtime_error(std::format(
+        "variable '{}' is not declared in this scope", node->token.value));
+  }
+
+  if (node->children.empty()) {
+    throw std::logic_error("Assign node missing expression child");
+  }
+
+  VarType exprType = validateExpr(node->children[0].get());
+  VarType varType = symbol.value()->getType();
+
+  if (varType != exprType) {
+    throw std::runtime_error(
+        std::format("type mismatch in assignment to '{}': variable is '{}' but "
+                    "expression is '{}'",
+                    node->token.value,
+                    varType == VarType::I32   ? "i32"
+                    : varType == VarType::I64 ? "i64"
+                                              : "bool",
+                    exprType == VarType::I32   ? "i32"
+                    : exprType == VarType::I64 ? "i64"
+                                               : "bool"));
+  }
+}
+
+VarType Analyzer::tokenTypeToVarType(const std::string &typeStr) {
+  if (typeStr == "i32")
+    return VarType::I32;
+  if (typeStr == "i64")
+    return VarType::I64;
+  if (typeStr == "bool")
+    return VarType::Boolean;
+
+  throw std::runtime_error(std::format("unknown type: {}", typeStr));
+}
+
+VarType Analyzer::validateExpr(ASTNode *node) {
+  if (node->type != ASTType::Expr) {
+    throw std::logic_error("validateExpr should only validate an Expr node");
+  }
+
+  if (node->children.empty()) {
+    throw std::logic_error("Expr node has no children");
+  }
+
+  auto child = node->children[0].get();
+
+  switch (child->type) {
+  case ASTType::LogicOr:
+    return validateLogicOr(child);
+  case ASTType::LogicAnd:
+    return validateLogicAnd(child);
+  case ASTType::Equality:
+    return validateEquality(child);
+  case ASTType::Comparison:
+    return validateComparison(child);
+  case ASTType::Term:
+    return validateTerm(child);
+  case ASTType::Factor:
+    return validateFactor(child);
+  case ASTType::Primary:
+    return validatePrimary(child);
+  default:
+    throw std::logic_error(std::format("unexpected node type in expression: {}",
+                                       static_cast<int>(child->type)));
+  }
+}
+
+VarType Analyzer::validateLogicOr(ASTNode *node) {
+  if (node->type != ASTType::LogicOr) {
+    throw std::logic_error(
+        "validateLogicOr should only validate a LogicOr node");
+  }
+
+  if (node->children.size() != 2) {
+    throw std::logic_error("LogicOr node must have exactly 2 children");
+  }
+
+  VarType leftType = validateExpr(node->children[0].get());
+  VarType rightType = validateExpr(node->children[1].get());
+
+  if (leftType != VarType::Boolean || rightType != VarType::Boolean) {
+    throw std::runtime_error("logical OR operator requires boolean operands");
+  }
+
+  return VarType::Boolean;
+}
+
+VarType Analyzer::validateLogicAnd(ASTNode *node) {
+  if (node->type != ASTType::LogicAnd) {
+    throw std::logic_error(
+        "validateLogicAnd should only validate a LogicAnd node");
+  }
+
+  if (node->children.size() != 2) {
+    throw std::logic_error("LogicAnd node must have exactly 2 children");
+  }
+
+  VarType leftType = validateExpr(node->children[0].get());
+  VarType rightType = validateExpr(node->children[1].get());
+
+  if (leftType != VarType::Boolean || rightType != VarType::Boolean) {
+    throw std::runtime_error("logical AND operator requires boolean operands");
+  }
+
+  return VarType::Boolean;
+}
+
+VarType Analyzer::validateEquality(ASTNode *node) {
+  if (node->type != ASTType::Equality) {
+    throw std::logic_error(
+        "validateEquality should only validate an Equality node");
+  }
+
+  if (node->children.size() != 2) {
+    throw std::logic_error("Equality node must have exactly 2 children");
+  }
+
+  VarType leftType = validateExpr(node->children[0].get());
+  VarType rightType = validateExpr(node->children[1].get());
+
+  if (leftType != rightType) {
+    throw std::runtime_error(
+        std::format("equality comparison requires operands of the same type"));
+  }
+
+  return VarType::Boolean;
+}
+
+VarType Analyzer::validateComparison(ASTNode *node) {
+  if (node->type != ASTType::Comparison) {
+    throw std::logic_error(
+        "validateComparison should only validate a Comparison node");
+  }
+
+  if (node->children.size() != 2) {
+    throw std::logic_error("Comparison node must have exactly 2 children");
+  }
+
+  VarType leftType = validateExpr(node->children[0].get());
+  VarType rightType = validateExpr(node->children[1].get());
+
+  if (leftType != rightType) {
+    throw std::runtime_error("comparison requires operands of the same type");
+  }
+
+  if (leftType == VarType::Boolean) {
+    throw std::runtime_error(
+        "comparison operators cannot be used with boolean values");
+  }
+
+  return VarType::Boolean;
+}
+
+VarType Analyzer::validateTerm(ASTNode *node) {
+  if (node->type != ASTType::Term) {
+    throw std::logic_error("validateTerm should only validate a Term node");
+  }
+
+  if (node->children.size() != 2) {
+    throw std::logic_error("Term node must have exactly 2 children");
+  }
+
+  VarType leftType = validateExpr(node->children[0].get());
+  VarType rightType = validateExpr(node->children[1].get());
+
+  if (leftType == VarType::Boolean || rightType == VarType::Boolean) {
+    throw std::runtime_error(
+        "arithmetic operators cannot be used with boolean values");
+  }
+
+  if (leftType != rightType) {
+    throw std::runtime_error(
+        std::format("arithmetic operation requires operands of the same type"));
+  }
+
+  return leftType;
+}
+
+VarType Analyzer::validateFactor(ASTNode *node) {
+  if (node->type != ASTType::Factor) {
+    throw std::logic_error("validateFactor should only validate a Factor node");
+  }
+
+  if (node->children.size() != 2) {
+    throw std::logic_error("Factor node must have exactly 2 children");
+  }
+
+  VarType leftType = validateExpr(node->children[0].get());
+  VarType rightType = validateExpr(node->children[1].get());
+
+  if (leftType == VarType::Boolean || rightType == VarType::Boolean) {
+    throw std::runtime_error(
+        "arithmetic operators cannot be used with boolean values");
+  }
+
+  if (leftType != rightType) {
+    throw std::runtime_error(
+        std::format("arithmetic operation requires operands of the same type"));
+  }
+
+  return leftType;
+}
+
+VarType Analyzer::validatePrimary(ASTNode *node) {
+  if (node->type != ASTType::Primary) {
+    throw std::logic_error(
+        "validatePrimary should only validate a Primary node");
+  }
+
+  switch (node->token.type) {
+  case TokenType::Number: {
+    return VarType::I32;
+  }
+  case TokenType::Boolean: {
+    return VarType::Boolean;
+  }
+  case TokenType::Identifier: {
+    auto symbol = symbolsTable.lookup(node->token.value);
+    if (!symbol.has_value()) {
+      throw std::runtime_error(
+          std::format("undefined variable: '{}'", node->token.value));
+    }
+    return symbol.value()->getType();
+  }
+  default:
+    throw std::logic_error(std::format(
+        "unexpected token type in primary expression: {}", node->token.value));
   }
 }

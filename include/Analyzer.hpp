@@ -1,10 +1,10 @@
-#include "ASTNode.hpp"
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "ASTNode.hpp"
 
 enum class VarType {
   I32,
@@ -20,7 +20,6 @@ class Symbol {
 
 public:
   Symbol(SymbolID id, VarType type) : id(std::move(id)), type(type) {}
-
   SymbolID getId() const { return id; };
   VarType getType() const { return type; };
 };
@@ -36,7 +35,6 @@ public:
   void exitScope();
   void declare(SymbolPointer symbol);
   std::optional<SymbolPointer> lookup(SymbolID id);
-
   ScopedSymbolTable() { enterScope(); }
 };
 
@@ -50,6 +48,17 @@ private:
   void validateAssign(ASTNode *node);
   void validateFuncDecl(ASTNode *node);
   void validateFuncCall(ASTNode *node);
+
+  VarType validateExpr(ASTNode *node);
+  VarType validateLogicOr(ASTNode *node);
+  VarType validateLogicAnd(ASTNode *node);
+  VarType validateEquality(ASTNode *node);
+  VarType validateComparison(ASTNode *node);
+  VarType validateTerm(ASTNode *node);
+  VarType validateFactor(ASTNode *node);
+  VarType validatePrimary(ASTNode *node);
+
+  VarType tokenTypeToVarType(const std::string &typeStr);
 
 public:
   void analyze(ASTNode *node);
