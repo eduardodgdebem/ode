@@ -44,7 +44,6 @@ class Analyzer {
 private:
   ScopedSymbolTable symbolsTable;
 
-  void traverseTree(ASTNode *node, std::function<void(ASTNode *node)> cb);
   void validateNode(ASTNode *node);
   void validateBlock(ASTNode *node);
   void validateVarDecl(ASTNode *node);

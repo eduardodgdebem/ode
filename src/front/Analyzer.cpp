@@ -44,9 +44,6 @@ void Analyzer::analyze(ASTNode *node) {
   }
 }
 
-void Analyzer::traverseTree(ASTNode *node,
-                            std::function<void(ASTNode *node)> callBack) {}
-
 void Analyzer::validateNode(ASTNode *node) {
   switch (node->type) {
   case ASTType::Block:
@@ -55,8 +52,8 @@ void Analyzer::validateNode(ASTNode *node) {
   case ASTType::VarDecl:
     validateVarDecl(node);
     break;
-    // case ASTType::Assign:
-    //   break;
+  case ASTType::Assign:
+    break;
     // case ASTType::FuncDecl:
     //   break;
     // case ASTType::FuncCall:
@@ -80,7 +77,7 @@ void Analyzer::validateBlock(ASTNode *block) {
 
 void Analyzer::validateVarDecl(ASTNode *node) {
   if (node->type != ASTType::VarDecl) {
-    throw std::logic_error("ValidateBlock should only validate a Block node");
+    throw std::logic_error("ValidateVarDecl should only validate a Block node");
   }
 
   auto symbol = symbolsTable.lookup(node->token.value);
@@ -95,4 +92,10 @@ void Analyzer::validateVarDecl(ASTNode *node) {
       std::make_shared<Symbol>(node->token.value, VarType::I32);
 
   symbolsTable.declare(newSymbol);
+}
+
+void Analyzer::validateAssign(ASTNode *node) {
+  if (node->type != ASTType::Assign) {
+    throw std::logic_error("ValidateAssign should only validate a Block node");
+  }
 }
