@@ -1,6 +1,8 @@
 #pragma once
 #include <algorithm>
+#include <cctype>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 enum class TokenType {
@@ -44,65 +46,96 @@ enum class TokenType {
 struct Token {
   TokenType type;
   std::string value;
+
+  Token() : type(TokenType::None), value("") {}
+  Token(TokenType t, std::string v) : type(t), value(std::move(v)) {}
 };
 
-namespace {
-bool is_digits(const std::string &str) {
-  return !str.empty() && std::all_of(str.begin(), str.end(), ::isdigit);
-}
-} // namespace
+namespace TokenUtils {
 
-constexpr TokenType getTokenTypeByChar(char character) {
-  if (std::isalpha(character)) {
-    return TokenType::Identifier;
-  } else if (std::isspace(character)) {
-    return TokenType::Skip;
-  } else if (std::isdigit(character)) {
-    return TokenType::Number;
-  }
-
-  switch (character) {
-  case '+':
-    return TokenType::Plus;
-  case '-':
-    return TokenType::Minus;
-  case '*':
-    return TokenType::Multiply;
-  case '/':
-    return TokenType::Divide;
-  case '(':
-    return TokenType::LParen;
-  case ')':
-    return TokenType::RParen;
-  case '=':
-    return TokenType::Equal;
-  case ';':
-    return TokenType::Semicolumn;
-  case '"':
-    return TokenType::DoubleQuotes;
-  case '{':
-    return TokenType::LBraket;
-  case '}':
-    return TokenType::RBraket;
-  case '>':
-    return TokenType::GreaterOp;
-  case '<':
-    return TokenType::LesserOp;
-  case ',':
-    return TokenType::Comma;
-  case ':':
-    return TokenType::Colon;
+inline constexpr bool isOperatorOrDelimiter(TokenType type) noexcept {
+  switch (type) {
+  case TokenType::Equal:
+  case TokenType::LParen:
+  case TokenType::LBraket:
+  case TokenType::Comma:
+  case TokenType::Colon:
+  case TokenType::EqualOp:
+  case TokenType::DiffOp:
+  case TokenType::GreaterOp:
+  case TokenType::GreaterEqualOp:
+  case TokenType::LesserOp:
+  case TokenType::LesserEqualOp:
+  case TokenType::Plus:
+  case TokenType::Minus:
+  case TokenType::Multiply:
+  case TokenType::Divide:
+  case TokenType::Or:
+  case TokenType::And:
+  case TokenType::Return:
+    return true;
   default:
-    return TokenType::Identifier;
+    return false;
   }
 }
 
-constexpr TokenType getTokenTypeByString(std::string value) {
+inline bool isNumber(std::string_view str) noexcept {
+  if (str.empty())
+    return false;
+
+  const size_t start = (str[0] == '-') ? 1 : 0;
+  if (start >= str.length())
+    return false;
+
+  return std::all_of(str.begin() + start, str.end(),
+                     [](unsigned char c) { return std::isdigit(c); });
+}
+
+inline TokenType getTokenTypeByString(std::string_view value) {
   if (value.size() == 1) {
-    return getTokenTypeByChar(value.at(0));
+    const char c = value[0];
+    if (std::isalpha(c))
+      return TokenType::Identifier;
+    if (std::isdigit(c))
+      return TokenType::Number;
+
+    switch (c) {
+    case '+':
+      return TokenType::Plus;
+    case '-':
+      return TokenType::Minus;
+    case '*':
+      return TokenType::Multiply;
+    case '/':
+      return TokenType::Divide;
+    case '(':
+      return TokenType::LParen;
+    case ')':
+      return TokenType::RParen;
+    case '=':
+      return TokenType::Equal;
+    case ';':
+      return TokenType::Semicolumn;
+    case '"':
+      return TokenType::DoubleQuotes;
+    case '{':
+      return TokenType::LBraket;
+    case '}':
+      return TokenType::RBraket;
+    case '>':
+      return TokenType::GreaterOp;
+    case '<':
+      return TokenType::LesserOp;
+    case ',':
+      return TokenType::Comma;
+    case ':':
+      return TokenType::Colon;
+    default:
+      return TokenType::Identifier;
+    }
   }
 
-  static const std::unordered_map<std::string, TokenType> keywordMap = {
+  static const std::unordered_map<std::string_view, TokenType> keywords = {
       {"let", TokenType::Let},
       {"while", TokenType::While},
       {"fn", TokenType::Fn},
@@ -122,13 +155,11 @@ constexpr TokenType getTokenTypeByString(std::string value) {
       {"bool", TokenType::Type},
   };
 
-  if (auto it = keywordMap.find(value); it != keywordMap.end()) {
+  if (auto it = keywords.find(value); it != keywords.end()) {
     return it->second;
   }
 
-  if (is_digits(value)) {
-    return TokenType::Number;
-  }
-
-  return TokenType::Identifier;
+  return isNumber(value) ? TokenType::Number : TokenType::Identifier;
 }
+
+} // namespace TokenUtils

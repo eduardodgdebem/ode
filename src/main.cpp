@@ -43,5 +43,5 @@ int main(int argc, char *argv[]) {
   AnalyzerPointer analyzer = std::make_unique<Analyzer>();
   analyzer->analyze(root.get());
 
-  // printTree(root);
+  printTree(root);
 }

@@ -1,128 +1,153 @@
+// Lexer.cpp
 #include "Lexer.hpp"
-#include "Token.hpp"
-#include <optional>
-#include <tuple>
-#include <vector>
 
-std::vector<Token> Lexer::tokenize() const {
-  std::vector<Token> list;
+std::vector<Token> Lexer::tokenize() {
+  std::vector<Token> tokens;
+  tokens.reserve(source_.length() / 4);
+
   while (auto token = nextToken()) {
-    list.push_back(token.value());
+    tokens.push_back(std::move(*token));
   }
-  return list;
+
+  tokens.shrink_to_fit();
+  return tokens;
 }
 
-std::optional<Token> Lexer::nextToken() const {
-  while (pos < fileText.length()) {
-    char currentChar = fileText[pos];
-
-    if (isspace(currentChar)) {
-      pos++;
-      continue;
-    }
-
-    if (isalpha(currentChar) || currentChar == '_') {
-      std::string value;
-      while (pos < fileText.length() &&
-             (isalnum(fileText[pos]) || fileText[pos] == '_')) {
-        value += fileText[pos];
-        pos++;
-      }
-      return Token{getTokenTypeByString(value), value};
-    }
-
-    if (isdigit(currentChar)) {
-      std::string value;
-      while (pos < fileText.length() && isdigit(fileText[pos])) {
-        value += fileText[pos];
-        pos++;
-      }
-      return Token{TokenType::Number, value};
-    }
-
-    auto [type, value] = getTokenDetails();
-    return Token{type, value};
+void Lexer::skipWhitespace() noexcept {
+  while (pos_ < source_.length() &&
+         std::isspace(static_cast<unsigned char>(source_[pos_]))) {
+    ++pos_;
   }
-  return std::nullopt;
 }
 
-std::tuple<TokenType, std::string> Lexer::getTokenDetails() const {
-  char currentChar = fileText[pos];
-  switch (currentChar) {
+bool Lexer::shouldParseNegativeNumber() const noexcept {
+  if (!std::isdigit(static_cast<unsigned char>(peek(1)))) {
+    return false;
+  }
+
+  return lastTokenType_ == TokenType::None ||
+         TokenUtils::isOperatorOrDelimiter(lastTokenType_);
+}
+
+std::optional<Token> Lexer::parseIdentifierOrKeyword() {
+  const size_t start = pos_;
+
+  while (pos_ < source_.length()) {
+    const char c = source_[pos_];
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
+      break;
+    }
+    ++pos_;
+  }
+
+  std::string_view value = source_.substr(start, pos_ - start);
+  return makeToken(TokenUtils::getTokenTypeByString(value), std::string(value));
+}
+
+std::optional<Token> Lexer::parseNumber(bool negative) {
+  std::string value;
+
+  if (negative) {
+    value += '-';
+    ++pos_;
+  }
+
+  const size_t start = pos_;
+  while (pos_ < source_.length() &&
+         std::isdigit(static_cast<unsigned char>(source_[pos_]))) {
+    ++pos_;
+  }
+
+  value += source_.substr(start, pos_ - start);
+  return makeToken(TokenType::Number, std::move(value));
+}
+
+std::optional<Token> Lexer::parseOperatorOrSymbol() {
+  const char current = peek();
+  const char next = peek(1);
+
+  if (current == '=' && next == '=') {
+    pos_ += 2;
+    return makeToken(TokenType::EqualOp, "==");
+  }
+  if (current == '!' && next == '=') {
+    pos_ += 2;
+    return makeToken(TokenType::DiffOp, "!=");
+  }
+  if (current == '|' && next == '|') {
+    pos_ += 2;
+    return makeToken(TokenType::Or, "||");
+  }
+  if (current == '&' && next == '&') {
+    pos_ += 2;
+    return makeToken(TokenType::And, "&&");
+  }
+  if (current == '<' && next == '=') {
+    pos_ += 2;
+    return makeToken(TokenType::LesserEqualOp, "<=");
+  }
+  if (current == '>' && next == '=') {
+    pos_ += 2;
+    return makeToken(TokenType::GreaterEqualOp, ">=");
+  }
+
+  const char c = consume();
+  switch (c) {
   case '{':
-    pos++;
-    return {TokenType::LBraket, "{"};
+    return makeToken(TokenType::LBraket, "{");
   case '}':
-    pos++;
-    return {TokenType::RBraket, "}"};
+    return makeToken(TokenType::RBraket, "}");
   case '(':
-    pos++;
-    return {TokenType::LParen, "("};
+    return makeToken(TokenType::LParen, "(");
   case ')':
-    pos++;
-    return {TokenType::RParen, ")"};
+    return makeToken(TokenType::RParen, ")");
   case ';':
-    pos++;
-    return {TokenType::Semicolumn, ";"};
+    return makeToken(TokenType::Semicolumn, ";");
   case '+':
-    pos++;
-    return {TokenType::Plus, "+"};
+    return makeToken(TokenType::Plus, "+");
   case '-':
-    pos++;
-    return {TokenType::Minus, "-"};
+    return makeToken(TokenType::Minus, "-");
   case '*':
-    pos++;
-    return {TokenType::Multiply, "*"};
+    return makeToken(TokenType::Multiply, "*");
   case '/':
-    pos++;
-    return {TokenType::Divide, "/"};
+    return makeToken(TokenType::Divide, "/");
   case ',':
-    pos++;
-    return {TokenType::Comma, ","};
+    return makeToken(TokenType::Comma, ",");
   case ':':
-    pos++;
-    return {TokenType::Colon, ":"};
+    return makeToken(TokenType::Colon, ":");
   case '=':
-    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
-      pos += 2;
-      return {TokenType::EqualOp, "=="};
-    }
-    pos++;
-    return {TokenType::Equal, "="};
-  case '!':
-    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
-      pos += 2;
-      return {TokenType::DiffOp, "!="};
-    }
-    break;
-  case '|':
-    if (pos + 1 < fileText.length() && fileText[pos + 1] == '|') {
-      pos += 2;
-      return {TokenType::Or, "||"};
-    }
-    break;
-  case '&':
-    if (pos + 1 < fileText.length() && fileText[pos + 1] == '&') {
-      pos += 2;
-      return {TokenType::And, "&&"};
-    }
-    break;
+    return makeToken(TokenType::Equal, "=");
   case '<':
-    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
-      pos += 2;
-      return {TokenType::LesserEqualOp, "<="};
-    }
-    pos++;
-    return {TokenType::LesserOp, "<"};
+    return makeToken(TokenType::LesserOp, "<");
   case '>':
-    if (pos + 1 < fileText.length() && fileText[pos + 1] == '=') {
-      pos += 2;
-      return {TokenType::GreaterEqualOp, ">="};
-    }
-    pos++;
-    return {TokenType::GreaterOp, ">"};
+    return makeToken(TokenType::GreaterOp, ">");
+  case '"':
+    return makeToken(TokenType::DoubleQuotes, "\"");
+  default:
+    return makeToken(TokenType::Identifier, std::string(1, c));
+  }
+}
+
+std::optional<Token> Lexer::nextToken() {
+  skipWhitespace();
+
+  if (pos_ >= source_.length()) {
+    return std::nullopt;
   }
 
-  pos++;
-  return {TokenType::Identifier, std::string(1, currentChar)};
+  const char current = peek();
+
+  if (std::isalpha(static_cast<unsigned char>(current)) || current == '_') {
+    return parseIdentifierOrKeyword();
+  }
+
+  if (current == '-' && shouldParseNegativeNumber()) {
+    return parseNumber(true);
+  }
+
+  if (std::isdigit(static_cast<unsigned char>(current))) {
+    return parseNumber(false);
+  }
+
+  return parseOperatorOrSymbol();
 }
