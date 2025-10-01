@@ -1,10 +1,10 @@
+#include "ASTNode.hpp"
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "ASTNode.hpp"
 
 enum class VarType {
   I32,
@@ -50,6 +50,7 @@ private:
   void validateFuncCall(ASTNode *node);
 
   VarType validateExpr(ASTNode *node);
+  VarType validateAnyExpr(ASTNode *node);
   VarType validateLogicOr(ASTNode *node);
   VarType validateLogicAnd(ASTNode *node);
   VarType validateEquality(ASTNode *node);

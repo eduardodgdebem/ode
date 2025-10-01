@@ -150,8 +150,7 @@ inline TokenType getTokenTypeByString(std::string_view value) {
       {"<=", TokenType::LesserEqualOp},
       {">=", TokenType::GreaterEqualOp},
       {"return", TokenType::Return},
-      {"i32", TokenType::Type},
-      {"i64", TokenType::Type},
+      {"number", TokenType::Type},
       {"bool", TokenType::Type},
   };
 

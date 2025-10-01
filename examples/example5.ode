@@ -1,5 +1,5 @@
-let i: i32 = 0;
-let sum: i64 = 0;
+let i: number = 0;
+let sum: number = 0;
 
 while(i < 10) {
   sum = sum + 1;

@@ -1,10 +1,13 @@
+#include "Analyzer.hpp"
+#include "ASTNode.hpp"
+#include "Helper.hpp"
 #include <format>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <print>
 #include <stdexcept>
-
-#include "ASTNode.hpp"
-#include "Analyzer.hpp"
+#include <unordered_map>
 
 void ScopedSymbolTable::enterScope() { scopes.push_back({}); }
 
@@ -146,10 +149,8 @@ void Analyzer::validateAssign(ASTNode *node) {
 }
 
 VarType Analyzer::tokenTypeToVarType(const std::string &typeStr) {
-  if (typeStr == "i32")
+  if (typeStr == "number")
     return VarType::I32;
-  if (typeStr == "i64")
-    return VarType::I64;
   if (typeStr == "bool")
     return VarType::Boolean;
 
@@ -165,26 +166,30 @@ VarType Analyzer::validateExpr(ASTNode *node) {
     throw std::logic_error("Expr node has no children");
   }
 
-  auto child = node->children[0].get();
+  return validateAnyExpr(node->children[0].get());
+}
 
-  switch (child->type) {
+VarType Analyzer::validateAnyExpr(ASTNode *node) {
+  switch (node->type) {
+  case ASTType::Expr:
+    return validateExpr(node);
   case ASTType::LogicOr:
-    return validateLogicOr(child);
+    return validateLogicOr(node);
   case ASTType::LogicAnd:
-    return validateLogicAnd(child);
+    return validateLogicAnd(node);
   case ASTType::Equality:
-    return validateEquality(child);
+    return validateEquality(node);
   case ASTType::Comparison:
-    return validateComparison(child);
+    return validateComparison(node);
   case ASTType::Term:
-    return validateTerm(child);
+    return validateTerm(node);
   case ASTType::Factor:
-    return validateFactor(child);
+    return validateFactor(node);
   case ASTType::Primary:
-    return validatePrimary(child);
+    return validatePrimary(node);
   default:
     throw std::logic_error(std::format("unexpected node type in expression: {}",
-                                       static_cast<int>(child->type)));
+                                       static_cast<int>(node->type)));
   }
 }
 
@@ -198,8 +203,8 @@ VarType Analyzer::validateLogicOr(ASTNode *node) {
     throw std::logic_error("LogicOr node must have exactly 2 children");
   }
 
-  VarType leftType = validateExpr(node->children[0].get());
-  VarType rightType = validateExpr(node->children[1].get());
+  VarType leftType = validateAnyExpr(node->children[0].get());
+  VarType rightType = validateAnyExpr(node->children[1].get());
 
   if (leftType != VarType::Boolean || rightType != VarType::Boolean) {
     throw std::runtime_error("logical OR operator requires boolean operands");
@@ -218,8 +223,8 @@ VarType Analyzer::validateLogicAnd(ASTNode *node) {
     throw std::logic_error("LogicAnd node must have exactly 2 children");
   }
 
-  VarType leftType = validateExpr(node->children[0].get());
-  VarType rightType = validateExpr(node->children[1].get());
+  VarType leftType = validateAnyExpr(node->children[0].get());
+  VarType rightType = validateAnyExpr(node->children[1].get());
 
   if (leftType != VarType::Boolean || rightType != VarType::Boolean) {
     throw std::runtime_error("logical AND operator requires boolean operands");
@@ -238,8 +243,8 @@ VarType Analyzer::validateEquality(ASTNode *node) {
     throw std::logic_error("Equality node must have exactly 2 children");
   }
 
-  VarType leftType = validateExpr(node->children[0].get());
-  VarType rightType = validateExpr(node->children[1].get());
+  VarType leftType = validateAnyExpr(node->children[0].get());
+  VarType rightType = validateAnyExpr(node->children[1].get());
 
   if (leftType != rightType) {
     throw std::runtime_error(
@@ -259,8 +264,8 @@ VarType Analyzer::validateComparison(ASTNode *node) {
     throw std::logic_error("Comparison node must have exactly 2 children");
   }
 
-  VarType leftType = validateExpr(node->children[0].get());
-  VarType rightType = validateExpr(node->children[1].get());
+  VarType leftType = validateAnyExpr(node->children[0].get());
+  VarType rightType = validateAnyExpr(node->children[1].get());
 
   if (leftType != rightType) {
     throw std::runtime_error("comparison requires operands of the same type");
@@ -283,8 +288,8 @@ VarType Analyzer::validateTerm(ASTNode *node) {
     throw std::logic_error("Term node must have exactly 2 children");
   }
 
-  VarType leftType = validateExpr(node->children[0].get());
-  VarType rightType = validateExpr(node->children[1].get());
+  VarType leftType = validateAnyExpr(node->children[0].get());
+  VarType rightType = validateAnyExpr(node->children[1].get());
 
   if (leftType == VarType::Boolean || rightType == VarType::Boolean) {
     throw std::runtime_error(
@@ -308,8 +313,8 @@ VarType Analyzer::validateFactor(ASTNode *node) {
     throw std::logic_error("Factor node must have exactly 2 children");
   }
 
-  VarType leftType = validateExpr(node->children[0].get());
-  VarType rightType = validateExpr(node->children[1].get());
+  VarType leftType = validateAnyExpr(node->children[0].get());
+  VarType rightType = validateAnyExpr(node->children[1].get());
 
   if (leftType == VarType::Boolean || rightType == VarType::Boolean) {
     throw std::runtime_error(
@@ -332,12 +337,25 @@ VarType Analyzer::validatePrimary(ASTNode *node) {
 
   switch (node->token.type) {
   case TokenType::Number: {
-    return VarType::I32;
+    std::string numStr = node->token.value;
+    bool isNegative = numStr[0] == '-';
+
+    long long value = std::stoll(numStr);
+
+    constexpr long long i32_min = std::numeric_limits<int32_t>::min();
+    constexpr long long i32_max = std::numeric_limits<int32_t>::max();
+
+    if (value >= i32_min && value <= i32_max) {
+      return VarType::I32;
+    }
+
+    return VarType::I64;
   }
   case TokenType::Boolean: {
     return VarType::Boolean;
   }
   case TokenType::Identifier: {
+    // Look up the variable
     auto symbol = symbolsTable.lookup(node->token.value);
     if (!symbol.has_value()) {
       throw std::runtime_error(

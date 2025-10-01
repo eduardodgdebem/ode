@@ -28,4 +28,4 @@
 - [X] **Term** → Factor ((`+` | `-`) Factor)*
 - [X] **Factor** → Primary ((`*` | `/`) Primary)*
 - [X] **Primary** → NUMBER | IDENT | BOOLEAN | `(` Expr `)`
-- [X] **Type** → i32 | i64 | bool
+- [X] **Type** → number | bool

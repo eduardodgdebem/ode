@@ -1,4 +1,4 @@
-let num: i64 = 3;
+let num: number = -3;
 let sla: bool = num < 4;
 let te: bool = true;
 

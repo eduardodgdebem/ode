@@ -1,6 +1,6 @@
-let num: i32 = 45;
+let num: number = 45;
 num = 46;
-let x: i64 = 1;
+let x: number = 1;
 (x * num);
 
 x = num < x;

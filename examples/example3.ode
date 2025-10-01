@@ -1,4 +1,4 @@
-let num: i32 = 0;
+let num: number = 0;
 
 if (num) {
   num = 9;
