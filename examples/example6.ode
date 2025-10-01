@@ -6,6 +6,6 @@ fn fib(num: number): number {
   return fib(num-1) + fib(num-2);
 }
 
-fn main(): number {
+fn main(): void {
   let local_num: number = 9;
 }

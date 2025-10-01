@@ -152,6 +152,7 @@ inline TokenType getTokenTypeByString(std::string_view value) {
       {"return", TokenType::Return},
       {"number", TokenType::Type},
       {"bool", TokenType::Type},
+      {"void", TokenType::Type},
   };
 
   if (auto it = keywords.find(value); it != keywords.end()) {
