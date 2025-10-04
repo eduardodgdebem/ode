@@ -109,8 +109,8 @@ void Analyzer::validateVarDecl(ASTNode *node) {
                                                : "bool"));
   }
 
-  SymbolPointer newSymbol =
-      std::make_shared<Symbol>(node->token.value, declaredType);
+  SymbolPointer newSymbol = std::make_shared<Symbol>(
+      node->token.value, SymbolType::Variable, declaredType);
   symbolsTable.declare(newSymbol);
 }
 
@@ -132,7 +132,7 @@ void Analyzer::validateAssign(ASTNode *node) {
   }
 
   VarType exprType = validateExpr(node->children[0].get());
-  VarType varType = symbol.value()->getType();
+  VarType varType = symbol.value()->getLinkedType();
 
   if (varType != exprType) {
     throw std::runtime_error(
@@ -145,6 +145,52 @@ void Analyzer::validateAssign(ASTNode *node) {
                     exprType == VarType::I32   ? "i32"
                     : exprType == VarType::I64 ? "i64"
                                                : "bool"));
+  }
+}
+
+void Analyzer::validateFuncDecl(ASTNode *node) {
+  if (node->type != ASTType::FuncDecl) {
+    throw std::logic_error(
+        "ValidateFuncDecl should only validate an FuncDecl node");
+  }
+
+  auto symbol = symbolsTable.lookup(node->token.value);
+
+  if (symbol.has_value()) {
+    throw std::runtime_error(
+        std::format("Function '{}' is already declared", node->token.value));
+  }
+
+  if (node->children.empty()) {
+    throw std::logic_error("Function node missing expression child");
+  }
+
+  VarType declaredType = tokenTypeToVarType(node->children[0]->token.value);
+  auto params = node->children[1].get();
+  auto body = node->children[2].get();
+
+  for (auto &param : params->children) {
+    validatePrimary(param.get());
+  }
+
+  validateBlock(body);
+
+  SymbolPointer newSymbol = std::make_shared<Symbol>(
+      node->token.value, SymbolType::Function, declaredType);
+  symbolsTable.declare(newSymbol);
+}
+
+void Analyzer::validateFuncCall(ASTNode *node) {
+  if (node->type != ASTType::FuncCall) {
+    throw std::logic_error(
+        "validateFuncCall should only validate an FuncCall node");
+  }
+
+  auto symbol = symbolsTable.lookup(node->token.value);
+
+  if (!symbol.has_value()) {
+    throw std::runtime_error(std::format(
+        "Function '{}' is not declared in this scope", node->token.value));
   }
 }
 
@@ -361,7 +407,7 @@ VarType Analyzer::validatePrimary(ASTNode *node) {
       throw std::runtime_error(
           std::format("undefined variable: '{}'", node->token.value));
     }
-    return symbol.value()->getType();
+    return symbol.value()->getLinkedType();
   }
   default:
     throw std::logic_error(std::format(

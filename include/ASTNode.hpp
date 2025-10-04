@@ -25,6 +25,7 @@ enum class ASTType {
   Factor,
   Primary,
   FuncCall,
+  ArgList,
   Type
 };
 

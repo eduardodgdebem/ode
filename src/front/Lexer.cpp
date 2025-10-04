@@ -1,11 +1,13 @@
 // Lexer.cpp
 #include "Lexer.hpp"
+#include "Helper.hpp"
 
 std::vector<Token> Lexer::tokenize() {
   std::vector<Token> tokens;
   tokens.reserve(source_.length() / 4);
 
   while (auto token = nextToken()) {
+    printToken(&token.value());
     tokens.push_back(std::move(*token));
   }
 

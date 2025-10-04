@@ -1,8 +1,10 @@
 #include <format>
 #include <memory>
+#include <print>
 #include <stdexcept>
 
 #include "ASTNode.hpp"
+#include "Helper.hpp"
 #include "Parser.hpp"
 #include "Token.hpp"
 
@@ -13,6 +15,13 @@ Token Parser::currentToken() {
     return Token{TokenType::End, ""};
   }
   return tokens.at(pos);
+}
+
+Token Parser::peekToken(int offset) {
+  if (pos >= tokens.size()) {
+    return Token{TokenType::End, ""};
+  }
+  return tokens.at(pos + offset);
 }
 
 void Parser::consumeToken() {
@@ -271,8 +280,12 @@ ASTNodePointer Parser::parseStatement() {
   switch (currentToken().type) {
   case TokenType::Let:
     return parseVarDecl();
-  case TokenType::Identifier:
-    return parseAssign();
+  case TokenType::Identifier: {
+    if (peekToken().type == TokenType::Equal) {
+      return parseAssign();
+    }
+    return parseExprStm();
+  }
   case TokenType::LBraket:
     return parseBlock();
   case TokenType::If:
@@ -532,30 +545,51 @@ ASTNodePointer Parser::parseFactor() {
   return node;
 }
 
-ASTNodePointer Parser::parseCall() {
-  auto token = currentToken();
-  auto callNode = std::make_unique<ASTNode>(ASTType::FuncCall, token);
+ASTNodePointer Parser::parseArgList() {
+  auto argListNode = std::make_unique<ASTNode>(ASTType::ArgList);
 
-  consumeToken();
+  if (currentToken().type == TokenType::RParen) {
+    return argListNode;
+  }
 
-  while (currentToken().type != TokenType::RParen) {
-    auto arg = parseExpr();
-    if (!arg) {
+  while (true) {
+    auto expr = parseExpr();
+    if (!expr) {
       throw std::logic_error(std::format(
-          "Invalid expression in function call, got {}", currentToken().value));
+          "Expected expression in argument list, got {}", currentToken().value));
     }
-    callNode->addChild(std::move(arg));
+    argListNode->addChild(std::move(expr));
 
     if (currentToken().type == TokenType::Comma) {
       consumeToken();
-    } else if (currentToken().type != TokenType::RParen) {
-      throw std::logic_error(
-          std::format("Expected ')' or ',' in function call but got {}",
-                      currentToken().value));
+    } else {
+      break;
     }
   }
 
-  consumeToken();
+  return argListNode;
+}
+
+ASTNodePointer Parser::parseFuncCall() {
+  auto token = currentToken();
+  auto callNode = std::make_unique<ASTNode>(ASTType::FuncCall, token);
+  consumeToken(); // consume identifier
+
+  if (currentToken().type != TokenType::LParen) {
+    throw std::logic_error(
+        std::format("Expected '(' after function name but got {}", currentToken().value));
+  }
+  consumeToken(); // consume '('
+
+  auto argList = parseArgList();
+  callNode->addChild(std::move(argList));
+
+  if (currentToken().type != TokenType::RParen) {
+    throw std::logic_error(
+        std::format("Expected ')' after function arguments but got {}", currentToken().value));
+  }
+  consumeToken(); // consume ')'
+
   return callNode;
 }
 
@@ -577,10 +611,10 @@ ASTNodePointer Parser::parsePrimary() {
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   case TokenType::Identifier: {
-    consumeToken();
-    if (currentToken().type == TokenType::LParen) {
-      return parseCall();
+    if (peekToken().type == TokenType::LParen) {
+      return parseFuncCall();
     }
+    consumeToken();
     return std::make_unique<ASTNode>(ASTType::Primary, curr);
   }
   case TokenType::Boolean: {

@@ -15,7 +15,8 @@ private:
   ASTNodePointer parseWhileStmnt();
   ASTNodePointer parseIfStmnt();
   ASTNodePointer parseFuncDecl();
-  ASTNodePointer parseCall();
+  ASTNodePointer parseFuncCall();
+  ASTNodePointer parseArgList();
   ASTNodePointer parseParamList();
   ASTNodePointer parseReturnStmt();
   ASTNodePointer parseVarDecl();
@@ -32,6 +33,7 @@ private:
   ASTNodePointer parseType();
 
   Token currentToken();
+  Token peekToken(int offset = 1);
   void consumeToken();
 
 public:

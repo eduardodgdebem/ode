@@ -1,5 +1,4 @@
 #include "ASTNode.hpp"
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -12,16 +11,21 @@ enum class VarType {
   Boolean,
 };
 
+enum class SymbolType { Variable, Function };
+
 using SymbolID = std::string;
 
 class Symbol {
   SymbolID id;
-  VarType type;
+  VarType linkedType;
+  SymbolType type;
 
 public:
-  Symbol(SymbolID id, VarType type) : id(std::move(id)), type(type) {}
+  Symbol(SymbolID id, SymbolType t, VarType lType)
+      : id(std::move(id)), type(t), linkedType(lType) {}
   SymbolID getId() const { return id; };
-  VarType getType() const { return type; };
+  VarType getLinkedType() const { return linkedType; };
+  SymbolType getType() const { return type; };
 };
 
 using SymbolPointer = std::shared_ptr<Symbol>;
