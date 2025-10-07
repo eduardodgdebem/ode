@@ -1,3 +1,4 @@
+// Fibonacci function
 fn fib(num: number): number {
   if(num == 0 || num == 1) {
     return num;
