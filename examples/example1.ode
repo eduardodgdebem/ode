@@ -1,6 +1,11 @@
-let num: number = 45;
-num = 46;
-let x: number = 1;
-(x * num);
+fn sum(n1: number, n2:number): number {
+    return n1 + n2;
+}
 
-x = num < x;
+fn main(): number {
+  let a: number = 1;
+  let b: number = 1;
+
+  let result: number = a + b;
+  print(result);
+}

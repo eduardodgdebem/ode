@@ -1,3 +1,4 @@
+#pragma once
 #include "ASTNode.hpp"
 #include <memory>
 #include <optional>
@@ -5,11 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-enum class VarType {
-  I32,
-  I64,
-  Boolean,
-};
+enum class VarType { I32, I64, Boolean, Void };
 
 enum class SymbolType { Variable, Function };
 
@@ -63,10 +60,10 @@ private:
   VarType validateFactor(ASTNode *node);
   VarType validatePrimary(ASTNode *node);
 
-  VarType tokenTypeToVarType(const std::string &typeStr);
-
 public:
   void analyze(ASTNode *node);
+
+  static VarType tokenTypeToVarType(const std::string &typeStr);
 };
 
 using AnalyzerPointer = std::unique_ptr<Analyzer>;

@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 
-#include "Token.hpp"
+#include "Lexer/Token.hpp"
 
 enum class ASTType {
   Program,
@@ -14,6 +14,7 @@ enum class ASTType {
   FuncDecl,
   ParamList,
   ReturnStmt,
+  PrintStmt,
   ExprStmt,
   Block,
   Expr,

@@ -4,7 +4,7 @@
 #include <string>
 
 #include "ASTNode.hpp"
-#include "Token.hpp"
+#include "Lexer/Token.hpp"
 
 constexpr std::string getAstTypeName(ASTType t) {
   switch (t) {
@@ -54,77 +54,77 @@ constexpr std::string getAstTypeName(ASTType t) {
   return "UNKNOWN";
 }
 
-constexpr std::string getTokenTypeName(TokenType TokenType) {
-  switch (TokenType) {
-  case TokenType::None:
+constexpr std::string getTokenType(Token::Type tokenType) {
+  switch (tokenType) {
+  case Token::Type::None:
     return "None";
-  case TokenType::Number:
+  case Token::Type::Number:
     return "NUMBER";
-  case TokenType::Char:
+  case Token::Type::Char:
     return "CHAR";
-  case TokenType::Identifier:
+  case Token::Type::Identifier:
     return "IDENTITY";
-  case TokenType::Plus:
+  case Token::Type::Plus:
     return "PLUS";
-  case TokenType::Minus:
+  case Token::Type::Minus:
     return "MINUS";
-  case TokenType::Multiply:
+  case Token::Type::Multiply:
     return "MULTIPLY";
-  case TokenType::Divide:
+  case Token::Type::Divide:
     return "DIVIDE";
-  case TokenType::Skip:
+  case Token::Type::Skip:
     return "SKIP";
-  case TokenType::LParen:
+  case Token::Type::LParen:
     return "LPAREN";
-  case TokenType::RParen:
+  case Token::Type::RParen:
     return "RPAREN";
-  case TokenType::LBraket:
+  case Token::Type::LBraket:
     return "LBRAKET";
-  case TokenType::RBraket:
+  case Token::Type::RBraket:
     return "RBRAKET";
-  case TokenType::End:
+  case Token::Type::End:
     return "END";
-  case TokenType::Let:
+  case Token::Type::Let:
     return "LET";
-  case TokenType::If:
+  case Token::Type::If:
     return "IF";
-  case TokenType::Else:
+  case Token::Type::Else:
     return "ELSE";
-  case TokenType::Fn:
+  case Token::Type::Fn:
     return "FN";
-  case TokenType::While:
+  case Token::Type::While:
     return "WHILE";
-  case TokenType::Equal:
+  case Token::Type::Equal:
     return "EQUAL";
-  case TokenType::Semicolumn:
+  case Token::Type::Semicolumn:
     return "SEMICOLUMN";
-  case TokenType::DoubleQuotes:
+  case Token::Type::DoubleQuotes:
     return "DOUBLEQUOTES";
-  case TokenType::EqualOp:
+  case Token::Type::EqualOp:
     return "EQUALOP";
-  case TokenType::Boolean:
+  case Token::Type::Boolean:
     return "BOOLEAN";
-  case TokenType::And:
+  case Token::Type::And:
     return "AND";
-  case TokenType::Or:
+  case Token::Type::Or:
     return "OR";
-  case TokenType::GreaterEqualOp:
+  case Token::Type::GreaterEqualOp:
     return "GREATEREQUALOP";
-  case TokenType::GreaterOp:
+  case Token::Type::GreaterOp:
     return "GREATEROP";
-  case TokenType::DiffOp:
+  case Token::Type::DiffOp:
     return "DIFFOP";
-  case TokenType::LesserOp:
+  case Token::Type::LesserOp:
     return "LESSEROP";
-  case TokenType::LesserEqualOp:
+  case Token::Type::LesserEqualOp:
     return "LESSEREQUALOP";
-  case TokenType::Comma:
+  case Token::Type::Comma:
     return "COMMA";
-  case TokenType::Return:
+  case Token::Type::Return:
     return "RETURN";
-  case TokenType::Colon:
+  case Token::Type::Colon:
     return "COLON";
-  case TokenType::Type:
+  case Token::Type::Type:
     return "TYPE";
   }
 
@@ -133,7 +133,7 @@ constexpr std::string getTokenTypeName(TokenType TokenType) {
 
 constexpr void printToken(Token *token) {
   std::println("{}", '{');
-  std::println("  type: {}", getTokenTypeName(token->type));
+  std::println("  type: {}", getTokenType(token->type));
   std::println("  value: {}", token->value);
   std::println("{}", '}');
 }

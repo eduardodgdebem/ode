@@ -2,7 +2,7 @@
 #include <vector>
 
 #include "ASTNode.hpp"
-#include "Token.hpp"
+#include "Lexer/Token.hpp"
 
 class Parser {
 private:
@@ -19,6 +19,7 @@ private:
   ASTNodePointer parseArgList();
   ASTNodePointer parseParamList();
   ASTNodePointer parseReturnStmt();
+  ASTNodePointer parsePrintStmt();
   ASTNodePointer parseVarDecl();
   ASTNodePointer parseAssign();
   ASTNodePointer parseExprStm();

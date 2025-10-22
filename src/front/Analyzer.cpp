@@ -2,10 +2,8 @@
 #include "ASTNode.hpp"
 #include "Helper.hpp"
 #include <format>
-#include <functional>
 #include <memory>
 #include <optional>
-#include <print>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -199,6 +197,8 @@ VarType Analyzer::tokenTypeToVarType(const std::string &typeStr) {
     return VarType::I32;
   if (typeStr == "bool")
     return VarType::Boolean;
+  if (typeStr == "void")
+    return VarType::Void;
 
   throw std::runtime_error(std::format("unknown type: {}", typeStr));
 }
@@ -382,7 +382,7 @@ VarType Analyzer::validatePrimary(ASTNode *node) {
   }
 
   switch (node->token.type) {
-  case TokenType::Number: {
+  case Token::Type::Number: {
     std::string numStr = node->token.value;
     bool isNegative = numStr[0] == '-';
 
@@ -397,10 +397,10 @@ VarType Analyzer::validatePrimary(ASTNode *node) {
 
     return VarType::I64;
   }
-  case TokenType::Boolean: {
+  case Token::Type::Boolean: {
     return VarType::Boolean;
   }
-  case TokenType::Identifier: {
+  case Token::Type::Identifier: {
     // Look up the variable
     auto symbol = symbolsTable.lookup(node->token.value);
     if (!symbol.has_value()) {

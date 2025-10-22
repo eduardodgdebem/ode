@@ -1,10 +1,11 @@
 #include "ASTNode.hpp"
 #include "Analyzer.hpp"
 #include "Helper.hpp"
-#include "Lexer.hpp"
+#include "IRGenerator.hpp"
+#include "Lexer/Lexer.hpp"
 #include "Parser.hpp"
 #include "Reader.hpp"
-#include "Token.hpp"
+#include <memory>
 
 void printTree(ASTNodePointer &node, int depth = 0) {
   if (node == nullptr)
@@ -18,7 +19,7 @@ void printTree(ASTNodePointer &node, int depth = 0) {
   std::println("");
   std::println("{}AST type: {}", padding, getAstTypeName(node->type));
   std::println("{}value: {}", padding, node->token.value);
-  std::println("{}type: {}", padding, getTokenTypeName(node->token.type));
+  std::println("{}type: {}", padding, getTokenType(node->token.type));
 
   for (auto &c : node->children) {
     printTree(c, depth + 1);
@@ -43,5 +44,10 @@ int main(int argc, char *argv[]) {
   AnalyzerPointer analyzer = std::make_unique<Analyzer>();
   analyzer->analyze(root.get());
 
-  printTree(root);
+  std::unique_ptr<IRGenerator> irgen =
+      std::make_unique<IRGenerator>("myProgram");
+
+  irgen->generate(root.get());
+  irgen->emitToFile("output.ll");
+  irgen->emitObjectFile("output.o");
 }
