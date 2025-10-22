@@ -14,8 +14,6 @@ void Reader::forEachLine(std::function<void(std::string)> callBack) {
   std::string line;
 
   while (std::getline(_inputFile, line)) {
-    if (line.starts_with("//"))
-      continue;
     callBack(line);
   }
 }

@@ -5,6 +5,7 @@
 #include "Lexer/Lexer.hpp"
 #include "Parser.hpp"
 #include "Reader.hpp"
+#include <format>
 #include <memory>
 
 void printTree(ASTNodePointer &node, int depth = 0) {
@@ -48,6 +49,6 @@ int main(int argc, char *argv[]) {
       std::make_unique<IRGenerator>("myProgram");
 
   irgen->generate(root.get());
-  irgen->emitToFile("output.ll");
-  irgen->emitObjectFile("output.o");
+  irgen->emitToFile(std::format("{}.ll", filePath));
+  irgen->emitObjectFile(std::format("{}.o", filePath));
 }
