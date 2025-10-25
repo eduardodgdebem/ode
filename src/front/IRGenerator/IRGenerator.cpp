@@ -62,7 +62,6 @@ void IRGenerator::visit(const AST::AssignNode &node) {
 void IRGenerator::visit(const AST::IfStmtNode &node) {
   llvm::Value *condVal = generateExpr(node.condition());
 
-  // Convert to i1 if needed
   if (condVal->getType() != llvm::Type::getInt1Ty(context_)) {
     condVal = builder_.CreateICmpNE(
         condVal, llvm::ConstantInt::get(condVal->getType(), 0));
@@ -80,14 +79,12 @@ void IRGenerator::visit(const AST::IfStmtNode &node) {
 
   builder_.CreateCondBr(condVal, thenBB, elseBB ? elseBB : mergeBB);
 
-  // Generate then block
   builder_.SetInsertPoint(thenBB);
   node.thenBlock()->accept(*this);
   if (!thenBB->getTerminator()) {
     builder_.CreateBr(mergeBB);
   }
 
-  // Generate else block if present
   if (elseBB) {
     builder_.SetInsertPoint(elseBB);
     node.elseBlock()->accept(*this);
@@ -111,11 +108,9 @@ void IRGenerator::visit(const AST::WhileStmtNode &node) {
 
   builder_.CreateBr(condBB);
 
-  // Condition block
   builder_.SetInsertPoint(condBB);
   llvm::Value *condVal = generateExpr(node.condition());
 
-  // Convert to i1 if needed
   if (condVal->getType() != llvm::Type::getInt1Ty(context_)) {
     condVal = builder_.CreateICmpNE(
         condVal, llvm::ConstantInt::get(condVal->getType(), 0));
@@ -123,7 +118,6 @@ void IRGenerator::visit(const AST::WhileStmtNode &node) {
 
   builder_.CreateCondBr(condVal, bodyBB, endBB);
 
-  // Body block
   builder_.SetInsertPoint(bodyBB);
   node.body()->accept(*this);
   if (!bodyBB->getTerminator()) {
@@ -134,11 +128,9 @@ void IRGenerator::visit(const AST::WhileStmtNode &node) {
 }
 
 void IRGenerator::visit(const AST::FuncDeclNode &node) {
-  // Get return type
   Type retType = SemanticAnalyzer::parseType(node.returnType());
   llvm::Type *llvmRetType = getLLVMType(retType);
 
-  // Get parameter types and names
   std::vector<llvm::Type *> paramTypes;
   std::vector<std::string> paramNames;
 
@@ -151,27 +143,23 @@ void IRGenerator::visit(const AST::FuncDeclNode &node) {
     }
   }
 
-  // Create function
   llvm::FunctionType *funcType =
       llvm::FunctionType::get(llvmRetType, paramTypes, false);
   llvm::Function *func =
       llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
                              node.name().value, module_.get());
 
-  // Set argument names
   unsigned idx = 0;
   for (auto &arg : func->args()) {
     arg.setName(paramNames[idx++]);
   }
 
-  // Create entry block
   llvm::BasicBlock *block = llvm::BasicBlock::Create(context_, "entry", func);
   builder_.SetInsertPoint(block);
 
   currentFunc_ = func;
   allocaMap_.clear();
 
-  // Allocate space for parameters
   for (auto &arg : func->args()) {
     llvm::AllocaInst *alloca =
         createEntryBlockAlloca(func, arg.getName().str(), arg.getType());
@@ -179,10 +167,8 @@ void IRGenerator::visit(const AST::FuncDeclNode &node) {
     builder_.CreateStore(&arg, alloca);
   }
 
-  // Generate function body
   node.body()->accept(*this);
 
-  // Add default return if no terminator
   if (!block->getTerminator()) {
     if (retType == Type::Void) {
       builder_.CreateRetVoid();
@@ -206,7 +192,6 @@ void IRGenerator::visit(const AST::ReturnStmtNode &node) {
 void IRGenerator::visit(const AST::PrintStmtNode &node) {
   llvm::Value *expr = generateExpr(node.expr());
 
-  // Create format string based on type
   std::string formatStr;
   if (expr->getType()->isIntegerTy(1)) {
     formatStr = "%d\n";
@@ -221,7 +206,6 @@ void IRGenerator::visit(const AST::PrintStmtNode &node) {
   llvm::Value *formatStrVal = builder_.CreateGlobalString(formatStr);
   llvm::Function *printfFunc = getPrintfFunction();
 
-  // Extend i1 to i32 for printf
   if (expr->getType()->isIntegerTy(1)) {
     expr = builder_.CreateZExt(expr, llvm::Type::getInt32Ty(context_));
   }

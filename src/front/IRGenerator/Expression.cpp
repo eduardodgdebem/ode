@@ -37,10 +37,7 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
 
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
     long long val = std::stoll(num->value().value);
-    if (val >= INT32_MIN && val <= INT32_MAX) {
-      return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), val);
-    }
-    return llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), val);
+    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), val);
   }
 
   if (auto *boolean = dynamic_cast<const AST::BooleanNode *>(node)) {

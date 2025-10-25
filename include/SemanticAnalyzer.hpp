@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-enum class Type { I32, I64, Bool, Void };
+enum class Type { I32, Bool, Void };
 
 class Symbol {
 public:

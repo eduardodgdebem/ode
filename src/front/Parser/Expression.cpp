@@ -1,9 +1,5 @@
 #include "Parser/Parser.hpp"
 
-// ============================================================================
-// Expression Parser
-// ============================================================================
-
 AST::NodePtr Parser::parseExpr() { return parseLogicOr(); }
 
 AST::NodePtr Parser::parseLogicOr() {

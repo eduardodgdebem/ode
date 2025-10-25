@@ -62,7 +62,7 @@ private:
   llvm::IRBuilder<> builder_;
   std::unordered_map<std::string, llvm::AllocaInst *> allocaMap_;
   llvm::Function *currentFunc_ = nullptr;
-  llvm::Value *exprValue_ = nullptr; // For expression results
+  llvm::Value *exprValue_ = nullptr;
 
   llvm::Type *getLLVMType(Type type);
   llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func,

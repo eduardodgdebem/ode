@@ -86,10 +86,11 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
 
 Type SemanticAnalyzer::checkNumber(const AST::NumberNode &node) {
   long long value = std::stoll(node.value().value);
-  if (value >= INT32_MIN && value <= INT32_MAX) {
-    return Type::I32;
+  if (value <= INT32_MIN || value >= INT32_MAX) {
+    Error("Number is out of range for int32");
   }
-  return Type::I64;
+
+  return Type::I32;
 }
 
 Type SemanticAnalyzer::parseType(const AST::Node *node) {
@@ -102,8 +103,6 @@ Type SemanticAnalyzer::parseType(const AST::Node *node) {
 
   if (typeStr == "i32")
     return Type::I32;
-  if (typeStr == "i64")
-    return Type::I64;
   if (typeStr == "bool")
     return Type::Bool;
   if (typeStr == "void")
@@ -116,8 +115,6 @@ std::string SemanticAnalyzer::typeToString(Type t) {
   switch (t) {
   case Type::I32:
     return "i32";
-  case Type::I64:
-    return "i64";
   case Type::Bool:
     return "bool";
   case Type::Void:

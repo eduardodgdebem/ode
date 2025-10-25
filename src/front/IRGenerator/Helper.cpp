@@ -4,8 +4,6 @@ llvm::Type *IRGenerator::getLLVMType(Type type) {
   switch (type) {
   case Type::I32:
     return llvm::Type::getInt32Ty(context_);
-  case Type::I64:
-    return llvm::Type::getInt64Ty(context_);
   case Type::Bool:
     return llvm::Type::getInt1Ty(context_);
   case Type::Void:

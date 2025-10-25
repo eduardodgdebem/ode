@@ -1,6 +1,4 @@
 #include "SemanticAnalyzer.hpp"
-#include "Helper.hpp"
-#include <print>
 
 void SemanticAnalyzer::analyze(AST::Node &root) { root.accept(*this); }
 
