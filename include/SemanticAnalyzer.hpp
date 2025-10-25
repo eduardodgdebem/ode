@@ -1,18 +1,44 @@
 #pragma once
 #include "Parser/AST.hpp"
-#include "SemanticAnalyzer.hpp"
-
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-
 #include <format>
-#include <memory>
+#include <print>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
-class IRGenerator : public AST::Visitor {
+enum class Type { I32, I64, Bool, Void };
+
+class Symbol {
+public:
+  enum class Kind { Variable, Function };
+
+  Symbol(std::string name, Kind kind, Type type);
+
+  const std::string &name() const { return name_; }
+  Kind kind() const { return kind_; }
+  Type type() const { return type_; }
+
+private:
+  std::string name_;
+  Kind kind_;
+  Type type_;
+};
+
+class SymbolTable {
+public:
+  SymbolTable();
+
+  void enterScope();
+  void exitScope();
+  void declare(const std::string &name, Symbol::Kind kind, Type type);
+  const Symbol *lookup(const std::string &name) const;
+
+private:
+  std::vector<std::unordered_map<std::string, Symbol>> scopes_;
+};
+
+class SemanticAnalyzer : public AST::Visitor {
 public:
   class Error : public std::runtime_error {
   public:
@@ -21,21 +47,14 @@ public:
         : std::runtime_error(std::format("{}: {}", context, detail)) {}
   };
 
-  class Todo : public std::runtime_error {
+  class Todo {
   public:
-    explicit Todo(const std::string &feature)
-        : std::runtime_error(
-              std::format("TODO: {} not yet implemented", feature)) {}
+    explicit Todo(const std::string &feature) {
+      std::println(stderr, "[Warning] TODO: {} not yet implemented\n", feature);
+    }
   };
 
-  explicit IRGenerator(const std::string &moduleName);
-
-  void generate(const AST::Node &root);
-  void emitToFile(const std::string &filename);
-  void emitObjectFile(const std::string &filename);
-  void printIR();
-
-  llvm::Module *getModule() { return module_.get(); }
+  void analyze(AST::Node &root);
 
   void visit(const AST::ProgramNode &node) override;
   void visit(const AST::BlockNode &node) override;
@@ -55,22 +74,14 @@ public:
   void visit(const AST::TypeNode &node) override;
   void visit(const AST::ParamListNode &node) override;
   void visit(const AST::ArgListNode &node) override;
+  static Type parseType(const AST::Node *node);
 
 private:
-  llvm::LLVMContext context_;
-  std::unique_ptr<llvm::Module> module_;
-  llvm::IRBuilder<> builder_;
-  std::unordered_map<std::string, llvm::AllocaInst *> allocaMap_;
-  llvm::Function *currentFunc_ = nullptr;
-  llvm::Value *exprValue_ = nullptr; // For expression results
+  SymbolTable symbols_;
 
-  llvm::Type *getLLVMType(Type type);
-  llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func,
-                                           const std::string &name,
-                                           llvm::Type *type);
-  void storeVariable(const std::string &name, llvm::Value *val);
-  llvm::Value *loadVariable(const std::string &name);
+  Type checkExpr(const AST::Node *node);
+  Type checkBinaryOp(const AST::BinaryOpNode &node);
+  Type checkNumber(const AST::NumberNode &node);
 
-  llvm::Value *generateExpr(const AST::Node *node);
-  llvm::Function *getPrintfFunction();
+  static std::string typeToString(Type t);
 };

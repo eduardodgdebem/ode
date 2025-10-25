@@ -1,31 +1,31 @@
 # Grammar (Todo List)
 
-- [X] **Program** → Statement*
-- [X] **Statement** → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ReturnStmt | ExprStmt
-- [X] **VarDecl** → `let` IDENT `:` Type `=` Expr `;`
-- [X] **Assign** → IDENT `=` Expr `;`
-- [X] **IfStmt** → `if` `(` Expr `)` Block (`else` Block)?
-- [X] **WhileStmt** → `while` `(` Expr `)` Block
-- [X] **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
-- [X] **ParamList** → Param (`,` Param)*
-- [X] **Param** → IDENT `:` Type
-- [X] **FuncCall** → IDENT `(` ArgList? `)`
-- [X] **ArgList** → Expr (`,` Expr)*
-- [X] **ReturnStmt** → `return` Expr `;`
-- [X] **ExprStmt** → Expr `;`
+- **Program** → Statement*
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ReturnStmt | ExprStmt
+- **VarDecl** → `let` IDENT `:` Type `=` Expr `;`
+- **Assign** → IDENT `=` Expr `;`
+- **IfStmt** → `if` `(` Expr `)` Block (`else` Block)?
+- **WhileStmt** → `while` `(` Expr `)` Block
+- **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
+- **ParamList** → Param (`,` Param)*
+- **Param** → IDENT `:` Type
+- **FuncCall** → IDENT `(` ArgList? `)`
+- **ArgList** → Expr (`,` Expr)*
+- **ReturnStmt** → `return` Expr `;`
+- **ExprStmt** → Expr `;`
 
 ---
 
-- [X] **Block** → `{` Statement* `}`
+- **Block** → `{` Statement* `}`
 
 ---
 
-- [X] **Expr** → LogicOr
-- [X] **LogicOr** → LogicAnd (`||` LogicAnd)*
-- [X] **LogicAnd** → Equality (`&&` Equality)*
-- [X] **Equality** → Comparison ((`==` | `!=`) Comparison)*
-- [X] **Comparison** → Term ((`<` | `<=` | `>` | `>=`) Term)*
-- [X] **Term** → Factor ((`+` | `-`) Factor)*
-- [X] **Factor** → Primary ((`*` | `/`) Primary)*
-- [X] **Primary** → NUMBER | IDENT | BOOLEAN | `(` Expr `)`
-- [X] **Type** → number | bool
+- **Expr** → LogicOr
+- **LogicOr** → LogicAnd (`||` LogicAnd)*
+- **LogicAnd** → Equality (`&&` Equality)*
+- **Equality** → Comparison ((`==` | `!=`) Comparison)*
+- **Comparison** → Term ((`<` | `<=` | `>` | `>=`) Term)*
+- **Term** → Factor ((`+` | `-`) Factor)*
+- **Factor** → Primary ((`*` | `/`) Primary)*
+- **Primary** → NUMBER | IDENT | BOOLEAN | `(` Expr `)`
+- **Type** → i32 | bool

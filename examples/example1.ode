@@ -1,11 +1,11 @@
-fn sum(n1: number, n2:number): number {
+fn sum(n1: i32, n2:i32): i32 {
     return n1 + n2;
 }
 
-fn main(): number {
-  let a: number = 1;
-  let b: number = 1;
+fn main(): i32 {
+  let a: i32 = 1;
+  let b: i32 = 1;
 
-  let result: number = a + b;
+  let result: i32 = a + b;
   print(result);
 }

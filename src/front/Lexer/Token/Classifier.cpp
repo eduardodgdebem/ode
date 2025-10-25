@@ -3,40 +3,24 @@
 
 const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
   static const Token::TokenTypeMap tokens = {
-      {"let", Token::Type::Let},
-      {"while", Token::Type::While},
-      {"fn", Token::Type::Fn},
-      {"if", Token::Type::If},
-      {"else", Token::Type::Else},
-      {"true", Token::Type::Boolean},
-      {"false", Token::Type::Boolean},
-      {"return", Token::Type::Return},
-      {"print", Token::Type::Print},
-      {"number", Token::Type::Type},
-      {"bool", Token::Type::Type},
-      {"void", Token::Type::Type},
-      {"==", Token::Type::EqualOp},
-      {"!=", Token::Type::DiffOp},
-      {"||", Token::Type::Or},
-      {"&&", Token::Type::And},
-      {"<=", Token::Type::LesserEqualOp},
-      {">=", Token::Type::GreaterEqualOp},
-      {"+", Token::Type::Plus},
-      {"-", Token::Type::Minus},
-      {"*", Token::Type::Multiply},
-      {"/", Token::Type::Divide},
-      {"=", Token::Type::Equal},
-      {"<", Token::Type::LesserOp},
-      {">", Token::Type::GreaterOp},
-      {"(", Token::Type::LParen},
-      {")", Token::Type::RParen},
-      {"{", Token::Type::LBraket},
-      {"}", Token::Type::RBraket},
-      {";", Token::Type::Semicolumn},
-      {",", Token::Type::Comma},
-      {":", Token::Type::Colon},
-      {"\"", Token::Type::DoubleQuotes},
-  };
+      {"let", Token::Type::Let},       {"while", Token::Type::While},
+      {"fn", Token::Type::Fn},         {"if", Token::Type::If},
+      {"else", Token::Type::Else},     {"return", Token::Type::Return},
+      {"print", Token::Type::Print},   {"true", Token::Type::Boolean},
+      {"false", Token::Type::Boolean}, {"i32", Token::Type::Type},
+      {"bool", Token::Type::Type},     {"void", Token::Type::Type},
+      {"char", Token::Type::Type},     {"=", Token::Type::Assign},
+      {"==", Token::Type::Equal},      {"!=", Token::Type::NotEqual},
+      {"<", Token::Type::Less},        {"<=", Token::Type::LessEqual},
+      {">", Token::Type::Greater},     {">=", Token::Type::GreaterEqual},
+      {"+", Token::Type::Plus},        {"-", Token::Type::Minus},
+      {"*", Token::Type::Multiply},    {"/", Token::Type::Divide},
+      {"||", Token::Type::Or},         {"&&", Token::Type::And},
+      {"(", Token::Type::LParen},      {")", Token::Type::RParen},
+      {"{", Token::Type::LBrace},      {"}", Token::Type::RBrace},
+      {";", Token::Type::Semicolon},   {",", Token::Type::Comma},
+      {":", Token::Type::Colon},       {"\"", Token::Type::DoubleQuotes}};
+
   return tokens;
 }
 
@@ -81,11 +65,11 @@ bool Token::Classifier::isIdentifierChar(char c) {
 
 bool Token::Classifier::isOperatorOrDelimiter(Token::Type type) {
   return type == Token::Type::Equal || type == Token::Type::LParen ||
-         type == Token::Type::LBraket || type == Token::Type::Comma ||
-         type == Token::Type::Colon || type == Token::Type::EqualOp ||
-         type == Token::Type::DiffOp || type == Token::Type::GreaterOp ||
-         type == Token::Type::GreaterEqualOp || type == Token::Type::LesserOp ||
-         type == Token::Type::LesserEqualOp || type == Token::Type::Plus ||
+         type == Token::Type::LBrace || type == Token::Type::Comma ||
+         type == Token::Type::Colon || type == Token::Type::Equal ||
+         type == Token::Type::NotEqual || type == Token::Type::Greater ||
+         type == Token::Type::GreaterEqual || type == Token::Type::Less ||
+         type == Token::Type::LessEqual || type == Token::Type::Plus ||
          type == Token::Type::Minus || type == Token::Type::Multiply ||
          type == Token::Type::Divide || type == Token::Type::Or ||
          type == Token::Type::And || type == Token::Type::Return;

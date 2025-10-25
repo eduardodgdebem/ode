@@ -1,45 +1,46 @@
 #pragma once
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class Token {
 public:
   enum class Type {
     None,
     Let,
-    Identifier,
     If,
     Else,
-    Boolean,
     Fn,
     Return,
     While,
-    Equal,
+    Print,
+    Identifier,
+    Number,
+    Boolean,
+    Char,
+    Assign,
     Or,
     And,
-    EqualOp,
-    DiffOp,
-    GreaterOp,
-    GreaterEqualOp,
-    LesserOp,
-    LesserEqualOp,
-    LParen,
-    RParen,
-    LBraket,
-    RBraket,
-    Semicolumn,
-    DoubleQuotes,
-    Number,
-    Char,
+    Equal,
+    NotEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
     Plus,
     Minus,
     Multiply,
     Divide,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    Semicolon,
     Comma,
     Colon,
+    DoubleQuotes,
     Type,
     Skip,
-    Print,
     End
   };
 
@@ -99,5 +100,21 @@ public:
 
   private:
     Scanner &scanner_;
+  };
+
+  class Stream {
+  public:
+    explicit Stream(const std::vector<Token> &tokens)
+        : tokens_(tokens), pos_(0) {}
+
+    Token current() const;
+    Token peek(size_t offset = 1) const;
+    void consume();
+    bool isAtEnd() const { return pos_ >= tokens_.size(); }
+    size_t position() const { return pos_; }
+
+  private:
+    const std::vector<Token> &tokens_;
+    size_t pos_;
   };
 };
