@@ -1,9 +1,11 @@
-let num: number = -3;
-let sla: bool = num < 4;
-let te: bool = true;
+fn main(): i32 {
+  let num: i32 = 3;
+  let sla: bool = num < 4;
+  let te: bool = true;
 
-if(sla && te) {
-  num = num * 2;
-} else {
-  num = num * 2;
+  if(sla && te) {
+    num = num * 2;
+  } else {
+    num = num * 2;
+  }
 }

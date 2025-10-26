@@ -50,7 +50,20 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
   }
 
   if (auto *call = dynamic_cast<const AST::FuncCallNode *>(node)) {
-    throw Todo("function calls in expressions");
+    llvm::Function *func = module_->getFunction(call->name().value);
+    if (!func)
+      throw Error("undefined function: " + call->name().value);
+
+    std::vector<llvm::Value *> args;
+    auto *argsNode = dynamic_cast<const AST::ArgListNode *>(call->args());
+    if (argsNode) {
+      for (auto &arg : argsNode->args()) {
+        args.push_back(generateExpr(arg.get()));
+      }
+    }
+
+    return builder_.CreateCall(
+        func, args, func->getReturnType()->isVoidTy() ? "" : "calltmp");
   }
 
   throw Error("unknown expression node type");

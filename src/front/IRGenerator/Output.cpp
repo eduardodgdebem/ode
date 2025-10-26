@@ -17,13 +17,17 @@
 #include <memory>
 
 void IRGenerator::emitToFile(const std::string &filename) {
-  std::error_code ec;
-  llvm::raw_fd_ostream file(filename, ec, llvm::sys::fs::OF_None);
-  if (ec) {
-    throw Error("could not open file", ec.message());
+  try {
+    std::error_code ec;
+    llvm::raw_fd_ostream file(filename, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+      throw Error("could not open file", ec.message());
+    }
+    module_->print(file, nullptr);
+    file.close();
+  } catch (Error err) {
+    module_->print(llvm::errs(), nullptr);
   }
-  module_->print(file, nullptr);
-  file.close();
 }
 
 void IRGenerator::emitObjectFile(const std::string &filename) {
@@ -44,12 +48,9 @@ void IRGenerator::emitObjectFile(const std::string &filename) {
   }
 
   llvm::TargetOptions opt;
-  auto targetMachine =
-      target->createTargetMachine(targetTripleStr, "generic", "", opt,
-                                  std::nullopt, // Relocation model
-                                  std::nullopt, // Code model
-                                  llvm::CodeGenOptLevel::Default,
-                                  false); // JIT
+  auto targetMachine = target->createTargetMachine(
+      targetTripleStr, "generic", "", opt, std::nullopt, std::nullopt,
+      llvm::CodeGenOptLevel::Default, false);
 
   if (!targetMachine) {
     throw Error("could not create target machine");

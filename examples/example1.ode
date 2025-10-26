@@ -6,6 +6,6 @@ fn main(): i32 {
   let a: i32 = 1;
   let b: i32 = 1;
 
-  let result: i32 = a + b;
+  let result: i32 = sum(a, b);
   print(result);
 }

@@ -1,5 +1,9 @@
-let num: number = 0;
+fn main(): i32 {
+  let num: i32 = 0;
 
-if (num) {
-  num = 9;
+  if (num == 0) {
+    num = 9;
+  }
+
+  print(num);
 }

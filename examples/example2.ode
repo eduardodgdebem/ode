@@ -1,13 +1,14 @@
 (1+6);
 
-{
-  let num: number = 45;
+fn main(): i32 {
+  let num: i32 = 45;
   num = 46;
 
   {
-    let x: number = 1;
+    let x: i32 = 1;
     (x * num);
   }
 
-  let a:number = 3;
+  let a:i32 = 3;
+  print(a);
 }
