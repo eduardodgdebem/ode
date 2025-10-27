@@ -46,7 +46,7 @@
 
 ## Types
 
-- **Type** → `i32` | `bool` | `void`
+- **Type** → `i32` | `f32` | `bool` | `void`
 
 ---
 
