@@ -8,7 +8,7 @@ Type SemanticAnalyzer::checkExpr(const AST::Node *node) {
     return checkUnaryOp(*unaryOp);
   }
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
-    return checkNumber(*num);
+    return checkNumberLiteral(*num);
   }
   if (auto *boolean = dynamic_cast<const AST::BooleanNode *>(node)) {
     return Type::Bool;
@@ -87,8 +87,8 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
                   std::format("got '{}' and '{}'", typeToString(left),
                               typeToString(right)));
     }
-    if (left == Type::Bool) {
-      throw Error("cannot compare boolean values");
+    if (left == Type::Bool || left == Type::Void) {
+      throw Error("cannot compare boolean or void values");
     }
     return Type::Bool;
 
@@ -111,7 +111,10 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
   }
 }
 
-Type SemanticAnalyzer::checkNumber(const AST::NumberNode &node) {
+Type SemanticAnalyzer::checkNumberLiteral(const AST::NumberNode &node) {
+  if (node.value().value.find('.') != std::string::npos) {
+    return Type::F32;
+  }
   long long value = std::stoll(node.value().value);
   if (value <= INT32_MIN || value >= INT32_MAX) {
     throw Error("number is out of range for i32");
@@ -126,8 +129,10 @@ Type SemanticAnalyzer::parseType(const AST::Node *node) {
   }
 
   const std::string &typeStr = typeNode->type().value;
-  if (typeStr == "i32" || typeStr == "number")
+  if (typeStr == "i32")
     return Type::I32;
+  if (typeStr == "f32")
+    return Type::F32;
   if (typeStr == "bool")
     return Type::Bool;
   if (typeStr == "void")
@@ -140,6 +145,8 @@ std::string SemanticAnalyzer::typeToString(Type t) {
   switch (t) {
   case Type::I32:
     return "i32";
+  case Type::F32:
+    return "f32";
   case Type::Bool:
     return "bool";
   case Type::Void:

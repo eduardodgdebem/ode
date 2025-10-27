@@ -11,24 +11,44 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
     case Token::Type::And:
       return builder_.CreateAnd(left, right);
     case Token::Type::Equal:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFCmpOEQ(left, right);
       return builder_.CreateICmpEQ(left, right);
     case Token::Type::NotEqual:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFCmpONE(left, right);
       return builder_.CreateICmpNE(left, right);
     case Token::Type::Greater:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFCmpOGT(left, right);
       return builder_.CreateICmpSGT(left, right);
     case Token::Type::GreaterEqual:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFCmpOGE(left, right);
       return builder_.CreateICmpSGE(left, right);
     case Token::Type::Less:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFCmpOLT(left, right);
       return builder_.CreateICmpSLT(left, right);
     case Token::Type::LessEqual:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFCmpOLE(left, right);
       return builder_.CreateICmpSLE(left, right);
     case Token::Type::Plus:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFAdd(left, right);
       return builder_.CreateAdd(left, right);
     case Token::Type::Minus:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFSub(left, right);
       return builder_.CreateSub(left, right);
     case Token::Type::Multiply:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFMul(left, right);
       return builder_.CreateMul(left, right);
     case Token::Type::Divide:
+      if (left->getType()->isFloatingPointTy())
+        return builder_.CreateFDiv(left, right);
       return builder_.CreateSDiv(left, right);
     default:
       throw Error("unknown binary operator");
@@ -40,6 +60,8 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
 
     switch (unaryOp->op().type) {
     case Token::Type::Minus: {
+      if (operand->getType()->isFloatingPointTy())
+        return builder_.CreateFNeg(operand, "neg");
       llvm::Value *zero = llvm::ConstantInt::get(operand->getType(), 0);
       return builder_.CreateSub(zero, operand, "neg");
     }
@@ -53,6 +75,10 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
   }
 
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
+    if (num->value().value.find('.') != std::string::npos) {
+      float val = std::stod(num->value().value);
+      return llvm::ConstantFP::get(llvm::Type::getFloatTy(context_), val);
+    }
     long long val = std::stoll(num->value().value);
     return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), val);
   }

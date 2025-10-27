@@ -94,6 +94,8 @@ void IRGenerator::visit(const AST::PrintStmtNode &node) {
     formatStr = "%d\n";
   } else if (expr->getType()->isIntegerTy(64)) {
     formatStr = "%lld\n";
+  } else if (expr->getType()->isFloatTy()) {
+    formatStr = "%f\n";
   } else {
     throw Error("unsupported type for print statement");
   }
