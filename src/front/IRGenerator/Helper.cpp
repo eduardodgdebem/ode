@@ -43,9 +43,11 @@ llvm::Value *IRGenerator::loadVariable(const std::string &name) {
 llvm::Function *IRGenerator::getPrintfFunction() {
   llvm::Function *printfFunc = module_->getFunction("printf");
   if (!printfFunc) {
+    llvm::Type *i8PtrType = llvm::PointerType::get(context_, 0);
+
     llvm::FunctionType *printfType = llvm::FunctionType::get(
-        llvm::Type::getInt32Ty(context_),
-        llvm::PointerType::get(llvm::Type::getInt8Ty(context_), 0), true);
+        llvm::Type::getInt32Ty(context_), {i8PtrType}, true);
+
     printfFunc = llvm::Function::Create(
         printfType, llvm::Function::ExternalLinkage, "printf", module_.get());
   }

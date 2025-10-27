@@ -37,24 +37,21 @@ void IRGenerator::emitObjectFile(const std::string &filename) {
   llvm::InitializeAllAsmParsers();
   llvm::InitializeAllAsmPrinters();
 
-  std::string targetTripleStr = llvm::sys::getDefaultTargetTriple();
-  llvm::Triple targetTriple(targetTripleStr);
+  llvm::Triple targetTriple(llvm::sys::getDefaultTargetTriple());
   module_->setTargetTriple(targetTriple);
 
   std::string error;
-  auto target = llvm::TargetRegistry::lookupTarget(targetTripleStr, error);
-  if (!target) {
+  auto target =
+      llvm::TargetRegistry::lookupTarget(targetTriple.getTriple(), error);
+  if (!target)
     throw Error("could not find target", error);
-  }
 
   llvm::TargetOptions opt;
   auto targetMachine = target->createTargetMachine(
-      targetTripleStr, "generic", "", opt, std::nullopt, std::nullopt,
-      llvm::CodeGenOptLevel::Default, false);
-
-  if (!targetMachine) {
+      targetTriple, "generic", "", opt, std::nullopt, std::nullopt,
+      llvm::CodeGenOptLevel::Default);
+  if (!targetMachine)
     throw Error("could not create target machine");
-  }
 
   module_->setDataLayout(targetMachine->createDataLayout());
 
