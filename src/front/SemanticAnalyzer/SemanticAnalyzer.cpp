@@ -6,6 +6,10 @@ void SemanticAnalyzer::visit(const AST::ProgramNode &node) {
   for (const auto &stmt : node.statements()) {
     stmt->accept(*this);
   }
+
+  if (!symbols_.lookup("main")) {
+    throw Error("No main function found");
+  }
 }
 
 void SemanticAnalyzer::visit(const AST::BlockNode &node) {
