@@ -42,7 +42,8 @@ std::optional<Token> Token::Builder::tryNumber(Token::Type lastType) {
   size_t start = scanner_.position();
 
   while (!scanner_.isAtEnd() &&
-         std::isdigit(static_cast<unsigned char>(scanner_.peek()))) {
+         (std::isdigit(static_cast<unsigned char>(scanner_.peek())) ||
+          scanner_.peek() == '.')) {
     scanner_.consume();
   }
 

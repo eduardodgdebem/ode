@@ -8,8 +8,9 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {"else", Token::Type::Else},     {"return", Token::Type::Return},
       {"print", Token::Type::Print},   {"true", Token::Type::Boolean},
       {"false", Token::Type::Boolean}, {"i32", Token::Type::Type},
-      {"bool", Token::Type::Type},     {"void", Token::Type::Type},
-      {"char", Token::Type::Type},     {"=", Token::Type::Assign},
+      {"f32", Token::Type::Type},     {"bool", Token::Type::Type},
+      {"void", Token::Type::Type},    {"char", Token::Type::Type},
+      {"=", Token::Type::Assign},
       {"==", Token::Type::Equal},      {"!=", Token::Type::NotEqual},
       {"<", Token::Type::Less},        {"<=", Token::Type::LessEqual},
       {">", Token::Type::Greater},     {">=", Token::Type::GreaterEqual},
@@ -39,18 +40,27 @@ Token::Type Token::Classifier::classify(std::string_view str) {
 }
 
 bool Token::Classifier::isNumber(std::string_view str) {
-  if (str.empty())
+  if (str.empty()) {
     return false;
+  }
 
   size_t start = (str[0] == '-') ? 1 : 0;
-  if (start >= str.length())
+  if (start >= str.length()) {
     return false;
+  }
 
+  bool hasDecimal = false;
   for (size_t i = start; i < str.length(); ++i) {
-    if (!std::isdigit(static_cast<unsigned char>(str[i]))) {
+    if (str[i] == '.') {
+      if (hasDecimal) {
+        return false;
+      }
+      hasDecimal = true;
+    } else if (!std::isdigit(static_cast<unsigned char>(str[i]))) {
       return false;
     }
   }
+
   return true;
 }
 

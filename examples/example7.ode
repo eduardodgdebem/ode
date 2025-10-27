@@ -1,0 +1,7 @@
+fn main(): i32 {
+    let x: f32 = 10.5;
+    let y: f32 = 2.5;
+    let z: f32 = x + y;
+    print(z);
+    return 0;
+}

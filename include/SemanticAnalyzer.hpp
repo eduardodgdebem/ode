@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-enum class Type { I32, Bool, Void };
+enum class Type { I32, F32, Bool, Void };
 
 class Symbol {
 public:
@@ -83,7 +83,7 @@ private:
   Type checkExpr(const AST::Node *node);
   Type checkBinaryOp(const AST::BinaryOpNode &node);
   Type checkUnaryOp(const AST::UnaryOpNode &node);
-  Type checkNumber(const AST::NumberNode &node);
+  Type checkNumberLiteral(const AST::NumberNode &node);
 
   static std::string typeToString(Type t);
 };
