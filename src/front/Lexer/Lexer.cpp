@@ -1,5 +1,4 @@
 #include "Lexer/Lexer.hpp"
-#include <print>
 
 std::vector<Token> Lexer::tokenize() {
   std::vector<Token> tokens;
@@ -27,7 +26,6 @@ std::vector<Token> Lexer::tokenize() {
     }
 
     if (token) {
-      std::println("{}", token.value().value);
       lastType = token->type;
       tokens.push_back(std::move(*token));
     }

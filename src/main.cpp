@@ -224,7 +224,6 @@ int main(int argc, char *argv[]) {
   AST::NodePtr root = parser->parse();
 
   auto printer = std::make_unique<ASTPrinter>();
-  root->accept(*printer);
 
   auto analyzer = std::make_unique<SemanticAnalyzer>();
   analyzer->analyze(*root);
