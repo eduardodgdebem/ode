@@ -17,6 +17,7 @@ public:
     Identifier,
     Number,
     Boolean,
+    Not,
     Char,
     Assign,
     Or,

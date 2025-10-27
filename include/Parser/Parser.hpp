@@ -36,6 +36,7 @@ private:
   AST::NodePtr parseComparison();
   AST::NodePtr parseTerm();
   AST::NodePtr parseFactor();
+  AST::NodePtr parseUnary();
   AST::NodePtr parsePrimary();
   AST::NodePtr parseStatement();
   AST::NodePtr parseVarDecl();

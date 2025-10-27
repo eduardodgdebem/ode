@@ -12,6 +12,7 @@ void AST::ReturnStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::PrintStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::ExprStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::BinaryOpNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::UnaryOpNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::NumberNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::BooleanNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::IdentifierNode::accept(AST::Visitor &v) const { v.visit(*this); }

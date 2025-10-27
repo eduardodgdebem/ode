@@ -149,6 +149,13 @@ public:
     unindent();
   }
 
+  void visit(const AST::UnaryOpNode &node) override {
+    printIndent("UnaryOp: " + node.op().value);
+    indent();
+    node.operand()->accept(*this);
+    unindent();
+  }
+
   void visit(const AST::NumberNode &node) override {
     printIndent("Number: " + node.value().value);
   }

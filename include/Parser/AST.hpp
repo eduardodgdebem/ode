@@ -177,6 +177,21 @@ public:
     NodePtr expr_;
   };
 
+  class UnaryOpNode : public Node {
+  public:
+    UnaryOpNode(Token op, NodePtr operand)
+        : op_(std::move(op)), operand_(std::move(operand)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Token &op() const { return op_; }
+    const Node *operand() const { return operand_.get(); }
+
+  private:
+    Token op_;
+    NodePtr operand_;
+  };
+
   class BinaryOpNode : public Node {
   public:
     BinaryOpNode(Token op, NodePtr left, NodePtr right)
@@ -289,6 +304,7 @@ public:
     virtual void visit(const PrintStmtNode &node) = 0;
     virtual void visit(const ExprStmtNode &node) = 0;
     virtual void visit(const BinaryOpNode &node) = 0;
+    virtual void visit(const UnaryOpNode &node) = 0;
     virtual void visit(const NumberNode &node) = 0;
     virtual void visit(const BooleanNode &node) = 0;
     virtual void visit(const IdentifierNode &node) = 0;

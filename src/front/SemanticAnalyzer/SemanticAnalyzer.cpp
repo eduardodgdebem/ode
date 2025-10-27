@@ -119,6 +119,10 @@ void SemanticAnalyzer::visit(const AST::BinaryOpNode &node) {
   throw Error("BinaryOpNode should not be visited directly - use checkExpr()");
 }
 
+void SemanticAnalyzer::visit(const AST::UnaryOpNode &node) {
+  throw Error("UnaryOpNode should not be visited directly - use checkExpr()");
+}
+
 void SemanticAnalyzer::visit(const AST::NumberNode &node) {
   // Leaf node - no action needed
 }

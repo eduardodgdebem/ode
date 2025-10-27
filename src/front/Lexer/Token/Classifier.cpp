@@ -19,7 +19,8 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {"(", Token::Type::LParen},      {")", Token::Type::RParen},
       {"{", Token::Type::LBrace},      {"}", Token::Type::RBrace},
       {";", Token::Type::Semicolon},   {",", Token::Type::Comma},
-      {":", Token::Type::Colon},       {"\"", Token::Type::DoubleQuotes}};
+      {":", Token::Type::Colon},       {"\"", Token::Type::DoubleQuotes},
+      {"!", Token::Type::Not}};
 
   return tokens;
 }

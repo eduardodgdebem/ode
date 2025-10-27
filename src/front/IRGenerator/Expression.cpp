@@ -35,6 +35,23 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
     }
   }
 
+  if (auto *unaryOp = dynamic_cast<const AST::UnaryOpNode *>(node)) {
+    llvm::Value *operand = generateExpr(unaryOp->operand());
+
+    switch (unaryOp->op().type) {
+    case Token::Type::Minus: {
+      llvm::Value *zero = llvm::ConstantInt::get(operand->getType(), 0);
+      return builder_.CreateSub(zero, operand, "neg");
+    }
+    case Token::Type::Not: {
+      return builder_.CreateNot(operand, "not");
+    }
+    default:
+      throw Error(
+          std::format("unknown unary operator '{}'", unaryOp->op().value));
+    }
+  }
+
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
     long long val = std::stoll(num->value().value);
     return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), val);

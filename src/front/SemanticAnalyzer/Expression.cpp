@@ -4,6 +4,9 @@ Type SemanticAnalyzer::checkExpr(const AST::Node *node) {
   if (auto *binOp = dynamic_cast<const AST::BinaryOpNode *>(node)) {
     return checkBinaryOp(*binOp);
   }
+  if (auto *unaryOp = dynamic_cast<const AST::UnaryOpNode *>(node)) {
+    return checkUnaryOp(*unaryOp);
+  }
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
     return checkNumber(*num);
   }
@@ -24,8 +27,32 @@ Type SemanticAnalyzer::checkExpr(const AST::Node *node) {
     }
     return sym->type();
   }
-
   throw Error("unknown expression node type");
+}
+
+Type SemanticAnalyzer::checkUnaryOp(const AST::UnaryOpNode &node) {
+  Type operandType = checkExpr(node.operand());
+
+  switch (node.op().type) {
+  case Token::Type::Minus:
+    if (operandType == Type::Bool) {
+      throw Error("cannot apply unary minus to boolean value");
+    }
+    if (operandType == Type::Void) {
+      throw Error("cannot apply unary minus to void");
+    }
+    return operandType;
+
+  case Token::Type::Not:
+    if (operandType != Type::Bool) {
+      throw Error("logical NOT requires boolean operand",
+                  std::format("got '{}'", typeToString(operandType)));
+    }
+    return Type::Bool;
+
+  default:
+    throw Error(std::format("unknown unary operator '{}'", node.op().value));
+  }
 }
 
 Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
@@ -87,9 +114,8 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
 Type SemanticAnalyzer::checkNumber(const AST::NumberNode &node) {
   long long value = std::stoll(node.value().value);
   if (value <= INT32_MIN || value >= INT32_MAX) {
-    Error("Number is out of range for int32");
+    throw Error("number is out of range for i32");
   }
-
   return Type::I32;
 }
 
@@ -100,8 +126,7 @@ Type SemanticAnalyzer::parseType(const AST::Node *node) {
   }
 
   const std::string &typeStr = typeNode->type().value;
-
-  if (typeStr == "i32")
+  if (typeStr == "i32" || typeStr == "number")
     return Type::I32;
   if (typeStr == "bool")
     return Type::Bool;

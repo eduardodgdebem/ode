@@ -49,6 +49,7 @@ public:
   void visit(const AST::PrintStmtNode &node) override;
   void visit(const AST::ExprStmtNode &node) override;
   void visit(const AST::BinaryOpNode &node) override;
+  void visit(const AST::UnaryOpNode &node) override;
   void visit(const AST::NumberNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;

@@ -120,6 +120,11 @@ void IRGenerator::visit(const AST::BinaryOpNode &node) {
       "BinaryOpNode should not be visited directly - use generateExpr()");
 }
 
+void IRGenerator::visit(const AST::UnaryOpNode &node) {
+  throw Error(
+      "UnaryOpNode should not be visited directly - use generateExpr()");
+}
+
 void IRGenerator::visit(const AST::NumberNode &node) {
   throw Error("NumberNode should not be visited directly - use generateExpr()");
 }

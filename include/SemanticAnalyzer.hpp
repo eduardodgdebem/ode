@@ -68,6 +68,7 @@ public:
   void visit(const AST::PrintStmtNode &node) override;
   void visit(const AST::ExprStmtNode &node) override;
   void visit(const AST::BinaryOpNode &node) override;
+  void visit(const AST::UnaryOpNode &node) override;
   void visit(const AST::NumberNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;
@@ -81,6 +82,7 @@ private:
 
   Type checkExpr(const AST::Node *node);
   Type checkBinaryOp(const AST::BinaryOpNode &node);
+  Type checkUnaryOp(const AST::UnaryOpNode &node);
   Type checkNumber(const AST::NumberNode &node);
 
   static std::string typeToString(Type t);

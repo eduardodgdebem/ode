@@ -78,18 +78,34 @@ AST::NodePtr Parser::parseTerm() {
 }
 
 AST::NodePtr Parser::parseFactor() {
-  auto left = parsePrimary();
-
+  auto left = parseUnary();
   while (current().type == Token::Type::Multiply ||
          current().type == Token::Type::Divide) {
     Token op = current();
     advance();
-    auto right = parsePrimary();
+    auto right = parseUnary();
     left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
                                                std::move(right));
   }
-
   return left;
+}
+
+AST::NodePtr Parser::parseUnary() {
+  if (current().type == Token::Type::Minus ||
+      current().type == Token::Type::Not) {
+    Token op = current();
+    advance();
+
+    auto operand = parseUnary();
+
+    if (!operand) {
+      throw Error("expression after unary operator", current());
+    }
+
+    return std::make_unique<AST::UnaryOpNode>(op, std::move(operand));
+  }
+
+  return parsePrimary();
 }
 
 AST::NodePtr Parser::parsePrimary() {
