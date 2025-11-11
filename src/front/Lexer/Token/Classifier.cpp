@@ -3,25 +3,24 @@
 
 const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
   static const Token::TokenTypeMap tokens = {
-      {"let", Token::Type::Let},       {"while", Token::Type::While},
-      {"fn", Token::Type::Fn},         {"if", Token::Type::If},
-      {"else", Token::Type::Else},     {"return", Token::Type::Return},
-      {"print", Token::Type::Print},   {"true", Token::Type::Boolean},
-      {"false", Token::Type::Boolean}, {"i32", Token::Type::Type},
-      {"f32", Token::Type::Type},     {"bool", Token::Type::Type},
-      {"void", Token::Type::Type},    {"char", Token::Type::Type},
-      {"=", Token::Type::Assign},
-      {"==", Token::Type::Equal},      {"!=", Token::Type::NotEqual},
-      {"<", Token::Type::Less},        {"<=", Token::Type::LessEqual},
-      {">", Token::Type::Greater},     {">=", Token::Type::GreaterEqual},
-      {"+", Token::Type::Plus},        {"-", Token::Type::Minus},
-      {"*", Token::Type::Multiply},    {"/", Token::Type::Divide},
-      {"||", Token::Type::Or},         {"&&", Token::Type::And},
-      {"(", Token::Type::LParen},      {")", Token::Type::RParen},
-      {"{", Token::Type::LBrace},      {"}", Token::Type::RBrace},
-      {";", Token::Type::Semicolon},   {",", Token::Type::Comma},
-      {":", Token::Type::Colon},       {"\"", Token::Type::DoubleQuotes},
-      {"!", Token::Type::Not}};
+      {"let", Token::Type::Let},         {"while", Token::Type::While},
+      {"fn", Token::Type::Fn},           {"if", Token::Type::If},
+      {"else", Token::Type::Else},       {"return", Token::Type::Return},
+      {"print", Token::Type::Print},     {"true", Token::Type::Boolean},
+      {"false", Token::Type::Boolean},   {"i32", Token::Type::Type},
+      {"f32", Token::Type::Type},        {"bool", Token::Type::Type},
+      {"void", Token::Type::Type},       {"char", Token::Type::Type},
+      {"=", Token::Type::Assign},        {"==", Token::Type::Equal},
+      {"!=", Token::Type::NotEqual},     {"<", Token::Type::Less},
+      {"<=", Token::Type::LessEqual},    {">", Token::Type::Greater},
+      {">=", Token::Type::GreaterEqual}, {"+", Token::Type::Plus},
+      {"-", Token::Type::Minus},         {"*", Token::Type::Multiply},
+      {"/", Token::Type::Divide},        {"||", Token::Type::Or},
+      {"&&", Token::Type::And},          {"(", Token::Type::LParen},
+      {")", Token::Type::RParen},        {"{", Token::Type::LBrace},
+      {"}", Token::Type::RBrace},        {";", Token::Type::Semicolon},
+      {",", Token::Type::Comma},         {":", Token::Type::Colon},
+      {"\"", Token::Type::DoubleQuotes}, {"!", Token::Type::Not}};
 
   return tokens;
 }
@@ -44,13 +43,8 @@ bool Token::Classifier::isNumber(std::string_view str) {
     return false;
   }
 
-  size_t start = (str[0] == '-') ? 1 : 0;
-  if (start >= str.length()) {
-    return false;
-  }
-
   bool hasDecimal = false;
-  for (size_t i = start; i < str.length(); ++i) {
+  for (size_t i = 0; i < str.length(); ++i) {
     if (str[i] == '.') {
       if (hasDecimal) {
         return false;
