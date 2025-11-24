@@ -8,4 +8,6 @@ fn main(): i32 {
 
   let result: i32 = sum(a, b);
   print(result);
+
+  return 0;
 }

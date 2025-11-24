@@ -7,7 +7,7 @@ fn fib(num: i32): i32 {
 }
 
 fn main(): i32 {
-  let local_num: i32 = 9;
+  let local_num: i32 = 47;
   let result: i32 = fib(local_num);
   print(result);
 }

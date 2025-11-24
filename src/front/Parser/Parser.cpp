@@ -1,6 +1,6 @@
 #include "Parser/Parser.hpp"
 
-Parser::Parser(std::vector<Token> tokens)
+Parser::Parser(std::vector<Token> &tokens)
     : tokens_(std::move(tokens)), pos_(0) {}
 
 AST::NodePtr Parser::parse() { return parseProgram(); }

@@ -5,7 +5,7 @@
 
 class Parser {
 public:
-  explicit Parser(std::vector<Token> tokens);
+  explicit Parser(std::vector<Token> &tokens);
 
   class Error : public std::runtime_error {
   public:
