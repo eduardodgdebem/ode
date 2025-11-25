@@ -35,6 +35,4 @@ std::string Reader::readAll() {
   return fullText;
 }
 
-std::string Reader::getFileName() const {
-    return filePath.stem().string();
-}
+std::string Reader::getFileName() const { return filePath.stem().string(); }

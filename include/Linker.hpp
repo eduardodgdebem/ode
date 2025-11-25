@@ -2,11 +2,10 @@
 
 class Linker {
 public:
-    explicit Linker(std::filesystem::path op);
+  explicit Linker(std::filesystem::path op);
 
-    void link(const std::filesystem::path& executablePath);
+  void link(const std::filesystem::path &executablePath);
 
 private:
-    std::filesystem::path objectPath;
+  std::filesystem::path objectPath;
 };
-
