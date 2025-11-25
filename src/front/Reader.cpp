@@ -1,7 +1,9 @@
 #include "Reader.hpp"
+#include <string>
 
-Reader::Reader(std::string fileName) {
-  _inputFile.open(fileName, std::ios::in);
+Reader::Reader(std::filesystem::path fp) {
+  _inputFile.open(fp, std::ios::in);
+  filePath = fp;
 }
 
 Reader::~Reader() { _inputFile.close(); }
@@ -31,4 +33,8 @@ std::string Reader::readAll() {
   forEachLine([&fullText](auto line) { fullText += line; });
 
   return fullText;
+}
+
+std::string Reader::getFileName() const {
+    return filePath.stem().string();
 }

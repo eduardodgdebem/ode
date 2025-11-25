@@ -33,6 +33,6 @@ int main(int argc, char *argv[]) {
       std::make_unique<IRGenerator>("myProgram");
 
   irgen->generate(*root);
-  irgen->emitToFile(std::format("{}.ll", filePath));
-  irgen->emitObjectFile(std::format("{}.o", filePath));
+  irgen->emitToFile(std::format("{}.ll", reader->getFileName()));
+  irgen->emitObjectFile(std::format("{}.o", reader->getFileName()));
 }
