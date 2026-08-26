@@ -13,9 +13,10 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
 
-IRGenerator::IRGenerator(const std::string &moduleName)
+IRGenerator::IRGenerator(const std::string &moduleName,
+                         const ResolvedTypes &resolvedTypes)
     : module_(std::make_unique<llvm::Module>(moduleName, context_)),
-      builder_(context_) {}
+      builder_(context_), resolvedTypes_(resolvedTypes) {}
 
 void IRGenerator::generate(const AST::Node &root) {
   root.accept(*this);

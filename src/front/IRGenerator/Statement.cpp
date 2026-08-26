@@ -7,7 +7,6 @@ void IRGenerator::visit(const AST::VarDeclNode &node) {
   llvm::AllocaInst *alloca =
       createEntryBlockAlloca(currentFunc_, node.name().value, llvmType);
   allocaMap_[node.name().value] = alloca;
-  varTypes_[node.name().value] = varType;
 
   llvm::Value *val = generateExpr(node.expr());
   builder_.CreateStore(val, alloca);

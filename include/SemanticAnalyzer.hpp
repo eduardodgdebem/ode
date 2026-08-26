@@ -8,6 +8,10 @@
 #include <unordered_map>
 #include <vector>
 
+// The type the semantic analyzer resolved for each expression node. Codegen
+// reads this rather than inferring types a second time.
+using ResolvedTypes = std::unordered_map<const AST::Node *, Type>;
+
 class Symbol {
 public:
   enum class Kind { Variable, Function };
@@ -60,6 +64,10 @@ public:
 
   void analyze(AST::Node &root);
 
+  // Valid once analyze() has returned. Keyed by node address, so it stays
+  // valid only for as long as the analyzed AST is alive.
+  const ResolvedTypes &resolvedTypes() const { return types_; }
+
   void visit(const AST::ProgramNode &node) override;
   void visit(const AST::BlockNode &node) override;
   void visit(const AST::VarDeclNode &node) override;
@@ -87,12 +95,17 @@ public:
 
 private:
   SymbolTable symbols_;
+  ResolvedTypes types_;
 
   // Declares a function signature without walking its body, so that any
   // function can call any other regardless of declaration order.
   void hoistSignature(const AST::Node *stmt);
 
+  // Resolves the type of an expression and records it in types_.
   Type checkExpr(const AST::Node *node);
+  // The inference itself. Every caller should go through checkExpr so that
+  // the result is recorded.
+  Type inferExprType(const AST::Node *node);
   Type checkBinaryOp(const AST::BinaryOpNode &node);
   Type checkUnaryOp(const AST::UnaryOpNode &node);
   Type checkCast(const AST::CastNode &node);

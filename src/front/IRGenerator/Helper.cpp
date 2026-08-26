@@ -72,86 +72,20 @@ llvm::Function *IRGenerator::declarePrototype(const std::string &name,
     }
   }
 
-  funcReturnTypes_[name] = retType;
   return func;
 }
 
-// Re-derives the Ode type of an expression. The semantic analyzer has already
-// rejected anything ill-typed, so this deliberately skips validation and only
-// answers the questions codegen needs: signedness, pointee types and widths.
-Type IRGenerator::typeOf(const AST::Node *node) {
-  if (auto *binOp = dynamic_cast<const AST::BinaryOpNode *>(node)) {
-    switch (binOp->op().type) {
-    case Token::Type::Or:
-    case Token::Type::And:
-    case Token::Type::Equal:
-    case Token::Type::NotEqual:
-    case Token::Type::Greater:
-    case Token::Type::GreaterEqual:
-    case Token::Type::Less:
-    case Token::Type::LessEqual:
-      return Type(Type::Kind::Bool);
-    default:
-      break;
-    }
-
-    Type left = typeOf(binOp->left());
-    Type right = typeOf(binOp->right());
-    if (left.isPointer() && right.isPointer()) {
-      return Type(Type::Kind::I64); // pointer difference
-    }
-    if (right.isPointer()) {
-      return right;
-    }
-    return left;
+// The semantic analyzer resolved every expression's type already; codegen
+// only has to look it up. A miss means a node was generated that was never
+// analyzed, which is a compiler bug rather than a problem with the input.
+Type IRGenerator::typeOf(const AST::Node *node) const {
+  auto it = resolvedTypes_.find(node);
+  if (it == resolvedTypes_.end()) {
+    throw Error("internal error",
+                "expression has no resolved type; the semantic analyzer must "
+                "run before code generation");
   }
-
-  if (auto *unaryOp = dynamic_cast<const AST::UnaryOpNode *>(node)) {
-    switch (unaryOp->op().type) {
-    case Token::Type::Not:
-      return Type(Type::Kind::Bool);
-    case Token::Type::Multiply:
-      return typeOf(unaryOp->operand()).pointee();
-    case Token::Type::Ampersand:
-      return typeOf(unaryOp->operand()).pointerTo();
-    default:
-      return typeOf(unaryOp->operand());
-    }
-  }
-
-  if (auto *cast = dynamic_cast<const AST::CastNode *>(node)) {
-    return SemanticAnalyzer::parseType(cast->type());
-  }
-
-  if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
-    if (num->value().value.find('.') != std::string::npos) {
-      return Type(Type::Kind::F32);
-    }
-    return Type(Type::Kind::I32);
-  }
-
-  if (dynamic_cast<const AST::BooleanNode *>(node)) {
-    return Type(Type::Kind::Bool);
-  }
-
-  if (auto *ident = dynamic_cast<const AST::IdentifierNode *>(node)) {
-    auto it = varTypes_.find(ident->name().value);
-    if (it == varTypes_.end()) {
-      throw Error(std::format("variable '{}' not found", ident->name().value));
-    }
-    return it->second;
-  }
-
-  if (auto *call = dynamic_cast<const AST::FuncCallNode *>(node)) {
-    auto it = funcReturnTypes_.find(call->name().value);
-    if (it == funcReturnTypes_.end()) {
-      throw Error(
-          std::format("undefined function: {}", call->name().value));
-    }
-    return it->second;
-  }
-
-  throw Error("unknown expression node type");
+  return it->second;
 }
 
 llvm::Function *IRGenerator::getPrintfFunction() {
