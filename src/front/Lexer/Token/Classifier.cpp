@@ -27,7 +27,12 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {",", Token::Type::Comma},         {":", Token::Type::Colon},
       {"\"", Token::Type::DoubleQuotes}, {"!", Token::Type::Not},
       {"&", Token::Type::Ampersand},     {"[", Token::Type::LBracket},
-      {"]", Token::Type::RBracket},      {".", Token::Type::Dot}};
+      {"]", Token::Type::RBracket},      {".", Token::Type::Dot},
+      {"%", Token::Type::Percent},       {"|", Token::Type::Pipe},
+      {"^", Token::Type::Caret},         {"<<", Token::Type::ShiftLeft},
+      {">>", Token::Type::ShiftRight},   {"+=", Token::Type::PlusAssign},
+      {"-=", Token::Type::MinusAssign},  {"*=", Token::Type::MultiplyAssign},
+      {"/=", Token::Type::DivideAssign}, {"%=", Token::Type::PercentAssign}};
 
   return tokens;
 }

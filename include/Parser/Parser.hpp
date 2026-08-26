@@ -36,12 +36,21 @@ private:
   void expect(Token::Type type, const std::string &name);
   Token consume(Token::Type type, const std::string &name);
 
+  // Parses the expression starting at `start` again and leaves the position
+  // where it was, so that a desugaring can use the same operand twice without
+  // every node having to know how to copy itself.
+  AST::NodePtr reparse(size_t start);
+
   AST::NodePtr parseProgram();
   AST::NodePtr parseExpr();
   AST::NodePtr parseLogicOr();
   AST::NodePtr parseLogicAnd();
+  AST::NodePtr parseBitOr();
+  AST::NodePtr parseBitXor();
+  AST::NodePtr parseBitAnd();
   AST::NodePtr parseEquality();
   AST::NodePtr parseComparison();
+  AST::NodePtr parseShift();
   AST::NodePtr parseTerm();
   AST::NodePtr parseFactor();
   AST::NodePtr parseUnary();
