@@ -29,9 +29,16 @@ void ASTPrinter::visit(const AST::VarDeclNode &node) {
 }
 
 void ASTPrinter::visit(const AST::AssignNode &node) {
-  printIndent("Assign: " + node.name().value);
+  printIndent("Assign");
+  indent();
+  printIndent("Target:");
+  indent();
+  node.target()->accept(*this);
+  unindent();
+  printIndent("Value:");
   indent();
   node.expr()->accept(*this);
+  unindent();
   unindent();
 }
 
@@ -96,6 +103,24 @@ void ASTPrinter::visit(const AST::FuncDeclNode &node) {
   unindent();
 }
 
+void ASTPrinter::visit(const AST::ExternFuncDeclNode &node) {
+  printIndent("ExternFuncDecl: " + node.name().value);
+  indent();
+  if (node.returnType()) {
+    printIndent("ReturnType:");
+    indent();
+    node.returnType()->accept(*this);
+    unindent();
+  }
+  if (node.params()) {
+    printIndent("Params:");
+    indent();
+    node.params()->accept(*this);
+    unindent();
+  }
+  unindent();
+}
+
 void ASTPrinter::visit(const AST::FuncCallNode &node) {
   printIndent("FuncCall: " + node.name().value);
   indent();
@@ -142,6 +167,14 @@ void ASTPrinter::visit(const AST::UnaryOpNode &node) {
   unindent();
 }
 
+void ASTPrinter::visit(const AST::CastNode &node) {
+  printIndent("Cast");
+  indent();
+  node.expr()->accept(*this);
+  node.type()->accept(*this);
+  unindent();
+}
+
 void ASTPrinter::visit(const AST::NumberNode &node) {
   printIndent("Number: " + node.value().value);
 }
@@ -155,7 +188,8 @@ void ASTPrinter::visit(const AST::IdentifierNode &node) {
 }
 
 void ASTPrinter::visit(const AST::TypeNode &node) {
-  printIndent("Type: " + node.type().value);
+  printIndent("Type: " + std::string(node.pointerDepth(), '*') +
+              node.type().value);
 }
 
 void ASTPrinter::visit(const AST::ParamListNode &node) {

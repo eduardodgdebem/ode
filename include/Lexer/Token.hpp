@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -11,13 +12,16 @@ public:
     If,
     Else,
     Fn,
+    Extern,
     Return,
     While,
     Print,
+    As,
     Identifier,
     Number,
     Boolean,
     Not,
+    Ampersand,
     Char,
     Assign,
     Or,

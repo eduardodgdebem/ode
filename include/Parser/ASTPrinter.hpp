@@ -16,12 +16,14 @@ public:
   void visit(const AST::IfStmtNode &node) override;
   void visit(const AST::WhileStmtNode &node) override;
   void visit(const AST::FuncDeclNode &node) override;
+  void visit(const AST::ExternFuncDeclNode &node) override;
   void visit(const AST::FuncCallNode &node) override;
   void visit(const AST::ReturnStmtNode &node) override;
   void visit(const AST::PrintStmtNode &node) override;
   void visit(const AST::ExprStmtNode &node) override;
   void visit(const AST::BinaryOpNode &node) override;
   void visit(const AST::UnaryOpNode &node) override;
+  void visit(const AST::CastNode &node) override;
   void visit(const AST::NumberNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;

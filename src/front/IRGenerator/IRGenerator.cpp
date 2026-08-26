@@ -25,7 +25,18 @@ void IRGenerator::generate(const AST::Node &root) {
   }
 }
 
+// Mirrors the semantic analyzer: declare every function signature up front so
+// that a body may call a function that is defined further down the file.
 void IRGenerator::visit(const AST::ProgramNode &node) {
+  for (const auto &stmt : node.statements()) {
+    if (auto *func = dynamic_cast<const AST::FuncDeclNode *>(stmt.get())) {
+      declarePrototype(func->name().value, func->returnType(), func->params());
+    } else if (auto *ext =
+                   dynamic_cast<const AST::ExternFuncDeclNode *>(stmt.get())) {
+      declarePrototype(ext->name().value, ext->returnType(), ext->params());
+    }
+  }
+
   for (const auto &stmt : node.statements()) {
     stmt->accept(*this);
   }

@@ -1,5 +1,6 @@
 #pragma once
 #include "Parser/AST.hpp"
+#include "Type.hpp"
 #include <format>
 #include <print>
 #include <stdexcept>
@@ -7,22 +8,24 @@
 #include <unordered_map>
 #include <vector>
 
-enum class Type { I32, F32, Bool, Void };
-
 class Symbol {
 public:
   enum class Kind { Variable, Function };
 
-  Symbol(std::string name, Kind kind, Type type);
+  Symbol(std::string name, Kind kind, Type type,
+         std::vector<Type> params = {});
 
   const std::string &name() const { return name_; }
   Kind kind() const { return kind_; }
+  // For functions this is the return type.
   Type type() const { return type_; }
+  const std::vector<Type> &params() const { return params_; }
 
 private:
   std::string name_;
   Kind kind_;
   Type type_;
+  std::vector<Type> params_;
 };
 
 class SymbolTable {
@@ -31,7 +34,8 @@ public:
 
   void enterScope();
   void exitScope();
-  void declare(const std::string &name, Symbol::Kind kind, Type type);
+  void declare(const std::string &name, Symbol::Kind kind, Type type,
+               std::vector<Type> params = {});
   const Symbol *lookup(const std::string &name) const;
 
 private:
@@ -63,27 +67,39 @@ public:
   void visit(const AST::IfStmtNode &node) override;
   void visit(const AST::WhileStmtNode &node) override;
   void visit(const AST::FuncDeclNode &node) override;
+  void visit(const AST::ExternFuncDeclNode &node) override;
   void visit(const AST::FuncCallNode &node) override;
   void visit(const AST::ReturnStmtNode &node) override;
   void visit(const AST::PrintStmtNode &node) override;
   void visit(const AST::ExprStmtNode &node) override;
   void visit(const AST::BinaryOpNode &node) override;
   void visit(const AST::UnaryOpNode &node) override;
+  void visit(const AST::CastNode &node) override;
   void visit(const AST::NumberNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;
   void visit(const AST::TypeNode &node) override;
   void visit(const AST::ParamListNode &node) override;
   void visit(const AST::ArgListNode &node) override;
+
   static Type parseType(const AST::Node *node);
+  static std::vector<Type> parseParamTypes(const AST::Node *params);
 
 private:
   SymbolTable symbols_;
 
+  // Declares a function signature without walking its body, so that any
+  // function can call any other regardless of declaration order.
+  void hoistSignature(const AST::Node *stmt);
+
   Type checkExpr(const AST::Node *node);
   Type checkBinaryOp(const AST::BinaryOpNode &node);
   Type checkUnaryOp(const AST::UnaryOpNode &node);
+  Type checkCast(const AST::CastNode &node);
+  Type checkCall(const AST::FuncCallNode &node);
   Type checkNumberLiteral(const AST::NumberNode &node);
+  // Verifies `target` is assignable and returns the type stored through it.
+  Type checkAssignTarget(const AST::Node *target);
 
-  static std::string typeToString(Type t);
+  static std::string typeToString(Type t) { return t.toString(); }
 };

@@ -2,13 +2,35 @@
 
 void SemanticAnalyzer::analyze(AST::Node &root) { root.accept(*this); }
 
+// Two passes over the top level: the first records every function signature,
+// the second walks the bodies. Without this a function could only call
+// functions declared above it, which rules out mutual recursion.
 void SemanticAnalyzer::visit(const AST::ProgramNode &node) {
+  for (const auto &stmt : node.statements()) {
+    hoistSignature(stmt.get());
+  }
+
   for (const auto &stmt : node.statements()) {
     stmt->accept(*this);
   }
 
   if (!symbols_.lookup("main")) {
     throw Error("No main function found");
+  }
+}
+
+void SemanticAnalyzer::hoistSignature(const AST::Node *stmt) {
+  if (auto *func = dynamic_cast<const AST::FuncDeclNode *>(stmt)) {
+    symbols_.declare(func->name().value, Symbol::Kind::Function,
+                     parseType(func->returnType()),
+                     parseParamTypes(func->params()));
+    return;
+  }
+
+  if (auto *ext = dynamic_cast<const AST::ExternFuncDeclNode *>(stmt)) {
+    symbols_.declare(ext->name().value, Symbol::Kind::Function,
+                     parseType(ext->returnType()),
+                     parseParamTypes(ext->params()));
   }
 }
 
@@ -35,23 +57,19 @@ void SemanticAnalyzer::visit(const AST::VarDeclNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::AssignNode &node) {
-  const Symbol *sym = symbols_.lookup(node.name().value);
-  if (!sym) {
-    throw Error(std::format("undefined variable '{}'", node.name().value));
-  }
-
+  Type targetType = checkAssignTarget(node.target());
   Type exprType = checkExpr(node.expr());
-  if (sym->type() != exprType) {
-    throw Error(
-        std::format("type mismatch in assignment to '{}'", node.name().value),
-        std::format("expected '{}' but got '{}'", typeToString(sym->type()),
-                    typeToString(exprType)));
+
+  if (targetType != exprType) {
+    throw Error("type mismatch in assignment",
+                std::format("expected '{}' but got '{}'",
+                            typeToString(targetType), typeToString(exprType)));
   }
 }
 
 void SemanticAnalyzer::visit(const AST::IfStmtNode &node) {
   Type condType = checkExpr(node.condition());
-  if (condType != Type::Bool) {
+  if (!condType.isBool()) {
     throw Error("if condition must be boolean",
                 std::format("got '{}'", typeToString(condType)));
   }
@@ -64,7 +82,7 @@ void SemanticAnalyzer::visit(const AST::IfStmtNode &node) {
 
 void SemanticAnalyzer::visit(const AST::WhileStmtNode &node) {
   Type condType = checkExpr(node.condition());
-  if (condType != Type::Bool) {
+  if (!condType.isBool()) {
     throw Error("while condition must be boolean",
                 std::format("got '{}'", typeToString(condType)));
   }
@@ -73,9 +91,12 @@ void SemanticAnalyzer::visit(const AST::WhileStmtNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
-  Type returnType = parseType(node.returnType());
-
-  symbols_.declare(node.name().value, Symbol::Kind::Function, returnType);
+  // Top-level functions were already recorded by the hoisting pass.
+  if (!symbols_.lookup(node.name().value)) {
+    symbols_.declare(node.name().value, Symbol::Kind::Function,
+                     parseType(node.returnType()),
+                     parseParamTypes(node.params()));
+  }
 
   symbols_.enterScope();
 
@@ -93,17 +114,23 @@ void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
   Todo("function return type checking");
 }
 
+void SemanticAnalyzer::visit(const AST::ExternFuncDeclNode &node) {
+  if (!symbols_.lookup(node.name().value)) {
+    symbols_.declare(node.name().value, Symbol::Kind::Function,
+                     parseType(node.returnType()),
+                     parseParamTypes(node.params()));
+  }
+
+  for (Type param : parseParamTypes(node.params())) {
+    if (param.isVoid()) {
+      throw Error(std::format("extern '{}' has a void parameter",
+                              node.name().value));
+    }
+  }
+}
+
 void SemanticAnalyzer::visit(const AST::FuncCallNode &node) {
-  const Symbol *sym = symbols_.lookup(node.name().value);
-  if (!sym) {
-    throw Error(std::format("undefined function '{}'", node.name().value));
-  }
-
-  if (sym->kind() != Symbol::Kind::Function) {
-    throw Error(std::format("'{}' is not a function", node.name().value));
-  }
-
-  Todo("function argument type checking");
+  checkCall(node);
 }
 
 void SemanticAnalyzer::visit(const AST::ReturnStmtNode &node) {
@@ -112,7 +139,10 @@ void SemanticAnalyzer::visit(const AST::ReturnStmtNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::PrintStmtNode &node) {
-  checkExpr(node.expr());
+  Type type = checkExpr(node.expr());
+  if (type.isVoid()) {
+    throw Error("cannot print a void value");
+  }
 }
 
 void SemanticAnalyzer::visit(const AST::ExprStmtNode &node) {
@@ -125,6 +155,10 @@ void SemanticAnalyzer::visit(const AST::BinaryOpNode &node) {
 
 void SemanticAnalyzer::visit(const AST::UnaryOpNode &node) {
   throw Error("UnaryOpNode should not be visited directly - use checkExpr()");
+}
+
+void SemanticAnalyzer::visit(const AST::CastNode &node) {
+  throw Error("CastNode should not be visited directly - use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::NumberNode &node) {

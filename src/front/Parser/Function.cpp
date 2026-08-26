@@ -12,6 +12,20 @@ AST::NodePtr Parser::parseFuncDecl() {
       name, std::move(returnType), std::move(params), std::move(body));
 }
 
+// ExternDecl -> 'extern' 'fn' IDENT '(' ParamList? ')' ':' Type ';'
+AST::NodePtr Parser::parseExternDecl() {
+  consume(Token::Type::Extern, "extern");
+  consume(Token::Type::Fn, "fn");
+  Token name = consume(Token::Type::Identifier, "identifier");
+  auto params = parseParamList();
+  consume(Token::Type::Colon, ":");
+  auto returnType = parseType();
+  consume(Token::Type::Semicolon, ";");
+
+  return std::make_unique<AST::ExternFuncDeclNode>(name, std::move(returnType),
+                                                   std::move(params));
+}
+
 AST::NodePtr Parser::parseFuncCall() {
   Token name = current();
   advance();

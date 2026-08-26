@@ -1,5 +1,19 @@
 #include "SemanticAnalyzer.hpp"
 
+namespace {
+// Only identifiers and pointer dereferences denote storage that can be
+// assigned to or have its address taken.
+bool isLValue(const AST::Node *node) {
+  if (dynamic_cast<const AST::IdentifierNode *>(node)) {
+    return true;
+  }
+  if (auto *unary = dynamic_cast<const AST::UnaryOpNode *>(node)) {
+    return unary->op().type == Token::Type::Multiply;
+  }
+  return false;
+}
+} // namespace
+
 Type SemanticAnalyzer::checkExpr(const AST::Node *node) {
   if (auto *binOp = dynamic_cast<const AST::BinaryOpNode *>(node)) {
     return checkBinaryOp(*binOp);
@@ -7,48 +21,113 @@ Type SemanticAnalyzer::checkExpr(const AST::Node *node) {
   if (auto *unaryOp = dynamic_cast<const AST::UnaryOpNode *>(node)) {
     return checkUnaryOp(*unaryOp);
   }
+  if (auto *cast = dynamic_cast<const AST::CastNode *>(node)) {
+    return checkCast(*cast);
+  }
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
     return checkNumberLiteral(*num);
   }
-  if (auto *boolean = dynamic_cast<const AST::BooleanNode *>(node)) {
-    return Type::Bool;
+  if (dynamic_cast<const AST::BooleanNode *>(node)) {
+    return Type(Type::Kind::Bool);
   }
   if (auto *ident = dynamic_cast<const AST::IdentifierNode *>(node)) {
     const Symbol *sym = symbols_.lookup(ident->name().value);
     if (!sym) {
       throw Error(std::format("undefined variable '{}'", ident->name().value));
     }
+    if (sym->kind() != Symbol::Kind::Variable) {
+      throw Error(std::format("'{}' is a function, not a variable",
+                              ident->name().value));
+    }
     return sym->type();
   }
   if (auto *call = dynamic_cast<const AST::FuncCallNode *>(node)) {
-    const Symbol *sym = symbols_.lookup(call->name().value);
-    if (!sym) {
-      throw Error(std::format("undefined function '{}'", call->name().value));
-    }
-    return sym->type();
+    return checkCall(*call);
   }
   throw Error("unknown expression node type");
 }
 
+Type SemanticAnalyzer::checkAssignTarget(const AST::Node *target) {
+  if (!isLValue(target)) {
+    throw Error("left-hand side of assignment is not assignable");
+  }
+  return checkExpr(target);
+}
+
+Type SemanticAnalyzer::checkCall(const AST::FuncCallNode &node) {
+  const Symbol *sym = symbols_.lookup(node.name().value);
+  if (!sym) {
+    throw Error(std::format("undefined function '{}'", node.name().value));
+  }
+  if (sym->kind() != Symbol::Kind::Function) {
+    throw Error(std::format("'{}' is not a function", node.name().value));
+  }
+
+  const auto *args = dynamic_cast<const AST::ArgListNode *>(node.args());
+  size_t argCount = args ? args->args().size() : 0;
+  const auto &params = sym->params();
+
+  if (argCount != params.size()) {
+    throw Error(std::format("wrong number of arguments to '{}'",
+                            node.name().value),
+                std::format("expected {} but got {}", params.size(), argCount));
+  }
+
+  if (args) {
+    for (size_t i = 0; i < argCount; ++i) {
+      Type argType = checkExpr(args->args()[i].get());
+      if (argType != params[i]) {
+        throw Error(std::format("argument {} of '{}' has the wrong type",
+                                i + 1, node.name().value),
+                    std::format("expected '{}' but got '{}'",
+                                params[i].toString(), argType.toString()));
+      }
+    }
+  }
+
+  return sym->type();
+}
+
 Type SemanticAnalyzer::checkUnaryOp(const AST::UnaryOpNode &node) {
+  // Address-of inspects the operand as storage rather than as a value.
+  if (node.op().type == Token::Type::Ampersand) {
+    if (!isLValue(node.operand())) {
+      throw Error("cannot take the address of a temporary value");
+    }
+    Type operandType = checkExpr(node.operand());
+    if (operandType.isVoid()) {
+      throw Error("cannot take the address of a void value");
+    }
+    return operandType.pointerTo();
+  }
+
   Type operandType = checkExpr(node.operand());
 
   switch (node.op().type) {
   case Token::Type::Minus:
-    if (operandType == Type::Bool) {
-      throw Error("cannot apply unary minus to boolean value");
-    }
-    if (operandType == Type::Void) {
-      throw Error("cannot apply unary minus to void");
+    if (!operandType.isNumeric()) {
+      throw Error("unary minus requires a numeric operand",
+                  std::format("got '{}'", operandType.toString()));
     }
     return operandType;
 
   case Token::Type::Not:
-    if (operandType != Type::Bool) {
+    if (!operandType.isBool()) {
       throw Error("logical NOT requires boolean operand",
-                  std::format("got '{}'", typeToString(operandType)));
+                  std::format("got '{}'", operandType.toString()));
     }
-    return Type::Bool;
+    return Type(Type::Kind::Bool);
+
+  case Token::Type::Multiply:
+    if (!operandType.isPointer()) {
+      throw Error("cannot dereference a non-pointer value",
+                  std::format("got '{}'", operandType.toString()));
+    }
+    if (operandType.pointee().isVoid()) {
+      throw Error("cannot dereference '*void'",
+                  "cast it to a concrete pointer type first");
+    }
+    return operandType.pointee();
 
   default:
     throw Error(std::format("unknown unary operator '{}'", node.op().value));
@@ -62,21 +141,24 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
   switch (node.op().type) {
   case Token::Type::Or:
   case Token::Type::And:
-    if (left != Type::Bool || right != Type::Bool) {
+    if (!left.isBool() || !right.isBool()) {
       throw Error("logical operators require boolean operands",
-                  std::format("got '{}' and '{}'", typeToString(left),
-                              typeToString(right)));
+                  std::format("got '{}' and '{}'", left.toString(),
+                              right.toString()));
     }
-    return Type::Bool;
+    return Type(Type::Kind::Bool);
 
   case Token::Type::Equal:
   case Token::Type::NotEqual:
     if (left != right) {
       throw Error("equality operators require same type operands",
-                  std::format("got '{}' and '{}'", typeToString(left),
-                              typeToString(right)));
+                  std::format("got '{}' and '{}'", left.toString(),
+                              right.toString()));
     }
-    return Type::Bool;
+    if (left.isVoid()) {
+      throw Error("cannot compare void values");
+    }
+    return Type(Type::Kind::Bool);
 
   case Token::Type::Greater:
   case Token::Type::GreaterEqual:
@@ -84,25 +166,64 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
   case Token::Type::LessEqual:
     if (left != right) {
       throw Error("comparison operators require same type operands",
-                  std::format("got '{}' and '{}'", typeToString(left),
-                              typeToString(right)));
+                  std::format("got '{}' and '{}'", left.toString(),
+                              right.toString()));
     }
-    if (left == Type::Bool || left == Type::Void) {
+    if (left.isBool() || left.isVoid()) {
       throw Error("cannot compare boolean or void values");
     }
-    return Type::Bool;
+    return Type(Type::Kind::Bool);
 
   case Token::Type::Plus:
-  case Token::Type::Minus:
+  case Token::Type::Minus: {
+    // Pointer arithmetic: p + i, i + p, p - i, and p - q.
+    if (left.isPointer() || right.isPointer()) {
+      if (left.isPointer() && right.isPointer()) {
+        if (node.op().type != Token::Type::Minus) {
+          throw Error("cannot add two pointers");
+        }
+        if (left != right) {
+          throw Error("pointer difference requires identical pointer types",
+                      std::format("got '{}' and '{}'", left.toString(),
+                                  right.toString()));
+        }
+        if (left.pointee().isVoid()) {
+          throw Error("cannot take the difference of '*void' pointers");
+        }
+        return Type(Type::Kind::I64);
+      }
+
+      Type ptr = left.isPointer() ? left : right;
+      Type offset = left.isPointer() ? right : left;
+
+      if (right.isPointer() && node.op().type == Token::Type::Minus) {
+        throw Error("cannot subtract a pointer from an integer");
+      }
+      if (!offset.isInteger()) {
+        throw Error("pointer arithmetic requires an integer offset",
+                    std::format("got '{}'", offset.toString()));
+      }
+      if (ptr.pointee().isVoid()) {
+        throw Error("cannot do arithmetic on '*void'",
+                    "cast it to a concrete pointer type first");
+      }
+      return ptr;
+    }
+  }
+    [[fallthrough]];
   case Token::Type::Multiply:
   case Token::Type::Divide:
+    if (left.isPointer() || right.isPointer()) {
+      throw Error("pointers do not support this operator");
+    }
     if (left != right) {
       throw Error("arithmetic operators require same type operands",
-                  std::format("got '{}' and '{}'", typeToString(left),
-                              typeToString(right)));
+                  std::format("got '{}' and '{}'", left.toString(),
+                              right.toString()));
     }
-    if (left == Type::Bool) {
-      throw Error("cannot perform arithmetic on boolean values");
+    if (!left.isNumeric()) {
+      throw Error("arithmetic requires numeric operands",
+                  std::format("got '{}'", left.toString()));
     }
     return left;
 
@@ -111,15 +232,64 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
   }
 }
 
+Type SemanticAnalyzer::checkCast(const AST::CastNode &node) {
+  Type from = checkExpr(node.expr());
+  Type to = parseType(node.type());
+
+  auto reject = [&](const std::string &why) {
+    throw Error(std::format("cannot cast '{}' to '{}'", from.toString(),
+                            to.toString()),
+                why);
+  };
+
+  if (from.isVoid() || to.isVoid()) {
+    reject("void is not a value type");
+  }
+
+  if (from == to) {
+    return to;
+  }
+
+  if (from.isNumeric() && to.isNumeric()) {
+    return to;
+  }
+  if (from.isBool() && to.isInteger()) {
+    return to;
+  }
+  if (from.isInteger() && to.isBool()) {
+    return to;
+  }
+  if (from.isPointer() && to.isPointer()) {
+    return to;
+  }
+  // Pointers only convert to and from a pointer-sized integer.
+  if (from.isPointer() && to.isInteger()) {
+    if (to.bitWidth() != 64) {
+      reject("pointers only convert to a 64-bit integer (i64, u64, usize)");
+    }
+    return to;
+  }
+  if (from.isInteger() && to.isPointer()) {
+    if (from.bitWidth() != 64) {
+      reject("only a 64-bit integer (i64, u64, usize) converts to a pointer");
+    }
+    return to;
+  }
+
+  reject("no such conversion");
+  return to;
+}
+
 Type SemanticAnalyzer::checkNumberLiteral(const AST::NumberNode &node) {
   if (node.value().value.find('.') != std::string::npos) {
-    return Type::F32;
+    return Type(Type::Kind::F32);
   }
   long long value = std::stoll(node.value().value);
   if (value <= INT32_MIN || value >= INT32_MAX) {
-    throw Error("number is out of range for i32");
+    throw Error("number is out of range for i32",
+                "use an explicit cast such as `... as i64`");
   }
-  return Type::I32;
+  return Type(Type::Kind::I32);
 }
 
 Type SemanticAnalyzer::parseType(const AST::Node *node) {
@@ -128,29 +298,23 @@ Type SemanticAnalyzer::parseType(const AST::Node *node) {
     throw Error("expected type annotation");
   }
 
-  const std::string &typeStr = typeNode->type().value;
-  if (typeStr == "i32")
-    return Type::I32;
-  if (typeStr == "f32")
-    return Type::F32;
-  if (typeStr == "bool")
-    return Type::Bool;
-  if (typeStr == "void")
-    return Type::Void;
+  Type::Kind kind;
+  if (!Type::kindFromName(typeNode->type().value, kind)) {
+    throw Error(std::format("unknown type '{}'", typeNode->type().value));
+  }
 
-  throw Error(std::format("unknown type '{}'", typeStr));
+  return Type(kind, typeNode->pointerDepth());
 }
 
-std::string SemanticAnalyzer::typeToString(Type t) {
-  switch (t) {
-  case Type::I32:
-    return "i32";
-  case Type::F32:
-    return "f32";
-  case Type::Bool:
-    return "bool";
-  case Type::Void:
-    return "void";
+std::vector<Type> SemanticAnalyzer::parseParamTypes(const AST::Node *params) {
+  std::vector<Type> types;
+  const auto *paramList = dynamic_cast<const AST::ParamListNode *>(params);
+  if (!paramList) {
+    return types;
   }
-  return "unknown";
+
+  for (const auto &param : paramList->params()) {
+    types.push_back(parseType(param.type.get()));
+  }
+  return types;
 }

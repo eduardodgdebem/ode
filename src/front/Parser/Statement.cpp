@@ -4,11 +4,6 @@ AST::NodePtr Parser::parseStatement() {
   switch (current().type) {
   case Token::Type::Let:
     return parseVarDecl();
-  case Token::Type::Identifier:
-    if (peek().type == Token::Type::Assign) {
-      return parseAssign();
-    }
-    return parseExprStmt();
   case Token::Type::LBrace:
     return parseBlock();
   case Token::Type::If:
@@ -17,6 +12,8 @@ AST::NodePtr Parser::parseStatement() {
     return parseWhileStmt();
   case Token::Type::Fn:
     return parseFuncDecl();
+  case Token::Type::Extern:
+    return parseExternDecl();
   case Token::Type::Return:
     return parseReturnStmt();
   case Token::Type::Print:
@@ -39,17 +36,20 @@ AST::NodePtr Parser::parseVarDecl() {
                                             std::move(expr));
 }
 
-AST::NodePtr Parser::parseAssign() {
-  Token name = consume(Token::Type::Identifier, "identifier");
-  consume(Token::Type::Assign, "=");
-  auto expr = parseExpr();
-  consume(Token::Type::Semicolon, ";");
-
-  return std::make_unique<AST::AssignNode>(name, std::move(expr));
-}
-
+// Either `expr;` or `lvalue = expr;`. Both start with an expression, so parse
+// one and let the following token decide which statement this is. This is what
+// lets `*p = v;` work without a separate lookahead rule.
 AST::NodePtr Parser::parseExprStmt() {
   auto expr = parseExpr();
+
+  if (current().type == Token::Type::Assign) {
+    advance();
+    auto value = parseExpr();
+    consume(Token::Type::Semicolon, ";");
+    return std::make_unique<AST::AssignNode>(std::move(expr),
+                                             std::move(value));
+  }
+
   consume(Token::Type::Semicolon, ";");
   return std::make_unique<AST::ExprStmtNode>(std::move(expr));
 }

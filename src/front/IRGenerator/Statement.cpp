@@ -7,14 +7,18 @@ void IRGenerator::visit(const AST::VarDeclNode &node) {
   llvm::AllocaInst *alloca =
       createEntryBlockAlloca(currentFunc_, node.name().value, llvmType);
   allocaMap_[node.name().value] = alloca;
+  varTypes_[node.name().value] = varType;
 
   llvm::Value *val = generateExpr(node.expr());
   builder_.CreateStore(val, alloca);
 }
 
 void IRGenerator::visit(const AST::AssignNode &node) {
+  // The target may be a plain variable or a dereferenced pointer, so resolve
+  // it to an address rather than looking a name up directly.
+  llvm::Value *address = generateAddress(node.target());
   llvm::Value *val = generateExpr(node.expr());
-  storeVariable(node.name().value, val);
+  builder_.CreateStore(val, address);
 }
 
 void IRGenerator::visit(const AST::IfStmtNode &node) {
@@ -85,27 +89,46 @@ void IRGenerator::visit(const AST::WhileStmtNode &node) {
   builder_.SetInsertPoint(endBB);
 }
 void IRGenerator::visit(const AST::PrintStmtNode &node) {
+  Type type = typeOf(node.expr());
   llvm::Value *expr = generateExpr(node.expr());
 
   std::string formatStr;
-  if (expr->getType()->isIntegerTy(1)) {
-    formatStr = "%d\n";
-  } else if (expr->getType()->isIntegerTy(32)) {
-    formatStr = "%d\n";
-  } else if (expr->getType()->isIntegerTy(64)) {
-    formatStr = "%lld\n";
-  } else if (expr->getType()->isFloatTy()) {
-    formatStr = "%f\n";
+  if (type.isPointer()) {
+    formatStr = "%p\n";
   } else {
-    throw Error("unsupported type for print statement");
+    switch (type.kind()) {
+    case Type::Kind::Bool:
+    case Type::Kind::I8:
+    case Type::Kind::U8:
+    case Type::Kind::I32:
+      formatStr = "%d\n";
+      break;
+    case Type::Kind::I64:
+      formatStr = "%lld\n";
+      break;
+    case Type::Kind::U64:
+      formatStr = "%llu\n";
+      break;
+    case Type::Kind::F32:
+      formatStr = "%f\n";
+      break;
+    default:
+      throw Error("unsupported type for print statement");
+    }
+  }
+
+  // printf is variadic, so narrow integers must be promoted to i32 and floats
+  // to double before the call.
+  if (type.isBool() || type.kind() == Type::Kind::I8 ||
+      type.kind() == Type::Kind::U8) {
+    expr = generateCast(expr, type, Type(Type::Kind::I32));
+  } else if (type.isFloat()) {
+    expr = builder_.CreateFPExt(expr, llvm::Type::getDoubleTy(context_),
+                                "promote");
   }
 
   llvm::Value *formatStrVal = builder_.CreateGlobalString(formatStr);
   llvm::Function *printfFunc = getPrintfFunction();
-
-  if (expr->getType()->isIntegerTy(1)) {
-    expr = builder_.CreateZExt(expr, llvm::Type::getInt32Ty(context_));
-  }
 
   std::vector<llvm::Value *> args;
   args.push_back(formatStrVal);
@@ -125,6 +148,10 @@ void IRGenerator::visit(const AST::BinaryOpNode &node) {
 void IRGenerator::visit(const AST::UnaryOpNode &node) {
   throw Error(
       "UnaryOpNode should not be visited directly - use generateExpr()");
+}
+
+void IRGenerator::visit(const AST::CastNode &node) {
+  throw Error("CastNode should not be visited directly - use generateExpr()");
 }
 
 void IRGenerator::visit(const AST::NumberNode &node) {
