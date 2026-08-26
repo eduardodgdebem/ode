@@ -143,33 +143,47 @@ compiler will actually miss** — a keyword hash table wants both.
 
 | Missing | Notes |
 |---|---|
-| `f64` | Only `f32` exists |
-| `u32`, `i16`, `u16` | The integer set is `i8`, `u8`, `i32`, `i64`, `u64`/`usize` |
 | Function pointers | No function type exists, so dispatch tables have to be `if`/`else if` chains |
 | Fixed-size arrays (`[i8; 256]`) | Deliberate — see 6.2 |
 | Tagged unions | Deliberate — see 6.3 |
+
+The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
+`i64`/`u64` (spelled `usize` too), plus `f32` and `f64`.
 
 Function pointers are the significant one. Without them, a table-driven parser
 is not expressible and dispatch stays as chained conditionals.
 
 ## 4. Type system
 
-### 4.1 Integer literals are always `i32`, checked before any cast
+### 4.1 A literal takes a wider type only from a cast written directly on it
+
+Literals are `i32`, or `f32` when they contain a `.`. A literal written as the
+direct operand of a cast takes the target's type when `i32` cannot hold the
+value, so a wide constant can be written as itself:
 
 ```rust
 let big: i64 = 3000000000 as i64;
+let all: u64 = 18446744073709551615 as u64;
 ```
 
-```
-error: number is out of range for i32: use an explicit cast such as `... as i64`
+A value that does fit `i32` keeps it, so a narrowing cast still truncates:
+`300 as i8` is 44, not an out-of-range literal.
+
+Two shapes are still rejected, because in neither is the literal the cast's
+operand:
+
+```rust
+let big: i64 = -3000000000 as i64;  // `as` binds looser than unary minus, so
+                                    // the operand is the negation, not the 3e9
+let f: f64 = 3000000000 as f64;     // the target is not an integer type, so
+                                    // the literal falls back to i32
 ```
 
-`checkNumberLiteral` rejects the literal before `checkCast` ever sees the
-target type, so a value that only fits in `i64` cannot be written at all. The
-workaround is arithmetic: `1500000000 as i64 * 2 as i64`.
+Both have a direct workaround — `-(3000000000 as i64)` and
+`3000000000 as i64 as f64` — so this is a wart rather than a wall.
 
-*Fix:* give the literal the cast's target type when it is immediately cast, or
-type literals from context generally.
+*Fix:* look through a negation in `checkCastOperand`, and type literals from
+context generally rather than only under a cast.
 
 ### 4.2 No implicit conversions
 

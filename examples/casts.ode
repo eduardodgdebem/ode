@@ -1,5 +1,6 @@
-// Integer widths and explicit conversions. Integer literals are always i32,
-// so widening one to i64 needs an `as`.
+// Integer widths and explicit conversions. Integer literals are i32, so
+// widening one to i64 needs an `as`. See numeric_types.ode for the wider
+// types and for what happens to a literal i32 cannot hold.
 
 fn main(): i32 {
   let big: i64 = 300 as i64;

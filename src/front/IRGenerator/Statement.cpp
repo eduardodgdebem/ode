@@ -120,9 +120,14 @@ void IRGenerator::visit(const AST::PrintStmtNode &node) {
     switch (type.kind()) {
     case Type::Kind::Bool:
     case Type::Kind::I8:
-    case Type::Kind::U8:
+    case Type::Kind::I16:
     case Type::Kind::I32:
       formatStr = "%d\n";
+      break;
+    case Type::Kind::U8:
+    case Type::Kind::U16:
+    case Type::Kind::U32:
+      formatStr = "%u\n";
       break;
     case Type::Kind::I64:
       formatStr = "%lld\n";
@@ -131,6 +136,7 @@ void IRGenerator::visit(const AST::PrintStmtNode &node) {
       formatStr = "%llu\n";
       break;
     case Type::Kind::F32:
+    case Type::Kind::F64:
       formatStr = "%f\n";
       break;
     default:
@@ -138,14 +144,16 @@ void IRGenerator::visit(const AST::PrintStmtNode &node) {
     }
   }
 
-  // printf is variadic, so narrow integers must be promoted to i32 and floats
-  // to double before the call.
-  if (type.isBool() || type.kind() == Type::Kind::I8 ||
-      type.kind() == Type::Kind::U8) {
-    expr = generateCast(expr, type, Type(Type::Kind::I32));
-  } else if (type.isFloat()) {
-    expr = builder_.CreateFPExt(expr, llvm::Type::getDoubleTy(context_),
-                                "promote");
+  // The default argument promotions a variadic call performs: anything
+  // narrower than an int widens to i32, and an f32 widens to double. An f64
+  // is already double, and a pointer is passed as it is.
+  if (!type.isPointer()) {
+    if (type.isBool() || (type.isInteger() && type.bitWidth() < 32)) {
+      expr = generateCast(expr, type, Type(Type::Kind::I32));
+    } else if (type.kind() == Type::Kind::F32) {
+      expr = builder_.CreateFPExt(expr, llvm::Type::getDoubleTy(context_),
+                                  "promote");
+    }
   }
 
   llvm::Value *formatStrVal = builder_.CreateGlobalString(formatStr);

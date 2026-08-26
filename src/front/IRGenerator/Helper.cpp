@@ -22,13 +22,19 @@ llvm::Type *IRGenerator::getLLVMType(Type type) {
   case Type::Kind::I8:
   case Type::Kind::U8:
     return llvm::Type::getInt8Ty(context_);
+  case Type::Kind::I16:
+  case Type::Kind::U16:
+    return llvm::Type::getInt16Ty(context_);
   case Type::Kind::I32:
+  case Type::Kind::U32:
     return llvm::Type::getInt32Ty(context_);
   case Type::Kind::I64:
   case Type::Kind::U64:
     return llvm::Type::getInt64Ty(context_);
   case Type::Kind::F32:
     return llvm::Type::getFloatTy(context_);
+  case Type::Kind::F64:
+    return llvm::Type::getDoubleTy(context_);
   case Type::Kind::Bool:
     return llvm::Type::getInt1Ty(context_);
   case Type::Kind::Void:

@@ -175,7 +175,15 @@ private:
   // literals and casts or negations of literals.
   static bool isConstantExpr(const AST::Node *node);
   Type checkCall(const AST::FuncCallNode &node);
-  Type checkNumberLiteral(const AST::NumberNode &node);
+  // `target` is the type the literal is about to be converted to, and is the
+  // default `i32` everywhere except directly under a cast. See
+  // checkCastOperand.
+  Type checkNumberLiteral(const AST::NumberNode &node,
+                          Type target = Type(Type::Kind::I32));
+  // checkExpr for the operand of a cast. A literal operand is offered the
+  // cast's target type, so that a value too wide for `i32` can be written at
+  // all: `3000000000 as i64`.
+  Type checkCastOperand(const AST::Node *node, Type target);
   // Verifies `target` is assignable and returns the type stored through it.
   Type checkAssignTarget(const AST::Node *target);
 
