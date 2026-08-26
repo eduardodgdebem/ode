@@ -1,0 +1,82 @@
+// Heap-allocated nodes that point at their own type. This is the shape the
+// self-hosted compiler needs for its AST and symbol table: `sizeof` to size
+// an allocation, a pointer field for the link, and `.` following that pointer
+// without an explicit dereference.
+
+extern fn malloc(size: i64): *i8;
+extern fn free(block: *i8): void;
+
+struct Node {
+  value: i32,
+  next: *Node,
+}
+
+fn null(): *Node {
+  return 0 as i64 as *Node;
+}
+
+fn makeNode(value: i32): *Node {
+  let node: *Node = malloc(sizeof(Node) as i64) as *Node;
+  node.value = value;
+  node.next = null();
+
+  return node;
+}
+
+fn push(head: *Node, value: i32): *Node {
+  let node: *Node = makeNode(value);
+  node.next = head;
+
+  return node;
+}
+
+fn sum(head: *Node): i32 {
+  let total: i32 = 0;
+  let current: *Node = head;
+
+  while (current != null()) {
+    total = total + current.value;
+    current = current.next;
+  }
+
+  return total;
+}
+
+fn length(head: *Node): i32 {
+  let count: i32 = 0;
+  let current: *Node = head;
+
+  while (current != null()) {
+    count = count + 1;
+    current = current.next;
+  }
+
+  return count;
+}
+
+fn release(head: *Node): void {
+  let current: *Node = head;
+
+  while (current != null()) {
+    let next: *Node = current.next;
+    free(current as *i8);
+    current = next;
+  }
+}
+
+fn main(): i32 {
+  let list: *Node = makeNode(1);
+  list = push(list, 2);
+  list = push(list, 3);
+
+  print(length(list));
+  print(sum(list));
+
+  // Chained through two pointers.
+  print(list.value);
+  print(list.next.value);
+  print(list.next.next.value);
+
+  release(list);
+  return 0;
+}

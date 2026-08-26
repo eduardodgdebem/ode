@@ -1,0 +1,33 @@
+// Arrays are a pointer plus indexing. `values[i]` is `*(values + i)`, so it
+// reads and assigns like any other lvalue.
+
+extern fn malloc(size: i64): *i8;
+extern fn free(block: *i8): void;
+
+fn main(): i32 {
+  let length: i32 = 8;
+  let values: *i32 = malloc(sizeof(i32) as i64 * length as i64) as *i32;
+
+  let i: i32 = 0;
+  while (i < length) {
+    values[i] = i * i;
+    i = i + 1;
+  }
+
+  print(values[0]);
+  print(values[7]);
+
+  let total: i32 = 0;
+  i = 0;
+  while (i < length) {
+    total = total + values[i];
+    i = i + 1;
+  }
+  print(total);
+
+  // Indexing and pointer arithmetic are the same thing.
+  print(*(values + 3));
+
+  free(values as *i8);
+  return 0;
+}

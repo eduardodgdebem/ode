@@ -1,0 +1,50 @@
+// Structs by value: literals, nested fields, passing and returning.
+
+struct Point {
+  x: i32,
+  y: i32,
+}
+
+struct Line {
+  start: Point,
+  end: Point,
+}
+
+fn abs(value: i32): i32 {
+  if (value < 0) {
+    return 0 - value;
+  }
+
+  return value;
+}
+
+fn manhattan(line: Line): i32 {
+  return abs(line.end.x - line.start.x) + abs(line.end.y - line.start.y);
+}
+
+fn shift(point: Point, by: i32): Point {
+  return Point { x: point.x + by, y: point.y + by };
+}
+
+fn main(): i32 {
+  let origin: Point = Point { x: 0, y: 0 };
+  let corner: Point = Point { x: 3, y: 4 };
+
+  let line: Line = Line { start: origin, end: corner };
+  print(manhattan(line));
+
+  let moved: Point = shift(corner, 10);
+  print(moved.x);
+  print(moved.y);
+
+  // Fields are assignable.
+  let target: Point = origin;
+  target.x = 42;
+  print(target.x);
+
+  // A call result has no storage, so this field is read straight out of the
+  // returned value.
+  print(shift(origin, 7).y);
+
+  return 0;
+}

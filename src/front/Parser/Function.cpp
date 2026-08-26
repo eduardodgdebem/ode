@@ -78,3 +78,58 @@ AST::NodePtr Parser::parseArgList() {
 
   return argList;
 }
+
+// StructDecl -> 'struct' IDENT '{' (IDENT ':' Type ','?)* '}'
+AST::NodePtr Parser::parseStructDecl() {
+  consume(Token::Type::Struct, "struct");
+  Token name = consume(Token::Type::Identifier, "struct name");
+  consume(Token::Type::LBrace, "{");
+
+  auto decl = std::make_unique<AST::StructDeclNode>(name);
+
+  while (current().type != Token::Type::RBrace &&
+         current().type != Token::Type::End) {
+    Token fieldName = consume(Token::Type::Identifier, "field name");
+    consume(Token::Type::Colon, ":");
+    decl->addField(fieldName, parseType());
+
+    if (current().type == Token::Type::Comma) {
+      advance();
+    }
+  }
+
+  consume(Token::Type::RBrace, "}");
+  return decl;
+}
+
+// StructLiteral -> IDENT '{' (IDENT ':' Expr ','?)* '}'
+AST::NodePtr Parser::parseStructLiteral() {
+  Token typeName = consume(Token::Type::Identifier, "struct name");
+  consume(Token::Type::LBrace, "{");
+
+  auto literal = std::make_unique<AST::StructLiteralNode>(typeName);
+
+  while (current().type != Token::Type::RBrace &&
+         current().type != Token::Type::End) {
+    Token fieldName = consume(Token::Type::Identifier, "field name");
+    consume(Token::Type::Colon, ":");
+    literal->addField(fieldName, parseExpr());
+
+    if (current().type == Token::Type::Comma) {
+      advance();
+    }
+  }
+
+  consume(Token::Type::RBrace, "}");
+  return literal;
+}
+
+// SizeOf -> 'sizeof' '(' Type ')'
+AST::NodePtr Parser::parseSizeOf() {
+  consume(Token::Type::SizeOf, "sizeof");
+  consume(Token::Type::LParen, "(");
+  auto type = parseType();
+  consume(Token::Type::RParen, ")");
+
+  return std::make_unique<AST::SizeOfNode>(std::move(type));
+}

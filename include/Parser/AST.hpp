@@ -128,6 +128,30 @@ public:
     NodePtr body_;
   };
 
+  // `struct Token { kind: i32, length: i64, }`
+  class StructDeclNode : public Node {
+  public:
+    struct FieldDecl {
+      Token name;
+      NodePtr type;
+    };
+
+    explicit StructDeclNode(Token name) : name_(std::move(name)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    void addField(Token name, NodePtr type) {
+      fields_.push_back({std::move(name), std::move(type)});
+    }
+
+    const Token &name() const { return name_; }
+    const std::vector<FieldDecl> &fields() const { return fields_; }
+
+  private:
+    Token name_;
+    std::vector<FieldDecl> fields_;
+  };
+
   // A body-less declaration of a function provided by the C runtime or
   // another object file: `extern fn malloc(size: i64): *i8;`
   class ExternFuncDeclNode : public Node {
@@ -230,6 +254,77 @@ public:
     Token op_;
     NodePtr left_;
     NodePtr right_;
+  };
+
+  // `object.field`. `object` may be a struct or a pointer to one, in which
+  // case it is dereferenced automatically.
+  class FieldAccessNode : public Node {
+  public:
+    FieldAccessNode(NodePtr object, Token field)
+        : object_(std::move(object)), field_(std::move(field)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Node *object() const { return object_.get(); }
+    const Token &field() const { return field_; }
+
+  private:
+    NodePtr object_;
+    Token field_;
+  };
+
+  // `base[index]`, which is `*(base + index)` for any pointer.
+  class IndexNode : public Node {
+  public:
+    IndexNode(NodePtr base, NodePtr index)
+        : base_(std::move(base)), index_(std::move(index)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Node *base() const { return base_.get(); }
+    const Node *index() const { return index_.get(); }
+
+  private:
+    NodePtr base_;
+    NodePtr index_;
+  };
+
+  // `Token { kind: 1, length: 0 }`
+  class StructLiteralNode : public Node {
+  public:
+    struct FieldInit {
+      Token name;
+      NodePtr value;
+    };
+
+    explicit StructLiteralNode(Token typeName)
+        : typeName_(std::move(typeName)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    void addField(Token name, NodePtr value) {
+      fields_.push_back({std::move(name), std::move(value)});
+    }
+
+    const Token &typeName() const { return typeName_; }
+    const std::vector<FieldInit> &fields() const { return fields_; }
+
+  private:
+    Token typeName_;
+    std::vector<FieldInit> fields_;
+  };
+
+  // `sizeof(T)`, in bytes, as a usize.
+  class SizeOfNode : public Node {
+  public:
+    explicit SizeOfNode(NodePtr type) : type_(std::move(type)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Node *type() const { return type_.get(); }
+
+  private:
+    NodePtr type_;
   };
 
   // `expr as T`
@@ -341,6 +436,7 @@ public:
     virtual void visit(const WhileStmtNode &node) = 0;
     virtual void visit(const FuncDeclNode &node) = 0;
     virtual void visit(const ExternFuncDeclNode &node) = 0;
+    virtual void visit(const StructDeclNode &node) = 0;
     virtual void visit(const FuncCallNode &node) = 0;
     virtual void visit(const ReturnStmtNode &node) = 0;
     virtual void visit(const PrintStmtNode &node) = 0;
@@ -348,6 +444,10 @@ public:
     virtual void visit(const BinaryOpNode &node) = 0;
     virtual void visit(const UnaryOpNode &node) = 0;
     virtual void visit(const CastNode &node) = 0;
+    virtual void visit(const FieldAccessNode &node) = 0;
+    virtual void visit(const IndexNode &node) = 0;
+    virtual void visit(const StructLiteralNode &node) = 0;
+    virtual void visit(const SizeOfNode &node) = 0;
     virtual void visit(const NumberNode &node) = 0;
     virtual void visit(const BooleanNode &node) = 0;
     virtual void visit(const IdentifierNode &node) = 0;

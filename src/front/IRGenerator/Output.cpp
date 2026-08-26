@@ -30,7 +30,9 @@ void IRGenerator::emitToFile(const std::string &filename) {
   }
 }
 
-void IRGenerator::emitObjectFile(const std::string &filename) {
+// Called from the constructor so that the data layout is attached before any
+// code is generated; sizeof and pointer arithmetic depend on it.
+void IRGenerator::initializeTarget() {
   llvm::InitializeAllTargetInfos();
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
@@ -43,18 +45,22 @@ void IRGenerator::emitObjectFile(const std::string &filename) {
   std::string error;
   auto target =
       llvm::TargetRegistry::lookupTarget(targetTriple.getTriple(), error);
-  if (!target)
+  if (!target) {
     throw Error("could not find target", error);
+  }
 
   llvm::TargetOptions opt;
-  auto targetMachine = target->createTargetMachine(
+  targetMachine_.reset(target->createTargetMachine(
       targetTriple, "generic", "", opt, std::nullopt, std::nullopt,
-      llvm::CodeGenOptLevel::Default);
-  if (!targetMachine)
+      llvm::CodeGenOptLevel::Default));
+  if (!targetMachine_) {
     throw Error("could not create target machine");
+  }
 
-  module_->setDataLayout(targetMachine->createDataLayout());
+  module_->setDataLayout(targetMachine_->createDataLayout());
+}
 
+void IRGenerator::emitObjectFile(const std::string &filename) {
   std::error_code ec;
   llvm::raw_fd_ostream dest(filename, ec, llvm::sys::fs::OF_None);
   if (ec) {
@@ -64,7 +70,7 @@ void IRGenerator::emitObjectFile(const std::string &filename) {
   llvm::legacy::PassManager pass;
   auto fileType = llvm::CodeGenFileType::ObjectFile;
 
-  if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
+  if (targetMachine_->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
     throw Error("target machine could not emit object file");
   }
 

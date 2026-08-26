@@ -45,6 +45,16 @@ constexpr std::string getTokenType(Token::Type tokenType) {
     return "FN";
   case Token::Type::Extern:
     return "EXTERN";
+  case Token::Type::Struct:
+    return "STRUCT";
+  case Token::Type::SizeOf:
+    return "SIZEOF";
+  case Token::Type::LBracket:
+    return "LBRACKET";
+  case Token::Type::RBracket:
+    return "RBRACKET";
+  case Token::Type::Dot:
+    return "DOT";
   case Token::Type::As:
     return "AS";
   case Token::Type::Ampersand:

@@ -6,21 +6,39 @@
 // `i32` is {I32, 0}, `*i32` is {I32, 1}, `**i8` is {I8, 2}.
 class Type {
 public:
-  enum class Kind { I8, U8, I32, I64, U64, F32, Bool, Void };
+  enum class Kind { I8, U8, I32, I64, U64, F32, Bool, Void, Struct };
 
   Type() : kind_(Kind::Void), pointerDepth_(0) {}
   explicit Type(Kind kind, int pointerDepth = 0)
       : kind_(kind), pointerDepth_(pointerDepth) {}
 
+  static Type structType(std::string name, int pointerDepth = 0) {
+    Type type(Kind::Struct, pointerDepth);
+    type.structName_ = std::move(name);
+    return type;
+  }
+
   Kind kind() const { return kind_; }
   int pointerDepth() const { return pointerDepth_; }
+  // Only meaningful when kind() is Struct.
+  const std::string &structName() const { return structName_; }
 
+  bool isStruct() const { return !isPointer() && kind_ == Kind::Struct; }
   bool isPointer() const { return pointerDepth_ > 0; }
-  Type pointee() const { return Type(kind_, pointerDepth_ - 1); }
-  Type pointerTo() const { return Type(kind_, pointerDepth_ + 1); }
+
+  Type pointee() const {
+    Type type(kind_, pointerDepth_ - 1);
+    type.structName_ = structName_;
+    return type;
+  }
+  Type pointerTo() const {
+    Type type(kind_, pointerDepth_ + 1);
+    type.structName_ = structName_;
+    return type;
+  }
 
   bool isInteger() const {
-    if (isPointer())
+    if (isPointer() || kind_ == Kind::Struct)
       return false;
     return kind_ == Kind::I8 || kind_ == Kind::U8 || kind_ == Kind::I32 ||
            kind_ == Kind::I64 || kind_ == Kind::U64;
@@ -52,7 +70,8 @@ public:
   }
 
   bool operator==(const Type &other) const {
-    return kind_ == other.kind_ && pointerDepth_ == other.pointerDepth_;
+    return kind_ == other.kind_ && pointerDepth_ == other.pointerDepth_ &&
+           structName_ == other.structName_;
   }
   bool operator!=(const Type &other) const { return !(*this == other); }
 
@@ -75,6 +94,8 @@ public:
       return out + "bool";
     case Kind::Void:
       return out + "void";
+    case Kind::Struct:
+      return out + structName_;
     }
     return out + "unknown";
   }
@@ -105,4 +126,5 @@ public:
 private:
   Kind kind_;
   int pointerDepth_;
+  std::string structName_;
 };

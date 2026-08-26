@@ -81,10 +81,66 @@ extern fn free(block: *i8): void;
 extern fn putchar(character: i32): i32;
 ```
 
+### Structs
+
+```rust
+struct Node {
+  value: i32,
+  next: *Node,
+}
+```
+
+Declarations may appear in any order and may refer to each other; only a
+struct that contains itself *by value* is rejected. A literal initialises
+every field exactly once, in any order:
+
+```rust
+let node: Point = Point { x: 3, y: 4 };
+```
+
+`.` follows one level of pointer on its own, so `node.next.value` reads
+through two pointers without a single `*`. Fields are assignable, and
+`sizeof(T)` gives the byte size needed to allocate one:
+
+```rust
+let node: *Node = malloc(sizeof(Node) as i64) as *Node;
+node.value = 1;
+```
+
+Structs pass and return by value between Ode functions, but not across
+`extern` — that would need target-specific C ABI lowering.
+
+### Arrays
+
+An array is a pointer plus indexing. `values[i]` is `*(values + i)`, and
+works on either side of an assignment:
+
+```rust
+let values: *i32 = malloc(sizeof(i32) as i64 * 8 as i64) as *i32;
+values[0] = 41;
+print(values[0]);
+```
+
+### Globals
+
+A `let` at program level is a global, visible to every function regardless of
+declaration order. Initialisers must be constant — literals, `sizeof`, or a
+cast or negation of one:
+
+```rust
+let KIND_NUMBER: i32 = 0;
+let allocations: i32 = 0;
+```
+
+Ode has no sum types yet, so a kind tag plus one struct holding every
+variant's fields stands in for them. `examples/expr_tree.ode` builds and
+evaluates an expression tree that way.
+
 ### Examples
 
 `examples/` holds a program per feature — `mutual_recursion.ode`,
-`pointers.ode`, `casts.ode` and `extern.ode` cover the ones above.
+`pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
+`arrays.ode` and `expr_tree.ode` cover the ones above.
 
 ### Grammar
 

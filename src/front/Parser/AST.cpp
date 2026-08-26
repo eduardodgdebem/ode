@@ -8,6 +8,7 @@ void AST::IfStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::WhileStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::FuncDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::ExternFuncDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::StructDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::FuncCallNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::ReturnStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::PrintStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
@@ -15,6 +16,10 @@ void AST::ExprStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::BinaryOpNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::UnaryOpNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::CastNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::FieldAccessNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::IndexNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::StructLiteralNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::SizeOfNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::NumberNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::BooleanNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::IdentifierNode::accept(AST::Visitor &v) const { v.visit(*this); }

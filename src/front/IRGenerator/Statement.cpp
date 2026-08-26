@@ -153,6 +153,24 @@ void IRGenerator::visit(const AST::CastNode &node) {
   throw Error("CastNode should not be visited directly - use generateExpr()");
 }
 
+void IRGenerator::visit(const AST::FieldAccessNode &node) {
+  throw Error(
+      "FieldAccessNode should not be visited directly - use generateExpr()");
+}
+
+void IRGenerator::visit(const AST::IndexNode &node) {
+  throw Error("IndexNode should not be visited directly - use generateExpr()");
+}
+
+void IRGenerator::visit(const AST::StructLiteralNode &node) {
+  throw Error(
+      "StructLiteralNode should not be visited directly - use generateExpr()");
+}
+
+void IRGenerator::visit(const AST::SizeOfNode &node) {
+  throw Error("SizeOfNode should not be visited directly - use generateExpr()");
+}
+
 void IRGenerator::visit(const AST::NumberNode &node) {
   throw Error("NumberNode should not be visited directly - use generateExpr()");
 }
