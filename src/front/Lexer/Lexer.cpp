@@ -17,6 +17,10 @@ std::vector<Token> Lexer::tokenize() {
 
     if (auto t = builder.tryIdentifier()) {
       token = std::move(t);
+    } else if (auto t = builder.tryString()) {
+      token = std::move(t);
+    } else if (auto t = builder.tryChar()) {
+      token = std::move(t);
     } else if (auto t = builder.tryNumber(lastType)) {
       token = std::move(t);
     } else if (auto t = builder.tryTwoCharOperator()) {

@@ -94,6 +94,8 @@ public:
   void visit(const AST::StructLiteralNode &node) override;
   void visit(const AST::SizeOfNode &node) override;
   void visit(const AST::NumberNode &node) override;
+  void visit(const AST::StringLiteralNode &node) override;
+  void visit(const AST::CharLiteralNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;
   void visit(const AST::TypeNode &node) override;

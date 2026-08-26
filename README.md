@@ -110,6 +110,26 @@ node.value = 1;
 Structs pass and return by value between Ode functions, but not across
 `extern` — that would need target-specific C ABI lowering.
 
+### Strings
+
+A string literal has type `*i8` and points at a NUL-terminated constant; a
+character literal has type `i8`. Escapes are `\n`, `\t`, `\r`, `\0`, `\\`,
+`\"` and `\'`.
+
+```rust
+extern fn strlen(text: *i8): i64;
+
+let GREETING: *i8 = "Ode";
+
+fn isDigit(c: i8): bool {
+  return c >= '0' && c <= '9';
+}
+```
+
+`print` renders `*i8` as text; every other pointer prints as an address.
+Indexing a string yields its bytes, so `GREETING[0]` is `'O'`. Comments are
+recognised by the lexer, so a `//` inside a literal is just text.
+
 ### Arrays
 
 An array is a pointer plus indexing. `values[i]` is `*(values + i)`, and
@@ -140,7 +160,8 @@ evaluates an expression tree that way.
 
 `examples/` holds a program per feature — `mutual_recursion.ode`,
 `pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
-`arrays.ode` and `expr_tree.ode` cover the ones above.
+`arrays.ode`, `expr_tree.ode`, `strings.ode` and `nested_control.ode` cover
+the ones above.
 
 ### Grammar
 

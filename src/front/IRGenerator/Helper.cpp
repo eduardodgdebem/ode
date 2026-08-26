@@ -1,5 +1,8 @@
 #include "IRGenerator.hpp"
 
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/GlobalVariable.h>
+
 llvm::Type *IRGenerator::getLLVMType(Type type) {
   // Pointers are opaque in modern LLVM, so every pointer depth lowers to the
   // same `ptr`; the pointee only matters for GEP and load/store.
@@ -121,6 +124,18 @@ Type IRGenerator::typeOf(const AST::Node *node) const {
                 "run before code generation");
   }
   return it->second;
+}
+
+llvm::Constant *IRGenerator::createStringConstant(const std::string &value) {
+  llvm::Constant *data =
+      llvm::ConstantDataArray::getString(context_, value, /*AddNull=*/true);
+
+  auto *global = new llvm::GlobalVariable(
+      *module_, data->getType(), /*isConstant=*/true,
+      llvm::GlobalValue::PrivateLinkage, data, ".str");
+  global->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+
+  return global;
 }
 
 llvm::Function *IRGenerator::getPrintfFunction() {

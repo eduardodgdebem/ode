@@ -332,6 +332,14 @@ void SemanticAnalyzer::visit(const AST::NumberNode &node) {
   // Leaf node - no action needed
 }
 
+void SemanticAnalyzer::visit(const AST::StringLiteralNode &node) {
+  // Leaf node - no action needed
+}
+
+void SemanticAnalyzer::visit(const AST::CharLiteralNode &node) {
+  // Leaf node - no action needed
+}
+
 void SemanticAnalyzer::visit(const AST::BooleanNode &node) {
   // Leaf node - no action needed
 }

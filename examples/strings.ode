@@ -1,0 +1,62 @@
+// String literals are `*i8` pointing at a NUL-terminated constant, and
+// character literals are `i8`. Together they are what a self-hosted lexer
+// needs to scan its own source.
+
+extern fn strlen(text: *i8): i64;
+extern fn putchar(character: i32): i32;
+
+// A string literal is a constant, so it can initialise a global.
+let GREETING: *i8 = "Ode";
+
+fn isDigit(c: i8): bool {
+  return c >= '0' && c <= '9';
+}
+
+fn countDigits(text: *i8): i32 {
+  let count: i32 = 0;
+  let i: i64 = 0 as i64;
+  let length: i64 = strlen(text);
+
+  while (i < length) {
+    if (isDigit(text[i])) {
+      count = count + 1;
+    }
+    i = i + 1 as i64;
+  }
+
+  return count;
+}
+
+fn main(): i32 {
+  // print treats *i8 as text; any other pointer prints as an address.
+  print("hello, world");
+  print(GREETING);
+
+  // Escapes are decoded by the lexer.
+  print("tab:\there");
+  print("quote:\"quoted\"");
+  print("backslash:\\");
+
+  // A // inside a literal is text, not the start of a comment.
+  print("https://example.com");
+
+  print(strlen("hello") as i32);
+  print(countDigits("a1b22c333"));
+
+  // Indexing a string yields bytes.
+  print(GREETING[0] as i32);
+  print(GREETING[1]);
+
+  let first: i8 = 'O';
+  print(first == GREETING[0]);
+
+  // Walking a string one byte at a time.
+  let i: i64 = 0 as i64;
+  while (i < strlen(GREETING)) {
+    putchar(GREETING[i] as i32);
+    i = i + 1 as i64;
+  }
+  putchar('\n' as i32);
+
+  return 0;
+}

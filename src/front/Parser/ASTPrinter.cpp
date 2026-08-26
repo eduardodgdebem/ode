@@ -225,6 +225,14 @@ void ASTPrinter::visit(const AST::NumberNode &node) {
   printIndent("Number: " + node.value().value);
 }
 
+void ASTPrinter::visit(const AST::StringLiteralNode &node) {
+  printIndent("String: \"" + node.value().value + "\"");
+}
+
+void ASTPrinter::visit(const AST::CharLiteralNode &node) {
+  printIndent("Char: '" + node.value().value + "'");
+}
+
 void ASTPrinter::visit(const AST::BooleanNode &node) {
   printIndent("Boolean: " + node.value().value);
 }

@@ -40,16 +40,19 @@ void IRGenerator::visit(const AST::IfStmtNode &node) {
 
   builder_.CreateCondBr(condVal, thenBB, elseBB ? elseBB : mergeBB);
 
+  // The branch has to be added to whichever block the builder ended up in,
+  // not the one it started in: a nested if or while leaves the insert point
+  // on its own trailing block.
   builder_.SetInsertPoint(thenBB);
   node.thenBlock()->accept(*this);
-  if (!thenBB->getTerminator()) {
+  if (!builder_.GetInsertBlock()->getTerminator()) {
     builder_.CreateBr(mergeBB);
   }
 
   if (elseBB) {
     builder_.SetInsertPoint(elseBB);
     node.elseBlock()->accept(*this);
-    if (!elseBB->getTerminator()) {
+    if (!builder_.GetInsertBlock()->getTerminator()) {
       builder_.CreateBr(mergeBB);
     }
   }
@@ -81,7 +84,7 @@ void IRGenerator::visit(const AST::WhileStmtNode &node) {
 
   builder_.SetInsertPoint(bodyBB);
   node.body()->accept(*this);
-  if (!bodyBB->getTerminator()) {
+  if (!builder_.GetInsertBlock()->getTerminator()) {
     builder_.CreateBr(condBB);
   }
 
@@ -93,7 +96,9 @@ void IRGenerator::visit(const AST::PrintStmtNode &node) {
 
   std::string formatStr;
   if (type.isPointer()) {
-    formatStr = "%p\n";
+    // `*i8` is Ode's string type, so print it as text. Any other pointer is
+    // printed as an address.
+    formatStr = type == Type(Type::Kind::I8, 1) ? "%s\n" : "%p\n";
   } else {
     switch (type.kind()) {
     case Type::Kind::Bool:
@@ -173,6 +178,16 @@ void IRGenerator::visit(const AST::SizeOfNode &node) {
 
 void IRGenerator::visit(const AST::NumberNode &node) {
   throw Error("NumberNode should not be visited directly - use generateExpr()");
+}
+
+void IRGenerator::visit(const AST::StringLiteralNode &node) {
+  throw Error(
+      "StringLiteralNode should not be visited directly - use generateExpr()");
+}
+
+void IRGenerator::visit(const AST::CharLiteralNode &node) {
+  throw Error(
+      "CharLiteralNode should not be visited directly - use generateExpr()");
 }
 
 void IRGenerator::visit(const AST::BooleanNode &node) {

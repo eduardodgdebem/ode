@@ -1,7 +1,6 @@
 #pragma once
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <string>
 
 class Reader {
@@ -14,8 +13,9 @@ public:
 
   ~Reader();
 
-  void forEachLine(std::function<void(std::string)> callBack);
-
+  // The file verbatim, newlines and comments included. Stripping comments
+  // here would corrupt any `//` inside a string literal, so the lexer does
+  // it instead.
   std::string readAll();
 
   std::string getFileName() const;

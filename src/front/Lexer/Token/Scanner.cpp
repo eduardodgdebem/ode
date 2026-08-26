@@ -11,8 +11,22 @@ char Token::Scanner::consume() {
 }
 
 void Token::Scanner::skipWhitespace() {
-  while (pos_ < source_.length() &&
-         std::isspace(static_cast<unsigned char>(source_[pos_]))) {
-    ++pos_;
+  while (pos_ < source_.length()) {
+    if (std::isspace(static_cast<unsigned char>(source_[pos_]))) {
+      ++pos_;
+      continue;
+    }
+
+    // A comment runs to the end of the line. This is handled here rather than
+    // while reading the file so that `//` inside a string literal is left
+    // alone.
+    if (source_[pos_] == '/' && peek(1) == '/') {
+      while (pos_ < source_.length() && source_[pos_] != '\n') {
+        ++pos_;
+      }
+      continue;
+    }
+
+    return;
   }
 }

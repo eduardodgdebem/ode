@@ -61,6 +61,14 @@ Type SemanticAnalyzer::inferExprType(const AST::Node *node) {
   if (dynamic_cast<const AST::BooleanNode *>(node)) {
     return Type(Type::Kind::Bool);
   }
+  // A string literal is a pointer into a private constant, so it behaves like
+  // any other `*i8` from there on.
+  if (dynamic_cast<const AST::StringLiteralNode *>(node)) {
+    return Type(Type::Kind::I8, 1);
+  }
+  if (dynamic_cast<const AST::CharLiteralNode *>(node)) {
+    return Type(Type::Kind::I8);
+  }
   if (auto *ident = dynamic_cast<const AST::IdentifierNode *>(node)) {
     const Symbol *sym = symbols_.lookup(ident->name().value);
     if (!sym) {
@@ -461,6 +469,8 @@ Type SemanticAnalyzer::checkStructLiteral(const AST::StructLiteralNode &node) {
 bool SemanticAnalyzer::isConstantExpr(const AST::Node *node) {
   if (dynamic_cast<const AST::NumberNode *>(node) ||
       dynamic_cast<const AST::BooleanNode *>(node) ||
+      dynamic_cast<const AST::StringLiteralNode *>(node) ||
+      dynamic_cast<const AST::CharLiteralNode *>(node) ||
       dynamic_cast<const AST::SizeOfNode *>(node)) {
     return true;
   }

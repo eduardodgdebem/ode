@@ -21,6 +21,8 @@ void AST::IndexNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::StructLiteralNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::SizeOfNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::NumberNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::StringLiteralNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::CharLiteralNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::BooleanNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::IdentifierNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::TypeNode::accept(AST::Visitor &v) const { v.visit(*this); }
