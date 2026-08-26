@@ -20,10 +20,13 @@ AST::NodePtr Parser::parseStatementInner() {
   case Token::Type::Continue:
     return parseContinueStmt();
   case Token::Type::Fn:
+    requireTopLevel("fn");
     return parseFuncDecl();
   case Token::Type::Extern:
+    requireTopLevel("extern");
     return parseExternDecl();
   case Token::Type::Struct:
+    requireTopLevel("struct");
     return parseStructDecl();
   case Token::Type::Return:
     return parseReturnStmt();
@@ -31,6 +34,15 @@ AST::NodePtr Parser::parseStatementInner() {
     return parsePrintStmt();
   default:
     return parseExprStmt();
+  }
+}
+
+void Parser::requireTopLevel(const std::string &construct) {
+  if (!atTopLevel_) {
+    throw Error::at(current(),
+                    std::format("'{}' declarations are only allowed at the "
+                                "top level of the program",
+                                construct));
   }
 }
 
@@ -72,10 +84,13 @@ AST::NodePtr Parser::parseBlock() {
   auto block = std::make_unique<AST::BlockNode>();
   block->setLocation(start.line, start.column);
 
+  bool wasTopLevel = atTopLevel_;
+  atTopLevel_ = false;
   while (current().type != Token::Type::RBrace &&
          current().type != Token::Type::End) {
     block->addStatement(parseStatement());
   }
+  atTopLevel_ = wasTopLevel;
 
   consume(Token::Type::RBrace, "}");
   return block;

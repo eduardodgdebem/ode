@@ -199,6 +199,14 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
     if (left.isVoid()) {
       fail("cannot compare void values");
     }
+    // A struct is an aggregate; there is no single machine instruction to
+    // compare one, and comparing them field by field would be a feature of
+    // its own.
+    if (left.isStruct()) {
+      fail(std::format("cannot compare struct '{}' values",
+                       left.structName()),
+           "compare their fields instead");
+    }
     return Type(Type::Kind::Bool);
 
   case Token::Type::Greater:
@@ -212,6 +220,10 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
     }
     if (left.isBool() || left.isVoid()) {
       fail("cannot compare boolean or void values");
+    }
+    if (left.isStruct()) {
+      fail(std::format("cannot order struct '{}' values", left.structName()),
+           "compare their fields instead");
     }
     return Type(Type::Kind::Bool);
 
