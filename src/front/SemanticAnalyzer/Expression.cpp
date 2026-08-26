@@ -164,6 +164,13 @@ Type SemanticAnalyzer::checkUnaryOp(const AST::UnaryOpNode &node) {
     }
     return operandType;
 
+  case Token::Type::Plus:
+    if (!operandType.isNumeric()) {
+      fail("unary plus requires a numeric operand",
+                  std::format("got '{}'", operandType.toString()));
+    }
+    return operandType;
+
   case Token::Type::Not:
     if (!operandType.isBool()) {
       fail("logical NOT requires boolean operand",
@@ -288,6 +295,26 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
     }
     if (!left.isNumeric()) {
       fail("arithmetic requires numeric operands",
+                  std::format("got '{}'", left.toString()));
+    }
+    return left;
+
+  // Remainder, the bitwise operators and the shifts all lower to an LLVM
+  // instruction that wants two integers of one width, which is also what the
+  // absence of implicit conversions would demand anyway.
+  case Token::Type::Percent:
+  case Token::Type::Ampersand:
+  case Token::Type::Pipe:
+  case Token::Type::Caret:
+  case Token::Type::ShiftLeft:
+  case Token::Type::ShiftRight:
+    if (left != right) {
+      fail(std::format("'{}' requires same type operands", node.op().value),
+                  std::format("got '{}' and '{}'", left.toString(),
+                              right.toString()));
+    }
+    if (!left.isInteger()) {
+      fail(std::format("'{}' requires integer operands", node.op().value),
                   std::format("got '{}'", left.toString()));
     }
     return left;

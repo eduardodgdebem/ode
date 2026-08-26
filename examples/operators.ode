@@ -1,0 +1,81 @@
+// Remainder, the bitwise operators, the shifts, compound assignment and
+// unary plus. Every print is annotated with the value it should produce.
+
+extern fn malloc(size: i64): *i8;
+extern fn free(block: *i8): void;
+
+struct Counter { hits: i32, }
+
+fn main(): i32 {
+  // Remainder. `srem` takes the sign of the left operand, `urem` never
+  // produces a negative result.
+  print(17 % 5);                // 2
+  print(-17 % 5);               // -2
+  print(250 as u8 % 7 as u8);   // 5
+
+  // Bitwise and / or / xor. 12 is 1100 and 10 is 1010.
+  print(12 & 10);               // 8
+  print(12 | 10);               // 14
+  print(12 ^ 10);               // 6
+
+  print(1 << 10);               // 1024
+  print(-16 >> 2);              // -4
+
+  // `>>` copies the sign bit on a signed type and shifts zeros in on an
+  // unsigned one, so the same bit pattern gives two different answers.
+  print(-1 >> 4);               // -1
+  print(255 as u8 >> 4 as u8);  // 15
+  print(-1 as i64 as u64 >> 60 as u64);  // 15
+
+  // Precedence follows C: shifts bind looser than `+` and tighter than the
+  // comparisons, and `&` `^` `|` sit between equality and `&&`.
+  print(2 + 3 << 2);            // 20, i.e. (2 + 3) << 2
+  print(1 << 2 == 4);           // 1, i.e. (1 << 2) == 4
+  print(12 & 10 | 3 ^ 1);       // 10, i.e. (12 & 10) | (3 ^ 1)
+
+  // A lone `&` is still address-of in unary position, and `&&` is still
+  // logical and.
+  let n: i32 = 6;
+  let p: *i32 = &n;
+  print(*p & 3);                // 2
+  print(n > 5 && n < 10);       // 1
+
+  // Unary plus is a no-op on any numeric operand.
+  print(+7);                    // 7
+  print(+n);                    // 6
+  print(+2.5);                  // 2.500000
+
+  // Compound assignment on a plain variable.
+  let a: i32 = 10;
+  a += 5;
+  print(a);                     // 15
+  a -= 3;
+  print(a);                     // 12
+  a *= 4;
+  print(a);                     // 48
+  a /= 5;
+  print(a);                     // 9
+  a %= 4;
+  print(a);                     // 1
+
+  // ... and on every other lvalue form: `*p`, `s.field` and `v[i]`.
+  *p += 4;
+  print(n);                     // 10
+
+  let counter: Counter = Counter { hits: 7 };
+  counter.hits *= 6;
+  print(counter.hits);          // 42
+
+  let values: *i32 = malloc(sizeof(i32) as i64 * 3 as i64) as *i32;
+  values[0] = 100;
+  values[1] = 100;
+  values[2] = 100;
+  values[1] -= 58;
+  values[2] %= 7;
+  print(values[0]);             // 100
+  print(values[1]);             // 42
+  print(values[2]);             // 2
+  free(values as *i8);
+
+  return 0;
+}

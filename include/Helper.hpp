@@ -25,6 +25,26 @@ constexpr std::string getTokenType(Token::Type tokenType) {
     return "MULTIPLY";
   case Token::Type::Divide:
     return "DIVIDE";
+  case Token::Type::Percent:
+    return "PERCENT";
+  case Token::Type::Pipe:
+    return "PIPE";
+  case Token::Type::Caret:
+    return "CARET";
+  case Token::Type::ShiftLeft:
+    return "SHIFTLEFT";
+  case Token::Type::ShiftRight:
+    return "SHIFTRIGHT";
+  case Token::Type::PlusAssign:
+    return "PLUSASSIGN";
+  case Token::Type::MinusAssign:
+    return "MINUSASSIGN";
+  case Token::Type::MultiplyAssign:
+    return "MULTIPLYASSIGN";
+  case Token::Type::DivideAssign:
+    return "DIVIDEASSIGN";
+  case Token::Type::PercentAssign:
+    return "PERCENTASSIGN";
   case Token::Type::Skip:
     return "SKIP";
   case Token::Type::LParen:

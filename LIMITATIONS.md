@@ -84,19 +84,18 @@ is reported where it happens rather than as a missing `main` much later.
 
 ## 2. Missing operators
 
-None of these parse. Each is a plain parser and codegen addition.
+Remainder, the bitwise operators, the shifts, compound assignment and unary
+plus were added and are exercised by `examples/operators.ode`. What is left:
 
 | Missing | Example | Notes |
 |---|---|---|
-| Remainder | `a % b` | Needed for hashing and base conversion; `srem` / `urem` in LLVM |
-| Bitwise and/or/xor | `a & b`, `a \| b`, `a ^ b` | `&` is address-of and `&&` is logical, so the single-character forms are free |
-| Shifts | `a << b`, `a >> b` | |
-| Compound assignment | `a += 1` | Pure sugar over `a = a + 1` |
-| Unary plus | `+5` | Sugar |
 | `for` loops | `for (...) { }` | `while` covers it |
 
-Of these, **remainder and the bitwise operators are the ones a self-hosted
-compiler will actually miss** — a keyword hash table wants both.
+Two notes on what did land. There is no `&=`, `|=`, `^=`, `<<=` or `>>=`: the
+lexer only ever tries two characters when matching an operator, so a
+three-character one needs a change there first. And compound assignment
+desugars in the parser to `a = a op b`, which puts the target into the tree
+twice, so a side effect in the target — `a[next()] += 1` — runs twice.
 
 ## 3. Missing types
 

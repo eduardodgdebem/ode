@@ -267,6 +267,22 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
         return builder_.CreateFDiv(left, right);
       return isSigned ? builder_.CreateSDiv(left, right)
                       : builder_.CreateUDiv(left, right);
+    case Token::Type::Percent:
+      return isSigned ? builder_.CreateSRem(left, right)
+                      : builder_.CreateURem(left, right);
+    case Token::Type::Ampersand:
+      return builder_.CreateAnd(left, right);
+    case Token::Type::Pipe:
+      return builder_.CreateOr(left, right);
+    case Token::Type::Caret:
+      return builder_.CreateXor(left, right);
+    case Token::Type::ShiftLeft:
+      return builder_.CreateShl(left, right);
+    case Token::Type::ShiftRight:
+      // A signed right shift keeps the sign bit; an unsigned one shifts zeros
+      // in, so `255 as u8 >> 4 as u8` is 15 rather than -1.
+      return isSigned ? builder_.CreateAShr(left, right)
+                      : builder_.CreateLShr(left, right);
     default:
       throw Error("unknown binary operator");
     }
@@ -290,6 +306,9 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
       llvm::Value *zero = llvm::ConstantInt::get(operand->getType(), 0);
       return builder_.CreateSub(zero, operand, "neg");
     }
+
+    case Token::Type::Plus:
+      return generateExpr(unaryOp->operand());
 
     case Token::Type::Not:
       return builder_.CreateNot(generateExpr(unaryOp->operand()), "not");

@@ -18,9 +18,57 @@ AST::NodePtr Parser::parseLogicOr() {
 }
 
 AST::NodePtr Parser::parseLogicAnd() {
-  auto left = parseEquality();
+  auto left = parseBitOr();
 
   while (current().type == Token::Type::And) {
+    Token op = current();
+    advance();
+    auto right = parseBitOr();
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
+  }
+
+  return left;
+}
+
+AST::NodePtr Parser::parseBitOr() {
+  auto left = parseBitXor();
+
+  while (current().type == Token::Type::Pipe) {
+    Token op = current();
+    advance();
+    auto right = parseBitXor();
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
+  }
+
+  return left;
+}
+
+AST::NodePtr Parser::parseBitXor() {
+  auto left = parseBitAnd();
+
+  while (current().type == Token::Type::Caret) {
+    Token op = current();
+    advance();
+    auto right = parseBitAnd();
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
+  }
+
+  return left;
+}
+
+// The lexer has already split `&&` off as its own token, so an `&` reaching
+// here is always the binary form; the unary one is only ever reached from a
+// position where no left operand has been parsed.
+AST::NodePtr Parser::parseBitAnd() {
+  auto left = parseEquality();
+
+  while (current().type == Token::Type::Ampersand) {
     Token op = current();
     advance();
     auto right = parseEquality();
@@ -49,12 +97,28 @@ AST::NodePtr Parser::parseEquality() {
 }
 
 AST::NodePtr Parser::parseComparison() {
-  auto left = parseTerm();
+  auto left = parseShift();
 
   while (current().type == Token::Type::Greater ||
          current().type == Token::Type::GreaterEqual ||
          current().type == Token::Type::Less ||
          current().type == Token::Type::LessEqual) {
+    Token op = current();
+    advance();
+    auto right = parseShift();
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
+  }
+
+  return left;
+}
+
+AST::NodePtr Parser::parseShift() {
+  auto left = parseTerm();
+
+  while (current().type == Token::Type::ShiftLeft ||
+         current().type == Token::Type::ShiftRight) {
     Token op = current();
     advance();
     auto right = parseTerm();
@@ -85,7 +149,8 @@ AST::NodePtr Parser::parseTerm() {
 AST::NodePtr Parser::parseFactor() {
   auto left = parseCast();
   while (current().type == Token::Type::Multiply ||
-         current().type == Token::Type::Divide) {
+         current().type == Token::Type::Divide ||
+         current().type == Token::Type::Percent) {
     Token op = current();
     advance();
     auto right = parseCast();
@@ -112,10 +177,13 @@ AST::NodePtr Parser::parseCast() {
   return expr;
 }
 
-// Unary -> ('-' | '!' | '*' | '&') Unary | Primary
-// '*' dereferences a pointer, '&' takes the address of an lvalue.
+// Unary -> ('-' | '+' | '!' | '*' | '&') Unary | Primary
+// '*' dereferences a pointer, '&' takes the address of an lvalue. '+' does
+// nothing but is kept as a node so that the analyzer can still reject a
+// non-numeric operand.
 AST::NodePtr Parser::parseUnary() {
   if (current().type == Token::Type::Minus ||
+      current().type == Token::Type::Plus ||
       current().type == Token::Type::Not ||
       current().type == Token::Type::Multiply ||
       current().type == Token::Type::Ampersand) {

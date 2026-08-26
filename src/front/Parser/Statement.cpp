@@ -1,5 +1,28 @@
 #include "Parser/Parser.hpp"
 
+#include <optional>
+
+namespace {
+// `a op= b` is sugar for `a = a op b`; this names the binary operator each
+// compound token stands for.
+std::optional<Token::Type> compoundAssignOp(Token::Type type) {
+  switch (type) {
+  case Token::Type::PlusAssign:
+    return Token::Type::Plus;
+  case Token::Type::MinusAssign:
+    return Token::Type::Minus;
+  case Token::Type::MultiplyAssign:
+    return Token::Type::Multiply;
+  case Token::Type::DivideAssign:
+    return Token::Type::Divide;
+  case Token::Type::PercentAssign:
+    return Token::Type::Percent;
+  default:
+    return std::nullopt;
+  }
+}
+} // namespace
+
 AST::NodePtr Parser::parseStatement() {
   Token start = current();
   return located(parseStatementInner(), start);
@@ -59,10 +82,11 @@ AST::NodePtr Parser::parseVarDecl() {
                                             std::move(expr));
 }
 
-// Either `expr;` or `lvalue = expr;`. Both start with an expression, so parse
-// one and let the following token decide which statement this is. This is what
-// lets `*p = v;` work without a separate lookahead rule.
+// Either `expr;`, `lvalue = expr;` or `lvalue op= expr;`. All start with an
+// expression, so parse one and let the following token decide which statement
+// this is. This is what lets `*p = v;` work without a separate lookahead rule.
 AST::NodePtr Parser::parseExprStmt() {
+  size_t targetStart = pos_;
   auto expr = parseExpr();
 
   if (current().type == Token::Type::Assign) {
@@ -71,6 +95,26 @@ AST::NodePtr Parser::parseExprStmt() {
     consume(Token::Type::Semicolon, ";");
     return std::make_unique<AST::AssignNode>(std::move(expr),
                                              std::move(value));
+  }
+
+  if (auto binary = compoundAssignOp(current().type)) {
+    // The desugaring needs the target on both sides of the `=`, so build a
+    // second tree for it. The operand appears twice in the result, so a
+    // target with a side effect -- `a[next()] += 1` -- runs it twice.
+    auto target = reparse(targetStart);
+
+    Token op = current();
+    op.type = *binary;
+    op.value.pop_back();
+    advance();
+
+    auto value = parseExpr();
+    consume(Token::Type::Semicolon, ";");
+
+    auto sum = located(std::make_unique<AST::BinaryOpNode>(
+                           op, std::move(target), std::move(value)),
+                       op);
+    return std::make_unique<AST::AssignNode>(std::move(expr), std::move(sum));
   }
 
   consume(Token::Type::Semicolon, ";");
