@@ -203,3 +203,9 @@ evaluates an expression tree that way.
 ### Grammar
 
 For the complete grammar of the Ode language, please see the [EBNF grammar file](gramma.md).
+
+### Limitations
+
+[LIMITATIONS.md](LIMITATIONS.md) records what does not work yet, what is
+deliberately absent, and the handful of outright defects — including one that
+produces a silently wrong result.
