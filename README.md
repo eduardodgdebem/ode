@@ -65,8 +65,13 @@ fn classify(c: i8): i32 {
 with a bare `return;`, and the compiler checks that every `return` matches the
 declared return type.
 
-Note that `&&` and `||` do **not** short-circuit yet — both sides are always
-evaluated, so guard conditions have to be written as nested `if`s.
+`&&` and `||` short-circuit, so a guard reads naturally:
+
+```rust
+while (i < length && text[i] != '\0') {
+  i = i + 1 as i64;
+}
+```
 
 ### Types
 
@@ -183,8 +188,8 @@ evaluates an expression tree that way.
 
 `examples/` holds a program per feature — `mutual_recursion.ode`,
 `pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
-`arrays.ode`, `expr_tree.ode`, `strings.ode`, `nested_control.ode` and
-`tokenizer.ode` cover the ones above.
+`arrays.ode`, `expr_tree.ode`, `strings.ode`, `nested_control.ode`,
+`tokenizer.ode` and `short_circuit.ode` cover the ones above.
 
 ### Grammar
 

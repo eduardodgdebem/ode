@@ -78,20 +78,10 @@ fn tokenize(source: *i8): i32 {
     count = count + 1;
     printKind(kind);
 
-    // Consume the whole run of this kind. Written as a chain rather than one
-    // condition because `&&` does not short-circuit yet, so every operand
-    // would be evaluated even past the end of the string.
-    let scanning: bool = true;
-    while (scanning) {
-      if (i >= length) {
-        scanning = false;
-      } else if (isSpace(source[i])) {
-        scanning = false;
-      } else if (classify(source[i]) != kind) {
-        scanning = false;
-      } else {
-        i = i + 1 as i64;
-      }
+    // Consume the whole run of this kind. `&&` short-circuits, so `source[i]`
+    // is only read once `i < length` has already held.
+    while (i < length && !isSpace(source[i]) && classify(source[i]) == kind) {
+      i = i + 1 as i64;
     }
   }
 
