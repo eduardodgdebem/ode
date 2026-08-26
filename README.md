@@ -84,8 +84,9 @@ while (i < length && text[i] != '\0') {
 
 ### Types
 
-`i8`, `u8`, `i32`, `i64`, `u64` (also spelled `usize`), `f32`, `bool` and
-`void`, plus pointers to any of them (`*i8`, `**i8`).
+Integers in every width and signedness — `i8`, `u8`, `i16`, `u16`, `i32`,
+`u32`, `i64`, `u64` (also spelled `usize`) — the floats `f32` and `f64`, plus
+`bool`, `void`, and pointers to any of them (`*i8`, `**i8`).
 
 There are no implicit conversions. Integer literals are `i32`, so every other
 width is reached with an explicit cast:
@@ -93,7 +94,12 @@ width is reached with an explicit cast:
 ```rust
 let size: i64 = 4096 as i64;
 let byte: u8 = size as u8;
+let ratio: f64 = size as f64 / 3.0 as f64;
 ```
+
+A literal too wide for `i32` takes the type it is cast to, so `3000000000 as
+i64` is written directly. One that does fit keeps `i32`, so a narrowing cast
+still truncates: `300 as i8` is 44.
 
 ### Pointers
 

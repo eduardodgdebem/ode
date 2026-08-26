@@ -110,7 +110,11 @@ llvm::Value *IRGenerator::generateCast(llvm::Value *value, Type from, Type to) {
                          : builder_.CreateFPToUI(value, target, "fptoui");
   }
   if (from.isFloat() && to.isFloat()) {
-    return value;
+    // f32 and f64 are distinct LLVM types, so a float-to-float cast is a real
+    // conversion rather than a no-op.
+    return to.bitWidth() > from.bitWidth()
+               ? builder_.CreateFPExt(value, target, "fpext")
+               : builder_.CreateFPTrunc(value, target, "fptrunc");
   }
 
   throw Error(std::format("cannot cast '{}' to '{}'", from.toString(),
@@ -354,12 +358,19 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
   }
 
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
-    if (num->value().value.find('.') != std::string::npos) {
-      float val = std::stof(num->value().value);
-      return llvm::ConstantFP::get(llvm::Type::getFloatTy(context_), val);
+    // A literal is not always i32 or f32: under a cast the analyzer may have
+    // given it the target's width, so emit it at whatever type it resolved to.
+    Type type = typeOf(node);
+    const std::string &text = num->value().value;
+    if (type.isFloat()) {
+      return llvm::ConstantFP::get(getLLVMType(type), std::stod(text));
     }
-    long long val = std::stoll(num->value().value);
-    return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), val);
+
+    bool negative = text.front() == '-';
+    unsigned long long magnitude =
+        std::stoull(negative ? text.substr(1) : text);
+    return llvm::ConstantInt::get(getLLVMType(type),
+                                  negative ? -magnitude : magnitude);
   }
 
   if (auto *str = dynamic_cast<const AST::StringLiteralNode *>(node)) {

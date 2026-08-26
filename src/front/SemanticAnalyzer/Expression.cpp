@@ -18,6 +18,18 @@ bool isLValue(const AST::Node *node) {
   }
   return false;
 }
+
+// The lexer folds a leading '-' into a number token where the position allows
+// it, so a literal carries its own sign. A negative one only fits a signed
+// type, and reaches one further from zero than the positive maximum does.
+bool fitsIn(unsigned long long magnitude, bool negative, Type type) {
+  unsigned bits = type.bitWidth();
+  if (!type.isSigned()) {
+    return !negative && magnitude <= ~0ULL >> (64 - bits);
+  }
+  unsigned long long max = ~0ULL >> (65 - bits);
+  return magnitude <= (negative ? max + 1 : max);
+}
 } // namespace
 
 // Every expression the analyzer proves well-typed is recorded here, so that
@@ -286,8 +298,8 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
 }
 
 Type SemanticAnalyzer::checkCast(const AST::CastNode &node) {
-  Type from = checkExpr(node.expr());
   Type to = parseType(node.type());
+  Type from = checkCastOperand(node.expr(), to);
 
   auto reject = [&](const std::string &why) {
     fail(std::format("cannot cast '{}' to '{}'", from.toString(),
@@ -333,16 +345,53 @@ Type SemanticAnalyzer::checkCast(const AST::CastNode &node) {
   return to;
 }
 
-Type SemanticAnalyzer::checkNumberLiteral(const AST::NumberNode &node) {
-  if (node.value().value.find('.') != std::string::npos) {
-    return Type(Type::Kind::F32);
+Type SemanticAnalyzer::checkCastOperand(const AST::Node *node, Type target) {
+  auto *num = dynamic_cast<const AST::NumberNode *>(node);
+  if (!num) {
+    return checkExpr(node);
   }
-  long long value = std::stoll(node.value().value);
-  if (value <= INT32_MIN || value >= INT32_MAX) {
-    fail("number is out of range for i32",
-                "use an explicit cast such as `... as i64`");
+
+  ErrorContext context(*this, node);
+  Type type = checkNumberLiteral(*num, target);
+  types_[node] = type;
+  return type;
+}
+
+Type SemanticAnalyzer::checkNumberLiteral(const AST::NumberNode &node,
+                                          Type target) {
+  const std::string &text = node.value().value;
+  if (text.find('.') != std::string::npos) {
+    return target.isFloat() ? target : Type(Type::Kind::F32);
   }
-  return Type(Type::Kind::I32);
+
+  // A literal that fits `i32` stays `i32` even under a cast, so that a
+  // narrowing conversion such as `300 as i8` keeps meaning "truncate an
+  // in-range i32" rather than becoming an out-of-range literal. Only a value
+  // `i32` cannot hold takes the cast's target type, which is what makes
+  // `3000000000 as i64` expressible at all.
+  Type fallback(Type::Kind::I32);
+  if (!target.isInteger()) {
+    target = fallback;
+  }
+
+  bool negative = text.front() == '-';
+  unsigned long long magnitude;
+  try {
+    magnitude = std::stoull(negative ? text.substr(1) : text);
+  } catch (const std::out_of_range &) {
+    fail(std::format("number is out of range for '{}'", target.toString()));
+  }
+
+  if (fitsIn(magnitude, negative, fallback)) {
+    return fallback;
+  }
+  if (!fitsIn(magnitude, negative, target)) {
+    fail(std::format("number is out of range for '{}'", target.toString()),
+                target == fallback
+                    ? "use an explicit cast such as `... as i64`"
+                    : "the value does not fit the type it is cast to");
+  }
+  return target;
 }
 
 Type SemanticAnalyzer::parseType(const AST::Node *node) {
