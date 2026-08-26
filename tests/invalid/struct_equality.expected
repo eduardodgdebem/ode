@@ -1,0 +1,1 @@
+struct_equality.ode:7:11: error: cannot compare struct 'Point' values: compare their fields instead

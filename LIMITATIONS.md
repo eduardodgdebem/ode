@@ -15,72 +15,20 @@ declarations of `fopen` / `fgetc` / `fclose`. Both are verified.
 
 ## 1. Defects
 
-None known. The four that were recorded here — a nested block overwriting the
-outer variable of the same name, `==` on two structs tripping an LLVM
-assertion, a function declared inside another emitting invalid IR, and a
-missing input file reported as a missing `main` — have been fixed. What
-follows is what they turned into.
+None known.
 
-### 1.1 Shadowing works (fixed)
+Four were recorded here and have since been fixed: a nested block overwriting
+the outer variable of the same name, `==` and `<` on two structs tripping an
+LLVM assertion, a function declared inside another emitting invalid IR, and a
+missing input file reported as a missing `main`. Each is now pinned by the
+regression suite, so a recurrence fails a check rather than reaching a user.
 
-A `let` in a nested block declares a new variable and leaves the outer one of
-the same name alone, including when the outer one is a parameter:
-
-```rust
-fn main(): i32 {
-  let x: i32 = 1;
-  {
-    let x: i32 = 99;
-    print(x);    // 99
-  }
-  print(x);      // 1
-  return 0;
-}
-```
-
-`IRGenerator` now keeps a stack of `name -> alloca` maps, pushed and popped
-per block, mirroring the analyzer's `SymbolTable`. The allocas themselves are
-still created in the function's entry block; only the binding is scoped. A
-declaration binds its name after its initialiser is generated, so
-`let x: i32 = x + 1;` in an inner block reads the outer `x`, which is what the
-analyzer type-checked it against. `examples/shadowing.ode` covers it.
-
-### 1.2 Comparing structs is rejected (fixed)
-
-```rust
-print(a == b);   // error: cannot compare struct 'P' values: compare their fields instead
-print(a < b);    // error: cannot order struct 'P' values: compare their fields instead
-```
-
-`checkBinaryOp` rejects struct operands in both the equality and the
-relational case rather than handing an aggregate to `CreateICmpEQ`. Field-wise
-comparison remains a separate feature that does not exist; compare the fields
-by hand.
-
-### 1.3 `fn`, `extern` and `struct` are top-level only (fixed)
-
-```rust
-fn main(): i32 {
-  fn helper(): i32 { return 7; }   // error: 'fn' declarations are only allowed
-  return 0;                        //        at the top level of the program
-}
-```
-
-The parser rejects all three anywhere but the top level of the program, which
-is honest about what codegen can emit. Nested functions are still not a
-feature and are not planned.
-
-### 1.4 A missing input file is reported by the reader (fixed)
-
-```
-$ ode /tmp/does-not-exist.ode
-/tmp/does-not-exist.ode: error: cannot open file
-```
-
-`Reader::readAll` throws instead of returning an empty string, so the failure
-is reported where it happens rather than as a missing `main` much later.
-
----
+Two further latent bugs turned up while fixing those and are also closed: a
+`let` bound its name before its initialiser was generated, so `let x = x + 1;`
+in an inner block would have read its own uninitialised slot once scoping
+existed; and `print` promoted anything whose kind was `i8` — including `*i8` —
+through `ptrtoint`, truncating every printed string to 32 bits. That one only
+worked because the constants sat below 4GB.
 
 ## 2. Missing operators
 
@@ -287,13 +235,18 @@ no multi-line string literals — a string may not cross a newline.
 
 ## 8. Tooling
 
-### 8.1 No test suite
+### 8.1 Testing is end-to-end only
 
-Fixed. `tests/run_tests.sh` runs every `examples/*.ode` against a recorded
-stdout in `tests/valid/`, and every `tests/invalid/*.ode` against the
-diagnostic it must produce. It is registered with CTest as `regression`, and
-`--update` re-records every expectation in one pass so the suite can be
-re-baselined after a deliberate language change.
+`tests/run_tests.sh` compiles, links and runs every `examples/*.ode` against a
+recorded stdout, and checks every `tests/invalid/*.ode` against the diagnostic
+it must produce. `ctest` runs it as `regression`, and `--update` re-records
+every expectation in one pass.
+
+What it does not do is test any component in isolation. There are no unit
+tests for the lexer, the parser, the analyzer or codegen, so a fault is
+located by bisecting a failing program rather than by a failing assertion. For
+the self-hosting port, where two compilers need diffing against each other,
+that will start to matter.
 
 ### 8.2 Linking shells out to `clang++`
 
@@ -303,9 +256,13 @@ metacharacter in one no longer re-splits the command or gets executed, but
 running a shell at all is still more than the job needs; `posix_spawn` would
 remove both the shell and the `PATH` lookup.
 
-### 8.3 Output paths are not configurable
+### 8.3 Intermediates are always written
 
-Fixed. `ode -o <path>` writes the executable where asked, with `<path>.ll` and
-`<path>.o` beside it, and `--no-intermediates` deletes those two once linking
-succeeds. With no flags the compiler still writes `<stem>.ll`, `<stem>.o` and
+`ode -o <path>` writes the executable where asked, with `<path>.ll` and
+`<path>.o` beside it; `--no-intermediates` deletes those two once linking
+succeeds. With no flags the compiler writes `<stem>.ll`, `<stem>.o` and
 `<stem>` into the working directory.
+
+The residue is that the `.ll` and `.o` are always written before they can be
+removed, so there is no way to compile without touching the filesystem beyond
+the output, and no way to ask for only the IR without also linking.
