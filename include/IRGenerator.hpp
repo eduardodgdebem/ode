@@ -1,6 +1,7 @@
 #pragma once
 #include "Parser/AST.hpp"
 #include "SemanticAnalyzer.hpp"
+#include "SourceError.hpp"
 #include "StructTable.hpp"
 #include "Type.hpp"
 
@@ -18,18 +19,11 @@
 
 class IRGenerator : public AST::Visitor {
 public:
-  class Error : public std::runtime_error {
+  class Error : public SourceError {
   public:
-    explicit Error(const std::string &msg) : std::runtime_error(msg) {}
+    explicit Error(const std::string &msg) : SourceError(msg) {}
     Error(const std::string &context, const std::string &detail)
-        : std::runtime_error(std::format("{}: {}", context, detail)) {}
-  };
-
-  class Todo : public std::runtime_error {
-  public:
-    explicit Todo(const std::string &feature)
-        : std::runtime_error(
-              std::format("TODO: {} not yet implemented", feature)) {}
+        : SourceError(std::format("{}: {}", context, detail)) {}
   };
 
   // `resolvedTypes` comes from the semantic analyzer and must outlive this

@@ -8,5 +8,7 @@ public:
   void run();
 
 private:
+  void compile();
+
   const char *filePath;
 };

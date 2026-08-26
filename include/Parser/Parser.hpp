@@ -1,5 +1,7 @@
 #pragma once
 #include "AST.hpp"
+#include "SourceError.hpp"
+
 #include <format>
 #include <vector>
 
@@ -7,12 +9,14 @@ class Parser {
 public:
   explicit Parser(std::vector<Token> &tokens);
 
-  class Error : public std::runtime_error {
+  class Error : public SourceError {
   public:
     Error(const std::string &expected, const Token &got)
-        : std::runtime_error(
-              std::format("Expected '{}' but got '{}'", expected, got.value)) {}
-    Error(const std::string &msg) : std::runtime_error(msg) {}
+        : SourceError(std::format("expected '{}' but got '{}'", expected,
+                                  got.value.empty() ? "end of file"
+                                                    : got.value),
+                      got.line, got.column) {}
+    explicit Error(const std::string &msg) : SourceError(msg) {}
   };
 
   AST::NodePtr parse();
@@ -20,6 +24,10 @@ public:
 private:
   std::vector<Token> tokens_;
   size_t pos_;
+
+  // Stamps a freshly built node with the position of the token it started
+  // at, leaving any node that already has one alone.
+  static AST::NodePtr located(AST::NodePtr node, const Token &at);
 
   Token current() const;
   Token peek(size_t offset = 1) const;
@@ -41,6 +49,7 @@ private:
   AST::NodePtr parseCast();
   AST::NodePtr parsePrimary();
   AST::NodePtr parseStatement();
+  AST::NodePtr parseStatementInner();
   AST::NodePtr parseVarDecl();
   AST::NodePtr parseExprStmt();
   AST::NodePtr parseBlock();

@@ -15,11 +15,12 @@ void SymbolTable::exitScope() {
 }
 
 void SymbolTable::declare(const std::string &name, Symbol::Kind kind, Type type,
-                          std::vector<Type> params) {
+                          std::vector<Type> params, int line, int column) {
   auto &current = scopes_.back();
   if (current.find(name) != current.end()) {
     throw SemanticAnalyzer::Error(
-        std::format("symbol '{}' already declared in this scope", name));
+        std::format("symbol '{}' already declared in this scope", name), line,
+        column);
   }
 
   current.emplace(name, Symbol(name, kind, type, std::move(params)));

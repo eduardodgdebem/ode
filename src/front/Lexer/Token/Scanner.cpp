@@ -7,13 +7,25 @@ char Token::Scanner::peek(size_t offset) const {
 }
 
 char Token::Scanner::consume() {
-  return pos_ < source_.length() ? source_[pos_++] : '\0';
+  if (pos_ >= source_.length()) {
+    return '\0';
+  }
+
+  char c = source_[pos_++];
+  if (c == '\n') {
+    ++line_;
+    column_ = 1;
+  } else {
+    ++column_;
+  }
+
+  return c;
 }
 
 void Token::Scanner::skipWhitespace() {
   while (pos_ < source_.length()) {
     if (std::isspace(static_cast<unsigned char>(source_[pos_]))) {
-      ++pos_;
+      consume();
       continue;
     }
 
@@ -22,7 +34,7 @@ void Token::Scanner::skipWhitespace() {
     // alone.
     if (source_[pos_] == '/' && peek(1) == '/') {
       while (pos_ < source_.length() && source_[pos_] != '\n') {
-        ++pos_;
+        consume();
       }
       continue;
     }

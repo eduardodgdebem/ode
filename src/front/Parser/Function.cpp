@@ -1,6 +1,7 @@
 #include "Parser/Parser.hpp"
 
 AST::NodePtr Parser::parseFuncDecl() {
+  Token start = current();
   consume(Token::Type::Fn, "fn");
   Token name = consume(Token::Type::Identifier, "identifier");
   auto params = parseParamList();
@@ -8,12 +9,15 @@ AST::NodePtr Parser::parseFuncDecl() {
   auto returnType = parseType();
   auto body = parseBlock();
 
-  return std::make_unique<AST::FuncDeclNode>(
-      name, std::move(returnType), std::move(params), std::move(body));
+  return located(std::make_unique<AST::FuncDeclNode>(
+                     name, std::move(returnType), std::move(params),
+                     std::move(body)),
+                 start);
 }
 
 // ExternDecl -> 'extern' 'fn' IDENT '(' ParamList? ')' ':' Type ';'
 AST::NodePtr Parser::parseExternDecl() {
+  Token start = current();
   consume(Token::Type::Extern, "extern");
   consume(Token::Type::Fn, "fn");
   Token name = consume(Token::Type::Identifier, "identifier");
@@ -22,8 +26,9 @@ AST::NodePtr Parser::parseExternDecl() {
   auto returnType = parseType();
   consume(Token::Type::Semicolon, ";");
 
-  return std::make_unique<AST::ExternFuncDeclNode>(name, std::move(returnType),
-                                                   std::move(params));
+  return located(std::make_unique<AST::ExternFuncDeclNode>(
+                     name, std::move(returnType), std::move(params)),
+                 start);
 }
 
 AST::NodePtr Parser::parseFuncCall() {
@@ -33,13 +38,16 @@ AST::NodePtr Parser::parseFuncCall() {
   auto args = parseArgList();
   consume(Token::Type::RParen, ")");
 
-  return std::make_unique<AST::FuncCallNode>(name, std::move(args));
+  return located(std::make_unique<AST::FuncCallNode>(name, std::move(args)),
+                 name);
 }
 
 AST::NodePtr Parser::parseParamList() {
+  Token start = current();
   consume(Token::Type::LParen, "(");
 
   auto paramList = std::make_unique<AST::ParamListNode>();
+  paramList->setLocation(start.line, start.column);
 
   if (current().type == Token::Type::RParen) {
     advance();
@@ -63,6 +71,7 @@ AST::NodePtr Parser::parseParamList() {
 
 AST::NodePtr Parser::parseArgList() {
   auto argList = std::make_unique<AST::ArgListNode>();
+  argList->setLocation(current().line, current().column);
 
   if (current().type == Token::Type::RParen) {
     return argList;
@@ -81,6 +90,7 @@ AST::NodePtr Parser::parseArgList() {
 
 // StructDecl -> 'struct' IDENT '{' (IDENT ':' Type ','?)* '}'
 AST::NodePtr Parser::parseStructDecl() {
+  Token start = current();
   consume(Token::Type::Struct, "struct");
   Token name = consume(Token::Type::Identifier, "struct name");
   consume(Token::Type::LBrace, "{");
@@ -99,7 +109,7 @@ AST::NodePtr Parser::parseStructDecl() {
   }
 
   consume(Token::Type::RBrace, "}");
-  return decl;
+  return located(std::move(decl), start);
 }
 
 // StructLiteral -> IDENT '{' (IDENT ':' Expr ','?)* '}'
@@ -121,15 +131,16 @@ AST::NodePtr Parser::parseStructLiteral() {
   }
 
   consume(Token::Type::RBrace, "}");
-  return literal;
+  return located(std::move(literal), typeName);
 }
 
 // SizeOf -> 'sizeof' '(' Type ')'
 AST::NodePtr Parser::parseSizeOf() {
+  Token start = current();
   consume(Token::Type::SizeOf, "sizeof");
   consume(Token::Type::LParen, "(");
   auto type = parseType();
   consume(Token::Type::RParen, ")");
 
-  return std::make_unique<AST::SizeOfNode>(std::move(type));
+  return located(std::make_unique<AST::SizeOfNode>(std::move(type)), start);
 }

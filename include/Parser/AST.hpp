@@ -12,6 +12,19 @@ public:
   public:
     virtual ~Node() = default;
     virtual void accept(Visitor &visitor) const = 0;
+
+    // Where this construct starts in the source, so that a diagnostic raised
+    // long after parsing can still point at it. Zero means unknown.
+    int line() const { return line_; }
+    int column() const { return column_; }
+    void setLocation(int line, int column) {
+      line_ = line;
+      column_ = column;
+    }
+
+  private:
+    int line_ = 0;
+    int column_ = 0;
   };
 
   using NodePtr = std::unique_ptr<Node>;

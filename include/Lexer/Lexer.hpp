@@ -1,16 +1,18 @@
 #pragma once
 #include "Token.hpp"
 
+#include "SourceError.hpp"
+
 #include <format>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
 class Lexer {
 public:
-  class Error : public std::runtime_error {
+  class Error : public SourceError {
   public:
-    explicit Error(const std::string &msg) : std::runtime_error(msg) {}
+    Error(const std::string &msg, int line = 0, int column = 0)
+        : SourceError(msg, line, column) {}
   };
 
   explicit Lexer(std::string_view source) : source_(std::move(source)) {}
