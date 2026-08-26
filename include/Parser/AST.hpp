@@ -355,6 +355,34 @@ public:
     Token value_;
   };
 
+  // A NUL-terminated byte string. Its type is `*i8`, pointing at a private
+  // constant in the module.
+  class StringLiteralNode : public Node {
+  public:
+    explicit StringLiteralNode(Token value) : value_(std::move(value)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    // Already decoded: escapes were resolved by the lexer.
+    const Token &value() const { return value_; }
+
+  private:
+    Token value_;
+  };
+
+  // A single byte, typed `i8`.
+  class CharLiteralNode : public Node {
+  public:
+    explicit CharLiteralNode(Token value) : value_(std::move(value)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Token &value() const { return value_; }
+
+  private:
+    Token value_;
+  };
+
   class BooleanNode : public Node {
   public:
     explicit BooleanNode(Token value) : value_(std::move(value)) {}
@@ -449,6 +477,8 @@ public:
     virtual void visit(const StructLiteralNode &node) = 0;
     virtual void visit(const SizeOfNode &node) = 0;
     virtual void visit(const NumberNode &node) = 0;
+    virtual void visit(const StringLiteralNode &node) = 0;
+    virtual void visit(const CharLiteralNode &node) = 0;
     virtual void visit(const BooleanNode &node) = 0;
     virtual void visit(const IdentifierNode &node) = 0;
     virtual void visit(const TypeNode &node) = 0;

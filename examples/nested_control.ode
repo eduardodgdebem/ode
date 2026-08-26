@@ -1,0 +1,70 @@
+// Nested control flow, where each construct leaves the IR builder on a
+// different block than it entered on: an `if` inside a `while`, an `if`
+// inside an `if`, a `while` inside a `while`, and an early return from
+// inside a loop.
+
+fn classify(n: i32): i32 {
+  if (n < 0) {
+    return 0 - 1;
+  }
+
+  let i: i32 = 0;
+  let hits: i32 = 0;
+
+  while (i < n) {
+    if (i * 2 == n) {
+      hits = hits + 1;
+    } else {
+      if (i * 3 == n) {
+        hits = hits + 10;
+      }
+    }
+
+    i = i + 1;
+  }
+
+  return hits;
+}
+
+fn firstFactor(n: i32): i32 {
+  let i: i32 = 2;
+
+  while (i < n) {
+    if (n / i * i == n) {
+      return i;
+    }
+
+    i = i + 1;
+  }
+
+  return n;
+}
+
+fn triangle(n: i32): i32 {
+  let outer: i32 = 0;
+  let total: i32 = 0;
+
+  while (outer < n) {
+    let inner: i32 = 0;
+
+    while (inner < outer) {
+      total = total + 1;
+      inner = inner + 1;
+    }
+
+    outer = outer + 1;
+  }
+
+  return total;
+}
+
+fn main(): i32 {
+  print(classify(0 - 5));
+  print(classify(6));
+  print(classify(9));
+  print(firstFactor(91));
+  print(firstFactor(13));
+  print(triangle(5));
+
+  return 0;
+}

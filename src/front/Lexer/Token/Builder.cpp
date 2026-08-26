@@ -1,4 +1,7 @@
 #include "Lexer/Token.hpp"
+#include "Lexer/Lexer.hpp"
+
+#include <format>
 
 std::optional<Token> Token::Builder::tryIdentifier() {
   if (!Token::Classifier::isIdentifierStart(scanner_.peek())) {
@@ -53,6 +56,81 @@ std::optional<Token> Token::Builder::tryNumber(Token::Type lastType) {
   value += scanner_.substr(start, scanner_.position() - start);
 
   return Token{Token::Type::Number, std::move(value)};
+}
+
+// Decodes one character of a string or character literal, resolving a
+// backslash escape into the byte it stands for.
+char Token::Builder::readLiteralChar(char quote) {
+  char c = scanner_.consume();
+
+  if (c != '\\') {
+    return c;
+  }
+
+  char escape = scanner_.consume();
+  switch (escape) {
+  case 'n':
+    return '\n';
+  case 't':
+    return '\t';
+  case 'r':
+    return '\r';
+  case '0':
+    return '\0';
+  case '\\':
+    return '\\';
+  case '"':
+    return '"';
+  case '\'':
+    return '\'';
+  default:
+    throw Lexer::Error(std::format("unknown escape sequence '\\{}'", escape));
+  }
+}
+
+std::optional<Token> Token::Builder::tryString() {
+  if (scanner_.peek() != '"') {
+    return std::nullopt;
+  }
+  scanner_.consume();
+
+  std::string value;
+  while (true) {
+    if (scanner_.isAtEnd()) {
+      throw Lexer::Error("unterminated string literal");
+    }
+    if (scanner_.peek() == '\n') {
+      throw Lexer::Error("string literal runs past the end of the line");
+    }
+    if (scanner_.peek() == '"') {
+      scanner_.consume();
+      break;
+    }
+
+    value += readLiteralChar('"');
+  }
+
+  return Token{Token::Type::String, std::move(value)};
+}
+
+std::optional<Token> Token::Builder::tryChar() {
+  if (scanner_.peek() != '\'') {
+    return std::nullopt;
+  }
+  scanner_.consume();
+
+  if (scanner_.isAtEnd() || scanner_.peek() == '\'') {
+    throw Lexer::Error("empty character literal");
+  }
+
+  std::string value(1, readLiteralChar('\''));
+
+  if (scanner_.peek() != '\'') {
+    throw Lexer::Error("character literal must hold exactly one character");
+  }
+  scanner_.consume();
+
+  return Token{Token::Type::Char, std::move(value)};
 }
 
 std::optional<Token> Token::Builder::tryTwoCharOperator() {

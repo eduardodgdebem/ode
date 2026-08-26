@@ -171,6 +171,14 @@ AST::NodePtr Parser::parsePrimary() {
     advance();
     return std::make_unique<AST::BooleanNode>(curr);
   }
+  case Token::Type::String: {
+    advance();
+    return std::make_unique<AST::StringLiteralNode>(curr);
+  }
+  case Token::Type::Char: {
+    advance();
+    return std::make_unique<AST::CharLiteralNode>(curr);
+  }
   case Token::Type::SizeOf:
     return parseSizeOf();
   case Token::Type::Identifier: {
@@ -186,6 +194,7 @@ AST::NodePtr Parser::parsePrimary() {
     return std::make_unique<AST::IdentifierNode>(curr);
   }
   default:
-    throw Error("number, boolean, identifier, or '('", curr);
+    throw Error("number, string, character, boolean, identifier, or '('",
+                curr);
   }
 }

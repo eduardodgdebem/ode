@@ -318,6 +318,16 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
     return llvm::ConstantInt::get(llvm::Type::getInt32Ty(context_), val);
   }
 
+  if (auto *str = dynamic_cast<const AST::StringLiteralNode *>(node)) {
+    return createStringConstant(str->value().value);
+  }
+
+  if (auto *character = dynamic_cast<const AST::CharLiteralNode *>(node)) {
+    return llvm::ConstantInt::get(
+        llvm::Type::getInt8Ty(context_),
+        static_cast<unsigned char>(character->value().value[0]));
+  }
+
   if (auto *boolean = dynamic_cast<const AST::BooleanNode *>(node)) {
     bool val = boolean->value().value == "true";
     return llvm::ConstantInt::get(llvm::Type::getInt1Ty(context_), val);

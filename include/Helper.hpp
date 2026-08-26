@@ -13,6 +13,8 @@ constexpr std::string getTokenType(Token::Type tokenType) {
     return "NUMBER";
   case Token::Type::Char:
     return "CHAR";
+  case Token::Type::String:
+    return "STRING";
   case Token::Type::Identifier:
     return "IDENTITY";
   case Token::Type::Plus:

@@ -21,6 +21,7 @@ public:
     As,
     Identifier,
     Number,
+    String,
     Boolean,
     Not,
     Ampersand,
@@ -85,6 +86,7 @@ public:
 
     char peek(size_t offset = 0) const;
     char consume();
+    // Also skips `//` comments, which run to the end of the line.
     void skipWhitespace();
 
     bool isAtEnd() const { return pos_ >= source_.length(); }
@@ -105,8 +107,13 @@ public:
 
     std::optional<Token> tryIdentifier();
     std::optional<Token> tryNumber(Type lastType);
+    std::optional<Token> tryString();
+    std::optional<Token> tryChar();
     std::optional<Token> tryTwoCharOperator();
     std::optional<Token> trySingleChar();
+
+    // Reads one character of a literal, decoding a backslash escape.
+    char readLiteralChar(char quote);
 
   private:
     Scanner &scanner_;

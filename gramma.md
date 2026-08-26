@@ -48,7 +48,7 @@ A **VarDecl** written directly at program level declares a global.
 - **Cast** → Unary (`as` Type)*
 - **Unary** → (`-` | `!` | `*` | `&`) Unary | Postfix
 - **Postfix** → Primary (`.` IDENT | `[` Expr `]`)*
-- **Primary** → NUMBER | BOOLEAN | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
+- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
 - **StructLiteral** → IDENT `{` FieldInit* `}`
 - **FieldInit** → IDENT `:` Expr `,`?
 - **SizeOf** → `sizeof` `(` Type `)`
@@ -71,6 +71,15 @@ position names a struct.
 - **IDENT** → [a-zA-Z_][a-zA-Z0-9_]*
 - **NUMBER** → [0-9]+
 - **BOOLEAN** → `true` | `false`
+- **STRING** → `"` Char* `"`
+- **CHAR** → `'` Char `'`
+- **Char** → any character except the closing quote or a newline, or an Escape
+- **Escape** → `\n` | `\t` | `\r` | `\0` | `\\` | `\"` | `\'`
+- **Comment** → `//` to the end of the line
+
+A STRING has type `*i8` and points at a NUL-terminated constant. A CHAR has
+type `i8`. Comments are recognised by the lexer, so a `//` inside a string
+literal is text.
 
 ---
 
@@ -117,3 +126,5 @@ tighter than unary, so `*p.next` means `*(p.next)`.
   regardless of declaration order.
 - Structs may be passed and returned by value between Ode functions, but not
   across `extern`, where the C ABI would need target-specific lowering.
+- `*i8` is Ode's string type: `print` renders it as text, while every other
+  pointer prints as an address.
