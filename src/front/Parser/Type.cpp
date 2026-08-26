@@ -4,6 +4,7 @@
 // A base type is either a built-in keyword (`i32`) or the name of a struct,
 // which lexes as an identifier.
 AST::NodePtr Parser::parseType() {
+  Token start = current();
   int pointerDepth = 0;
   while (current().type == Token::Type::Multiply) {
     ++pointerDepth;
@@ -17,5 +18,5 @@ AST::NodePtr Parser::parseType() {
 
   Token type = current();
   advance();
-  return std::make_unique<AST::TypeNode>(type, pointerDepth);
+  return located(std::make_unique<AST::TypeNode>(type, pointerDepth), start);
 }

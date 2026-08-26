@@ -8,6 +8,8 @@ std::optional<Token> Token::Builder::tryIdentifier() {
     return std::nullopt;
   }
 
+  int line = scanner_.line();
+  int column = scanner_.column();
   size_t start = scanner_.position();
 
   while (!scanner_.isAtEnd() &&
@@ -18,10 +20,12 @@ std::optional<Token> Token::Builder::tryIdentifier() {
   std::string value(scanner_.substr(start, scanner_.position() - start));
   Token::Type type = Token::Classifier::classify(value);
 
-  return Token{type, std::move(value)};
+  return Token{type, std::move(value)}.at(line, column);
 }
 
 std::optional<Token> Token::Builder::tryNumber(Token::Type lastType) {
+  int line = scanner_.line();
+  int column = scanner_.column();
   bool isNegative = false;
 
   if (scanner_.peek() == '-') {
@@ -55,7 +59,7 @@ std::optional<Token> Token::Builder::tryNumber(Token::Type lastType) {
     value = "-";
   value += scanner_.substr(start, scanner_.position() - start);
 
-  return Token{Token::Type::Number, std::move(value)};
+  return Token{Token::Type::Number, std::move(value)}.at(line, column);
 }
 
 // Decodes one character of a string or character literal, resolving a
@@ -67,6 +71,8 @@ char Token::Builder::readLiteralChar(char quote) {
     return c;
   }
 
+  int escapeLine = scanner_.line();
+  int escapeColumn = scanner_.column();
   char escape = scanner_.consume();
   switch (escape) {
   case 'n':
@@ -84,7 +90,8 @@ char Token::Builder::readLiteralChar(char quote) {
   case '\'':
     return '\'';
   default:
-    throw Lexer::Error(std::format("unknown escape sequence '\\{}'", escape));
+    throw Lexer::Error(std::format("unknown escape sequence '\\{}'", escape),
+                       escapeLine, escapeColumn);
   }
 }
 
@@ -92,15 +99,19 @@ std::optional<Token> Token::Builder::tryString() {
   if (scanner_.peek() != '"') {
     return std::nullopt;
   }
+
+  int line = scanner_.line();
+  int column = scanner_.column();
   scanner_.consume();
 
   std::string value;
   while (true) {
     if (scanner_.isAtEnd()) {
-      throw Lexer::Error("unterminated string literal");
+      throw Lexer::Error("unterminated string literal", line, column);
     }
     if (scanner_.peek() == '\n') {
-      throw Lexer::Error("string literal runs past the end of the line");
+      throw Lexer::Error("string literal runs past the end of the line", line,
+                         column);
     }
     if (scanner_.peek() == '"') {
       scanner_.consume();
@@ -110,27 +121,31 @@ std::optional<Token> Token::Builder::tryString() {
     value += readLiteralChar('"');
   }
 
-  return Token{Token::Type::String, std::move(value)};
+  return Token{Token::Type::String, std::move(value)}.at(line, column);
 }
 
 std::optional<Token> Token::Builder::tryChar() {
   if (scanner_.peek() != '\'') {
     return std::nullopt;
   }
+
+  int line = scanner_.line();
+  int column = scanner_.column();
   scanner_.consume();
 
   if (scanner_.isAtEnd() || scanner_.peek() == '\'') {
-    throw Lexer::Error("empty character literal");
+    throw Lexer::Error("empty character literal", line, column);
   }
 
   std::string value(1, readLiteralChar('\''));
 
   if (scanner_.peek() != '\'') {
-    throw Lexer::Error("character literal must hold exactly one character");
+    throw Lexer::Error("character literal must hold exactly one character",
+                       line, column);
   }
   scanner_.consume();
 
-  return Token{Token::Type::Char, std::move(value)};
+  return Token{Token::Type::Char, std::move(value)}.at(line, column);
 }
 
 std::optional<Token> Token::Builder::tryTwoCharOperator() {
@@ -143,18 +158,23 @@ std::optional<Token> Token::Builder::tryTwoCharOperator() {
   std::string op{first, second};
 
   if (Token::Classifier::isKeywordOrOperator(op)) {
+    int line = scanner_.line();
+    int column = scanner_.column();
     scanner_.consume();
     scanner_.consume();
-    return Token{Token::Classifier::classify(op), std::move(op)};
+    return Token{Token::Classifier::classify(op), std::move(op)}.at(line,
+                                                                    column);
   }
 
   return std::nullopt;
 }
 
 std::optional<Token> Token::Builder::trySingleChar() {
+  int line = scanner_.line();
+  int column = scanner_.column();
   char c = scanner_.consume();
   std::string str(1, c);
 
   Token::Type type = Token::Classifier::classify(str);
-  return Token{type, std::move(str)};
+  return Token{type, std::move(str)}.at(line, column);
 }

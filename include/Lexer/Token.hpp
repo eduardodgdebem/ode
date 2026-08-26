@@ -61,9 +61,20 @@ public:
 
   Type type;
   std::string value;
+  // 1-based position of the token's first character. Zero means the token
+  // was synthesised rather than read from source.
+  int line = 0;
+  int column = 0;
 
   Token(Type t = Type::None, std::string v = "")
       : type(t), value(std::move(v)) {}
+
+  Token at(int tokenLine, int tokenColumn) const {
+    Token copy = *this;
+    copy.line = tokenLine;
+    copy.column = tokenColumn;
+    return copy;
+  }
 
   class Classifier {
   public:
@@ -94,6 +105,9 @@ public:
     bool isAtEnd() const { return pos_ >= source_.length(); }
     size_t position() const { return pos_; }
 
+    int line() const { return line_; }
+    int column() const { return column_; }
+
     std::string_view substr(size_t start, size_t length) const {
       return source_.substr(start, length);
     }
@@ -101,6 +115,8 @@ public:
   private:
     std::string_view source_;
     size_t pos_;
+    int line_ = 1;
+    int column_ = 1;
   };
 
   class Builder {

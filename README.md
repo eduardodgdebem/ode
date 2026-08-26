@@ -13,6 +13,15 @@ cmake --build ./build
 
 This will create the `ode` executable in the `build` directory.
 
+## Diagnostics
+
+Errors are reported as `file:line:column: error: message`, which most editors
+can jump to directly:
+
+```
+examples/broken.ode:12:3: error: type mismatch in declaration of 'wrong': declared as 'bool' but assigned 'i32'
+```
+
 ## Running the Compiler
 
 To compile an Ode source file, you can run the following command:

@@ -1,6 +1,11 @@
 #include "Parser/Parser.hpp"
 
 AST::NodePtr Parser::parseStatement() {
+  Token start = current();
+  return located(parseStatementInner(), start);
+}
+
+AST::NodePtr Parser::parseStatementInner() {
   switch (current().type) {
   case Token::Type::Let:
     return parseVarDecl();
@@ -61,9 +66,11 @@ AST::NodePtr Parser::parseExprStmt() {
 }
 
 AST::NodePtr Parser::parseBlock() {
+  Token start = current();
   consume(Token::Type::LBrace, "{");
 
   auto block = std::make_unique<AST::BlockNode>();
+  block->setLocation(start.line, start.column);
 
   while (current().type != Token::Type::RBrace &&
          current().type != Token::Type::End) {

@@ -5,6 +5,13 @@ Parser::Parser(std::vector<Token> &tokens)
 
 AST::NodePtr Parser::parse() { return parseProgram(); }
 
+AST::NodePtr Parser::located(AST::NodePtr node, const Token &at) {
+  if (node && node->line() == 0) {
+    node->setLocation(at.line, at.column);
+  }
+  return node;
+}
+
 Token Parser::current() const {
   if (isAtEnd())
     return Token{Token::Type::End, ""};

@@ -1,9 +1,9 @@
 #pragma once
 #include "Parser/AST.hpp"
+#include "SourceError.hpp"
 #include "StructTable.hpp"
 #include "Type.hpp"
 #include <format>
-#include <print>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -40,8 +40,10 @@ public:
 
   void enterScope();
   void exitScope();
+  // `line` and `column` locate the declaration for the duplicate-symbol
+  // diagnostic; zero means unknown.
   void declare(const std::string &name, Symbol::Kind kind, Type type,
-               std::vector<Type> params = {});
+               std::vector<Type> params = {}, int line = 0, int column = 0);
   const Symbol *lookup(const std::string &name) const;
 
 private:
@@ -50,18 +52,13 @@ private:
 
 class SemanticAnalyzer : public AST::Visitor {
 public:
-  class Error : public std::runtime_error {
+  class Error : public SourceError {
   public:
-    explicit Error(const std::string &msg) : std::runtime_error(msg) {}
-    Error(const std::string &context, const std::string &detail)
-        : std::runtime_error(std::format("{}: {}", context, detail)) {}
-  };
-
-  class Todo {
-  public:
-    explicit Todo(const std::string &feature) {
-      std::println(stderr, "[Warning] TODO: {} not yet implemented\n", feature);
-    }
+    explicit Error(const std::string &msg, int line = 0, int column = 0)
+        : SourceError(msg, line, column) {}
+    Error(const std::string &context, const std::string &detail, int line = 0,
+          int column = 0)
+        : SourceError(std::format("{}: {}", context, detail), line, column) {}
   };
 
   void analyze(AST::Node &root);
@@ -108,6 +105,34 @@ public:
   static std::vector<Type> parseParamTypes(const AST::Node *params);
 
 private:
+  // The construct currently being checked. Diagnostics read their position
+  // from it, so that an error found long after parsing still points at the
+  // right line.
+  class ErrorContext {
+  public:
+    ErrorContext(SemanticAnalyzer &analyzer, const AST::Node *node)
+        : analyzer_(analyzer), previous_(analyzer.errorNode_) {
+      if (node) {
+        analyzer_.errorNode_ = node;
+      }
+    }
+    ~ErrorContext() { analyzer_.errorNode_ = previous_; }
+
+    ErrorContext(const ErrorContext &) = delete;
+    ErrorContext &operator=(const ErrorContext &) = delete;
+
+  private:
+    SemanticAnalyzer &analyzer_;
+    const AST::Node *previous_;
+  };
+
+  const AST::Node *errorNode_ = nullptr;
+
+  // Throws an Error positioned at whatever is currently being checked.
+  [[noreturn]] void fail(const std::string &msg) const;
+  [[noreturn]] void fail(const std::string &context,
+                         const std::string &detail) const;
+
   SymbolTable symbols_;
   ResolvedTypes types_;
   StructTable structs_;

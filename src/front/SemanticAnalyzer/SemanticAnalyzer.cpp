@@ -6,6 +6,7 @@ void SemanticAnalyzer::analyze(AST::Node &root) { root.accept(*this); }
 // the second walks the bodies. Without this a function could only call
 // functions declared above it, which rules out mutual recursion.
 void SemanticAnalyzer::visit(const AST::ProgramNode &node) {
+  ErrorContext context(*this, &node);
   // Struct names come first so that two structs may point at each other,
   // then fields, then globals and function signatures, which may both refer
   // to any struct.
@@ -29,24 +30,26 @@ void SemanticAnalyzer::visit(const AST::ProgramNode &node) {
   }
 
   if (!symbols_.lookup("main")) {
-    throw Error("No main function found");
+    fail("No main function found");
   }
 }
 
 void SemanticAnalyzer::registerStructName(const AST::Node *stmt) {
+  ErrorContext context(*this, stmt);
   auto *decl = dynamic_cast<const AST::StructDeclNode *>(stmt);
   if (!decl) {
     return;
   }
 
   if (structs_.contains(decl->name().value)) {
-    throw Error(std::format("struct '{}' is declared more than once",
+    fail(std::format("struct '{}' is declared more than once",
                             decl->name().value));
   }
   structs_[decl->name().value] = StructLayout();
 }
 
 void SemanticAnalyzer::registerStructFields(const AST::Node *stmt) {
+  ErrorContext context(*this, stmt);
   auto *decl = dynamic_cast<const AST::StructDeclNode *>(stmt);
   if (!decl) {
     return;
@@ -55,7 +58,7 @@ void SemanticAnalyzer::registerStructFields(const AST::Node *stmt) {
   StructLayout layout;
   for (const auto &field : decl->fields()) {
     if (layout.indexOf(field.name.value) >= 0) {
-      throw Error(std::format("struct '{}' declares field '{}' twice",
+      fail(std::format("struct '{}' declares field '{}' twice",
                               decl->name().value, field.name.value));
     }
 
@@ -63,7 +66,7 @@ void SemanticAnalyzer::registerStructFields(const AST::Node *stmt) {
     validateType(type, std::format("field '{}' of struct '{}'",
                                    field.name.value, decl->name().value));
     if (type.isVoid()) {
-      throw Error(std::format("field '{}' of struct '{}' cannot be void",
+      fail(std::format("field '{}' of struct '{}' cannot be void",
                               field.name.value, decl->name().value));
     }
 
@@ -89,7 +92,7 @@ void SemanticAnalyzer::rejectStructCycles() {
           continue;
         }
         if (field.type.structName() == name) {
-          throw Error(std::format("struct '{}' contains itself", name),
+          fail(std::format("struct '{}' contains itself", name),
                       "use a pointer to break the cycle");
         }
         if (seen.insert(field.type.structName()).second) {
@@ -101,6 +104,7 @@ void SemanticAnalyzer::rejectStructCycles() {
 }
 
 void SemanticAnalyzer::hoistGlobal(const AST::Node *stmt) {
+  ErrorContext context(*this, stmt);
   auto *decl = dynamic_cast<const AST::VarDeclNode *>(stmt);
   if (!decl) {
     return;
@@ -109,14 +113,16 @@ void SemanticAnalyzer::hoistGlobal(const AST::Node *stmt) {
   Type type = parseType(decl->type());
   validateType(type, std::format("in declaration of '{}'", decl->name().value));
   if (type.isVoid()) {
-    throw Error(std::format("variable '{}' cannot be void", decl->name().value));
+    fail(std::format("variable '{}' cannot be void", decl->name().value));
   }
 
   globals_.insert(decl);
-  symbols_.declare(decl->name().value, Symbol::Kind::Variable, type);
+  symbols_.declare(decl->name().value, Symbol::Kind::Variable, type, {},
+                   decl->line(), decl->column());
 }
 
 void SemanticAnalyzer::hoistSignature(const AST::Node *stmt) {
+  ErrorContext context(*this, stmt);
   if (auto *func = dynamic_cast<const AST::FuncDeclNode *>(stmt)) {
     Type returnType = parseType(func->returnType());
     validateType(returnType,
@@ -128,7 +134,7 @@ void SemanticAnalyzer::hoistSignature(const AST::Node *stmt) {
     }
 
     symbols_.declare(func->name().value, Symbol::Kind::Function, returnType,
-                     std::move(params));
+                     std::move(params), func->line(), func->column());
     return;
   }
 
@@ -146,24 +152,25 @@ void SemanticAnalyzer::hoistSignature(const AST::Node *stmt) {
     // Passing a struct by value across the C ABI needs target-specific
     // lowering that this compiler does not do, so require a pointer.
     if (returnType.isStruct()) {
-      throw Error(std::format("extern '{}' returns a struct by value",
+      fail(std::format("extern '{}' returns a struct by value",
                               ext->name().value),
                   "return a pointer instead");
     }
     for (Type param : params) {
       if (param.isStruct()) {
-        throw Error(std::format("extern '{}' takes a struct by value",
+        fail(std::format("extern '{}' takes a struct by value",
                                 ext->name().value),
                     "take a pointer instead");
       }
     }
 
     symbols_.declare(ext->name().value, Symbol::Kind::Function, returnType,
-                     std::move(params));
+                     std::move(params), ext->line(), ext->column());
   }
 }
 
 void SemanticAnalyzer::visit(const AST::BlockNode &node) {
+  ErrorContext context(*this, &node);
   symbols_.enterScope();
   for (const auto &stmt : node.statements()) {
     stmt->accept(*this);
@@ -172,17 +179,18 @@ void SemanticAnalyzer::visit(const AST::BlockNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::VarDeclNode &node) {
+  ErrorContext context(*this, &node);
   Type declaredType = parseType(node.type());
   validateType(declaredType,
                std::format("in declaration of '{}'", node.name().value));
   if (declaredType.isVoid()) {
-    throw Error(std::format("variable '{}' cannot be void", node.name().value));
+    fail(std::format("variable '{}' cannot be void", node.name().value));
   }
 
   Type exprType = checkExpr(node.expr());
 
   if (declaredType != exprType) {
-    throw Error(
+    fail(
         std::format("type mismatch in declaration of '{}'", node.name().value),
         std::format("declared as '{}' but assigned '{}'",
                     typeToString(declaredType), typeToString(exprType)));
@@ -192,31 +200,34 @@ void SemanticAnalyzer::visit(const AST::VarDeclNode &node) {
   // initialiser can be emitted as an LLVM constant.
   if (globals_.contains(&node)) {
     if (!isConstantExpr(node.expr())) {
-      throw Error(std::format("initialiser of global '{}' is not constant",
+      fail(std::format("initialiser of global '{}' is not constant",
                               node.name().value),
                   "globals may only be initialised from literals");
     }
     return;
   }
 
-  symbols_.declare(node.name().value, Symbol::Kind::Variable, declaredType);
+  symbols_.declare(node.name().value, Symbol::Kind::Variable, declaredType, {},
+                   node.line(), node.column());
 }
 
 void SemanticAnalyzer::visit(const AST::AssignNode &node) {
+  ErrorContext context(*this, &node);
   Type targetType = checkAssignTarget(node.target());
   Type exprType = checkExpr(node.expr());
 
   if (targetType != exprType) {
-    throw Error("type mismatch in assignment",
+    fail("type mismatch in assignment",
                 std::format("expected '{}' but got '{}'",
                             typeToString(targetType), typeToString(exprType)));
   }
 }
 
 void SemanticAnalyzer::visit(const AST::IfStmtNode &node) {
+  ErrorContext context(*this, &node);
   Type condType = checkExpr(node.condition());
   if (!condType.isBool()) {
-    throw Error("if condition must be boolean",
+    fail("if condition must be boolean",
                 std::format("got '{}'", typeToString(condType)));
   }
 
@@ -227,9 +238,10 @@ void SemanticAnalyzer::visit(const AST::IfStmtNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::WhileStmtNode &node) {
+  ErrorContext context(*this, &node);
   Type condType = checkExpr(node.condition());
   if (!condType.isBool()) {
-    throw Error("while condition must be boolean",
+    fail("while condition must be boolean",
                 std::format("got '{}'", typeToString(condType)));
   }
 
@@ -239,23 +251,27 @@ void SemanticAnalyzer::visit(const AST::WhileStmtNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::BreakStmtNode &node) {
+  ErrorContext context(*this, &node);
   if (loopDepth_ == 0) {
-    throw Error("break used outside of a loop");
+    fail("break used outside of a loop");
   }
 }
 
 void SemanticAnalyzer::visit(const AST::ContinueStmtNode &node) {
+  ErrorContext context(*this, &node);
   if (loopDepth_ == 0) {
-    throw Error("continue used outside of a loop");
+    fail("continue used outside of a loop");
   }
 }
 
 void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
+  ErrorContext context(*this, &node);
   // Top-level functions were already recorded by the hoisting pass.
   if (!symbols_.lookup(node.name().value)) {
     symbols_.declare(node.name().value, Symbol::Kind::Function,
                      parseType(node.returnType()),
-                     parseParamTypes(node.params()));
+                     parseParamTypes(node.params()), node.line(),
+                     node.column());
   }
 
   symbols_.enterScope();
@@ -264,7 +280,8 @@ void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
   if (params) {
     for (const auto &param : params->params()) {
       Type paramType = parseType(param.type.get());
-      symbols_.declare(param.name.value, Symbol::Kind::Variable, paramType);
+      symbols_.declare(param.name.value, Symbol::Kind::Variable, paramType, {},
+                       param.type->line(), param.type->column());
     }
   }
 
@@ -288,32 +305,36 @@ void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::ExternFuncDeclNode &node) {
+  ErrorContext context(*this, &node);
   if (!symbols_.lookup(node.name().value)) {
     symbols_.declare(node.name().value, Symbol::Kind::Function,
                      parseType(node.returnType()),
-                     parseParamTypes(node.params()));
+                     parseParamTypes(node.params()), node.line(),
+                     node.column());
   }
 
   for (Type param : parseParamTypes(node.params())) {
     if (param.isVoid()) {
-      throw Error(std::format("extern '{}' has a void parameter",
+      fail(std::format("extern '{}' has a void parameter",
                               node.name().value));
     }
   }
 }
 
 void SemanticAnalyzer::visit(const AST::FuncCallNode &node) {
+  ErrorContext context(*this, &node);
   checkCall(node);
 }
 
 void SemanticAnalyzer::visit(const AST::ReturnStmtNode &node) {
+  ErrorContext context(*this, &node);
   if (!inFunction_) {
-    throw Error("return used outside of a function");
+    fail("return used outside of a function");
   }
 
   if (!node.expr()) {
     if (!currentReturnType_.isVoid()) {
-      throw Error("return without a value",
+      fail("return without a value",
                   std::format("this function returns '{}'",
                               typeToString(currentReturnType_)));
     }
@@ -323,12 +344,12 @@ void SemanticAnalyzer::visit(const AST::ReturnStmtNode &node) {
   Type returned = checkExpr(node.expr());
 
   if (currentReturnType_.isVoid()) {
-    throw Error("returning a value from a void function",
+    fail("returning a value from a void function",
                 std::format("got '{}'", typeToString(returned)));
   }
 
   if (returned != currentReturnType_) {
-    throw Error("wrong return type",
+    fail("wrong return type",
                 std::format("expected '{}' but got '{}'",
                             typeToString(currentReturnType_),
                             typeToString(returned)));
@@ -336,77 +357,94 @@ void SemanticAnalyzer::visit(const AST::ReturnStmtNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::PrintStmtNode &node) {
+  ErrorContext context(*this, &node);
   Type type = checkExpr(node.expr());
   if (type.isVoid()) {
-    throw Error("cannot print a void value");
+    fail("cannot print a void value");
   }
 }
 
 void SemanticAnalyzer::visit(const AST::ExprStmtNode &node) {
+  ErrorContext context(*this, &node);
   checkExpr(node.expr());
 }
 
 void SemanticAnalyzer::visit(const AST::BinaryOpNode &node) {
-  throw Error("BinaryOpNode should not be visited directly - use checkExpr()");
+  ErrorContext context(*this, &node);
+  fail("BinaryOpNode should not be visited directly - use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::UnaryOpNode &node) {
-  throw Error("UnaryOpNode should not be visited directly - use checkExpr()");
+  ErrorContext context(*this, &node);
+  fail("UnaryOpNode should not be visited directly - use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::CastNode &node) {
-  throw Error("CastNode should not be visited directly - use checkExpr()");
+  ErrorContext context(*this, &node);
+  fail("CastNode should not be visited directly - use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::FieldAccessNode &node) {
-  throw Error("FieldAccessNode should not be visited directly - "
+  ErrorContext context(*this, &node);
+  fail("FieldAccessNode should not be visited directly - "
               "use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::IndexNode &node) {
-  throw Error("IndexNode should not be visited directly - use checkExpr()");
+  ErrorContext context(*this, &node);
+  fail("IndexNode should not be visited directly - use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::StructLiteralNode &node) {
-  throw Error("StructLiteralNode should not be visited directly - "
+  ErrorContext context(*this, &node);
+  fail("StructLiteralNode should not be visited directly - "
               "use checkExpr()");
 }
 
 void SemanticAnalyzer::visit(const AST::SizeOfNode &node) {
-  throw Error("SizeOfNode should not be visited directly - use checkExpr()");
+  ErrorContext context(*this, &node);
+  fail("SizeOfNode should not be visited directly - use checkExpr()");
 }
 
 // Registered before any body is walked; nothing is left to check here.
 void SemanticAnalyzer::visit(const AST::StructDeclNode &node) {}
 
 void SemanticAnalyzer::visit(const AST::NumberNode &node) {
+  ErrorContext context(*this, &node);
   // Leaf node - no action needed
 }
 
 void SemanticAnalyzer::visit(const AST::StringLiteralNode &node) {
+  ErrorContext context(*this, &node);
   // Leaf node - no action needed
 }
 
 void SemanticAnalyzer::visit(const AST::CharLiteralNode &node) {
+  ErrorContext context(*this, &node);
   // Leaf node - no action needed
 }
 
 void SemanticAnalyzer::visit(const AST::BooleanNode &node) {
+  ErrorContext context(*this, &node);
   // Leaf node - no action needed
 }
 
 void SemanticAnalyzer::visit(const AST::IdentifierNode &node) {
+  ErrorContext context(*this, &node);
   // Leaf node - lookup happens in checkExpr
 }
 
 void SemanticAnalyzer::visit(const AST::TypeNode &node) {
+  ErrorContext context(*this, &node);
   // Leaf node - no action needed
 }
 
 void SemanticAnalyzer::visit(const AST::ParamListNode &node) {
+  ErrorContext context(*this, &node);
   // Handled by FuncDeclNode
 }
 
 void SemanticAnalyzer::visit(const AST::ArgListNode &node) {
+  ErrorContext context(*this, &node);
   // Handled by FuncCallNode
 }

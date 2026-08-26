@@ -12,11 +12,26 @@
 #include "Parser/ASTPrinter.hpp"
 #include "Parser/Parser.hpp"
 #include "Reader.hpp"
+#include "SourceError.hpp"
 #include "SemanticAnalyzer.hpp"
 
 Compiler::Compiler(const char *filePath) : filePath(filePath) {}
 
 void Compiler::run() {
+  try {
+    compile();
+  } catch (const SourceError &error) {
+    // Only the driver knows which file is being compiled, so it is what
+    // turns a line:column into a full file:line:column reference.
+    throw std::runtime_error(
+        error.hasPosition()
+            ? std::format("{}:{}:{}: error: {}", filePath, error.line(),
+                          error.column(), error.message())
+            : std::format("{}: error: {}", filePath, error.message()));
+  }
+}
+
+void Compiler::compile() {
   std::unique_ptr<Reader> reader = std::make_unique<Reader>(filePath);
   std::string fileText = reader->readAll();
 

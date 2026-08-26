@@ -9,8 +9,9 @@ AST::NodePtr Parser::parseLogicOr() {
     Token op = current();
     advance();
     auto right = parseLogicAnd();
-    left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
-                                               std::move(right));
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
   }
 
   return left;
@@ -23,8 +24,9 @@ AST::NodePtr Parser::parseLogicAnd() {
     Token op = current();
     advance();
     auto right = parseEquality();
-    left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
-                                               std::move(right));
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
   }
 
   return left;
@@ -38,8 +40,9 @@ AST::NodePtr Parser::parseEquality() {
     Token op = current();
     advance();
     auto right = parseComparison();
-    left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
-                                               std::move(right));
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
   }
 
   return left;
@@ -55,8 +58,9 @@ AST::NodePtr Parser::parseComparison() {
     Token op = current();
     advance();
     auto right = parseTerm();
-    left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
-                                               std::move(right));
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
   }
 
   return left;
@@ -70,8 +74,9 @@ AST::NodePtr Parser::parseTerm() {
     Token op = current();
     advance();
     auto right = parseFactor();
-    left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
-                                               std::move(right));
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
   }
 
   return left;
@@ -84,8 +89,9 @@ AST::NodePtr Parser::parseFactor() {
     Token op = current();
     advance();
     auto right = parseCast();
-    left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
-                                               std::move(right));
+    left = located(std::make_unique<AST::BinaryOpNode>(op, std::move(left),
+                                                       std::move(right)),
+                   op);
   }
   return left;
 }
@@ -96,9 +102,11 @@ AST::NodePtr Parser::parseCast() {
   auto expr = parseUnary();
 
   while (current().type == Token::Type::As) {
+    Token op = current();
     advance();
     auto type = parseType();
-    expr = std::make_unique<AST::CastNode>(std::move(expr), std::move(type));
+    expr = located(
+        std::make_unique<AST::CastNode>(std::move(expr), std::move(type)), op);
   }
 
   return expr;
@@ -120,7 +128,8 @@ AST::NodePtr Parser::parseUnary() {
       throw Error("expression after unary operator", current());
     }
 
-    return std::make_unique<AST::UnaryOpNode>(op, std::move(operand));
+    return located(std::make_unique<AST::UnaryOpNode>(op, std::move(operand)),
+                   op);
   }
 
   return parsePostfix();
@@ -134,18 +143,22 @@ AST::NodePtr Parser::parsePostfix() {
 
   while (true) {
     if (current().type == Token::Type::Dot) {
+      Token dot = current();
       advance();
       Token field = consume(Token::Type::Identifier, "field name");
-      expr = std::make_unique<AST::FieldAccessNode>(std::move(expr), field);
+      expr = located(
+          std::make_unique<AST::FieldAccessNode>(std::move(expr), field), dot);
       continue;
     }
 
     if (current().type == Token::Type::LBracket) {
+      Token bracket = current();
       advance();
       auto index = parseExpr();
       consume(Token::Type::RBracket, "]");
-      expr = std::make_unique<AST::IndexNode>(std::move(expr),
-                                              std::move(index));
+      expr = located(std::make_unique<AST::IndexNode>(std::move(expr),
+                                                      std::move(index)),
+                     bracket);
       continue;
     }
 
@@ -165,19 +178,19 @@ AST::NodePtr Parser::parsePrimary() {
   }
   case Token::Type::Number: {
     advance();
-    return std::make_unique<AST::NumberNode>(curr);
+    return located(std::make_unique<AST::NumberNode>(curr), curr);
   }
   case Token::Type::Boolean: {
     advance();
-    return std::make_unique<AST::BooleanNode>(curr);
+    return located(std::make_unique<AST::BooleanNode>(curr), curr);
   }
   case Token::Type::String: {
     advance();
-    return std::make_unique<AST::StringLiteralNode>(curr);
+    return located(std::make_unique<AST::StringLiteralNode>(curr), curr);
   }
   case Token::Type::Char: {
     advance();
-    return std::make_unique<AST::CharLiteralNode>(curr);
+    return located(std::make_unique<AST::CharLiteralNode>(curr), curr);
   }
   case Token::Type::SizeOf:
     return parseSizeOf();
@@ -191,7 +204,7 @@ AST::NodePtr Parser::parsePrimary() {
       return parseStructLiteral();
     }
     advance();
-    return std::make_unique<AST::IdentifierNode>(curr);
+    return located(std::make_unique<AST::IdentifierNode>(curr), curr);
   }
   default:
     throw Error("number, string, character, boolean, identifier, or '('",
