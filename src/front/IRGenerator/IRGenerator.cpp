@@ -85,10 +85,12 @@ void IRGenerator::emitGlobal(const AST::VarDeclNode &node) {
 }
 
 void IRGenerator::visit(const AST::BlockNode &node) {
+  enterScope();
   for (const auto &stmt : node.statements()) {
     if (builder_.GetInsertBlock()->getTerminator()) {
       break;
     }
     stmt->accept(*this);
   }
+  exitScope();
 }

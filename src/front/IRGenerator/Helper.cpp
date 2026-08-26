@@ -48,10 +48,24 @@ llvm::AllocaInst *IRGenerator::createEntryBlockAlloca(llvm::Function *func,
   return tmpBuilder.CreateAlloca(type, nullptr, name);
 }
 
+void IRGenerator::enterScope() { allocaScopes_.push_back({}); }
+
+void IRGenerator::exitScope() { allocaScopes_.pop_back(); }
+
+void IRGenerator::declareLocal(const std::string &name,
+                               llvm::AllocaInst *alloca) {
+  allocaScopes_.back()[name] = alloca;
+}
+
 llvm::Value *IRGenerator::variableAddress(const std::string &name) {
-  auto it = allocaMap_.find(name);
-  if (it != allocaMap_.end()) {
-    return it->second;
+  // Innermost first, so a shadowed name resolves to the slot the analyzer
+  // type-checked it against.
+  for (auto scope = allocaScopes_.rbegin(); scope != allocaScopes_.rend();
+       ++scope) {
+    auto it = scope->find(name);
+    if (it != scope->end()) {
+      return it->second;
+    }
   }
   if (llvm::GlobalVariable *global = module_->getNamedGlobal(name)) {
     return global;

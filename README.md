@@ -198,7 +198,7 @@ evaluates an expression tree that way.
 `examples/` holds a program per feature — `mutual_recursion.ode`,
 `pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
 `arrays.ode`, `expr_tree.ode`, `strings.ode`, `nested_control.ode`,
-`tokenizer.ode` and `short_circuit.ode` cover the ones above.
+`shadowing.ode`, `tokenizer.ode` and `short_circuit.ode` cover the ones above.
 
 ### Grammar
 
@@ -206,6 +206,5 @@ For the complete grammar of the Ode language, please see the [EBNF grammar file]
 
 ### Limitations
 
-[LIMITATIONS.md](LIMITATIONS.md) records what does not work yet, what is
-deliberately absent, and the handful of outright defects — including one that
-produces a silently wrong result.
+[LIMITATIONS.md](LIMITATIONS.md) records what does not work yet and what is
+deliberately absent.

@@ -2,10 +2,14 @@
 
 ## Program Structure
 
-- **Program** → Statement*
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | BreakStmt | ContinueStmt | FuncDecl | ExternDecl | StructDecl | ReturnStmt | PrintStmt | ExprStmt | Block
+- **Program** → TopLevel*
+- **TopLevel** → FuncDecl | ExternDecl | StructDecl | Statement
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
+
+`fn`, `extern` and `struct` are top-level only. Writing one inside a block is
+an error; there are no nested functions or block-local types.
 
 ---
 

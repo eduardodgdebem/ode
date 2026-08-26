@@ -15,111 +15,70 @@ declarations of `fopen` / `fgetc` / `fclose`. Both are verified.
 
 ## 1. Defects
 
-These produce a crash, invalid IR, or a silently wrong result. They are bugs
-rather than missing features.
+None known. The four that were recorded here — a nested block overwriting the
+outer variable of the same name, `==` on two structs tripping an LLVM
+assertion, a function declared inside another emitting invalid IR, and a
+missing input file reported as a missing `main` — have been fixed. What
+follows is what they turned into.
 
-### 1.1 A variable in a nested block overwrites the outer one
+### 1.1 Shadowing works (fixed)
 
-**Severity: high — silently wrong output, no diagnostic.**
+A `let` in a nested block declares a new variable and leaves the outer one of
+the same name alone, including when the outer one is a parameter:
 
 ```rust
 fn main(): i32 {
   let x: i32 = 1;
   {
     let x: i32 = 99;
-    print(x);
+    print(x);    // 99
   }
-  print(x);      // prints 99, should print 1
+  print(x);      // 1
   return 0;
 }
 ```
 
-Prints `99 99`.
+`IRGenerator` now keeps a stack of `name -> alloca` maps, pushed and popped
+per block, mirroring the analyzer's `SymbolTable`. The allocas themselves are
+still created in the function's entry block; only the binding is scoped. A
+declaration binds its name after its initialiser is generated, so
+`let x: i32 = x + 1;` in an inner block reads the outer `x`, which is what the
+analyzer type-checked it against. `examples/shadowing.ode` covers it.
 
-The semantic analyzer scopes correctly — `SymbolTable` pushes and pops a scope
-per block — but `IRGenerator::allocaMap_` is a flat `name -> alloca` map reset
-only per function. The inner `let` overwrites the outer entry and never
-restores it, so every later read of `x` finds the inner slot.
-
-Parameters are affected too, and there the corruption outlives the block that
-caused it:
-
-```rust
-fn f(x: i32): i32 {
-  {
-    let x: i32 = 99;
-  }
-  return x;      // returns 99, should return 1
-}
-```
-
-This is the most dangerous entry in this document, because nothing reports it
-and the wrong value looks entirely plausible.
-
-*Fix:* scope `allocaMap_` the way `SymbolTable` is scoped, or rename to unique
-slots during analysis.
-
-### 1.2 Comparing structs with `==` crashes the compiler
-
-**Severity: high — assertion failure, not a diagnostic.**
+### 1.2 Comparing structs is rejected (fixed)
 
 ```rust
-struct P { x: i32, }
-
-fn main(): i32 {
-  let a: P = P { x: 1 };
-  let b: P = P { x: 1 };
-  print(a == b);
-  return 0;
-}
+print(a == b);   // error: cannot compare struct 'P' values: compare their fields instead
+print(a < b);    // error: cannot order struct 'P' values: compare their fields instead
 ```
 
-```
-Assertion failed: (... && "Invalid operand types for ICmp instruction"),
-function AssertOK, file Instructions.h, line 1187.
-```
+`checkBinaryOp` rejects struct operands in both the equality and the
+relational case rather than handing an aggregate to `CreateICmpEQ`. Field-wise
+comparison remains a separate feature that does not exist; compare the fields
+by hand.
 
-`checkBinaryOp` allows `==` and `!=` whenever both sides have the same type,
-which includes structs, and codegen then hands an aggregate to `CreateICmpEQ`.
-
-*Fix:* reject struct operands in the equality case in `checkBinaryOp`. Deep
-comparison would be a separate feature.
-
-### 1.3 A function declared inside another function emits invalid IR
-
-**Severity: medium — caught by the verifier, so it fails loudly.**
+### 1.3 `fn`, `extern` and `struct` are top-level only (fixed)
 
 ```rust
 fn main(): i32 {
-  fn helper(): i32 { return 7; }
-  print(helper());
-  return 0;
+  fn helper(): i32 { return 7; }   // error: 'fn' declarations are only allowed
+  return 0;                        //        at the top level of the program
 }
 ```
 
-```
-Basic Block in function 'main' does not have terminator!
-```
+The parser rejects all three anywhere but the top level of the program, which
+is honest about what codegen can emit. Nested functions are still not a
+feature and are not planned.
 
-`parseStatement` accepts `fn` anywhere a statement is allowed, and the analyzer
-handles it, but codegen emits the nested function's body while the builder is
-still positioned inside the enclosing function.
-
-Nested functions are not needed for self-hosting. The honest fix is to reject
-`fn` outside the top level in the parser rather than to make it work.
-
-### 1.4 A missing input file reports the wrong error
-
-**Severity: low — misleading message.**
+### 1.4 A missing input file is reported by the reader (fixed)
 
 ```
 $ ode /tmp/does-not-exist.ode
-/tmp/does-not-exist.ode: error: No main function found
+/tmp/does-not-exist.ode: error: cannot open file
 ```
 
-`Reader::readAll` returns an empty string when the file could not be opened,
-so the pipeline compiles an empty program and fails much later. It should fail
-in the reader.
+`Reader::readAll` throws instead of returning an empty string, so the failure
+is reported where it happens rather than as a missing `main` much later.
 
 ---
 

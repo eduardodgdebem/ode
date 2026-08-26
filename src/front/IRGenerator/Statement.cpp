@@ -4,11 +4,14 @@ void IRGenerator::visit(const AST::VarDeclNode &node) {
   Type varType = SemanticAnalyzer::parseType(node.type());
   llvm::Type *llvmType = getLLVMType(varType);
 
+  // The initialiser is generated before the name is bound, so that `let x =
+  // x;` in an inner block reads the outer `x`, which is what the analyzer
+  // type-checked it against.
+  llvm::Value *val = generateExpr(node.expr());
+
   llvm::AllocaInst *alloca =
       createEntryBlockAlloca(currentFunc_, node.name().value, llvmType);
-  allocaMap_[node.name().value] = alloca;
-
-  llvm::Value *val = generateExpr(node.expr());
+  declareLocal(node.name().value, alloca);
   builder_.CreateStore(val, alloca);
 }
 

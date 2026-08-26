@@ -11,8 +11,10 @@ Reader::Reader(std::filesystem::path fp) {
 Reader::~Reader() { _inputFile.close(); }
 
 std::string Reader::readAll() {
+  // An empty string here would be compiled as an empty program and reported
+  // much later as a missing `main`, so stop at the reader instead.
   if (!_inputFile.is_open()) {
-    return {};
+    throw Error("cannot open file");
   }
 
   return std::string(std::istreambuf_iterator<char>(_inputFile),
