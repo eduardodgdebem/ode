@@ -29,7 +29,11 @@ public:
               std::format("TODO: {} not yet implemented", feature)) {}
   };
 
-  explicit IRGenerator(const std::string &moduleName);
+  // `resolvedTypes` comes from the semantic analyzer and must outlive this
+  // generator, along with the AST it describes. Requiring it here is what
+  // keeps expression types from being inferred a second time.
+  IRGenerator(const std::string &moduleName,
+              const ResolvedTypes &resolvedTypes);
 
   void generate(const AST::Node &root);
   void emitToFile(const std::string &filename);
@@ -65,11 +69,7 @@ private:
   std::unique_ptr<llvm::Module> module_;
   llvm::IRBuilder<> builder_;
   std::unordered_map<std::string, llvm::AllocaInst *> allocaMap_;
-  // Ode-level types for the locals and functions in scope. The semantic
-  // analyzer has already validated the program, so `typeOf` below only needs
-  // to infer -- never to diagnose.
-  std::unordered_map<std::string, Type> varTypes_;
-  std::unordered_map<std::string, Type> funcReturnTypes_;
+  const ResolvedTypes &resolvedTypes_;
   llvm::Function *currentFunc_ = nullptr;
   llvm::Value *exprValue_ = nullptr;
 
@@ -85,7 +85,8 @@ private:
                                    const AST::Node *returnType,
                                    const AST::Node *params);
 
-  Type typeOf(const AST::Node *node);
+  // The type the semantic analyzer resolved for this expression.
+  Type typeOf(const AST::Node *node) const;
 
   llvm::Value *generateExpr(const AST::Node *node);
   // Yields the address of an lvalue rather than the value stored in it.

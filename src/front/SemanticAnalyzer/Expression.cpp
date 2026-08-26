@@ -14,7 +14,15 @@ bool isLValue(const AST::Node *node) {
 }
 } // namespace
 
+// Every expression the analyzer proves well-typed is recorded here, so that
+// the IR generator can look the answer up instead of re-deriving it.
 Type SemanticAnalyzer::checkExpr(const AST::Node *node) {
+  Type type = inferExprType(node);
+  types_[node] = type;
+  return type;
+}
+
+Type SemanticAnalyzer::inferExprType(const AST::Node *node) {
   if (auto *binOp = dynamic_cast<const AST::BinaryOpNode *>(node)) {
     return checkBinaryOp(*binOp);
   }

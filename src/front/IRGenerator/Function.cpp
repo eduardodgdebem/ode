@@ -22,18 +22,12 @@ void IRGenerator::visit(const AST::FuncDeclNode &node) {
 
   currentFunc_ = func;
   allocaMap_.clear();
-  varTypes_.clear();
 
-  std::vector<Type> paramTypes =
-      SemanticAnalyzer::parseParamTypes(node.params());
-
-  unsigned idx = 0;
   for (auto &arg : func->args()) {
     std::string name = arg.getName().str();
     llvm::AllocaInst *alloca =
         createEntryBlockAlloca(func, name, arg.getType());
     allocaMap_[name] = alloca;
-    varTypes_[name] = paramTypes[idx++];
     builder_.CreateStore(&arg, alloca);
   }
 
