@@ -123,6 +123,10 @@ private:
   Type typeOf(const AST::Node *node) const;
 
   llvm::Value *generateExpr(const AST::Node *node);
+  // `&&` and `||` evaluate their right operand only when the left does not
+  // already decide the result, so they need branches rather than a bitwise
+  // instruction.
+  llvm::Value *generateShortCircuit(const AST::BinaryOpNode &node);
   // Yields the address of an lvalue rather than the value stored in it.
   llvm::Value *generateAddress(const AST::Node *node);
   llvm::Value *generateCast(llvm::Value *value, Type from, Type to);
