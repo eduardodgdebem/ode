@@ -121,6 +121,18 @@ void ASTPrinter::visit(const AST::ExternFuncDeclNode &node) {
   unindent();
 }
 
+void ASTPrinter::visit(const AST::StructDeclNode &node) {
+  printIndent("StructDecl: " + node.name().value);
+  indent();
+  for (const auto &field : node.fields()) {
+    printIndent("Field: " + field.name.value);
+    indent();
+    field.type->accept(*this);
+    unindent();
+  }
+  unindent();
+}
+
 void ASTPrinter::visit(const AST::FuncCallNode &node) {
   printIndent("FuncCall: " + node.name().value);
   indent();
@@ -171,6 +183,40 @@ void ASTPrinter::visit(const AST::CastNode &node) {
   printIndent("Cast");
   indent();
   node.expr()->accept(*this);
+  node.type()->accept(*this);
+  unindent();
+}
+
+void ASTPrinter::visit(const AST::FieldAccessNode &node) {
+  printIndent("FieldAccess: ." + node.field().value);
+  indent();
+  node.object()->accept(*this);
+  unindent();
+}
+
+void ASTPrinter::visit(const AST::IndexNode &node) {
+  printIndent("Index");
+  indent();
+  node.base()->accept(*this);
+  node.index()->accept(*this);
+  unindent();
+}
+
+void ASTPrinter::visit(const AST::StructLiteralNode &node) {
+  printIndent("StructLiteral: " + node.typeName().value);
+  indent();
+  for (const auto &field : node.fields()) {
+    printIndent("Field: " + field.name.value);
+    indent();
+    field.value->accept(*this);
+    unindent();
+  }
+  unindent();
+}
+
+void ASTPrinter::visit(const AST::SizeOfNode &node) {
+  printIndent("SizeOf");
+  indent();
   node.type()->accept(*this);
   unindent();
 }

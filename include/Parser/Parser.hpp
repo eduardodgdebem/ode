@@ -37,6 +37,7 @@ private:
   AST::NodePtr parseTerm();
   AST::NodePtr parseFactor();
   AST::NodePtr parseUnary();
+  AST::NodePtr parsePostfix();
   AST::NodePtr parseCast();
   AST::NodePtr parsePrimary();
   AST::NodePtr parseStatement();
@@ -49,6 +50,9 @@ private:
   AST::NodePtr parsePrintStmt();
   AST::NodePtr parseFuncDecl();
   AST::NodePtr parseExternDecl();
+  AST::NodePtr parseStructDecl();
+  AST::NodePtr parseStructLiteral();
+  AST::NodePtr parseSizeOf();
   AST::NodePtr parseFuncCall();
   AST::NodePtr parseParamList();
   AST::NodePtr parseArgList();

@@ -33,7 +33,8 @@ void Compiler::run() {
   analyzer->analyze(*root);
 
   std::unique_ptr<IRGenerator> irgen =
-      std::make_unique<IRGenerator>("myProgram", analyzer->resolvedTypes());
+      std::make_unique<IRGenerator>("myProgram", analyzer->resolvedTypes(),
+                                    analyzer->structs());
 
   irgen->generate(*root);
   irgen->emitToFile(std::format("{}.ll", reader->getFileName()));

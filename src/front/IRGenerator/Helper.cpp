@@ -7,6 +7,14 @@ llvm::Type *IRGenerator::getLLVMType(Type type) {
     return llvm::PointerType::get(context_, 0);
   }
 
+  if (type.kind() == Type::Kind::Struct) {
+    auto it = structTypes_.find(type.structName());
+    if (it == structTypes_.end()) {
+      throw Error(std::format("unknown struct '{}'", type.structName()));
+    }
+    return it->second;
+  }
+
   switch (type.kind()) {
   case Type::Kind::I8:
   case Type::Kind::U8:
@@ -22,6 +30,8 @@ llvm::Type *IRGenerator::getLLVMType(Type type) {
     return llvm::Type::getInt1Ty(context_);
   case Type::Kind::Void:
     return llvm::Type::getVoidTy(context_);
+  default:
+    break;
   }
 
   throw Error("unknown type");
@@ -35,12 +45,37 @@ llvm::AllocaInst *IRGenerator::createEntryBlockAlloca(llvm::Function *func,
   return tmpBuilder.CreateAlloca(type, nullptr, name);
 }
 
-llvm::Value *IRGenerator::loadVariable(const std::string &name) {
+llvm::Value *IRGenerator::variableAddress(const std::string &name) {
   auto it = allocaMap_.find(name);
   if (it != allocaMap_.end()) {
-    return builder_.CreateLoad(it->second->getAllocatedType(), it->second);
+    return it->second;
+  }
+  if (llvm::GlobalVariable *global = module_->getNamedGlobal(name)) {
+    return global;
   }
   throw Error(std::format("variable '{}' not found", name));
+}
+
+unsigned IRGenerator::sizeInBytes(Type type) {
+  return static_cast<unsigned>(
+      module_->getDataLayout().getTypeAllocSize(getLLVMType(type)));
+}
+
+// Named struct types are created empty first and given bodies afterwards, so
+// that two structs may hold pointers to each other.
+void IRGenerator::createStructTypes() {
+  for (const auto &[name, _] : structs_) {
+    structTypes_[name] = llvm::StructType::create(context_, name);
+  }
+
+  for (const auto &[name, layout] : structs_) {
+    std::vector<llvm::Type *> fieldTypes;
+    fieldTypes.reserve(layout.fields().size());
+    for (const auto &field : layout.fields()) {
+      fieldTypes.push_back(getLLVMType(field.type));
+    }
+    structTypes_[name]->setBody(fieldTypes);
+  }
 }
 
 llvm::Function *IRGenerator::declarePrototype(const std::string &name,

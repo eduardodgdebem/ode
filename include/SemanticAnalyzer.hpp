@@ -1,11 +1,13 @@
 #pragma once
 #include "Parser/AST.hpp"
+#include "StructTable.hpp"
 #include "Type.hpp"
 #include <format>
 #include <print>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // The type the semantic analyzer resolved for each expression node. Codegen
@@ -68,6 +70,9 @@ public:
   // valid only for as long as the analyzed AST is alive.
   const ResolvedTypes &resolvedTypes() const { return types_; }
 
+  // The layout of every declared struct, in declaration order per struct.
+  const StructTable &structs() const { return structs_; }
+
   void visit(const AST::ProgramNode &node) override;
   void visit(const AST::BlockNode &node) override;
   void visit(const AST::VarDeclNode &node) override;
@@ -76,6 +81,7 @@ public:
   void visit(const AST::WhileStmtNode &node) override;
   void visit(const AST::FuncDeclNode &node) override;
   void visit(const AST::ExternFuncDeclNode &node) override;
+  void visit(const AST::StructDeclNode &node) override;
   void visit(const AST::FuncCallNode &node) override;
   void visit(const AST::ReturnStmtNode &node) override;
   void visit(const AST::PrintStmtNode &node) override;
@@ -83,6 +89,10 @@ public:
   void visit(const AST::BinaryOpNode &node) override;
   void visit(const AST::UnaryOpNode &node) override;
   void visit(const AST::CastNode &node) override;
+  void visit(const AST::FieldAccessNode &node) override;
+  void visit(const AST::IndexNode &node) override;
+  void visit(const AST::StructLiteralNode &node) override;
+  void visit(const AST::SizeOfNode &node) override;
   void visit(const AST::NumberNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;
@@ -96,10 +106,25 @@ public:
 private:
   SymbolTable symbols_;
   ResolvedTypes types_;
+  StructTable structs_;
+  // The `let` declarations that are direct children of the program, which are
+  // globals rather than locals.
+  std::unordered_set<const AST::Node *> globals_;
 
   // Declares a function signature without walking its body, so that any
   // function can call any other regardless of declaration order.
   void hoistSignature(const AST::Node *stmt);
+  // Records struct names first and their fields second, so that two structs
+  // may point at each other.
+  void registerStructName(const AST::Node *stmt);
+  void registerStructFields(const AST::Node *stmt);
+  void rejectStructCycles();
+  void hoistGlobal(const AST::Node *stmt);
+
+  // Rejects a type that names a struct which was never declared.
+  void validateType(Type type, const std::string &context) const;
+  const StructLayout &layoutOf(const Type &type,
+                               const std::string &context) const;
 
   // Resolves the type of an expression and records it in types_.
   Type checkExpr(const AST::Node *node);
@@ -109,6 +134,12 @@ private:
   Type checkBinaryOp(const AST::BinaryOpNode &node);
   Type checkUnaryOp(const AST::UnaryOpNode &node);
   Type checkCast(const AST::CastNode &node);
+  Type checkFieldAccess(const AST::FieldAccessNode &node);
+  Type checkIndex(const AST::IndexNode &node);
+  Type checkStructLiteral(const AST::StructLiteralNode &node);
+  // Global initialisers are emitted as LLVM constants, so they may only be
+  // literals and casts or negations of literals.
+  static bool isConstantExpr(const AST::Node *node);
   Type checkCall(const AST::FuncCallNode &node);
   Type checkNumberLiteral(const AST::NumberNode &node);
   // Verifies `target` is assignable and returns the type stored through it.

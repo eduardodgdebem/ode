@@ -1,0 +1,73 @@
+// Globals and the stand-in for tagged unions: one struct carrying a kind tag
+// plus every field any variant needs. This is how the self-hosted compiler
+// will represent AST nodes until Ode grows real sum types.
+
+extern fn malloc(size: i64): *i8;
+
+struct Expr {
+  kind: i32,
+  value: i32,
+  left: *Expr,
+  right: *Expr,
+}
+
+// Globals are initialised from constants and live for the whole program.
+let KIND_NUMBER: i32 = 0;
+let KIND_ADD: i32 = 1;
+let KIND_MULTIPLY: i32 = 2;
+
+let allocations: i32 = 0;
+
+fn newExpr(kind: i32): *Expr {
+  // A global is writable from anywhere, which is what makes it useful for
+  // counters and interning tables.
+  allocations = allocations + 1;
+
+  let node: *Expr = malloc(sizeof(Expr) as i64) as *Expr;
+  node.kind = kind;
+  node.value = 0;
+  node.left = 0 as i64 as *Expr;
+  node.right = 0 as i64 as *Expr;
+
+  return node;
+}
+
+fn number(value: i32): *Expr {
+  let node: *Expr = newExpr(KIND_NUMBER);
+  node.value = value;
+
+  return node;
+}
+
+fn binary(kind: i32, left: *Expr, right: *Expr): *Expr {
+  let node: *Expr = newExpr(kind);
+  node.left = left;
+  node.right = right;
+
+  return node;
+}
+
+fn eval(node: *Expr): i32 {
+  if (node.kind == KIND_NUMBER) {
+    return node.value;
+  }
+
+  if (node.kind == KIND_ADD) {
+    return eval(node.left) + eval(node.right);
+  }
+
+  return eval(node.left) * eval(node.right);
+}
+
+fn main(): i32 {
+  // (2 + 3) * 4
+  let tree: *Expr = binary(KIND_MULTIPLY,
+                           binary(KIND_ADD, number(2), number(3)),
+                           number(4));
+
+  print(eval(tree));
+  print(allocations);
+  print(sizeof(Expr) as i32);
+
+  return 0;
+}

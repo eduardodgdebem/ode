@@ -1,38 +1,57 @@
 #include "IRGenerator.hpp"
 
 namespace {
-// Size of one pointee element, used to scale a pointer difference back into a
-// count of elements. LLVM's DataLayout is not attached to the module until
-// object emission, so the sizes are spelled out here instead.
-unsigned sizeInBytes(Type type) {
-  if (type.isPointer()) {
-    return 8;
+// Mirrors the analyzer's notion of an lvalue, so codegen knows whether a
+// struct operand has storage it can point at.
+bool isAddressable(const AST::Node *node) {
+  if (dynamic_cast<const AST::IdentifierNode *>(node) ||
+      dynamic_cast<const AST::FieldAccessNode *>(node) ||
+      dynamic_cast<const AST::IndexNode *>(node)) {
+    return true;
   }
-  switch (type.kind()) {
-  case Type::Kind::I8:
-  case Type::Kind::U8:
-  case Type::Kind::Bool:
-    return 1;
-  case Type::Kind::I32:
-  case Type::Kind::F32:
-    return 4;
-  case Type::Kind::I64:
-  case Type::Kind::U64:
-    return 8;
-  case Type::Kind::Void:
-    return 0;
+  if (auto *unary = dynamic_cast<const AST::UnaryOpNode *>(node)) {
+    return unary->op().type == Token::Type::Multiply;
   }
-  return 0;
+  return false;
 }
 } // namespace
 
 llvm::Value *IRGenerator::generateAddress(const AST::Node *node) {
   if (auto *ident = dynamic_cast<const AST::IdentifierNode *>(node)) {
-    auto it = allocaMap_.find(ident->name().value);
-    if (it == allocaMap_.end()) {
-      throw Error(std::format("variable '{}' not found", ident->name().value));
+    return variableAddress(ident->name().value);
+  }
+
+  if (auto *field = dynamic_cast<const AST::FieldAccessNode *>(node)) {
+    Type objectType = typeOf(field->object());
+
+    // `p.field` follows one level of pointer automatically, so the base is
+    // either the pointer's value or the address of a struct variable.
+    llvm::Value *base = objectType.isPointer()
+                            ? generateExpr(field->object())
+                            : generateAddress(field->object());
+    Type structType =
+        objectType.isPointer() ? objectType.pointee() : objectType;
+
+    int index = structs_.at(structType.structName()).indexOf(field->field().value);
+    if (index < 0) {
+      throw Error(std::format("struct '{}' has no field '{}'",
+                              structType.structName(), field->field().value));
     }
-    return it->second;
+
+    return builder_.CreateStructGEP(getLLVMType(structType), base,
+                                    static_cast<unsigned>(index),
+                                    field->field().value);
+  }
+
+  if (auto *index = dynamic_cast<const AST::IndexNode *>(node)) {
+    Type baseType = typeOf(index->base());
+    llvm::Value *pointer = generateExpr(index->base());
+    llvm::Value *offset = generateCast(generateExpr(index->index()),
+                                       typeOf(index->index()),
+                                       Type(Type::Kind::I64));
+
+    return builder_.CreateGEP(getLLVMType(baseType.pointee()), pointer,
+                              {offset}, "elem");
   }
 
   // For `*p` the address to read or write is simply the value of `p`.
@@ -239,6 +258,57 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
                         SemanticAnalyzer::parseType(cast->type()));
   }
 
+  if (auto *field = dynamic_cast<const AST::FieldAccessNode *>(node)) {
+    Type objectType = typeOf(field->object());
+
+    // A struct that has no storage -- a call result, say -- cannot be GEPed
+    // into, so read the field straight out of the aggregate value.
+    if (!objectType.isPointer() && !isAddressable(field->object())) {
+      Type structType = objectType;
+      int index =
+          structs_.at(structType.structName()).indexOf(field->field().value);
+      return builder_.CreateExtractValue(generateExpr(field->object()),
+                                         {static_cast<unsigned>(index)},
+                                         field->field().value);
+    }
+
+    return builder_.CreateLoad(getLLVMType(typeOf(node)),
+                               generateAddress(node), field->field().value);
+  }
+
+  if (dynamic_cast<const AST::IndexNode *>(node)) {
+    return builder_.CreateLoad(getLLVMType(typeOf(node)),
+                               generateAddress(node), "elem");
+  }
+
+  if (auto *literal = dynamic_cast<const AST::StructLiteralNode *>(node)) {
+    Type type = Type::structType(literal->typeName().value);
+    const StructLayout &layout = structs_.at(literal->typeName().value);
+    auto *structType = llvm::cast<llvm::StructType>(getLLVMType(type));
+
+    // Evaluate in the order written so side effects stay predictable, then
+    // place each value at its declared position.
+    std::vector<std::pair<unsigned, llvm::Value *>> values;
+    values.reserve(literal->fields().size());
+    for (const auto &init : literal->fields()) {
+      int index = layout.indexOf(init.name.value);
+      values.emplace_back(static_cast<unsigned>(index),
+                          generateExpr(init.value.get()));
+    }
+
+    llvm::Value *aggregate = llvm::UndefValue::get(structType);
+    for (const auto &[index, value] : values) {
+      aggregate = builder_.CreateInsertValue(aggregate, value, {index});
+    }
+    return aggregate;
+  }
+
+  if (auto *sizeOf = dynamic_cast<const AST::SizeOfNode *>(node)) {
+    Type type = SemanticAnalyzer::parseType(sizeOf->type());
+    return llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_),
+                                  sizeInBytes(type));
+  }
+
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
     if (num->value().value.find('.') != std::string::npos) {
       float val = std::stof(num->value().value);
@@ -254,7 +324,9 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
   }
 
   if (auto *ident = dynamic_cast<const AST::IdentifierNode *>(node)) {
-    return loadVariable(ident->name().value);
+    return builder_.CreateLoad(getLLVMType(typeOf(node)),
+                               variableAddress(ident->name().value),
+                               ident->name().value);
   }
 
   if (auto *call = dynamic_cast<const AST::FuncCallNode *>(node)) {

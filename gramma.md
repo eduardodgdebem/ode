@@ -3,7 +3,9 @@
 ## Program Structure
 
 - **Program** → Statement*
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ExternDecl | ReturnStmt | PrintStmt | ExprStmt | Block
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ExternDecl | StructDecl | ReturnStmt | PrintStmt | ExprStmt | Block
+
+A **VarDecl** written directly at program level declares a global.
 
 ---
 
@@ -15,11 +17,13 @@
 - **WhileStmt** → `while` `(` Expr `)` Block
 - **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
+- **StructDecl** → `struct` IDENT `{` FieldDecl* `}`
+- **FieldDecl** → IDENT `:` Type `,`?
 - **ReturnStmt** → `return` Expr `;`
 - **PrintStmt** → `print` `(` Expr `)` `;`
 - **ExprStmt** → Expr `;`
 - **Block** → `{` Statement* `}`
-- **LValue** → IDENT | `*` Unary
+- **LValue** → IDENT | `*` Unary | Postfix `.` IDENT | Postfix `[` Expr `]`
 
 ---
 
@@ -42,18 +46,23 @@
 - **Term** → Factor ((`+` | `-`) Factor)*
 - **Factor** → Cast ((`*` | `/`) Cast)*
 - **Cast** → Unary (`as` Type)*
-- **Unary** → (`-` | `!` | `*` | `&`) Unary | Primary
-- **Primary** → NUMBER | BOOLEAN | IDENT | FuncCall | `(` Expr `)`
+- **Unary** → (`-` | `!` | `*` | `&`) Unary | Postfix
+- **Postfix** → Primary (`.` IDENT | `[` Expr `]`)*
+- **Primary** → NUMBER | BOOLEAN | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
+- **StructLiteral** → IDENT `{` FieldInit* `}`
+- **FieldInit** → IDENT `:` Expr `,`?
+- **SizeOf** → `sizeof` `(` Type `)`
 
 ---
 
 ## Types
 
-- **Type** → `*`* BaseType
+- **Type** → `*`* (BaseType | IDENT)
 - **BaseType** → `i8` | `u8` | `i32` | `i64` | `u64` | `usize` | `f32` | `bool` | `void`
 
 `usize` is a spelling of `u64`. A leading `*` makes a pointer, and pointers
-nest: `*i8` is a pointer to `i8`, `**i8` a pointer to that.
+nest: `*i8` is a pointer to `i8`, `**i8` a pointer to that. An IDENT in type
+position names a struct.
 
 ---
 
@@ -67,17 +76,19 @@ nest: `*i8` is a pointer to `i8`, `**i8` a pointer to that.
 
 ## Operator Precedence (highest to lowest)
 
-1. Primary (literals, identifiers, parentheses, function calls)
-2. Unary (`-`, `!`, `*` dereference, `&` address-of)
-3. Cast (`as`)
-4. Factor (`*`, `/`)
-5. Term (`+`, `-`)
-6. Comparison (`<`, `<=`, `>`, `>=`)
-7. Equality (`==`, `!=`)
-8. LogicAnd (`&&`)
-9. LogicOr (`||`)
+1. Primary (literals, identifiers, parentheses, function calls, struct literals, `sizeof`)
+2. Postfix (`.` field access, `[]` indexing)
+3. Unary (`-`, `!`, `*` dereference, `&` address-of)
+4. Cast (`as`)
+5. Factor (`*`, `/`)
+6. Term (`+`, `-`)
+7. Comparison (`<`, `<=`, `>`, `>=`)
+8. Equality (`==`, `!=`)
+9. LogicAnd (`&&`)
+10. LogicOr (`||`)
 
-`as` binds looser than unary, so `*p as i32` means `(*p) as i32`.
+`as` binds looser than unary, so `*p as i32` means `(*p) as i32`. Postfix binds
+tighter than unary, so `*p.next` means `*(p.next)`.
 
 ---
 
@@ -94,3 +105,15 @@ nest: `*i8` is a pointer to `i8`, `**i8` a pointer to that.
   `p - q` yields the `i64` number of elements between two pointers of the
   same type. `*void` supports neither arithmetic nor dereference; cast it to
   a concrete pointer type first.
+- `a[i]` is `*(a + i)`, so indexing works on any pointer and is assignable.
+- Struct declarations may appear in any order and may refer to each other. A
+  struct that contains itself *by value* is rejected; go through a pointer.
+- `.` follows one level of pointer automatically, so `node.next` works whether
+  `node` is a `Node` or a `*Node`.
+- A struct literal must initialise every field exactly once, in any order.
+- `sizeof(T)` is a `usize` and is what sizes an allocation for a struct.
+- Globals may only be initialised from constants — literals, `sizeof`, and
+  casts or negations of those. Every global is visible to every function
+  regardless of declaration order.
+- Structs may be passed and returned by value between Ode functions, but not
+  across `extern`, where the C ABI would need target-specific lowering.

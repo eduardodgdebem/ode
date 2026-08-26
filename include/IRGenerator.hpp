@@ -1,11 +1,13 @@
 #pragma once
 #include "Parser/AST.hpp"
 #include "SemanticAnalyzer.hpp"
+#include "StructTable.hpp"
 #include "Type.hpp"
 
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Target/TargetMachine.h>
 
 #include <format>
 #include <memory>
@@ -33,7 +35,7 @@ public:
   // generator, along with the AST it describes. Requiring it here is what
   // keeps expression types from being inferred a second time.
   IRGenerator(const std::string &moduleName,
-              const ResolvedTypes &resolvedTypes);
+              const ResolvedTypes &resolvedTypes, const StructTable &structs);
 
   void generate(const AST::Node &root);
   void emitToFile(const std::string &filename);
@@ -50,6 +52,7 @@ public:
   void visit(const AST::WhileStmtNode &node) override;
   void visit(const AST::FuncDeclNode &node) override;
   void visit(const AST::ExternFuncDeclNode &node) override;
+  void visit(const AST::StructDeclNode &node) override;
   void visit(const AST::FuncCallNode &node) override;
   void visit(const AST::ReturnStmtNode &node) override;
   void visit(const AST::PrintStmtNode &node) override;
@@ -57,6 +60,10 @@ public:
   void visit(const AST::BinaryOpNode &node) override;
   void visit(const AST::UnaryOpNode &node) override;
   void visit(const AST::CastNode &node) override;
+  void visit(const AST::FieldAccessNode &node) override;
+  void visit(const AST::IndexNode &node) override;
+  void visit(const AST::StructLiteralNode &node) override;
+  void visit(const AST::SizeOfNode &node) override;
   void visit(const AST::NumberNode &node) override;
   void visit(const AST::BooleanNode &node) override;
   void visit(const AST::IdentifierNode &node) override;
@@ -70,14 +77,25 @@ private:
   llvm::IRBuilder<> builder_;
   std::unordered_map<std::string, llvm::AllocaInst *> allocaMap_;
   const ResolvedTypes &resolvedTypes_;
+  const StructTable &structs_;
+  std::unordered_map<std::string, llvm::StructType *> structTypes_;
+  std::unique_ptr<llvm::TargetMachine> targetMachine_;
   llvm::Function *currentFunc_ = nullptr;
   llvm::Value *exprValue_ = nullptr;
 
   llvm::Type *getLLVMType(Type type);
+  // Attaches the host triple and data layout to the module up front, so that
+  // sizeof and pointer arithmetic can ask LLVM for real sizes.
+  void initializeTarget();
+  void createStructTypes();
+  unsigned sizeInBytes(Type type);
+  void emitGlobal(const AST::VarDeclNode &node);
   llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func,
                                            const std::string &name,
                                            llvm::Type *type);
-  llvm::Value *loadVariable(const std::string &name);
+  // Resolves a name to its storage, whether that is a local alloca or a
+  // module-level global.
+  llvm::Value *variableAddress(const std::string &name);
 
   // Creates (or returns) the prototype for a function so that callers can
   // reference it before its body has been emitted.

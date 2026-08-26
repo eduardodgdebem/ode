@@ -7,6 +7,12 @@ bool isLValue(const AST::Node *node) {
   if (dynamic_cast<const AST::IdentifierNode *>(node)) {
     return true;
   }
+  if (dynamic_cast<const AST::FieldAccessNode *>(node)) {
+    return true;
+  }
+  if (dynamic_cast<const AST::IndexNode *>(node)) {
+    return true;
+  }
   if (auto *unary = dynamic_cast<const AST::UnaryOpNode *>(node)) {
     return unary->op().type == Token::Type::Multiply;
   }
@@ -31,6 +37,23 @@ Type SemanticAnalyzer::inferExprType(const AST::Node *node) {
   }
   if (auto *cast = dynamic_cast<const AST::CastNode *>(node)) {
     return checkCast(*cast);
+  }
+  if (auto *field = dynamic_cast<const AST::FieldAccessNode *>(node)) {
+    return checkFieldAccess(*field);
+  }
+  if (auto *index = dynamic_cast<const AST::IndexNode *>(node)) {
+    return checkIndex(*index);
+  }
+  if (auto *literal = dynamic_cast<const AST::StructLiteralNode *>(node)) {
+    return checkStructLiteral(*literal);
+  }
+  if (auto *sizeOf = dynamic_cast<const AST::SizeOfNode *>(node)) {
+    Type type = parseType(sizeOf->type());
+    validateType(type, "in sizeof");
+    if (type.isVoid()) {
+      throw Error("sizeof(void) is not allowed");
+    }
+    return Type(Type::Kind::U64);
   }
   if (auto *num = dynamic_cast<const AST::NumberNode *>(node)) {
     return checkNumberLiteral(*num);
@@ -306,6 +329,11 @@ Type SemanticAnalyzer::parseType(const AST::Node *node) {
     throw Error("expected type annotation");
   }
 
+  // Built-in types lex as a Type keyword; anything else is a struct name.
+  if (typeNode->type().type == Token::Type::Identifier) {
+    return Type::structType(typeNode->type().value, typeNode->pointerDepth());
+  }
+
   Type::Kind kind;
   if (!Type::kindFromName(typeNode->type().value, kind)) {
     throw Error(std::format("unknown type '{}'", typeNode->type().value));
@@ -325,4 +353,123 @@ std::vector<Type> SemanticAnalyzer::parseParamTypes(const AST::Node *params) {
     types.push_back(parseType(param.type.get()));
   }
   return types;
+}
+
+void SemanticAnalyzer::validateType(Type type,
+                                    const std::string &context) const {
+  if (type.kind() != Type::Kind::Struct) {
+    return;
+  }
+  if (!structs_.contains(type.structName())) {
+    throw Error(context, std::format("unknown type '{}'", type.toString()));
+  }
+}
+
+const StructLayout &SemanticAnalyzer::layoutOf(const Type &type,
+                                               const std::string &context) const {
+  auto it = structs_.find(type.structName());
+  if (it == structs_.end()) {
+    throw Error(context, std::format("unknown type '{}'", type.toString()));
+  }
+  return it->second;
+}
+
+Type SemanticAnalyzer::checkFieldAccess(const AST::FieldAccessNode &node) {
+  Type objectType = checkExpr(node.object());
+
+  // A single level of pointer is followed automatically, so `p.field` works
+  // whether `p` is a struct or a pointer to one.
+  Type structType =
+      objectType.pointerDepth() == 1 ? objectType.pointee() : objectType;
+
+  if (!structType.isStruct()) {
+    throw Error(std::format("cannot read field '{}'", node.field().value),
+                std::format("'{}' is not a struct", objectType.toString()));
+  }
+
+  const StructLayout &layout =
+      layoutOf(structType, std::format("field '{}'", node.field().value));
+
+  const StructLayout::Field *field = layout.find(node.field().value);
+  if (!field) {
+    throw Error(std::format("struct '{}' has no field '{}'",
+                            structType.structName(), node.field().value));
+  }
+
+  return field->type;
+}
+
+Type SemanticAnalyzer::checkIndex(const AST::IndexNode &node) {
+  Type baseType = checkExpr(node.base());
+  Type indexType = checkExpr(node.index());
+
+  if (!baseType.isPointer()) {
+    throw Error("cannot index a non-pointer value",
+                std::format("got '{}'", baseType.toString()));
+  }
+  if (baseType.pointee().isVoid()) {
+    throw Error("cannot index '*void'",
+                "cast it to a concrete pointer type first");
+  }
+  if (!indexType.isInteger()) {
+    throw Error("index must be an integer",
+                std::format("got '{}'", indexType.toString()));
+  }
+
+  return baseType.pointee();
+}
+
+Type SemanticAnalyzer::checkStructLiteral(const AST::StructLiteralNode &node) {
+  Type type = Type::structType(node.typeName().value);
+  const StructLayout &layout =
+      layoutOf(type, std::format("in literal for '{}'", node.typeName().value));
+
+  std::vector<bool> initialised(layout.fields().size(), false);
+
+  for (const auto &init : node.fields()) {
+    int index = layout.indexOf(init.name.value);
+    if (index < 0) {
+      throw Error(std::format("struct '{}' has no field '{}'",
+                              node.typeName().value, init.name.value));
+    }
+    if (initialised[index]) {
+      throw Error(std::format("field '{}' is initialised twice",
+                              init.name.value));
+    }
+    initialised[index] = true;
+
+    Type valueType = checkExpr(init.value.get());
+    Type fieldType = layout.fields()[index].type;
+    if (valueType != fieldType) {
+      throw Error(std::format("field '{}' of '{}' has the wrong type",
+                              init.name.value, node.typeName().value),
+                  std::format("expected '{}' but got '{}'",
+                              fieldType.toString(), valueType.toString()));
+    }
+  }
+
+  for (size_t i = 0; i < initialised.size(); ++i) {
+    if (!initialised[i]) {
+      throw Error(std::format("field '{}' of '{}' is missing",
+                              layout.fields()[i].name, node.typeName().value));
+    }
+  }
+
+  return type;
+}
+
+bool SemanticAnalyzer::isConstantExpr(const AST::Node *node) {
+  if (dynamic_cast<const AST::NumberNode *>(node) ||
+      dynamic_cast<const AST::BooleanNode *>(node) ||
+      dynamic_cast<const AST::SizeOfNode *>(node)) {
+    return true;
+  }
+  if (auto *cast = dynamic_cast<const AST::CastNode *>(node)) {
+    return isConstantExpr(cast->expr());
+  }
+  if (auto *unary = dynamic_cast<const AST::UnaryOpNode *>(node)) {
+    return unary->op().type == Token::Type::Minus &&
+           isConstantExpr(unary->operand());
+  }
+  return false;
 }

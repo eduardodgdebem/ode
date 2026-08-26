@@ -14,6 +14,8 @@ AST::NodePtr Parser::parseStatement() {
     return parseFuncDecl();
   case Token::Type::Extern:
     return parseExternDecl();
+  case Token::Type::Struct:
+    return parseStructDecl();
   case Token::Type::Return:
     return parseReturnStmt();
   case Token::Type::Print:

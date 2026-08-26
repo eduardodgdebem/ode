@@ -123,7 +123,34 @@ AST::NodePtr Parser::parseUnary() {
     return std::make_unique<AST::UnaryOpNode>(op, std::move(operand));
   }
 
-  return parsePrimary();
+  return parsePostfix();
+}
+
+// Postfix -> Primary ('.' IDENT | '[' Expr ']')*
+// Binds tighter than unary, so `*p.next` is `*(p.next)` and `&a[i]` is
+// `&(a[i])`.
+AST::NodePtr Parser::parsePostfix() {
+  auto expr = parsePrimary();
+
+  while (true) {
+    if (current().type == Token::Type::Dot) {
+      advance();
+      Token field = consume(Token::Type::Identifier, "field name");
+      expr = std::make_unique<AST::FieldAccessNode>(std::move(expr), field);
+      continue;
+    }
+
+    if (current().type == Token::Type::LBracket) {
+      advance();
+      auto index = parseExpr();
+      consume(Token::Type::RBracket, "]");
+      expr = std::make_unique<AST::IndexNode>(std::move(expr),
+                                              std::move(index));
+      continue;
+    }
+
+    return expr;
+  }
 }
 
 AST::NodePtr Parser::parsePrimary() {
@@ -144,9 +171,16 @@ AST::NodePtr Parser::parsePrimary() {
     advance();
     return std::make_unique<AST::BooleanNode>(curr);
   }
+  case Token::Type::SizeOf:
+    return parseSizeOf();
   case Token::Type::Identifier: {
     if (peek().type == Token::Type::LParen) {
       return parseFuncCall();
+    }
+    // Nothing else in the grammar puts a block directly after an expression,
+    // so `Name {` is unambiguously a struct literal.
+    if (peek().type == Token::Type::LBrace) {
+      return parseStructLiteral();
     }
     advance();
     return std::make_unique<AST::IdentifierNode>(curr);

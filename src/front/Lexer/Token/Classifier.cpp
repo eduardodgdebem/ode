@@ -6,6 +6,7 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {"let", Token::Type::Let},         {"while", Token::Type::While},
       {"fn", Token::Type::Fn},           {"if", Token::Type::If},
       {"extern", Token::Type::Extern},   {"as", Token::Type::As},
+      {"struct", Token::Type::Struct},   {"sizeof", Token::Type::SizeOf},
       {"else", Token::Type::Else},       {"return", Token::Type::Return},
       {"print", Token::Type::Print},     {"true", Token::Type::Boolean},
       {"false", Token::Type::Boolean},   {"i8", Token::Type::Type},
@@ -24,7 +25,8 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {"}", Token::Type::RBrace},        {";", Token::Type::Semicolon},
       {",", Token::Type::Comma},         {":", Token::Type::Colon},
       {"\"", Token::Type::DoubleQuotes}, {"!", Token::Type::Not},
-      {"&", Token::Type::Ampersand}};
+      {"&", Token::Type::Ampersand},     {"[", Token::Type::LBracket},
+      {"]", Token::Type::RBracket},      {".", Token::Type::Dot}};
 
   return tokens;
 }
