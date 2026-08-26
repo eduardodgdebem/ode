@@ -1,0 +1,1 @@
+non_constant_global.ode:5:1: error: initialiser of global 'counter' is not constant: globals may only be initialised from literals

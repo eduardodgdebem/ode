@@ -1,14 +1,22 @@
 #pragma once
 
-#include <string>
+#include <filesystem>
 
 class Compiler {
 public:
-  explicit Compiler(const char *filePath);
+  struct Options {
+    std::filesystem::path inputPath;
+    // Empty means the input's stem in the working directory, which is what
+    // `ode foo.ode` has always done.
+    std::filesystem::path outputPath;
+    bool keepIntermediates = true;
+  };
+
+  explicit Compiler(Options options);
   void run();
 
 private:
   void compile();
 
-  const char *filePath;
+  Options options;
 };

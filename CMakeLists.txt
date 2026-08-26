@@ -81,3 +81,12 @@ set_target_properties(ode PROPERTIES
     BUILD_RPATH "${LLVM_LIB_DIR}"
     INSTALL_RPATH "${LLVM_LIB_DIR}"
 )
+
+# Regression suite. The runner is a plain shell script so that it also works
+# standalone, without a configured build tree.
+enable_testing()
+
+add_test(
+    NAME regression
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.sh --ode $<TARGET_FILE:ode>
+)

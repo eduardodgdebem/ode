@@ -1,0 +1,1 @@
+equality_type_mismatch.ode:2:23: error: equality operators require same type operands: got 'i32' and 'bool'

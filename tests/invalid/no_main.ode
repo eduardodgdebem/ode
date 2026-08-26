@@ -1,0 +1,4 @@
+// The program never declares main.
+fn helper(): i32 {
+  return 0;
+}

@@ -1,8 +1,10 @@
 #include "Compiler.hpp"
 
+#include <filesystem>
 #include <format>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "IRGenerator.hpp"
@@ -12,10 +14,10 @@
 #include "Parser/ASTPrinter.hpp"
 #include "Parser/Parser.hpp"
 #include "Reader.hpp"
-#include "SourceError.hpp"
 #include "SemanticAnalyzer.hpp"
+#include "SourceError.hpp"
 
-Compiler::Compiler(const char *filePath) : filePath(filePath) {}
+Compiler::Compiler(Options options) : options(std::move(options)) {}
 
 void Compiler::run() {
   try {
@@ -25,14 +27,15 @@ void Compiler::run() {
     // turns a line:column into a full file:line:column reference.
     throw std::runtime_error(
         error.hasPosition()
-            ? std::format("{}:{}:{}: error: {}", filePath, error.line(),
-                          error.column(), error.message())
-            : std::format("{}: error: {}", filePath, error.message()));
+            ? std::format("{}:{}:{}: error: {}", options.inputPath.string(),
+                          error.line(), error.column(), error.message())
+            : std::format("{}: error: {}", options.inputPath.string(),
+                          error.message()));
   }
 }
 
 void Compiler::compile() {
-  std::unique_ptr<Reader> reader = std::make_unique<Reader>(filePath);
+  std::unique_ptr<Reader> reader = std::make_unique<Reader>(options.inputPath);
   std::string fileText = reader->readAll();
 
   std::unique_ptr<Lexer> lexer = std::make_unique<Lexer>(fileText);
@@ -47,15 +50,27 @@ void Compiler::compile() {
   auto analyzer = std::make_unique<SemanticAnalyzer>();
   analyzer->analyze(*root);
 
-  std::unique_ptr<IRGenerator> irgen =
-      std::make_unique<IRGenerator>("myProgram", analyzer->resolvedTypes(),
-                                    analyzer->structs());
+  std::unique_ptr<IRGenerator> irgen = std::make_unique<IRGenerator>(
+      "myProgram", analyzer->resolvedTypes(), analyzer->structs());
 
   irgen->generate(*root);
-  irgen->emitToFile(std::format("{}.ll", reader->getFileName()));
-  auto objectPath = std::format("{}.o", reader->getFileName());
+
+  std::filesystem::path executablePath =
+      options.outputPath.empty() ? std::filesystem::path(reader->getFileName())
+                                 : options.outputPath;
+  // The intermediates hang off the executable rather than the input so that
+  // -o keeps a whole build in one directory.
+  auto irPath = std::format("{}.ll", executablePath.string());
+  auto objectPath = std::format("{}.o", executablePath.string());
+
+  irgen->emitToFile(irPath);
   irgen->emitObjectFile(objectPath);
 
   auto linker = std::make_unique<Linker>(objectPath);
-  linker->link(reader->getFileName());
+  linker->link(executablePath);
+
+  if (!options.keepIntermediates) {
+    std::filesystem::remove(irPath);
+    std::filesystem::remove(objectPath);
+  }
 }

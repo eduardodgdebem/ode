@@ -317,21 +317,23 @@ no multi-line string literals — a string may not cross a newline.
 
 ### 8.1 No test suite
 
-`examples/` is checked by running it and reading the output. There is no
-harness, no expected-output files, and no `ctest` target, so a regression is
-only caught if someone looks.
-
-This is the gap most likely to hurt during the self-hosting port, where the
-compilers need to be diffed against each other continuously.
+Fixed. `tests/run_tests.sh` runs every `examples/*.ode` against a recorded
+stdout in `tests/valid/`, and every `tests/invalid/*.ode` against the
+diagnostic it must produce. It is registered with CTest as `regression`, and
+`--update` re-records every expectation in one pass so the suite can be
+re-baselined after a deliberate language change.
 
 ### 8.2 Linking shells out to `clang++`
 
 `Linker::link` builds a `clang++` command and calls `std::system`, so `clang++`
-must be on `PATH`, and the object path is interpolated into a shell command
-without quoting.
+must be on `PATH`. The paths are now single-quoted, so a space or a shell
+metacharacter in one no longer re-splits the command or gets executed, but
+running a shell at all is still more than the job needs; `posix_spawn` would
+remove both the shell and the `PATH` lookup.
 
 ### 8.3 Output paths are not configurable
 
-The compiler always writes `<stem>.ll`, `<stem>.o` and `<stem>` next to the
-working directory. There is no `-o`, and the `.ll` and `.o` files are always
-left behind.
+Fixed. `ode -o <path>` writes the executable where asked, with `<path>.ll` and
+`<path>.o` beside it, and `--no-intermediates` deletes those two once linking
+succeeds. With no flags the compiler still writes `<stem>.ll`, `<stem>.o` and
+`<stem>` into the working directory.

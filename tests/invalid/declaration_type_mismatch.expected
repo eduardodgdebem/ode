@@ -1,0 +1,1 @@
+declaration_type_mismatch.ode:2:3: error: type mismatch in declaration of 'wrong': declared as 'bool' but assigned 'i32'

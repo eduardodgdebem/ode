@@ -1,0 +1,1 @@
+void_struct_field.ode:1:1: error: field 'x' of struct 'Point' cannot be void

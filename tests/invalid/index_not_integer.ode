@@ -1,0 +1,6 @@
+fn main(): i32 {
+  let text: *i8 = "ode";
+  print(text[true]);
+
+  return 0;
+}
