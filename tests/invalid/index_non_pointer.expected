@@ -1,0 +1,1 @@
+index_non_pointer.ode:3:14: error: cannot index a non-pointer value: got 'i32'

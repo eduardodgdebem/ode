@@ -1,0 +1,9 @@
+fn twice(value: i32): i32 {
+  return value * 2;
+}
+
+fn main(): i32 {
+  print(twice(true));
+
+  return 0;
+}

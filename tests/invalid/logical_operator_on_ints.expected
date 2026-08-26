@@ -1,0 +1,1 @@
+logical_operator_on_ints.ode:2:23: error: logical operators require boolean operands: got 'i32' and 'i32'

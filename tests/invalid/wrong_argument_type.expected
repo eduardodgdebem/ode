@@ -1,0 +1,1 @@
+wrong_argument_type.ode:6:9: error: argument 1 of 'twice' has the wrong type: expected 'i32' but got 'bool'

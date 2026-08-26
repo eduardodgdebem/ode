@@ -1,0 +1,9 @@
+fn seed(): i32 {
+  return 1;
+}
+
+let counter: i32 = seed();
+
+fn main(): i32 {
+  return 0;
+}

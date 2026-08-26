@@ -1,0 +1,1 @@
+extern_returns_struct.ode:5:1: error: extern 'origin' returns a struct by value: return a pointer instead

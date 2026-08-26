@@ -30,7 +30,64 @@ To compile an Ode source file, you can run the following command:
 ./build/ode <source_file.ode>
 ```
 
-This will generate an object file named `output.o`. You can then link this object file to create an executable.
+This compiles, emits LLVM IR and an object file, and links an executable, so
+`ode examples/structs.ode` leaves `structs.ll`, `structs.o` and the runnable
+`structs` in the working directory.
+
+`-o` moves the executable, and the intermediates follow it so that a whole
+build stays in one directory:
+
+```bash
+./build/ode -o build/structs examples/structs.ode
+```
+
+writes `build/structs`, `build/structs.ll` and `build/structs.o`. The `.ll` and
+`.o` are kept by default because they are the two things worth looking at when
+codegen misbehaves; `--no-intermediates` deletes them once linking succeeds.
+
+```bash
+./build/ode --no-intermediates -o build/structs examples/structs.ode
+```
+
+## Testing
+
+`tests/run_tests.sh` is the regression suite. It compiles, links and runs every
+`examples/*.ode` and diffs its stdout against `tests/valid/<name>.out`, then
+compiles every `tests/invalid/*.ode` and diffs the diagnostic it must produce
+against `tests/invalid/<name>.expected`. It exits non-zero if anything differs,
+and works in a temporary directory so the repository stays clean.
+
+```bash
+cmake --build ./build          # the suite runs the compiler you just built
+./tests/run_tests.sh
+```
+
+It is also registered with CTest:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+`--filter <substring>` narrows a run to the cases whose name matches, and
+`--ode <path>` points at a compiler somewhere other than `build/ode`.
+
+### Re-baselining
+
+After a deliberate change to the language, regenerate every expectation in one
+command and read the diff before committing it:
+
+```bash
+./tests/run_tests.sh --update
+```
+
+`--update` rewrites `tests/valid/*.out` and `tests/invalid/*.expected` from what
+the compiler does now, so `git diff tests/` is the exact list of behaviour that
+changed. An invalid case that has started compiling is still reported as a
+failure rather than being silently dropped.
+
+Adding a case is dropping a file in: an `examples/*.ode` for a program that
+should run, or a `tests/invalid/*.ode` for one that must be rejected, then
+`--update` to record what it does.
 
 ## The Ode Language
 

@@ -1,0 +1,1 @@
+extern_takes_struct.ode:5:1: error: extern 'plot' takes a struct by value: take a pointer instead

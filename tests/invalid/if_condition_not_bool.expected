@@ -1,0 +1,1 @@
+if_condition_not_bool.ode:2:3: error: if condition must be boolean: got 'i32'
