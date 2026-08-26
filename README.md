@@ -45,6 +45,29 @@ fn main(): i32 {
 }
 ```
 
+### Control flow
+
+`if` / `else if` / `else`, and `while` with `break` and `continue`:
+
+```rust
+fn classify(c: i8): i32 {
+  if (isDigit(c)) {
+    return KIND_NUMBER;
+  } else if (isAlpha(c)) {
+    return KIND_IDENT;
+  } else {
+    return KIND_UNKNOWN;
+  }
+}
+```
+
+`break` and `continue` act on the innermost `while`. A `void` function returns
+with a bare `return;`, and the compiler checks that every `return` matches the
+declared return type.
+
+Note that `&&` and `||` do **not** short-circuit yet — both sides are always
+evaluated, so guard conditions have to be written as nested `if`s.
+
 ### Types
 
 `i8`, `u8`, `i32`, `i64`, `u64` (also spelled `usize`), `f32`, `bool` and
@@ -160,8 +183,8 @@ evaluates an expression tree that way.
 
 `examples/` holds a program per feature — `mutual_recursion.ode`,
 `pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
-`arrays.ode`, `expr_tree.ode`, `strings.ode` and `nested_control.ode` cover
-the ones above.
+`arrays.ode`, `expr_tree.ode`, `strings.ode`, `nested_control.ode` and
+`tokenizer.ode` cover the ones above.
 
 ### Grammar
 

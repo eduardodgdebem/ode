@@ -3,7 +3,7 @@
 ## Program Structure
 
 - **Program** → Statement*
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | FuncDecl | ExternDecl | StructDecl | ReturnStmt | PrintStmt | ExprStmt | Block
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | BreakStmt | ContinueStmt | FuncDecl | ExternDecl | StructDecl | ReturnStmt | PrintStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
 
@@ -13,13 +13,15 @@ A **VarDecl** written directly at program level declares a global.
 
 - **VarDecl** → `let` IDENT `:` Type `=` Expr `;`
 - **Assign** → LValue `=` Expr `;`
-- **IfStmt** → `if` `(` Expr `)` Block (`else` Block)?
+- **IfStmt** → `if` `(` Expr `)` Block (`else` (Block | IfStmt))?
 - **WhileStmt** → `while` `(` Expr `)` Block
+- **BreakStmt** → `break` `;`
+- **ContinueStmt** → `continue` `;`
 - **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
 - **StructDecl** → `struct` IDENT `{` FieldDecl* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
-- **ReturnStmt** → `return` Expr `;`
+- **ReturnStmt** → `return` Expr? `;`
 - **PrintStmt** → `print` `(` Expr `)` `;`
 - **ExprStmt** → Expr `;`
 - **Block** → `{` Statement* `}`
@@ -128,3 +130,11 @@ tighter than unary, so `*p.next` means `*(p.next)`.
   across `extern`, where the C ABI would need target-specific lowering.
 - `*i8` is Ode's string type: `print` renders it as text, while every other
   pointer prints as an address.
+- `else if` chains without nesting: the `if` after an `else` becomes the else
+  branch directly, so no wrapping block is needed.
+- `break` and `continue` act on the innermost enclosing `while`, and are
+  rejected outside a loop. A function written inside a loop does not see it.
+- `return;` is only valid in a `void` function, and `return expr;` only in a
+  non-void one, where the expression's type must match the declared return
+  type. Falling off the end of a non-void function is still permitted and
+  yields a zero value; there is no all-paths-return analysis.

@@ -46,6 +46,8 @@ private:
   AST::NodePtr parseBlock();
   AST::NodePtr parseIfStmt();
   AST::NodePtr parseWhileStmt();
+  AST::NodePtr parseBreakStmt();
+  AST::NodePtr parseContinueStmt();
   AST::NodePtr parseReturnStmt();
   AST::NodePtr parsePrintStmt();
   AST::NodePtr parseFuncDecl();

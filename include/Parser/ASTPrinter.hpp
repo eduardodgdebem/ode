@@ -15,6 +15,8 @@ public:
   void visit(const AST::AssignNode &node) override;
   void visit(const AST::IfStmtNode &node) override;
   void visit(const AST::WhileStmtNode &node) override;
+  void visit(const AST::BreakStmtNode &node) override;
+  void visit(const AST::ContinueStmtNode &node) override;
   void visit(const AST::FuncDeclNode &node) override;
   void visit(const AST::ExternFuncDeclNode &node) override;
   void visit(const AST::StructDeclNode &node) override;

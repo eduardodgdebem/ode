@@ -22,6 +22,7 @@ void IRGenerator::visit(const AST::FuncDeclNode &node) {
 
   currentFunc_ = func;
   allocaMap_.clear();
+  loops_.clear();
 
   for (auto &arg : func->args()) {
     std::string name = arg.getName().str();
@@ -73,8 +74,12 @@ llvm::Value *IRGenerator::generateCall(const AST::FuncCallNode &node) {
 void IRGenerator::visit(const AST::FuncCallNode &node) { generateCall(node); }
 
 void IRGenerator::visit(const AST::ReturnStmtNode &node) {
-  llvm::Value *retVal = generateExpr(node.expr());
-  builder_.CreateRet(retVal);
+  if (!node.expr()) {
+    builder_.CreateRetVoid();
+    return;
+  }
+
+  builder_.CreateRet(generateExpr(node.expr()));
 }
 
 void IRGenerator::visit(const AST::ParamListNode &node) {

@@ -17,6 +17,8 @@ public:
     SizeOf,
     Return,
     While,
+    Break,
+    Continue,
     Print,
     As,
     Identifier,

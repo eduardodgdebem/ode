@@ -233,7 +233,21 @@ void SemanticAnalyzer::visit(const AST::WhileStmtNode &node) {
                 std::format("got '{}'", typeToString(condType)));
   }
 
+  ++loopDepth_;
   node.body()->accept(*this);
+  --loopDepth_;
+}
+
+void SemanticAnalyzer::visit(const AST::BreakStmtNode &node) {
+  if (loopDepth_ == 0) {
+    throw Error("break used outside of a loop");
+  }
+}
+
+void SemanticAnalyzer::visit(const AST::ContinueStmtNode &node) {
+  if (loopDepth_ == 0) {
+    throw Error("continue used outside of a loop");
+  }
 }
 
 void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
@@ -254,10 +268,23 @@ void SemanticAnalyzer::visit(const AST::FuncDeclNode &node) {
     }
   }
 
-  node.body()->accept(*this);
-  symbols_.exitScope();
+  // A nested function gets its own return type and loop nesting; neither
+  // leaks in from the function it is written inside.
+  bool wasInFunction = inFunction_;
+  Type previousReturnType = currentReturnType_;
+  int previousLoopDepth = loopDepth_;
 
-  Todo("function return type checking");
+  inFunction_ = true;
+  currentReturnType_ = parseType(node.returnType());
+  loopDepth_ = 0;
+
+  node.body()->accept(*this);
+
+  inFunction_ = wasInFunction;
+  currentReturnType_ = previousReturnType;
+  loopDepth_ = previousLoopDepth;
+
+  symbols_.exitScope();
 }
 
 void SemanticAnalyzer::visit(const AST::ExternFuncDeclNode &node) {
@@ -280,8 +307,32 @@ void SemanticAnalyzer::visit(const AST::FuncCallNode &node) {
 }
 
 void SemanticAnalyzer::visit(const AST::ReturnStmtNode &node) {
-  checkExpr(node.expr());
-  Todo("return type validation against function signature");
+  if (!inFunction_) {
+    throw Error("return used outside of a function");
+  }
+
+  if (!node.expr()) {
+    if (!currentReturnType_.isVoid()) {
+      throw Error("return without a value",
+                  std::format("this function returns '{}'",
+                              typeToString(currentReturnType_)));
+    }
+    return;
+  }
+
+  Type returned = checkExpr(node.expr());
+
+  if (currentReturnType_.isVoid()) {
+    throw Error("returning a value from a void function",
+                std::format("got '{}'", typeToString(returned)));
+  }
+
+  if (returned != currentReturnType_) {
+    throw Error("wrong return type",
+                std::format("expected '{}' but got '{}'",
+                            typeToString(currentReturnType_),
+                            typeToString(returned)));
+  }
 }
 
 void SemanticAnalyzer::visit(const AST::PrintStmtNode &node) {
