@@ -152,8 +152,56 @@ llvm::Value *IRGenerator::generatePointerArithmetic(
                             {offset}, "ptradd");
 }
 
+// a && b  evaluates b only when a is true.
+// a || b  evaluates b only when a is false.
+//
+// The result comes from a phi over the two paths, whose incoming blocks are
+// read from the builder rather than assumed: either operand may itself
+// contain a short circuit and leave the builder somewhere else.
+llvm::Value *IRGenerator::generateShortCircuit(const AST::BinaryOpNode &node) {
+  const bool isAnd = node.op().type == Token::Type::And;
+  const char *name = isAnd ? "and" : "or";
+
+  llvm::Function *func = builder_.GetInsertBlock()->getParent();
+  llvm::BasicBlock *rhsBB =
+      llvm::BasicBlock::Create(context_, std::format("{}.rhs", name), func);
+  llvm::BasicBlock *endBB =
+      llvm::BasicBlock::Create(context_, std::format("{}.end", name), func);
+
+  llvm::Value *left = generateExpr(node.left());
+  llvm::BasicBlock *leftBB = builder_.GetInsertBlock();
+
+  if (isAnd) {
+    builder_.CreateCondBr(left, rhsBB, endBB);
+  } else {
+    builder_.CreateCondBr(left, endBB, rhsBB);
+  }
+
+  builder_.SetInsertPoint(rhsBB);
+  llvm::Value *right = generateExpr(node.right());
+  llvm::BasicBlock *rightBB = builder_.GetInsertBlock();
+  builder_.CreateBr(endBB);
+
+  builder_.SetInsertPoint(endBB);
+  llvm::PHINode *result =
+      builder_.CreatePHI(llvm::Type::getInt1Ty(context_), 2, name);
+
+  // Taking the short path means the left operand already fixed the answer:
+  // false for &&, true for ||.
+  result->addIncoming(
+      llvm::ConstantInt::get(llvm::Type::getInt1Ty(context_), !isAnd), leftBB);
+  result->addIncoming(right, rightBB);
+
+  return result;
+}
+
 llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
   if (auto *binOp = dynamic_cast<const AST::BinaryOpNode *>(node)) {
+    if (binOp->op().type == Token::Type::And ||
+        binOp->op().type == Token::Type::Or) {
+      return generateShortCircuit(*binOp);
+    }
+
     llvm::Value *left = generateExpr(binOp->left());
     llvm::Value *right = generateExpr(binOp->right());
     Type leftType = typeOf(binOp->left());
@@ -164,10 +212,6 @@ llvm::Value *IRGenerator::generateExpr(const AST::Node *node) {
     const bool isSigned = leftType.isSigned();
 
     switch (binOp->op().type) {
-    case Token::Type::Or:
-      return builder_.CreateOr(left, right);
-    case Token::Type::And:
-      return builder_.CreateAnd(left, right);
     case Token::Type::Equal:
       if (isFloat)
         return builder_.CreateFCmpOEQ(left, right);

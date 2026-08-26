@@ -107,7 +107,8 @@ tighter than unary, so `*p.next` means `*(p.next)`.
 
 - Left-associative: All binary operators
 - Right-associative: Unary operators (allows `--5`, `!-x`)
-- Short-circuit evaluation: `&&` and `||` should short-circuit
+- Short-circuit evaluation: `a && b` evaluates `b` only when `a` is true, and
+  `a || b` only when `a` is false
 - Functions may be called before they are declared; the compiler collects
   every signature before checking any body, so mutual recursion works.
 - There are no implicit conversions. Integer literals are `i32`, so any other
