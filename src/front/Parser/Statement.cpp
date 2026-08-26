@@ -10,6 +10,10 @@ AST::NodePtr Parser::parseStatement() {
     return parseIfStmt();
   case Token::Type::While:
     return parseWhileStmt();
+  case Token::Type::Break:
+    return parseBreakStmt();
+  case Token::Type::Continue:
+    return parseContinueStmt();
   case Token::Type::Fn:
     return parseFuncDecl();
   case Token::Type::Extern:
@@ -80,7 +84,9 @@ AST::NodePtr Parser::parseIfStmt() {
   AST::NodePtr elseBlock = nullptr;
   if (current().type == Token::Type::Else) {
     advance();
-    elseBlock = parseBlock();
+    // `else if` chains by making the next `if` the else branch outright,
+    // rather than requiring it to be wrapped in a block.
+    elseBlock = current().type == Token::Type::If ? parseIfStmt() : parseBlock();
   }
 
   return std::make_unique<AST::IfStmtNode>(
@@ -100,9 +106,28 @@ AST::NodePtr Parser::parseWhileStmt() {
 
 AST::NodePtr Parser::parseReturnStmt() {
   consume(Token::Type::Return, "return");
+
+  // `return;` carries no value and is only valid in a void function.
+  if (current().type == Token::Type::Semicolon) {
+    advance();
+    return std::make_unique<AST::ReturnStmtNode>();
+  }
+
   auto expr = parseExpr();
   consume(Token::Type::Semicolon, ";");
   return std::make_unique<AST::ReturnStmtNode>(std::move(expr));
+}
+
+AST::NodePtr Parser::parseBreakStmt() {
+  consume(Token::Type::Break, "break");
+  consume(Token::Type::Semicolon, ";");
+  return std::make_unique<AST::BreakStmtNode>();
+}
+
+AST::NodePtr Parser::parseContinueStmt() {
+  consume(Token::Type::Continue, "continue");
+  consume(Token::Type::Semicolon, ";");
+  return std::make_unique<AST::ContinueStmtNode>();
 }
 
 AST::NodePtr Parser::parsePrintStmt() {

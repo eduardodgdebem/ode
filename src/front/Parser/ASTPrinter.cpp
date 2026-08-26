@@ -79,6 +79,14 @@ void ASTPrinter::visit(const AST::WhileStmtNode &node) {
   unindent();
 }
 
+void ASTPrinter::visit(const AST::BreakStmtNode &node) {
+  printIndent("Break");
+}
+
+void ASTPrinter::visit(const AST::ContinueStmtNode &node) {
+  printIndent("Continue");
+}
+
 void ASTPrinter::visit(const AST::FuncDeclNode &node) {
   printIndent("FuncDecl: " + node.name().value);
   indent();
@@ -142,7 +150,7 @@ void ASTPrinter::visit(const AST::FuncCallNode &node) {
 }
 
 void ASTPrinter::visit(const AST::ReturnStmtNode &node) {
-  printIndent("ReturnStmt");
+  printIndent(node.expr() ? "ReturnStmt" : "ReturnStmt (void)");
   if (node.expr()) {
     indent();
     node.expr()->accept(*this);

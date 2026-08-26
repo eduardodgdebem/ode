@@ -83,12 +83,29 @@ void IRGenerator::visit(const AST::WhileStmtNode &node) {
   builder_.CreateCondBr(condVal, bodyBB, endBB);
 
   builder_.SetInsertPoint(bodyBB);
+  loops_.push_back({condBB, endBB});
   node.body()->accept(*this);
+  loops_.pop_back();
+
   if (!builder_.GetInsertBlock()->getTerminator()) {
     builder_.CreateBr(condBB);
   }
 
   builder_.SetInsertPoint(endBB);
+}
+
+void IRGenerator::visit(const AST::BreakStmtNode &node) {
+  if (loops_.empty()) {
+    throw Error("break used outside of a loop");
+  }
+  builder_.CreateBr(loops_.back().breakTarget);
+}
+
+void IRGenerator::visit(const AST::ContinueStmtNode &node) {
+  if (loops_.empty()) {
+    throw Error("continue used outside of a loop");
+  }
+  builder_.CreateBr(loops_.back().continueTarget);
 }
 void IRGenerator::visit(const AST::PrintStmtNode &node) {
   Type type = typeOf(node.expr());

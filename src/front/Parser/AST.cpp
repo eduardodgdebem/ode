@@ -6,6 +6,8 @@ void AST::VarDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::AssignNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::IfStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::WhileStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::BreakStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
+void AST::ContinueStmtNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::FuncDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::ExternFuncDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }
 void AST::StructDeclNode::accept(AST::Visitor &v) const { v.visit(*this); }

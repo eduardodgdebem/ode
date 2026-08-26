@@ -108,6 +108,18 @@ public:
     NodePtr body_;
   };
 
+  // `break;` -- leaves the innermost enclosing loop.
+  class BreakStmtNode : public Node {
+  public:
+    void accept(Visitor &visitor) const override;
+  };
+
+  // `continue;` -- jumps to the innermost enclosing loop's condition.
+  class ContinueStmtNode : public Node {
+  public:
+    void accept(Visitor &visitor) const override;
+  };
+
   class FuncDeclNode : public Node {
   public:
     FuncDeclNode(Token name, NodePtr returnType, NodePtr params, NodePtr body)
@@ -189,10 +201,11 @@ public:
 
   class ReturnStmtNode : public Node {
   public:
-    explicit ReturnStmtNode(NodePtr expr) : expr_(std::move(expr)) {}
+    explicit ReturnStmtNode(NodePtr expr = nullptr) : expr_(std::move(expr)) {}
 
     void accept(Visitor &visitor) const override;
 
+    // Null for a bare `return;`, which is only valid in a void function.
     const Node *expr() const { return expr_.get(); }
 
   private:
@@ -462,6 +475,8 @@ public:
     virtual void visit(const AssignNode &node) = 0;
     virtual void visit(const IfStmtNode &node) = 0;
     virtual void visit(const WhileStmtNode &node) = 0;
+    virtual void visit(const BreakStmtNode &node) = 0;
+    virtual void visit(const ContinueStmtNode &node) = 0;
     virtual void visit(const FuncDeclNode &node) = 0;
     virtual void visit(const ExternFuncDeclNode &node) = 0;
     virtual void visit(const StructDeclNode &node) = 0;

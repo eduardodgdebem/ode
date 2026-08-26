@@ -4,6 +4,7 @@
 const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
   static const Token::TokenTypeMap tokens = {
       {"let", Token::Type::Let},         {"while", Token::Type::While},
+      {"break", Token::Type::Break},     {"continue", Token::Type::Continue},
       {"fn", Token::Type::Fn},           {"if", Token::Type::If},
       {"extern", Token::Type::Extern},   {"as", Token::Type::As},
       {"struct", Token::Type::Struct},   {"sizeof", Token::Type::SizeOf},

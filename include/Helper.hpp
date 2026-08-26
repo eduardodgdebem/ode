@@ -69,6 +69,10 @@ constexpr std::string getTokenType(Token::Type tokenType) {
     return "PRINT";
   case Token::Type::While:
     return "WHILE";
+  case Token::Type::Break:
+    return "BREAK";
+  case Token::Type::Continue:
+    return "CONTINUE";
   case Token::Type::Equal:
     return "EQUAL";
   case Token::Type::Semicolon:
