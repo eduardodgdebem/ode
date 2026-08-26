@@ -43,6 +43,18 @@ constexpr std::string getTokenType(Token::Type tokenType) {
     return "ELSE";
   case Token::Type::Fn:
     return "FN";
+  case Token::Type::Extern:
+    return "EXTERN";
+  case Token::Type::As:
+    return "AS";
+  case Token::Type::Ampersand:
+    return "AMPERSAND";
+  case Token::Type::Assign:
+    return "ASSIGN";
+  case Token::Type::Not:
+    return "NOT";
+  case Token::Type::Print:
+    return "PRINT";
   case Token::Type::While:
     return "WHILE";
   case Token::Type::Equal:

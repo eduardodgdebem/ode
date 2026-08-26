@@ -1,0 +1,33 @@
+// Reaching the C runtime through `extern`. This is what gives a self-hosted
+// compiler heap allocation and I/O without any of it being built into the
+// language.
+
+extern fn malloc(size: i64): *i8;
+extern fn free(block: *i8): void;
+extern fn putchar(character: i32): i32;
+
+fn writeAt(buffer: *i8, index: i64, value: i8): void {
+  *(buffer + index) = value;
+}
+
+fn main(): i32 {
+  let length: i64 = 3 as i64;
+  let buffer: *i8 = malloc(length);
+
+  writeAt(buffer, 0 as i64, 79 as i8);
+  writeAt(buffer, 1 as i64, 100 as i8);
+  writeAt(buffer, 2 as i64, 101 as i8);
+
+  let i: i64 = 0 as i64;
+  while (i < length) {
+    putchar(*(buffer + i) as i32);
+    i = i + 1 as i64;
+  }
+  putchar(10);
+
+  // Pointer difference counts elements, not bytes.
+  print((buffer + length) - buffer);
+
+  free(buffer);
+  return 0;
+}

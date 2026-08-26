@@ -27,7 +27,7 @@ This will generate an object file named `output.o`. You can then link this objec
 
 ### "Hello, World!" Example
 
-While the language doesn't have a standard library for I/O, a simple program looks like this:
+A simple program looks like this:
 
 ```rust
 fn sum(n1: i32, n2:i32): i32 {
@@ -44,6 +44,47 @@ fn main(): i32 {
   return 0;
 }
 ```
+
+### Types
+
+`i8`, `u8`, `i32`, `i64`, `u64` (also spelled `usize`), `f32`, `bool` and
+`void`, plus pointers to any of them (`*i8`, `**i8`).
+
+There are no implicit conversions. Integer literals are `i32`, so every other
+width is reached with an explicit cast:
+
+```rust
+let size: i64 = 4096 as i64;
+let byte: u8 = size as u8;
+```
+
+### Pointers
+
+`&` takes the address of a variable, `*` reads or writes through a pointer,
+and `p + i` steps by elements.
+
+```rust
+fn increment(target: *i32): void {
+  *target = *target + 1;
+}
+```
+
+### Calling C
+
+`extern` declares a function supplied by the C runtime or another object
+file. This is how an Ode program gets heap memory and I/O without either
+being built into the language.
+
+```rust
+extern fn malloc(size: i64): *i8;
+extern fn free(block: *i8): void;
+extern fn putchar(character: i32): i32;
+```
+
+### Examples
+
+`examples/` holds a program per feature — `mutual_recursion.ode`,
+`pointers.ode`, `casts.ode` and `extern.ode` cover the ones above.
 
 ### Grammar
 

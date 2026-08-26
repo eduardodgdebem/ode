@@ -78,21 +78,39 @@ AST::NodePtr Parser::parseTerm() {
 }
 
 AST::NodePtr Parser::parseFactor() {
-  auto left = parseUnary();
+  auto left = parseCast();
   while (current().type == Token::Type::Multiply ||
          current().type == Token::Type::Divide) {
     Token op = current();
     advance();
-    auto right = parseUnary();
+    auto right = parseCast();
     left = std::make_unique<AST::BinaryOpNode>(op, std::move(left),
                                                std::move(right));
   }
   return left;
 }
 
+// Cast -> Unary ('as' Type)*
+// Looser than unary, so `*p as i32` is `(*p) as i32`.
+AST::NodePtr Parser::parseCast() {
+  auto expr = parseUnary();
+
+  while (current().type == Token::Type::As) {
+    advance();
+    auto type = parseType();
+    expr = std::make_unique<AST::CastNode>(std::move(expr), std::move(type));
+  }
+
+  return expr;
+}
+
+// Unary -> ('-' | '!' | '*' | '&') Unary | Primary
+// '*' dereferences a pointer, '&' takes the address of an lvalue.
 AST::NodePtr Parser::parseUnary() {
   if (current().type == Token::Type::Minus ||
-      current().type == Token::Type::Not) {
+      current().type == Token::Type::Not ||
+      current().type == Token::Type::Multiply ||
+      current().type == Token::Type::Ampersand) {
     Token op = current();
     advance();
 

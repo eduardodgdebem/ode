@@ -6,42 +6,34 @@
 #include <llvm/IR/Constants.h>
 
 void IRGenerator::visit(const AST::FuncDeclNode &node) {
+  llvm::Function *func =
+      declarePrototype(node.name().value, node.returnType(), node.params());
+
+  if (!func->empty()) {
+    throw Error(
+        std::format("function '{}' defined more than once", node.name().value));
+  }
+
   Type retType = SemanticAnalyzer::parseType(node.returnType());
   llvm::Type *llvmRetType = getLLVMType(retType);
-
-  std::vector<llvm::Type *> paramTypes;
-  std::vector<std::string> paramNames;
-
-  const auto *params = dynamic_cast<const AST::ParamListNode *>(node.params());
-  if (params) {
-    for (const auto &param : params->params()) {
-      Type paramType = SemanticAnalyzer::parseType(param.type.get());
-      paramTypes.push_back(getLLVMType(paramType));
-      paramNames.push_back(param.name.value);
-    }
-  }
-
-  llvm::FunctionType *funcType =
-      llvm::FunctionType::get(llvmRetType, paramTypes, false);
-  llvm::Function *func =
-      llvm::Function::Create(funcType, llvm::Function::ExternalLinkage,
-                             node.name().value, module_.get());
-
-  unsigned idx = 0;
-  for (auto &arg : func->args()) {
-    arg.setName(paramNames[idx++]);
-  }
 
   llvm::BasicBlock *block = llvm::BasicBlock::Create(context_, "entry", func);
   builder_.SetInsertPoint(block);
 
   currentFunc_ = func;
   allocaMap_.clear();
+  varTypes_.clear();
 
+  std::vector<Type> paramTypes =
+      SemanticAnalyzer::parseParamTypes(node.params());
+
+  unsigned idx = 0;
   for (auto &arg : func->args()) {
+    std::string name = arg.getName().str();
     llvm::AllocaInst *alloca =
-        createEntryBlockAlloca(func, arg.getName().str(), arg.getType());
-    allocaMap_[arg.getName().str()] = alloca;
+        createEntryBlockAlloca(func, name, arg.getType());
+    allocaMap_[name] = alloca;
+    varTypes_[name] = paramTypes[idx++];
     builder_.CreateStore(&arg, alloca);
   }
 
@@ -49,37 +41,42 @@ void IRGenerator::visit(const AST::FuncDeclNode &node) {
 
   llvm::BasicBlock *currentBlock = builder_.GetInsertBlock();
   if (!currentBlock->getTerminator()) {
-    if (retType == Type::Void) {
+    if (retType.isVoid()) {
       builder_.CreateRetVoid();
     } else {
-      builder_.CreateRet(llvm::ConstantInt::get(llvmRetType, 0));
+      // getNullValue works for every return type, including floats and
+      // pointers, where a zero i32 constant would not.
+      builder_.CreateRet(llvm::Constant::getNullValue(llvmRetType));
     }
   }
 
   currentFunc_ = nullptr;
 }
 
-void IRGenerator::visit(const AST::FuncCallNode &node) {
+// The prototype pass already emitted the declaration; nothing is left to do.
+void IRGenerator::visit(const AST::ExternFuncDeclNode &node) {
+  declarePrototype(node.name().value, node.returnType(), node.params());
+}
+
+llvm::Value *IRGenerator::generateCall(const AST::FuncCallNode &node) {
   llvm::Function *func = module_->getFunction(node.name().value);
-  if (!func)
+  if (!func) {
     throw Error("undefined function: " + node.name().value);
+  }
 
   std::vector<llvm::Value *> args;
   auto *argsNode = dynamic_cast<const AST::ArgListNode *>(node.args());
-
   if (argsNode) {
     for (auto &arg : argsNode->args()) {
-      llvm::Value *llvmArg = generateExpr(arg.get());
-      args.push_back(llvmArg);
+      args.push_back(generateExpr(arg.get()));
     }
   }
 
-  llvm::CallInst *call = builder_.CreateCall(func, args);
-
-  if (!func->getReturnType()->isVoidTy()) {
-    call->setName("unused_call");
-  }
+  return builder_.CreateCall(
+      func, args, func->getReturnType()->isVoidTy() ? "" : "calltmp");
 }
+
+void IRGenerator::visit(const AST::FuncCallNode &node) { generateCall(node); }
 
 void IRGenerator::visit(const AST::ReturnStmtNode &node) {
   llvm::Value *retVal = generateExpr(node.expr());

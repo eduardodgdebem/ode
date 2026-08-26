@@ -1,0 +1,25 @@
+// Taking addresses, reading and writing through pointers, and pointers to
+// pointers.
+
+fn increment(target: *i32): void {
+  *target = *target + 1;
+}
+
+fn main(): i32 {
+  let value: i32 = 41;
+  let pointer: *i32 = &value;
+
+  print(*pointer);
+
+  // Writing through the pointer updates the variable it points at.
+  *pointer = 100;
+  print(value);
+
+  increment(&value);
+  print(value);
+
+  let alias: **i32 = &pointer;
+  print(**alias);
+
+  return 0;
+}

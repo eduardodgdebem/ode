@@ -5,11 +5,14 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
   static const Token::TokenTypeMap tokens = {
       {"let", Token::Type::Let},         {"while", Token::Type::While},
       {"fn", Token::Type::Fn},           {"if", Token::Type::If},
+      {"extern", Token::Type::Extern},   {"as", Token::Type::As},
       {"else", Token::Type::Else},       {"return", Token::Type::Return},
       {"print", Token::Type::Print},     {"true", Token::Type::Boolean},
-      {"false", Token::Type::Boolean},   {"i32", Token::Type::Type},
-      {"f32", Token::Type::Type},        {"bool", Token::Type::Type},
-      {"void", Token::Type::Type},       {"char", Token::Type::Type},
+      {"false", Token::Type::Boolean},   {"i8", Token::Type::Type},
+      {"u8", Token::Type::Type},         {"i32", Token::Type::Type},
+      {"i64", Token::Type::Type},        {"u64", Token::Type::Type},
+      {"usize", Token::Type::Type},      {"f32", Token::Type::Type},
+      {"bool", Token::Type::Type},       {"void", Token::Type::Type},
       {"=", Token::Type::Assign},        {"==", Token::Type::Equal},
       {"!=", Token::Type::NotEqual},     {"<", Token::Type::Less},
       {"<=", Token::Type::LessEqual},    {">", Token::Type::Greater},
@@ -20,7 +23,8 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {")", Token::Type::RParen},        {"{", Token::Type::LBrace},
       {"}", Token::Type::RBrace},        {";", Token::Type::Semicolon},
       {",", Token::Type::Comma},         {":", Token::Type::Colon},
-      {"\"", Token::Type::DoubleQuotes}, {"!", Token::Type::Not}};
+      {"\"", Token::Type::DoubleQuotes}, {"!", Token::Type::Not},
+      {"&", Token::Type::Ampersand}};
 
   return tokens;
 }

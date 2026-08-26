@@ -1,0 +1,31 @@
+// Integer widths and explicit conversions. Integer literals are always i32,
+// so widening one to i64 needs an `as`.
+
+fn main(): i32 {
+  let big: i64 = 300 as i64;
+  print(big);
+
+  // 300 does not fit in 8 bits, so this truncates to 44.
+  let narrow: i8 = big as i8;
+  print(narrow);
+
+  // u8 zero-extends where i8 would sign-extend.
+  let unsigned: u8 = 200 as u8;
+  print(unsigned);
+
+  let asFloat: f32 = big as f32;
+  print(asFloat);
+
+  // Truncates toward zero.
+  let backToInt: i32 = 9.75 as i32;
+  print(backToInt);
+
+  let flag: bool = 1 as bool;
+  print(flag);
+
+  // usize is a spelling of u64.
+  let size: usize = 4096 as usize;
+  print(size);
+
+  return 0;
+}

@@ -1,7 +1,8 @@
 #include "SemanticAnalyzer.hpp"
 
-Symbol::Symbol(std::string name, Kind kind, Type type)
-    : name_(std::move(name)), kind_(kind), type_(type) {}
+Symbol::Symbol(std::string name, Kind kind, Type type, std::vector<Type> params)
+    : name_(std::move(name)), kind_(kind), type_(type),
+      params_(std::move(params)) {}
 
 SymbolTable::SymbolTable() { enterScope(); }
 
@@ -13,15 +14,15 @@ void SymbolTable::exitScope() {
   }
 }
 
-void SymbolTable::declare(const std::string &name, Symbol::Kind kind,
-                          Type type) {
+void SymbolTable::declare(const std::string &name, Symbol::Kind kind, Type type,
+                          std::vector<Type> params) {
   auto &current = scopes_.back();
   if (current.find(name) != current.end()) {
     throw SemanticAnalyzer::Error(
         std::format("symbol '{}' already declared in this scope", name));
   }
 
-  current.emplace(name, Symbol(name, kind, type));
+  current.emplace(name, Symbol(name, kind, type, std::move(params)));
 }
 
 const Symbol *SymbolTable::lookup(const std::string &name) const {

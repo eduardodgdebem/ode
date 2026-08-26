@@ -56,18 +56,20 @@ public:
     NodePtr expr_;
   };
 
+  // `target` is an lvalue expression: an identifier or a pointer
+  // dereference (`*p = v;`).
   class AssignNode : public Node {
   public:
-    AssignNode(Token name, NodePtr expr)
-        : name_(std::move(name)), expr_(std::move(expr)) {}
+    AssignNode(NodePtr target, NodePtr expr)
+        : target_(std::move(target)), expr_(std::move(expr)) {}
 
     void accept(Visitor &visitor) const override;
 
-    const Token &name() const { return name_; }
+    const Node *target() const { return target_.get(); }
     const Node *expr() const { return expr_.get(); }
 
   private:
-    Token name_;
+    NodePtr target_;
     NodePtr expr_;
   };
 
@@ -124,6 +126,26 @@ public:
     NodePtr returnType_;
     NodePtr params_;
     NodePtr body_;
+  };
+
+  // A body-less declaration of a function provided by the C runtime or
+  // another object file: `extern fn malloc(size: i64): *i8;`
+  class ExternFuncDeclNode : public Node {
+  public:
+    ExternFuncDeclNode(Token name, NodePtr returnType, NodePtr params)
+        : name_(std::move(name)), returnType_(std::move(returnType)),
+          params_(std::move(params)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Token &name() const { return name_; }
+    const Node *returnType() const { return returnType_.get(); }
+    const Node *params() const { return params_.get(); }
+
+  private:
+    Token name_;
+    NodePtr returnType_;
+    NodePtr params_;
   };
 
   class FuncCallNode : public Node {
@@ -210,6 +232,22 @@ public:
     NodePtr right_;
   };
 
+  // `expr as T`
+  class CastNode : public Node {
+  public:
+    CastNode(NodePtr expr, NodePtr type)
+        : expr_(std::move(expr)), type_(std::move(type)) {}
+
+    void accept(Visitor &visitor) const override;
+
+    const Node *expr() const { return expr_.get(); }
+    const Node *type() const { return type_.get(); }
+
+  private:
+    NodePtr expr_;
+    NodePtr type_;
+  };
+
   class NumberNode : public Node {
   public:
     explicit NumberNode(Token value) : value_(std::move(value)) {}
@@ -248,14 +286,17 @@ public:
 
   class TypeNode : public Node {
   public:
-    explicit TypeNode(Token type) : type_(std::move(type)) {}
+    explicit TypeNode(Token type, int pointerDepth = 0)
+        : type_(std::move(type)), pointerDepth_(pointerDepth) {}
 
     void accept(Visitor &visitor) const override;
 
     const Token &type() const { return type_; }
+    int pointerDepth() const { return pointerDepth_; }
 
   private:
     Token type_;
+    int pointerDepth_;
   };
 
   class ParamListNode : public Node {
@@ -299,12 +340,14 @@ public:
     virtual void visit(const IfStmtNode &node) = 0;
     virtual void visit(const WhileStmtNode &node) = 0;
     virtual void visit(const FuncDeclNode &node) = 0;
+    virtual void visit(const ExternFuncDeclNode &node) = 0;
     virtual void visit(const FuncCallNode &node) = 0;
     virtual void visit(const ReturnStmtNode &node) = 0;
     virtual void visit(const PrintStmtNode &node) = 0;
     virtual void visit(const ExprStmtNode &node) = 0;
     virtual void visit(const BinaryOpNode &node) = 0;
     virtual void visit(const UnaryOpNode &node) = 0;
+    virtual void visit(const CastNode &node) = 0;
     virtual void visit(const NumberNode &node) = 0;
     virtual void visit(const BooleanNode &node) = 0;
     virtual void visit(const IdentifierNode &node) = 0;
