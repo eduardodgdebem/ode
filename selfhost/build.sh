@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
-# Concatenates the self-hosted compiler's sources into the single file that
-# Ode's lack of modules requires, then compiles it with the C++ compiler.
+# Builds the compiler from the sources in this directory.
 #
 #   selfhost/build.sh [--ode <path>] [--out <path>]
 #
-# The concatenation order is the sources' name order, which is why they are
-# numbered. Order does not affect meaning -- signatures, globals and struct
-# names are all hoisted -- but a stable order keeps the generated file
-# diffable.
+# Ode has no modules, so the compiler has to be one file. Editing it as one
+# file would be miserable, so the sources are split here and concatenated in
+# name order into the file that actually gets compiled. Order does not affect
+# meaning -- signatures, globals and struct names are all hoisted before any
+# body is checked -- so the numbering only keeps the generated file diffable.
+#
+# The compiler is written in Ode, so something has to compile it first. With
+# no compiler present that is bootstrap/ode.ll, a checked-in copy of the
+# compiler's own output that clang can turn into a working binary.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SELFHOST_DIR="$ROOT_DIR/selfhost"
-ODE="$ROOT_DIR/build/ode1"
-OUT="$ROOT_DIR/build/ode2"
+SEED_IR="$ROOT_DIR/bootstrap/ode.ll"
+STAGE0="$ROOT_DIR/build/ode-stage0"
+ODE=""
+OUT="$ROOT_DIR/build/ode"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -32,15 +38,30 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+mkdir -p "$ROOT_DIR/build"
+
+# Nothing was named, so use the compiler already built if there is one and
+# seed from the checked-in IR if there is not.
+if [ -z "$ODE" ]; then
+  if [ -x "$OUT" ]; then
+    ODE="$OUT"
+  else
+    if [ ! -f "$SEED_IR" ]; then
+      echo "build.sh: no compiler at $OUT and no seed at $SEED_IR" >&2
+      exit 1
+    fi
+    echo "no compiler yet: seeding from $(basename "$SEED_IR")"
+    clang "$SEED_IR" -o "$STAGE0" -Wno-override-module
+    ODE="$STAGE0"
+  fi
+fi
+
 if [ ! -x "$ODE" ]; then
-  echo "build.sh: no compiler at $ODE (run: cmake --build ./build)" >&2
+  echo "build.sh: no compiler at $ODE" >&2
   exit 1
 fi
 
-mkdir -p "$(dirname "$OUT")"
 COMBINED="$OUT.ode"
-
-# shellcheck disable=SC2012
 SOURCES=$(ls "$SELFHOST_DIR"/*.ode | sort)
 
 {
@@ -57,6 +78,15 @@ SOURCES=$(ls "$SELFHOST_DIR"/*.ode | sort)
   done
 } >"$COMBINED"
 
-"$ODE" -o "$OUT" "$COMBINED"
+# The compiler cannot overwrite itself while it is running, so a build that
+# would land on the compiler in use goes to a temporary first.
+if [ "$ODE" = "$OUT" ]; then
+  "$ODE" -o "$OUT.new" "$COMBINED"
+  mv "$OUT.new" "$OUT"
+  mv "$OUT.new.ll" "$OUT.ll"
+  mv "$OUT.new.o" "$OUT.o"
+else
+  "$ODE" -o "$OUT" "$COMBINED"
+fi
 
 echo "built $OUT from $(wc -l <"$COMBINED" | tr -d ' ') lines"

@@ -26,7 +26,9 @@ FILTER=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --ode)
-      ODE="$2"
+      # Resolved now, because the checks run from a work directory where a
+      # relative path would no longer point at anything.
+      ODE="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
       shift 2
       ;;
     --update)
@@ -205,8 +207,9 @@ check_no_intermediates_flag() {
   [ -x "$out" ] && [ ! -e "$out.ll" ] && [ ! -e "$out.o" ]
 }
 
-# A path holding a space and a shell metacharacter must survive the linker,
-# which builds a command string for /bin/sh.
+# A path holding a space and a shell metacharacter must survive the linker.
+# There is no shell in it any more -- clang is run through fork and execvp --
+# but the check stays, because that is the property being relied on.
 check_hostile_output_path() {
   local out="$WORK_DIR/cli/a b \$(touch pwned);/prog"
   mkdir -p "$(dirname "$out")"

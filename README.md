@@ -1,17 +1,41 @@
 # Ode
 
-Ode is a simple imperative programming language, built for educational purposes. This repository contains the source code for the Ode compiler, which is written in C++ and uses LLVM for code generation.
+Ode is a simple imperative programming language, built for educational
+purposes. The compiler is **written in Ode** and compiles itself: it emits
+textual LLVM IR and hands it to `clang`.
 
 ## Building the Compiler
 
-To build the `ode` compiler, you need to have `cmake` and `llvm` installed on your system.
+You need `clang` on your `PATH`. Nothing else.
 
 ```bash
-cmake -B build -S .
-cmake --build ./build
+./selfhost/build.sh
 ```
 
-This will create the `ode` executable in the `build` directory.
+This writes the `ode` executable into `build/`.
+
+The compiler is written in the language it compiles, so something has to
+compile it first. With no compiler present, `build.sh` seeds one from
+`bootstrap/ode.ll` -- a checked-in copy of the compiler's own output that
+`clang` can turn into a working binary -- and uses that to build the real one
+from `selfhost/*.ode`. Once `build/ode` exists it builds itself from then on.
+
+```bash
+./selfhost/bootstrap.sh
+```
+
+runs the bootstrap to its fixed point: the compiler compiles its own sources,
+the result compiles them again, and the last two binaries must be
+byte-identical.
+
+After a change that makes the compiler depend on a language feature the seed
+predates, refresh the seed and commit it:
+
+```bash
+./selfhost/update-bootstrap.sh
+```
+
+A stale seed breaks the build for anyone starting from a fresh checkout.
 
 ## Diagnostics
 
@@ -72,14 +96,8 @@ against `tests/invalid/<name>.expected`. It exits non-zero if anything differs,
 and works in a temporary directory so the repository stays clean.
 
 ```bash
-cmake --build ./build          # the suite runs the compiler you just built
+./selfhost/build.sh            # the suite runs the compiler you just built
 ./tests/run_tests.sh
-```
-
-It is also registered with CTest:
-
-```bash
-ctest --test-dir build --output-on-failure
 ```
 
 `--filter <substring>` narrows a run to the cases whose name matches, and

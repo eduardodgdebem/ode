@@ -9,7 +9,7 @@
 let SOURCE_PATH: *i8 = "<none>";
 
 // Ode has no adjacent string literal concatenation, so this is one line.
-let USAGE: *i8 = "usage: ode1 [-o <path>] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n";
+let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n";
 
 // `path` without its directory and extension, which is what a bare `ode1
 // foo.ode` names its output.
@@ -49,6 +49,7 @@ fn main(argc: i32, argv: **i8): i32 {
   let wantAst: bool = false;
   let wantTypes: bool = false;
   let emitOnly: bool = false;
+  let keepIntermediates: bool = true;
   let path: *i8 = nullText();
   let output: *i8 = nullText();
 
@@ -64,6 +65,8 @@ fn main(argc: i32, argv: **i8): i32 {
       wantTypes = true;
     } else if (textEquals(argument, "--emit-llvm")) {
       emitOnly = true;
+    } else if (textEquals(argument, "--no-intermediates")) {
+      keepIntermediates = false;
     } else if (textEquals(argument, "-o")) {
       index = index + 1;
       if (index >= argc) {
@@ -154,16 +157,38 @@ fn main(argc: i32, argv: **i8): i32 {
     fail("cannot write the LLVM IR");
   }
 
-  let command: **i8 = malloc(sizeof(*i8) as i64 * 6 as i64) as **i8;
-  command[0] = "clang";
-  command[1] = irPath;
-  command[2] = "-o";
-  command[3] = output;
-  command[4] = "-Wno-override-module";
-  command[5] = 0 as i64 as *i8;
+  let objectPath: *i8 = withSuffix(output, ".o");
 
-  if (runProgram(command) != 0) {
+  // Assembling and linking are two runs of clang, which is what leaves a `.o`
+  // beside the `.ll` -- the two things worth looking at when codegen
+  // misbehaves.
+  let assemble: **i8 = malloc(sizeof(*i8) as i64 * 7 as i64) as **i8;
+  assemble[0] = "clang";
+  assemble[1] = "-c";
+  assemble[2] = irPath;
+  assemble[3] = "-o";
+  assemble[4] = objectPath;
+  assemble[5] = "-Wno-override-module";
+  assemble[6] = 0 as i64 as *i8;
+
+  if (runProgram(assemble) != 0) {
+    fail("assembling failed");
+  }
+
+  let link: **i8 = malloc(sizeof(*i8) as i64 * 5 as i64) as **i8;
+  link[0] = "clang";
+  link[1] = objectPath;
+  link[2] = "-o";
+  link[3] = output;
+  link[4] = 0 as i64 as *i8;
+
+  if (runProgram(link) != 0) {
     fail("linking failed");
+  }
+
+  if (!keepIntermediates) {
+    remove(irPath);
+    remove(objectPath);
   }
 
   return 0;

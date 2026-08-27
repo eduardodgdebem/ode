@@ -1,23 +1,25 @@
-# The self-hosted compiler
+# The compiler
 
-Ode's reason to exist is compiling itself. This directory holds the compiler
-written in Ode; `build/ode` (the C++ one) compiles it.
+Ode's reason to exist is compiling itself, and it now does. This directory
+holds the compiler, written in Ode. The C++ implementation it was ported from
+is gone; `bootstrap/ode.ll` is what a machine with no Ode compiler starts
+from.
 
 ## Building and testing
 
 ```bash
-cmake --build ./build      # the C++ compiler, which compiles the Ode one
-./selfhost/build.sh        # concatenate and compile -> build/ode1
-./selfhost/difftest.sh     # compare ode1 against ode, phase by phase
-./selfhost/bootstrap.sh    # run the bootstrap to its fixed point
+./selfhost/build.sh              # build the compiler -> build/ode
+./tests/run_tests.sh             # the regression suite
+./selfhost/bootstrap.sh          # run the bootstrap to its fixed point
+./selfhost/update-bootstrap.sh   # refresh the checked-in seed
 ```
 
-The compiler is self-hosting. `bootstrap.sh` has `ode1` compile the sources
-into `ode2` and `ode2` compile them into `ode3`, and checks that `ode2` and
-`ode3` are byte-identical. `ode1` is not expected to match them: it came out
-of a different compiler, through the LLVM API rather than from this
-compiler's own textual IR, so it differs in layout while meaning the same
-thing. `ode2` passes all 284 comparisons in `difftest.sh`, the same as `ode1`.
+`build.sh` seeds a compiler from `bootstrap/ode.ll` when there is none, then
+uses it to build the real one. `bootstrap.sh` goes further: the compiler
+compiles its own sources, the result compiles them again, and the last two
+binaries must be byte-identical. A compiler that miscompiles itself stops
+reproducing itself, which the fixed point catches even when every test
+passes.
 
 ## Why the sources are concatenated
 
@@ -48,10 +50,16 @@ stable and diffable, not to satisfy the compiler.
 
 ## How correctness is checked
 
-`difftest.sh` runs both compilers over every `examples/*.ode`, every
-`tests/invalid/*.ode`, and the self-hosted compiler's own source, and compares
-their output byte for byte. The C++ compiler is the reference; any difference
-is a porting bug.
+While the C++ compiler existed, `difftest.sh` ran both over every example,
+every rejection case and this compiler's own source, comparing tokens, trees,
+resolved types, diagnostics and program output byte for byte. All 284
+comparisons matched before it was removed, and every divergence it found is
+recorded below.
+
+With the reference gone, two things stand in its place: `tests/run_tests.sh`,
+which pins the output of every example and the diagnostic of every rejection
+case, and `bootstrap.sh`, which requires the compiler to reproduce itself
+exactly.
 
 Right now that means the token stream (`--dump-tokens`), the parsed tree
 (`--dump-ast`) and the tree with every resolved expression type
@@ -77,8 +85,8 @@ The dump formats are a contract. `ASTPrinter` in the C++ compiler and
 `80_dump.ode` here have to be changed together, and `difftest.sh` is what
 catches it when they are not.
 
-Real defects have come out of it already, none of which a by-eye reading would
-have caught:
+Every defect below came out of that comparison, and none would have been
+caught by reading:
 
 - Type names lex as their own kind, not as identifiers.
 - A leading `-` folds into a number literal, but only where the previous token
@@ -95,6 +103,12 @@ have caught:
 
 Comparing diagnostics is what found the last three of those. While only
 "both reject" was required, all three passed.
+
+Two more came out of porting error recovery, both from code that had been
+correct only because failure never returned: `parserExpect` reported the token
+it did not want and then consumed it anyway, swallowing the `}` recovery
+needed to see; and a pointer-typed global initialised from `0` emitted
+`global ptr 0`, which LLVM rejects.
 
 ## What the port has to stay inside
 
@@ -151,14 +165,14 @@ vector has no shell in it, so each argument arrives exactly as written. The
 cost is that `WIFEXITED` and `WEXITSTATUS` are C macros and have to be written
 out by hand.
 
-## What is not ported yet
+## What the compiler still does not do
 
-- **Error recovery.** The C++ compiler reports every error in a run; this one
-  stops at the first. Where the C++ compiler reports several errors,
-  `difftest.sh` can only require that both reject.
-- **Object files.** The C++ compiler emits a `.o` through LLVM and links that;
-  this one hands the `.ll` to clang and lets it do both.
-- **`-O` and the driver flags** beyond `-o` and `--emit-llvm`.
+- **No backend of its own.** It emits textual LLVM IR and runs `clang` twice,
+  once to assemble and once to link.
+- **No `-O`**, and no way to ask for optimisation.
+- **No unit tests.** A fault is found by bisecting a failing program, not by a
+  failing assertion. `bootstrap.sh` is the backstop: a compiler that
+  miscompiles itself stops reproducing itself.
 
 ## Where it is going
 
