@@ -21,6 +21,10 @@ extern fn fread(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
 extern fn fwrite(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
 extern fn fseek(stream: *i8, offset: i64, whence: i32): i32;
 extern fn ftell(stream: *i8): i64;
+extern fn fork(): i32;
+extern fn execvp(file: *i8, argv: **i8): i32;
+extern fn waitpid(pid: i32, status: *i32, options: i32): i32;
+extern fn _exit(code: i32): void;
 
 let STDOUT: i32 = 1;
 let STDERR: i32 = 2;
@@ -228,6 +232,42 @@ fn fail(message: *i8): void {
 
   writeText(STDERR, out.data);
   exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Running another program.
+//
+// `system` would hand the command to a shell, which would then need every
+// path quoted against spaces and metacharacters. Handing execvp an argument
+// vector removes the shell, and with it the quoting: each argument arrives
+// exactly as written.
+// ---------------------------------------------------------------------------
+
+// Returns the exit status, or -1 if the process could not be run or died on
+// a signal.
+fn runProgram(argv: **i8): i32 {
+  let pid: i32 = fork();
+
+  if (pid == 0) {
+    execvp(argv[0], argv);
+    // Only reached when exec failed. The child must not return into the
+    // parent's code, and must not flush the parent's buffers on the way out.
+    _exit(127);
+  }
+
+  if (pid < 0) {
+    return -1;
+  }
+
+  let status: *i32 = malloc(sizeof(i32) as i64) as *i32;
+  waitpid(pid, status, 0);
+
+  // WIFEXITED and WEXITSTATUS are macros in C, so they are written out here.
+  if ((*status & 127) != 0) {
+    return -1;
+  }
+
+  return (*status >> 8) & 255;
 }
 
 // ---------------------------------------------------------------------------

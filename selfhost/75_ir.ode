@@ -1,0 +1,1398 @@
+// ---------------------------------------------------------------------------
+// The IR emitter: textual LLVM IR, handed to clang.
+//
+// The C++ compiler builds IR through the LLVM API; this one writes the text.
+// That means the two cannot be compared byte for byte -- LLVM's printer picks
+// its own formatting and numbering -- so codegen is checked by behaviour
+// instead: compile every example, run it, and diff against the output the C++
+// compiler's binary produces.
+//
+// Temporaries and labels are named (%t0, L0) rather than numbered, because
+// LLVM requires unnamed values to run 0, 1, 2... with no gaps, counting the
+// parameters. Naming them sidesteps the rule entirely.
+// ---------------------------------------------------------------------------
+
+struct Local {
+  name: *i8,
+  // The alloca holding it, as a register name.
+  reg: *i8,
+  type: Type,
+}
+
+struct Emitter {
+  ast: *Ast,
+  an: *Analyzer,
+  // Struct bodies, string constants, globals and declarations.
+  head: *Buf,
+  // Function definitions.
+  body: *Buf,
+  nextTemp: i32,
+  nextLabel: i32,
+  nextString: i32,
+  // Whether the block being written already ended in a terminator, so that
+  // anything after a `return` opens a new block instead of emitting into a
+  // closed one.
+  terminated: bool,
+
+  locals: *Local,
+  localCount: i32,
+  localCapacity: i32,
+  scopeStarts: *i32,
+  scopeCount: i32,
+  scopeCapacity: i32,
+
+  // `continue` goes to the condition, `break` to the block after the loop.
+  loopContinue: **i8,
+  loopBreak: **i8,
+  loopCount: i32,
+  loopCapacity: i32,
+}
+
+fn emitterNew(ast: *Ast, an: *Analyzer): *Emitter {
+  let e: *Emitter = malloc(sizeof(Emitter) as i64) as *Emitter;
+  e.ast = ast;
+  e.an = an;
+  e.head = bufNew();
+  e.body = bufNew();
+  e.nextTemp = 0;
+  e.nextLabel = 0;
+  e.nextString = 0;
+  e.terminated = false;
+
+  e.localCapacity = 64;
+  e.localCount = 0;
+  e.locals = malloc(sizeof(Local) as i64 * e.localCapacity as i64) as *Local;
+  e.scopeCapacity = 32;
+  e.scopeCount = 0;
+  e.scopeStarts = malloc(sizeof(i32) as i64 * e.scopeCapacity as i64) as *i32;
+
+  e.loopCapacity = 16;
+  e.loopCount = 0;
+  e.loopContinue = malloc(sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+  e.loopBreak = malloc(sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+
+  return e;
+}
+
+// ---------------------------------------------------------------------------
+// Names and lines.
+// ---------------------------------------------------------------------------
+
+fn freshTemp(e: *Emitter): *i8 {
+  let name: *Buf = bufNew();
+  bufAdd(name, "%t");
+  bufAddInt(name, e.nextTemp as i64);
+  e.nextTemp = e.nextTemp + 1;
+
+  return bufTake(name);
+}
+
+fn freshLabel(e: *Emitter): *i8 {
+  let name: *Buf = bufNew();
+  bufAdd(name, "L");
+  bufAddInt(name, e.nextLabel as i64);
+  e.nextLabel = e.nextLabel + 1;
+
+  return bufTake(name);
+}
+
+fn emitLine(e: *Emitter, text: *i8): void {
+  bufAdd(e.body, "  ");
+  bufAdd(e.body, text);
+  bufPush(e.body, '\n');
+}
+
+fn emitLabel(e: *Emitter, label: *i8): void {
+  bufAdd(e.body, label);
+  bufAdd(e.body, ":\n");
+  e.terminated = false;
+}
+
+fn emitBranch(e: *Emitter, label: *i8): void {
+  if (e.terminated) {
+    return;
+  }
+
+  let line: *Buf = bufNew();
+  bufAdd(line, "br label %");
+  bufAdd(line, label);
+  emitLine(e, line.data);
+  e.terminated = true;
+}
+
+fn emitCondBranch(e: *Emitter, condition: *i8, whenTrue: *i8,
+                  whenFalse: *i8): void {
+  if (e.terminated) {
+    return;
+  }
+
+  let line: *Buf = bufNew();
+  bufAdd(line, "br i1 ");
+  bufAdd(line, condition);
+  bufAdd(line, ", label %");
+  bufAdd(line, whenTrue);
+  bufAdd(line, ", label %");
+  bufAdd(line, whenFalse);
+  emitLine(e, line.data);
+  e.terminated = true;
+}
+
+// ---------------------------------------------------------------------------
+// Types, sizes and alignment.
+//
+// The sizes have to agree with what LLVM computes for the target, because
+// `sizeof` and pointer arithmetic are built on them. These are the rules LLVM
+// uses for a non-packed struct: every field starts at its own alignment, and
+// the whole is rounded up to the widest field's.
+// ---------------------------------------------------------------------------
+
+fn llvmTypeName(type: Type): *i8 {
+  // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.
+  if (typeIsPointer(type)) {
+    return "ptr";
+  }
+
+  if (type.kind == TY_STRUCT) {
+    let name: *Buf = bufNew();
+    bufPush(name, '%');
+    bufAdd(name, type.structName);
+    return bufTake(name);
+  }
+
+  if (type.kind == TY_I8 || type.kind == TY_U8) { return "i8"; }
+  if (type.kind == TY_I16 || type.kind == TY_U16) { return "i16"; }
+  if (type.kind == TY_I32 || type.kind == TY_U32) { return "i32"; }
+  if (type.kind == TY_I64 || type.kind == TY_U64) { return "i64"; }
+  if (type.kind == TY_F32) { return "float"; }
+  if (type.kind == TY_F64) { return "double"; }
+  if (type.kind == TY_BOOL) { return "i1"; }
+  if (type.kind == TY_VOID) { return "void"; }
+
+  return "void";
+}
+
+fn alignOfType(e: *Emitter, type: Type): i32 {
+  if (typeIsPointer(type)) {
+    return 8;
+  }
+
+  if (type.kind == TY_STRUCT) {
+    let structIndex: i32 = structIndexOf(e.an.structs, type.structName);
+    let widest: i32 = 1;
+    let index: i32 = 0;
+
+    while (index < e.an.structs.items[structIndex].count) {
+      let fieldAlign: i32 =
+          alignOfType(e, e.an.structs.items[structIndex].fields[index].type);
+      if (fieldAlign > widest) {
+        widest = fieldAlign;
+      }
+      index = index + 1;
+    }
+
+    return widest;
+  }
+
+  if (type.kind == TY_BOOL) { return 1; }
+
+  let bits: i32 = typeBitWidth(type);
+  if (bits == 0) {
+    return 1;
+  }
+
+  return bits / 8;
+}
+
+fn alignUp(value: i32, alignment: i32): i32 {
+  let remainder: i32 = value % alignment;
+  if (remainder == 0) {
+    return value;
+  }
+
+  return value + alignment - remainder;
+}
+
+fn sizeOfType(e: *Emitter, type: Type): i32 {
+  if (typeIsPointer(type)) {
+    return 8;
+  }
+
+  if (type.kind == TY_STRUCT) {
+    let structIndex: i32 = structIndexOf(e.an.structs, type.structName);
+    let offset: i32 = 0;
+    let index: i32 = 0;
+
+    while (index < e.an.structs.items[structIndex].count) {
+      let fieldType: Type = e.an.structs.items[structIndex].fields[index].type;
+      offset = alignUp(offset, alignOfType(e, fieldType));
+      offset = offset + sizeOfType(e, fieldType);
+      index = index + 1;
+    }
+
+    return alignUp(offset, alignOfType(e, type));
+  }
+
+  // An i1 occupies a whole byte once it is stored.
+  if (type.kind == TY_BOOL) { return 1; }
+  if (type.kind == TY_VOID) { return 0; }
+
+  return typeBitWidth(type) / 8;
+}
+
+fn zeroValue(type: Type): *i8 {
+  if (typeIsPointer(type)) { return "null"; }
+  if (type.kind == TY_STRUCT) { return "zeroinitializer"; }
+  if (type.kind == TY_BOOL) { return "false"; }
+  if (type.kind == TY_F32 || type.kind == TY_F64) { return "0.0"; }
+
+  return "0";
+}
+
+// ---------------------------------------------------------------------------
+// Locals.
+// ---------------------------------------------------------------------------
+
+fn emitterEnterScope(e: *Emitter): void {
+  if (e.scopeCount == e.scopeCapacity) {
+    e.scopeCapacity = e.scopeCapacity * 2;
+    e.scopeStarts = realloc(e.scopeStarts as *i8,
+                            sizeof(i32) as i64 * e.scopeCapacity as i64) as *i32;
+  }
+
+  e.scopeStarts[e.scopeCount] = e.localCount;
+  e.scopeCount = e.scopeCount + 1;
+}
+
+fn emitterExitScope(e: *Emitter): void {
+  e.scopeCount = e.scopeCount - 1;
+  e.localCount = e.scopeStarts[e.scopeCount];
+}
+
+fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
+  if (e.localCount == e.localCapacity) {
+    e.localCapacity = e.localCapacity * 2;
+    e.locals = realloc(e.locals as *i8,
+                       sizeof(Local) as i64 * e.localCapacity as i64) as *Local;
+  }
+
+  e.locals[e.localCount].name = name;
+  e.locals[e.localCount].reg = reg;
+  e.locals[e.localCount].type = type;
+  e.localCount = e.localCount + 1;
+}
+
+// Innermost first, so a shadowed name resolves to the slot the analyzer
+// type-checked it against. A miss means the name is a module-level global.
+fn variableAddress(e: *Emitter, name: *i8): *i8 {
+  let index: i32 = e.localCount - 1;
+
+  while (index >= 0) {
+    if (textEquals(e.locals[index].name, name)) {
+      return e.locals[index].reg;
+    }
+    index = index - 1;
+  }
+
+  let global: *Buf = bufNew();
+  bufPush(global, '@');
+  bufAdd(global, name);
+
+  return bufTake(global);
+}
+
+// ---------------------------------------------------------------------------
+// Constants.
+// ---------------------------------------------------------------------------
+
+// One byte of an LLVM string constant. Anything outside plain printable ASCII
+// is written as \XX, and so are the quote and the backslash.
+fn emitIRByte(out: *Buf, value: i8): void {
+  let code: i32 = value as i32;
+  if (code < 0) {
+    code = code + 256;
+  }
+
+  if (code >= 32 && code < 127 && value != '"' && value != '\\') {
+    bufPush(out, value);
+    return;
+  }
+
+  bufPush(out, '\\');
+  bufPush(out, hexDigit(code / 16));
+  bufPush(out, hexDigit(code % 16));
+}
+
+fn hexDigit(value: i32): i8 {
+  if (value < 10) {
+    return ('0' as i32 + value) as i8;
+  }
+
+  return ('A' as i32 + value - 10) as i8;
+}
+
+// Adds a private constant for a string literal and returns its name.
+fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
+  let name: *Buf = bufNew();
+  bufAdd(name, "@.str.");
+  bufAddInt(name, e.nextString as i64);
+  e.nextString = e.nextString + 1;
+  let symbol: *i8 = bufTake(name);
+
+  bufAdd(e.head, symbol);
+  bufAdd(e.head, " = private unnamed_addr constant [");
+  bufAddInt(e.head, length + 1 as i64);
+  bufAdd(e.head, " x i8] c\"");
+
+  let index: i64 = 0 as i64;
+  while (index < length) {
+    emitIRByte(e.head, text[index]);
+    index = index + 1 as i64;
+  }
+
+  bufAdd(e.head, "\\00\"\n");
+
+  return symbol;
+}
+
+// ---------------------------------------------------------------------------
+// Expressions.
+// ---------------------------------------------------------------------------
+
+fn typeOfNode(e: *Emitter, node: i32): Type {
+  return e.an.types[node];
+}
+
+// Emits `%t = <op>` and returns the temporary.
+fn emitAssign(e: *Emitter, instruction: *i8): *i8 {
+  let temp: *i8 = freshTemp(e);
+  let line: *Buf = bufNew();
+  bufAdd(line, temp);
+  bufAdd(line, " = ");
+  bufAdd(line, instruction);
+  emitLine(e, line.data);
+
+  return temp;
+}
+
+fn emitLoad(e: *Emitter, type: Type, address: *i8): *i8 {
+  let line: *Buf = bufNew();
+  bufAdd(line, "load ");
+  bufAdd(line, llvmTypeName(type));
+  bufAdd(line, ", ptr ");
+  bufAdd(line, address);
+
+  return emitAssign(e, line.data);
+}
+
+fn emitStore(e: *Emitter, type: Type, value: *i8, address: *i8): void {
+  let line: *Buf = bufNew();
+  bufAdd(line, "store ");
+  bufAdd(line, llvmTypeName(type));
+  bufPush(line, ' ');
+  bufAdd(line, value);
+  bufAdd(line, ", ptr ");
+  bufAdd(line, address);
+  emitLine(e, line.data);
+}
+
+fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
+  if (typeEquals(from, to)) {
+    return value;
+  }
+
+  let target: *i8 = llvmTypeName(to);
+  let source: *i8 = llvmTypeName(from);
+
+  // Opaque pointers: pointer to pointer is not a conversion at all.
+  if (typeIsPointer(from) && typeIsPointer(to)) {
+    return value;
+  }
+
+  let opcode: *i8 = nullText();
+
+  if (typeIsPointer(from) && typeIsInteger(to)) {
+    opcode = "ptrtoint";
+  } else if (typeIsInteger(from) && typeIsPointer(to)) {
+    opcode = "inttoptr";
+  } else if (typeIsBool(from)) {
+    // An i1 always widens without sign extension.
+    opcode = "zext";
+  } else if (typeIsBool(to)) {
+    let line: *Buf = bufNew();
+    bufAdd(line, "icmp ne ");
+    bufAdd(line, source);
+    bufPush(line, ' ');
+    bufAdd(line, value);
+    bufAdd(line, ", ");
+    bufAdd(line, zeroValue(from));
+    return emitAssign(e, line.data);
+  } else if (typeIsInteger(from) && typeIsInteger(to)) {
+    if (typeBitWidth(to) == typeBitWidth(from)) {
+      return value;
+    }
+    if (typeBitWidth(to) < typeBitWidth(from)) {
+      opcode = "trunc";
+    } else if (typeIsSigned(from)) {
+      opcode = "sext";
+    } else {
+      opcode = "zext";
+    }
+  } else if (typeIsInteger(from) && typeIsFloat(to)) {
+    if (typeIsSigned(from)) {
+      opcode = "sitofp";
+    } else {
+      opcode = "uitofp";
+    }
+  } else if (typeIsFloat(from) && typeIsInteger(to)) {
+    if (typeIsSigned(to)) {
+      opcode = "fptosi";
+    } else {
+      opcode = "fptoui";
+    }
+  } else if (typeIsFloat(from) && typeIsFloat(to)) {
+    // f32 and f64 are distinct LLVM types, so this is a real conversion.
+    if (typeBitWidth(to) > typeBitWidth(from)) {
+      opcode = "fpext";
+    } else {
+      opcode = "fptrunc";
+    }
+  } else {
+    failAt(0, 0, "cannot cast in codegen");
+  }
+
+  let line: *Buf = bufNew();
+  bufAdd(line, opcode);
+  bufPush(line, ' ');
+  bufAdd(line, source);
+  bufPush(line, ' ');
+  bufAdd(line, value);
+  bufAdd(line, " to ");
+  bufAdd(line, target);
+
+  return emitAssign(e, line.data);
+}
+
+fn isAddressable(e: *Emitter, node: i32): bool {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  if (kind == NK_IDENT || kind == NK_FIELDACCESS || kind == NK_INDEX) {
+    return true;
+  }
+  if (kind == NK_UNARY) {
+    return textEquals(e.ast.nodes[node].text, "*");
+  }
+
+  return false;
+}
+
+fn genAddress(e: *Emitter, node: i32): *i8 {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  if (kind == NK_IDENT) {
+    return variableAddress(e, e.ast.nodes[node].text);
+  }
+
+  if (kind == NK_FIELDACCESS) {
+    let object: i32 = e.ast.nodes[node].a;
+    let objectType: Type = typeOfNode(e, object);
+
+    // `p.field` follows one level of pointer automatically, so the base is
+    // either the pointer's value or the address of a struct variable.
+    let base: *i8 = nullText();
+    let structType: Type = objectType;
+    if (typeIsPointer(objectType)) {
+      base = genExpr(e, object);
+      structType = typePointee(objectType);
+    } else {
+      base = genAddress(e, object);
+    }
+
+    let structIndex: i32 = structIndexOf(e.an.structs, structType.structName);
+    let fieldIndex: i32 =
+        structFieldIndex(e.an.structs, structIndex, e.ast.nodes[node].text);
+
+    let line: *Buf = bufNew();
+    bufAdd(line, "getelementptr inbounds ");
+    bufAdd(line, llvmTypeName(structType));
+    bufAdd(line, ", ptr ");
+    bufAdd(line, base);
+    bufAdd(line, ", i32 0, i32 ");
+    bufAddInt(line, fieldIndex as i64);
+
+    return emitAssign(e, line.data);
+  }
+
+  if (kind == NK_INDEX) {
+    let base: i32 = e.ast.nodes[node].a;
+    let baseType: Type = typeOfNode(e, base);
+    let pointer: *i8 = genExpr(e, base);
+
+    let indexNode: i32 = e.ast.nodes[node].b;
+    let offset: *i8 = emitCast(e, genExpr(e, indexNode),
+                               typeOfNode(e, indexNode), typeMake(TY_I64, 0));
+
+    let line: *Buf = bufNew();
+    bufAdd(line, "getelementptr inbounds ");
+    bufAdd(line, llvmTypeName(typePointee(baseType)));
+    bufAdd(line, ", ptr ");
+    bufAdd(line, pointer);
+    bufAdd(line, ", i64 ");
+    bufAdd(line, offset);
+
+    return emitAssign(e, line.data);
+  }
+
+  // For `*p` the address to read or write is simply the value of `p`.
+  if (kind == NK_UNARY) {
+    return genExpr(e, e.ast.nodes[node].a);
+  }
+
+  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
+         "expression does not denote an addressable location");
+  return nullText();
+}
+
+// `&&` and `||` evaluate their right operand only when the left does not
+// already decide the result, so they branch rather than emitting a bitwise
+// instruction.
+fn genShortCircuit(e: *Emitter, node: i32): *i8 {
+  let isAnd: bool = textEquals(e.ast.nodes[node].text, "&&");
+
+  let slot: *i8 = emitAssign(e, "alloca i1");
+  let left: *i8 = genExpr(e, e.ast.nodes[node].a);
+  emitStore(e, typeMake(TY_BOOL, 0), left, slot);
+
+  let rightLabel: *i8 = freshLabel(e);
+  let doneLabel: *i8 = freshLabel(e);
+
+  if (isAnd) {
+    emitCondBranch(e, left, rightLabel, doneLabel);
+  } else {
+    emitCondBranch(e, left, doneLabel, rightLabel);
+  }
+
+  emitLabel(e, rightLabel);
+  let right: *i8 = genExpr(e, e.ast.nodes[node].b);
+  emitStore(e, typeMake(TY_BOOL, 0), right, slot);
+  emitBranch(e, doneLabel);
+
+  emitLabel(e, doneLabel);
+
+  return emitLoad(e, typeMake(TY_BOOL, 0), slot);
+}
+
+fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
+                        leftType: Type, rightType: Type): *i8 {
+  let i64Type: Type = typeMake(TY_I64, 0);
+
+  // p - q: a byte distance scaled down to a count of elements.
+  if (typeIsPointer(leftType) && typeIsPointer(rightType)) {
+    let leftInt: *i8 = emitCast(e, left, leftType, i64Type);
+    let rightInt: *i8 = emitCast(e, right, rightType, i64Type);
+
+    let subtraction: *Buf = bufNew();
+    bufAdd(subtraction, "sub i64 ");
+    bufAdd(subtraction, leftInt);
+    bufAdd(subtraction, ", ");
+    bufAdd(subtraction, rightInt);
+    let difference: *i8 = emitAssign(e, subtraction.data);
+
+    let elementSize: i32 = sizeOfType(e, typePointee(leftType));
+    if (elementSize <= 1) {
+      return difference;
+    }
+
+    let division: *Buf = bufNew();
+    bufAdd(division, "sdiv i64 ");
+    bufAdd(division, difference);
+    bufAdd(division, ", ");
+    bufAddInt(division, elementSize as i64);
+
+    return emitAssign(e, division.data);
+  }
+
+  let pointer: *i8 = left;
+  let offset: *i8 = right;
+  let pointerType: Type = leftType;
+  let offsetType: Type = rightType;
+
+  if (!typeIsPointer(leftType)) {
+    pointer = right;
+    offset = left;
+    pointerType = rightType;
+    offsetType = leftType;
+  }
+
+  // GEP indices are pointer-sized, so widen or narrow the offset to match.
+  offset = emitCast(e, offset, offsetType, i64Type);
+
+  // `p - i` is `p + (-i)`.
+  if (textEquals(e.ast.nodes[node].text, "-")) {
+    let negation: *Buf = bufNew();
+    bufAdd(negation, "sub i64 0, ");
+    bufAdd(negation, offset);
+    offset = emitAssign(e, negation.data);
+  }
+
+  let line: *Buf = bufNew();
+  bufAdd(line, "getelementptr inbounds ");
+  bufAdd(line, llvmTypeName(typePointee(pointerType)));
+  bufAdd(line, ", ptr ");
+  bufAdd(line, pointer);
+  bufAdd(line, ", i64 ");
+  bufAdd(line, offset);
+
+  return emitAssign(e, line.data);
+}
+
+// The instruction for a binary operator, given the operand type. Integer
+// division, remainder and the comparisons all differ by signedness, and the
+// float forms are different opcodes again.
+fn binaryOpcode(op: *i8, type: Type): *i8 {
+  let float: bool = typeIsFloat(type);
+  let signed: bool = typeIsSigned(type);
+
+  if (textEquals(op, "+")) { if (float) { return "fadd"; } return "add"; }
+  if (textEquals(op, "-")) { if (float) { return "fsub"; } return "sub"; }
+  if (textEquals(op, "*")) { if (float) { return "fmul"; } return "mul"; }
+  if (textEquals(op, "/")) {
+    if (float) { return "fdiv"; }
+    if (signed) { return "sdiv"; }
+    return "udiv";
+  }
+  if (textEquals(op, "%")) {
+    if (signed) { return "srem"; }
+    return "urem";
+  }
+  if (textEquals(op, "&")) { return "and"; }
+  if (textEquals(op, "|")) { return "or"; }
+  if (textEquals(op, "^")) { return "xor"; }
+  if (textEquals(op, "<<")) { return "shl"; }
+  if (textEquals(op, ">>")) {
+    if (signed) { return "ashr"; }
+    return "lshr";
+  }
+
+  // The comparisons. A pointer compares as an unsigned integer.
+  if (textEquals(op, "==")) { if (float) { return "fcmp oeq"; } return "icmp eq"; }
+  if (textEquals(op, "!=")) { if (float) { return "fcmp one"; } return "icmp ne"; }
+
+  if (textEquals(op, "<")) {
+    if (float) { return "fcmp olt"; }
+    if (signed) { return "icmp slt"; }
+    return "icmp ult";
+  }
+  if (textEquals(op, "<=")) {
+    if (float) { return "fcmp ole"; }
+    if (signed) { return "icmp sle"; }
+    return "icmp ule";
+  }
+  if (textEquals(op, ">")) {
+    if (float) { return "fcmp ogt"; }
+    if (signed) { return "icmp sgt"; }
+    return "icmp ugt";
+  }
+  if (textEquals(op, ">=")) {
+    if (float) { return "fcmp oge"; }
+    if (signed) { return "icmp sge"; }
+    return "icmp uge";
+  }
+
+  return "add";
+}
+
+fn genBinary(e: *Emitter, node: i32): *i8 {
+  let op: *i8 = e.ast.nodes[node].text;
+
+  if (textEquals(op, "&&") || textEquals(op, "||")) {
+    return genShortCircuit(e, node);
+  }
+
+  let leftNode: i32 = e.ast.nodes[node].a;
+  let rightNode: i32 = e.ast.nodes[node].b;
+  let leftType: Type = typeOfNode(e, leftNode);
+  let rightType: Type = typeOfNode(e, rightNode);
+
+  let left: *i8 = genExpr(e, leftNode);
+  let right: *i8 = genExpr(e, rightNode);
+
+  if (typeIsPointer(leftType) || typeIsPointer(rightType)) {
+    // A comparison of two pointers is an ordinary icmp; everything else is
+    // pointer arithmetic.
+    if (!textEquals(op, "==") && !textEquals(op, "!=") &&
+        !textEquals(op, "<") && !textEquals(op, "<=") &&
+        !textEquals(op, ">") && !textEquals(op, ">=")) {
+      return genPointerArithmetic(e, node, left, right, leftType, rightType);
+    }
+  }
+
+  let line: *Buf = bufNew();
+  bufAdd(line, binaryOpcode(op, leftType));
+  bufPush(line, ' ');
+  bufAdd(line, llvmTypeName(leftType));
+  bufPush(line, ' ');
+  bufAdd(line, left);
+  bufAdd(line, ", ");
+  bufAdd(line, right);
+
+  return emitAssign(e, line.data);
+}
+
+fn genUnary(e: *Emitter, node: i32): *i8 {
+  let op: *i8 = e.ast.nodes[node].text;
+  let operand: i32 = e.ast.nodes[node].a;
+
+  if (textEquals(op, "&")) {
+    return genAddress(e, operand);
+  }
+
+  if (textEquals(op, "*")) {
+    return emitLoad(e, typeOfNode(e, node), genExpr(e, operand));
+  }
+
+  let operandType: Type = typeOfNode(e, operand);
+  let value: *i8 = genExpr(e, operand);
+
+  if (textEquals(op, "+")) {
+    return value;
+  }
+
+  if (textEquals(op, "-")) {
+    let line: *Buf = bufNew();
+    if (typeIsFloat(operandType)) {
+      bufAdd(line, "fneg ");
+      bufAdd(line, llvmTypeName(operandType));
+      bufPush(line, ' ');
+      bufAdd(line, value);
+    } else {
+      bufAdd(line, "sub ");
+      bufAdd(line, llvmTypeName(operandType));
+      bufAdd(line, " 0, ");
+      bufAdd(line, value);
+    }
+    return emitAssign(e, line.data);
+  }
+
+  // Logical NOT on an i1 is a flip against true.
+  let line: *Buf = bufNew();
+  bufAdd(line, "xor i1 ");
+  bufAdd(line, value);
+  bufAdd(line, ", true");
+
+  return emitAssign(e, line.data);
+}
+
+fn genCall(e: *Emitter, node: i32): *i8 {
+  let name: *i8 = e.ast.nodes[node].text;
+  let symbol: i32 = symbolFind(e.an.symbols, name);
+  let returnType: Type = e.an.symbols.items[symbol].type;
+
+  let args: i32 = e.ast.nodes[node].a;
+  let argCount: i32 = 0;
+  if (args != NO_NODE) {
+    argCount = e.ast.nodes[args].itemCount;
+  }
+
+  // Every argument is evaluated before the call is written, because each one
+  // may emit instructions of its own.
+  let values: **i8 = malloc(sizeof(*i8) as i64 * (argCount + 1) as i64) as **i8;
+  let index: i32 = 0;
+  while (index < argCount) {
+    values[index] = genExpr(e, e.ast.nodes[args].items[index]);
+    index = index + 1;
+  }
+
+  let line: *Buf = bufNew();
+  bufAdd(line, "call ");
+  bufAdd(line, llvmTypeName(returnType));
+  bufAdd(line, " @");
+  bufAdd(line, name);
+  bufPush(line, '(');
+
+  index = 0;
+  while (index < argCount) {
+    if (index > 0) {
+      bufAdd(line, ", ");
+    }
+    bufAdd(line, llvmTypeName(e.an.symbols.items[symbol].params[index]));
+    bufPush(line, ' ');
+    bufAdd(line, values[index]);
+    index = index + 1;
+  }
+  bufPush(line, ')');
+
+  // A void call has no value to name.
+  if (typeIsVoid(returnType)) {
+    emitLine(e, line.data);
+    return "";
+  }
+
+  return emitAssign(e, line.data);
+}
+
+fn genStructLiteral(e: *Emitter, node: i32): *i8 {
+  let name: *i8 = e.ast.nodes[node].text;
+  let type: Type = typeStruct(name, 0);
+  let structIndex: i32 = structIndexOf(e.an.structs, name);
+  let typeName: *i8 = llvmTypeName(type);
+
+  // Built up field by field from `undef`, which needs no storage.
+  let current: *i8 = "undef";
+  let index: i32 = 0;
+
+  while (index < e.ast.nodes[node].itemCount) {
+    let init: i32 = e.ast.nodes[node].items[index];
+    let fieldIndex: i32 =
+        structFieldIndex(e.an.structs, structIndex, e.ast.nodes[init].text);
+    let fieldType: Type =
+        e.an.structs.items[structIndex].fields[fieldIndex].type;
+    let value: *i8 = genExpr(e, e.ast.nodes[init].a);
+
+    let line: *Buf = bufNew();
+    bufAdd(line, "insertvalue ");
+    bufAdd(line, typeName);
+    bufPush(line, ' ');
+    bufAdd(line, current);
+    bufAdd(line, ", ");
+    bufAdd(line, llvmTypeName(fieldType));
+    bufPush(line, ' ');
+    bufAdd(line, value);
+    bufAdd(line, ", ");
+    bufAddInt(line, fieldIndex as i64);
+
+    current = emitAssign(e, line.data);
+    index = index + 1;
+  }
+
+  return current;
+}
+
+// A float literal is written in LLVM's hexadecimal form only when it has to
+// be; plain decimal text round-trips for everything the language can express.
+fn genNumberLiteral(e: *Emitter, node: i32): *i8 {
+  let type: Type = typeOfNode(e, node);
+  let text: *i8 = e.ast.nodes[node].text;
+
+  if (typeIsFloat(type)) {
+    // LLVM wants a decimal point in a floating literal.
+    if (!textHasDot(text, strlen(text))) {
+      let out: *Buf = bufNew();
+      bufAdd(out, text);
+      bufAdd(out, ".0");
+      return bufTake(out);
+    }
+    return text;
+  }
+
+  return text;
+}
+
+fn genExpr(e: *Emitter, node: i32): *i8 {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  if (kind == NK_NUMBER) { return genNumberLiteral(e, node); }
+
+  if (kind == NK_BOOL) {
+    if (textEquals(e.ast.nodes[node].text, "true")) {
+      return "true";
+    }
+    return "false";
+  }
+
+  if (kind == NK_CHAR) {
+    let value: i32 = e.ast.nodes[node].text[0] as i32;
+    if (value < 0) {
+      value = value + 256;
+    }
+    // An i8 is signed, so a byte above 127 is written as its negative form.
+    if (value > 127) {
+      value = value - 256;
+    }
+    return intToText(value as i64);
+  }
+
+  if (kind == NK_STRING) {
+    return internString(e, e.ast.nodes[node].text,
+                        e.ast.nodes[node].textLength);
+  }
+
+  if (kind == NK_IDENT) {
+    return emitLoad(e, typeOfNode(e, node),
+                    variableAddress(e, e.ast.nodes[node].text));
+  }
+
+  if (kind == NK_BINARY) { return genBinary(e, node); }
+  if (kind == NK_UNARY) { return genUnary(e, node); }
+  if (kind == NK_CALL) { return genCall(e, node); }
+  if (kind == NK_STRUCTLIT) { return genStructLiteral(e, node); }
+
+  if (kind == NK_CAST) {
+    let from: Type = typeOfNode(e, e.ast.nodes[node].a);
+    let to: Type = typeOfNode(e, node);
+    return emitCast(e, genExpr(e, e.ast.nodes[node].a), from, to);
+  }
+
+  if (kind == NK_SIZEOF) {
+    let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+    return intToText(sizeOfType(e, type) as i64);
+  }
+
+  if (kind == NK_FIELDACCESS) {
+    let object: i32 = e.ast.nodes[node].a;
+    let objectType: Type = typeOfNode(e, object);
+
+    // A struct with no storage -- a call result, say -- cannot be GEPed into,
+    // so the field is read straight out of the aggregate value.
+    if (!typeIsPointer(objectType) && !isAddressable(e, object)) {
+      let structIndex: i32 = structIndexOf(e.an.structs, objectType.structName);
+      let fieldIndex: i32 =
+          structFieldIndex(e.an.structs, structIndex, e.ast.nodes[node].text);
+
+      let line: *Buf = bufNew();
+      bufAdd(line, "extractvalue ");
+      bufAdd(line, llvmTypeName(objectType));
+      bufPush(line, ' ');
+      bufAdd(line, genExpr(e, object));
+      bufAdd(line, ", ");
+      bufAddInt(line, fieldIndex as i64);
+
+      return emitAssign(e, line.data);
+    }
+
+    return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
+  }
+
+  if (kind == NK_INDEX) {
+    return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
+  }
+
+  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
+         "unsupported expression in code generation");
+  return nullText();
+}
+
+// ---------------------------------------------------------------------------
+// Statements.
+// ---------------------------------------------------------------------------
+
+// The printf format for a value of this type, and whether the argument needs
+// the default promotions a variadic call performs.
+fn printFormat(type: Type): *i8 {
+  if (typeIsPointer(type)) {
+    // `*i8` is Ode's string type, so it prints as text. Any other pointer
+    // prints as an address.
+    if (type.kind == TY_I8 && type.pointerDepth == 1) {
+      return "%s\n";
+    }
+    return "%p\n";
+  }
+
+  if (type.kind == TY_BOOL || type.kind == TY_I8 || type.kind == TY_I16 ||
+      type.kind == TY_I32) {
+    return "%d\n";
+  }
+  if (type.kind == TY_U8 || type.kind == TY_U16 || type.kind == TY_U32) {
+    return "%u\n";
+  }
+  if (type.kind == TY_I64) { return "%lld\n"; }
+  if (type.kind == TY_U64) { return "%llu\n"; }
+  if (type.kind == TY_F32 || type.kind == TY_F64) { return "%f\n"; }
+
+  failAt(0, 0, "unsupported type for print statement");
+  return "";
+}
+
+fn genPrint(e: *Emitter, node: i32): void {
+  let expr: i32 = e.ast.nodes[node].a;
+  let type: Type = typeOfNode(e, expr);
+  let format: *i8 = printFormat(type);
+  let value: *i8 = genExpr(e, expr);
+
+  // The default argument promotions a variadic call performs: anything
+  // narrower than an int widens to i32, and an f32 widens to double.
+  let argType: Type = type;
+  if (!typeIsPointer(type)) {
+    if (typeIsBool(type) || (typeIsInteger(type) && typeBitWidth(type) < 32)) {
+      argType = typeMake(TY_I32, 0);
+      value = emitCast(e, value, type, argType);
+    } else if (type.kind == TY_F32) {
+      argType = typeMake(TY_F64, 0);
+      value = emitCast(e, value, type, argType);
+    }
+  }
+
+  let formatSymbol: *i8 = internString(e, format, strlen(format));
+
+  let line: *Buf = bufNew();
+  bufAdd(line, "call i32 (ptr, ...) @printf(ptr ");
+  bufAdd(line, formatSymbol);
+  bufAdd(line, ", ");
+  bufAdd(line, llvmTypeName(argType));
+  bufPush(line, ' ');
+  bufAdd(line, value);
+  bufPush(line, ')');
+
+  emitAssign(e, line.data);
+}
+
+fn genStatement(e: *Emitter, node: i32): void {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  // A struct declaration produced its type up front, and a nested function
+  // declaration is not reachable here.
+  if (kind == NK_STRUCT || kind == NK_EXTERN) {
+    return;
+  }
+
+  if (kind == NK_BLOCK) {
+    emitterEnterScope(e);
+    let index: i32 = 0;
+    while (index < e.ast.nodes[node].itemCount) {
+      genStatement(e, e.ast.nodes[node].items[index]);
+      index = index + 1;
+    }
+    emitterExitScope(e);
+    return;
+  }
+
+  if (kind == NK_VARDECL) {
+    let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+    let value: *i8 = genExpr(e, e.ast.nodes[node].b);
+
+    let allocation: *Buf = bufNew();
+    bufAdd(allocation, "alloca ");
+    bufAdd(allocation, llvmTypeName(type));
+    let slot: *i8 = emitAssign(e, allocation.data);
+
+    emitStore(e, type, value, slot);
+    // Bound after the initialiser, so `let x = x + 1;` reads the outer x.
+    declareLocal(e, e.ast.nodes[node].text, slot, type);
+    return;
+  }
+
+  if (kind == NK_ASSIGN) {
+    let target: i32 = e.ast.nodes[node].a;
+    let type: Type = typeOfNode(e, target);
+    let value: *i8 = genExpr(e, e.ast.nodes[node].b);
+    emitStore(e, type, value, genAddress(e, target));
+    return;
+  }
+
+  if (kind == NK_EXPRSTMT) {
+    genExpr(e, e.ast.nodes[node].a);
+    return;
+  }
+
+  if (kind == NK_PRINT) {
+    genPrint(e, node);
+    return;
+  }
+
+  if (kind == NK_RETURN) {
+    if (e.ast.nodes[node].a == NO_NODE) {
+      emitLine(e, "ret void");
+    } else {
+      let type: Type = typeOfNode(e, e.ast.nodes[node].a);
+      let value: *i8 = genExpr(e, e.ast.nodes[node].a);
+
+      let line: *Buf = bufNew();
+      bufAdd(line, "ret ");
+      bufAdd(line, llvmTypeName(type));
+      bufPush(line, ' ');
+      bufAdd(line, value);
+      emitLine(e, line.data);
+    }
+    e.terminated = true;
+    return;
+  }
+
+  if (kind == NK_IF) {
+    let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
+    let thenLabel: *i8 = freshLabel(e);
+    let elseLabel: *i8 = freshLabel(e);
+    let doneLabel: *i8 = freshLabel(e);
+
+    if (e.ast.nodes[node].c == NO_NODE) {
+      emitCondBranch(e, condition, thenLabel, doneLabel);
+    } else {
+      emitCondBranch(e, condition, thenLabel, elseLabel);
+    }
+
+    emitLabel(e, thenLabel);
+    genStatement(e, e.ast.nodes[node].b);
+    emitBranch(e, doneLabel);
+
+    if (e.ast.nodes[node].c != NO_NODE) {
+      emitLabel(e, elseLabel);
+      genStatement(e, e.ast.nodes[node].c);
+      emitBranch(e, doneLabel);
+    }
+
+    emitLabel(e, doneLabel);
+    return;
+  }
+
+  if (kind == NK_WHILE) {
+    let condLabel: *i8 = freshLabel(e);
+    let bodyLabel: *i8 = freshLabel(e);
+    let doneLabel: *i8 = freshLabel(e);
+
+    emitBranch(e, condLabel);
+    emitLabel(e, condLabel);
+    let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
+    emitCondBranch(e, condition, bodyLabel, doneLabel);
+
+    if (e.loopCount == e.loopCapacity) {
+      e.loopCapacity = e.loopCapacity * 2;
+      e.loopContinue = realloc(e.loopContinue as *i8,
+                               sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+      e.loopBreak = realloc(e.loopBreak as *i8,
+                            sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+    }
+    e.loopContinue[e.loopCount] = condLabel;
+    e.loopBreak[e.loopCount] = doneLabel;
+    e.loopCount = e.loopCount + 1;
+
+    emitLabel(e, bodyLabel);
+    genStatement(e, e.ast.nodes[node].b);
+    emitBranch(e, condLabel);
+
+    e.loopCount = e.loopCount - 1;
+    emitLabel(e, doneLabel);
+    return;
+  }
+
+  if (kind == NK_BREAK) {
+    emitBranch(e, e.loopBreak[e.loopCount - 1]);
+    // Anything written after this needs a block of its own to live in.
+    emitLabel(e, freshLabel(e));
+    return;
+  }
+
+  if (kind == NK_CONTINUE) {
+    emitBranch(e, e.loopContinue[e.loopCount - 1]);
+    emitLabel(e, freshLabel(e));
+    return;
+  }
+
+  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
+         "unsupported statement in code generation");
+}
+
+// ---------------------------------------------------------------------------
+// Functions and the module.
+// ---------------------------------------------------------------------------
+
+fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
+  let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+
+  bufAdd(out, keyword);
+  bufPush(out, ' ');
+  bufAdd(out, llvmTypeName(returnType));
+  bufAdd(out, " @");
+  bufAdd(out, e.ast.nodes[node].text);
+  bufPush(out, '(');
+
+  let params: i32 = e.ast.nodes[node].b;
+  let count: i32 = 0;
+  if (params != NO_NODE) {
+    count = e.ast.nodes[params].itemCount;
+  }
+
+  let index: i32 = 0;
+  while (index < count) {
+    if (index > 0) {
+      bufAdd(out, ", ");
+    }
+
+    let param: i32 = e.ast.nodes[params].items[index];
+    bufAdd(out, llvmTypeName(analyzerParseType(e.an, e.ast.nodes[param].a)));
+
+    // A declaration names no parameters; a definition needs them to store.
+    if (textEquals(keyword, "define")) {
+      bufAdd(out, " %p");
+      bufAddInt(out, index as i64);
+    }
+
+    index = index + 1;
+  }
+
+  bufPush(out, ')');
+}
+
+fn genFunction(e: *Emitter, node: i32): void {
+  let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+
+  e.nextTemp = 0;
+  e.nextLabel = 0;
+  e.terminated = false;
+
+  emitSignature(e, e.body, node, "define");
+  bufAdd(e.body, " {\nentry:\n");
+
+  emitterEnterScope(e);
+
+  // Each parameter gets a slot of its own, so it can be assigned like any
+  // other local.
+  let params: i32 = e.ast.nodes[node].b;
+  if (params != NO_NODE) {
+    let index: i32 = 0;
+    while (index < e.ast.nodes[params].itemCount) {
+      let param: i32 = e.ast.nodes[params].items[index];
+      let type: Type = analyzerParseType(e.an, e.ast.nodes[param].a);
+
+      let allocation: *Buf = bufNew();
+      bufAdd(allocation, "alloca ");
+      bufAdd(allocation, llvmTypeName(type));
+      let slot: *i8 = emitAssign(e, allocation.data);
+
+      let incoming: *Buf = bufNew();
+      bufAdd(incoming, "%p");
+      bufAddInt(incoming, index as i64);
+      emitStore(e, type, incoming.data, slot);
+
+      declareLocal(e, e.ast.nodes[param].text, slot, type);
+      index = index + 1;
+    }
+  }
+
+  genStatement(e, e.ast.nodes[node].c);
+
+  // Falling off the end of a function is allowed and yields a zero value.
+  if (!e.terminated) {
+    if (typeIsVoid(returnType)) {
+      emitLine(e, "ret void");
+    } else {
+      let line: *Buf = bufNew();
+      bufAdd(line, "ret ");
+      bufAdd(line, llvmTypeName(returnType));
+      bufPush(line, ' ');
+      bufAdd(line, zeroValue(returnType));
+      emitLine(e, line.data);
+    }
+  }
+
+  emitterExitScope(e);
+  bufAdd(e.body, "}\n\n");
+}
+
+// A global's initialiser becomes an LLVM constant initialiser, so it is
+// folded here rather than being computed at run time.
+fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  if (kind == NK_STRING) {
+    return internString(e, e.ast.nodes[node].text,
+                        e.ast.nodes[node].textLength);
+  }
+  if (kind == NK_CAST) {
+    return genConstant(e, e.ast.nodes[node].a, type);
+  }
+  if (kind == NK_UNARY) {
+    let inner: *i8 = genConstant(e, e.ast.nodes[node].a, type);
+    let out: *Buf = bufNew();
+    bufPush(out, '-');
+    bufAdd(out, inner);
+    return bufTake(out);
+  }
+  if (kind == NK_SIZEOF) {
+    return intToText(sizeOfType(e, analyzerParseType(e.an,
+                                                     e.ast.nodes[node].a)) as i64);
+  }
+  if (kind == NK_BOOL) {
+    if (textEquals(e.ast.nodes[node].text, "true")) {
+      return "true";
+    }
+    return "false";
+  }
+  if (kind == NK_CHAR) {
+    let value: i32 = e.ast.nodes[node].text[0] as i32;
+    if (value < 0) {
+      value = value + 256;
+    }
+    if (value > 127) {
+      value = value - 256;
+    }
+    return intToText(value as i64);
+  }
+
+  return genNumberLiteral(e, node);
+}
+
+fn genGlobal(e: *Emitter, node: i32): void {
+  let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+
+  // The string constant, if any, has to be emitted before the global that
+  // points at it.
+  let value: *i8 = genConstant(e, e.ast.nodes[node].b, type);
+
+  bufPush(e.head, '@');
+  bufAdd(e.head, e.ast.nodes[node].text);
+  bufAdd(e.head, " = global ");
+  bufAdd(e.head, llvmTypeName(type));
+  bufPush(e.head, ' ');
+  bufAdd(e.head, value);
+  bufPush(e.head, '\n');
+}
+
+fn genProgram(e: *Emitter, program: i32): *i8 {
+  let count: i32 = e.ast.nodes[program].itemCount;
+
+  // Named struct types come first, so a function signature can mention one.
+  let index: i32 = 0;
+  while (index < e.an.structs.count) {
+    bufPush(e.head, '%');
+    bufAdd(e.head, e.an.structs.items[index].name);
+    bufAdd(e.head, " = type { ");
+
+    let field: i32 = 0;
+    while (field < e.an.structs.items[index].count) {
+      if (field > 0) {
+        bufAdd(e.head, ", ");
+      }
+      bufAdd(e.head,
+             llvmTypeName(e.an.structs.items[index].fields[field].type));
+      field = field + 1;
+    }
+
+    bufAdd(e.head, " }\n");
+    index = index + 1;
+  }
+
+  bufAdd(e.head, "declare i32 @printf(ptr, ...)\n");
+
+  index = 0;
+  while (index < count) {
+    let statement: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[statement].kind == NK_EXTERN) {
+      emitSignature(e, e.head, statement, "declare");
+      bufPush(e.head, '\n');
+    }
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    let statement: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[statement].kind == NK_VARDECL) {
+      genGlobal(e, statement);
+    }
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    let statement: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[statement].kind == NK_FN) {
+      genFunction(e, statement);
+    }
+    index = index + 1;
+  }
+
+  let module: *Buf = bufNew();
+  bufAddBytes(module, e.head.data, e.head.length);
+  bufPush(module, '\n');
+  bufAddBytes(module, e.body.data, e.body.length);
+
+  return bufTake(module);
+}

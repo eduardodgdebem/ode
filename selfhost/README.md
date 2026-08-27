@@ -9,7 +9,15 @@ written in Ode; `build/ode` (the C++ one) compiles it.
 cmake --build ./build      # the C++ compiler, which compiles the Ode one
 ./selfhost/build.sh        # concatenate and compile -> build/ode1
 ./selfhost/difftest.sh     # compare ode1 against ode, phase by phase
+./selfhost/bootstrap.sh    # run the bootstrap to its fixed point
 ```
+
+The compiler is self-hosting. `bootstrap.sh` has `ode1` compile the sources
+into `ode2` and `ode2` compile them into `ode3`, and checks that `ode2` and
+`ode3` are byte-identical. `ode1` is not expected to match them: it came out
+of a different compiler, through the LLVM API rather than from this
+compiler's own textual IR, so it differs in layout while meaning the same
+thing. `ode2` passes all 284 comparisons in `difftest.sh`, the same as `ode1`.
 
 ## Why the sources are concatenated
 
@@ -34,6 +42,7 @@ stable and diffable, not to satisfy the compiler.
 | `60_type.ode` | types and struct layouts |
 | `65_symbols.ode` | the symbol table |
 | `70_analyzer.ode` | the semantic analyzer |
+| `75_ir.ode` | the textual LLVM IR emitter |
 | `80_dump.ode` | the token, tree and type dumps |
 | `90_main.ode` | the driver |
 
@@ -52,7 +61,15 @@ phases get compared the same way as they land.
 Sources the C++ compiler *rejects* are compared too: where it reports a single
 error, the diagnostic itself has to match character for character. Only where
 it recovers and reports several -- which the self-hosted compiler cannot do
-yet -- is the weaker "both reject" all that is required. This is the answer to the gap
+yet -- is the weaker "both reject" all that is required.
+
+**Codegen is the exception, and has to be.** The C++ compiler builds IR
+through the LLVM API and this one writes the text, so the two `.ll` files
+never match even when they mean the same thing -- LLVM's printer picks its own
+formatting and numbering. What can be compared is behaviour, and
+`tests/valid/<name>.out` already records what the C++ compiler's binaries
+print. So the `run` phase builds every example with the self-hosted compiler
+and diffs what it prints. All 23 match byte for byte. This is the answer to the gap
 `LIMITATIONS.md` section 8.1 describes: two compilers that have to agree need
 something better than bisecting a failing program.
 
@@ -116,12 +133,32 @@ what makes the two comparable.
 There is no `~` operator, so the integer maxima that literal range checking
 needs are built by shifting rather than by complementing zero.
 
+## Code generation
+
+Temporaries and labels are named (`%t0`, `L0`) rather than numbered, because
+LLVM requires unnamed values to run 0, 1, 2... with no gaps, counting the
+parameters. Naming them sidesteps the rule instead of tracking it.
+
+Sizes and alignment are computed here rather than asked of LLVM, because there
+is no data layout to consult from textual IR. They follow the rules LLVM uses
+for a non-packed struct: every field starts at its own alignment, and the
+whole is rounded up to the widest field's. `sizeof` and pointer arithmetic
+both depend on getting that right.
+
+Linking runs `clang` through `fork` and `execvp` rather than `system`. A shell
+would need every path quoted against spaces and metacharacters; an argument
+vector has no shell in it, so each argument arrives exactly as written. The
+cost is that `WIFEXITED` and `WEXITSTATUS` are C macros and have to be written
+out by hand.
+
 ## What is not ported yet
 
 - **Error recovery.** The C++ compiler reports every error in a run; this one
   stops at the first. Where the C++ compiler reports several errors,
   `difftest.sh` can only require that both reject.
-- **The IR emitter**, which is what comes next.
+- **Object files.** The C++ compiler emits a `.o` through LLVM and links that;
+  this one hands the `.ll` to clang and lets it do both.
+- **`-O` and the driver flags** beyond `-o` and `--emit-llvm`.
 
 ## Where it is going
 
