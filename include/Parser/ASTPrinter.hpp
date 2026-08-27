@@ -3,7 +3,16 @@
 #include "Parser/AST.hpp"
 #include <iostream>
 #include <ostream>
+#include <string>
 
+// Prints the tree one node per line, indented by depth:
+//
+//   fn 'main' 1:1
+//     type 'i32' depth=0 1:12
+//
+// The format is a contract with the self-hosted compiler in selfhost/, whose
+// `--dump-ast` produces the same bytes; selfhost/difftest.sh compares them. A
+// change here needs the same change there.
 class ASTPrinter : public AST::Visitor {
 public:
   explicit ASTPrinter(std::ostream &out = std::cout)
@@ -44,12 +53,15 @@ private:
   std::ostream &out_;
   int indentLevel_;
 
-  void indent() { ++indentLevel_; }
-  void unindent() { --indentLevel_; }
+  // A literal newline or NUL inside a string would otherwise break the
+  // line-per-node format.
+  static std::string escape(const std::string &text);
 
-  void printIndent(const std::string &text) {
-    for (int i = 0; i < indentLevel_; ++i)
-      out_ << "  ";
-    out_ << text << '\n';
-  }
+  void emit(const std::string &kind, int line, int column);
+  void emitNamed(const std::string &kind, const std::string &text, int line,
+                 int column);
+  void emitLine(const std::string &text);
+
+  // Prints a child one level deeper, skipping a null one.
+  void child(const AST::Node *node);
 };

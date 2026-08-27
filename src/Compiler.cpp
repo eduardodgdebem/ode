@@ -186,8 +186,11 @@ void Compiler::compile() {
   // the analyzer would invent from the wreckage.
   stopIfErrors(diagnostics);
 
-  auto printer = std::make_unique<ASTPrinter>();
-  // printer->visit(static_cast<const AST::ProgramNode&>(*root));
+  if (options.dumpAst) {
+    ASTPrinter printer(std::cout);
+    root->accept(printer);
+    return;
+  }
 
   auto analyzer = std::make_unique<SemanticAnalyzer>(diagnostics);
   analyzer->analyze(*root);

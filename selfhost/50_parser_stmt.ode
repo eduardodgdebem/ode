@@ -1,0 +1,378 @@
+// ---------------------------------------------------------------------------
+// Statements and declarations.
+// ---------------------------------------------------------------------------
+
+// `a op= b` is sugar for `a = a op b`; this names the binary operator each
+// compound token stands for, or TK_NONE when the token is not one.
+fn compoundAssignOp(kind: i32): i32 {
+  if (kind == TK_PLUS_ASSIGN) { return TK_PLUS; }
+  if (kind == TK_MINUS_ASSIGN) { return TK_MINUS; }
+  if (kind == TK_STAR_ASSIGN) { return TK_STAR; }
+  if (kind == TK_SLASH_ASSIGN) { return TK_SLASH; }
+  if (kind == TK_PERCENT_ASSIGN) { return TK_PERCENT; }
+
+  return TK_NONE;
+}
+
+// Parses the expression starting at `start` again and leaves the position
+// where it was, so a desugaring can use the same operand twice without every
+// node having to know how to copy itself.
+fn parserReparse(parser: *Parser, start: i32): i32 {
+  let resume: i32 = parser.pos;
+  parser.pos = start;
+  let copy: i32 = parseExpr(parser);
+  parser.pos = resume;
+
+  return copy;
+}
+
+fn parseStatement(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let startLine: i32 = start.line;
+  let startColumn: i32 = start.column;
+
+  let node: i32 = parseStatementInner(parser, start);
+
+  // A construct that already knows where it starts keeps its own position.
+  if (parser.ast.nodes[node].line == 0) {
+    parser.ast.nodes[node].line = startLine;
+    parser.ast.nodes[node].column = startColumn;
+  }
+
+  return node;
+}
+
+fn parseStatementInner(parser: *Parser, start: *Token): i32 {
+  let kind: i32 = parserKind(parser);
+
+  if (kind == TK_LET) { return parseVarDecl(parser); }
+  if (kind == TK_LBRACE) { return parseBlock(parser); }
+  if (kind == TK_IF) { return parseIfStmt(parser); }
+  if (kind == TK_WHILE) { return parseWhileStmt(parser); }
+  if (kind == TK_BREAK) { return parseBreakStmt(parser); }
+  if (kind == TK_CONTINUE) { return parseContinueStmt(parser); }
+  if (kind == TK_RETURN) { return parseReturnStmt(parser); }
+  if (kind == TK_PRINT) { return parsePrintStmt(parser); }
+
+  // A declaration is parsed before it is rejected, so that a later recovery
+  // resumes after it rather than inside it.
+  if (kind == TK_FN) {
+    let node: i32 = parseFuncDecl(parser);
+    return requireTopLevel(parser, start, "fn", node);
+  }
+  if (kind == TK_EXTERN) {
+    let node: i32 = parseExternDecl(parser);
+    return requireTopLevel(parser, start, "extern", node);
+  }
+  if (kind == TK_STRUCT) {
+    let node: i32 = parseStructDecl(parser);
+    return requireTopLevel(parser, start, "struct", node);
+  }
+
+  return parseExprStmt(parser);
+}
+
+fn requireTopLevel(parser: *Parser, at: *Token, construct: *i8,
+                   declaration: i32): i32 {
+  if (!parser.atTopLevel) {
+    let message: *Buf = bufNew();
+    bufPush(message, '\'');
+    bufAdd(message, construct);
+    bufAdd(message, "' declarations are only allowed at the top level of the ");
+    bufAdd(message, "program");
+    failAt(at.line, at.column, message.data);
+  }
+
+  return declaration;
+}
+
+fn parseVarDecl(parser: *Parser): i32 {
+  parserExpect(parser, TK_LET, "let");
+  let name: *Token = parserExpect(parser, TK_IDENT, "identifier");
+  parserExpect(parser, TK_COLON, ":");
+  let type: i32 = parseType(parser);
+  parserExpect(parser, TK_ASSIGN, "=");
+  let expr: i32 = parseExpr(parser);
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  let node: i32 = astAdd(parser.ast, NK_VARDECL, 0, 0);
+  astSetText(parser.ast, node, name);
+  parser.ast.nodes[node].a = type;
+  parser.ast.nodes[node].b = expr;
+
+  return node;
+}
+
+// Either `expr;`, `lvalue = expr;` or `lvalue op= expr;`. All start with an
+// expression, so parse one and let the following token decide which statement
+// this is. That is what lets `*p = v;` work without a separate lookahead rule.
+fn parseExprStmt(parser: *Parser): i32 {
+  let targetStart: i32 = parser.pos;
+  let expr: i32 = parseExpr(parser);
+
+  if (parserKind(parser) == TK_ASSIGN) {
+    parserAdvance(parser);
+    let value: i32 = parseExpr(parser);
+    parserExpect(parser, TK_SEMICOLON, ";");
+
+    let node: i32 = astAdd(parser.ast, NK_ASSIGN, 0, 0);
+    parser.ast.nodes[node].a = expr;
+    parser.ast.nodes[node].b = value;
+
+    return node;
+  }
+
+  let binary: i32 = compoundAssignOp(parserKind(parser));
+  if (binary != TK_NONE) {
+    // The desugaring needs the target on both sides of the `=`, so build a
+    // second tree for it. The operand appears twice in the result, so a target
+    // with a side effect -- `a[next()] += 1` -- runs it twice.
+    let target: i32 = parserReparse(parser, targetStart);
+
+    let op: *Token = parserCurrent(parser);
+    let opLine: i32 = op.line;
+    let opColumn: i32 = op.column;
+    // The operator's spelling is the compound token without its `=`.
+    let opText: *i8 = textSlice(op.text, 0 as i64, op.length - 1 as i64);
+    parserAdvance(parser);
+
+    let value: i32 = parseExpr(parser);
+    parserExpect(parser, TK_SEMICOLON, ";");
+
+    let sum: i32 = astAdd(parser.ast, NK_BINARY, opLine, opColumn);
+    parser.ast.nodes[sum].text = opText;
+    parser.ast.nodes[sum].textLength = op.length - 1 as i64;
+    parser.ast.nodes[sum].a = target;
+    parser.ast.nodes[sum].b = value;
+
+    let node: i32 = astAdd(parser.ast, NK_ASSIGN, 0, 0);
+    parser.ast.nodes[node].a = expr;
+    parser.ast.nodes[node].b = sum;
+
+    return node;
+  }
+
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  let node: i32 = astAdd(parser.ast, NK_EXPRSTMT, 0, 0);
+  parser.ast.nodes[node].a = expr;
+
+  return node;
+}
+
+fn parseBlock(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let node: i32 = astAdd(parser.ast, NK_BLOCK, start.line, start.column);
+  parserExpect(parser, TK_LBRACE, "{");
+
+  let wasTopLevel: bool = parser.atTopLevel;
+  parser.atTopLevel = false;
+
+  while (parserKind(parser) != TK_RBRACE && parserKind(parser) != TK_END) {
+    astAddItem(parser.ast, node, parseStatement(parser));
+  }
+
+  parser.atTopLevel = wasTopLevel;
+  parserExpect(parser, TK_RBRACE, "}");
+
+  return node;
+}
+
+fn parseIfStmt(parser: *Parser): i32 {
+  parserExpect(parser, TK_IF, "if");
+  parserExpect(parser, TK_LPAREN, "(");
+  let condition: i32 = parseExpr(parser);
+  parserExpect(parser, TK_RPAREN, ")");
+  let thenBlock: i32 = parseBlock(parser);
+
+  let elseBlock: i32 = NO_NODE;
+  if (parserKind(parser) == TK_ELSE) {
+    parserAdvance(parser);
+    // `else if` chains by making the next `if` the else branch outright,
+    // rather than requiring it to be wrapped in a block.
+    if (parserKind(parser) == TK_IF) {
+      elseBlock = parseIfStmt(parser);
+    } else {
+      elseBlock = parseBlock(parser);
+    }
+  }
+
+  let node: i32 = astAdd(parser.ast, NK_IF, 0, 0);
+  parser.ast.nodes[node].a = condition;
+  parser.ast.nodes[node].b = thenBlock;
+  parser.ast.nodes[node].c = elseBlock;
+
+  return node;
+}
+
+fn parseWhileStmt(parser: *Parser): i32 {
+  parserExpect(parser, TK_WHILE, "while");
+  parserExpect(parser, TK_LPAREN, "(");
+  let condition: i32 = parseExpr(parser);
+  parserExpect(parser, TK_RPAREN, ")");
+  let body: i32 = parseBlock(parser);
+
+  let node: i32 = astAdd(parser.ast, NK_WHILE, 0, 0);
+  parser.ast.nodes[node].a = condition;
+  parser.ast.nodes[node].b = body;
+
+  return node;
+}
+
+fn parseBreakStmt(parser: *Parser): i32 {
+  parserExpect(parser, TK_BREAK, "break");
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  return astAdd(parser.ast, NK_BREAK, 0, 0);
+}
+
+fn parseContinueStmt(parser: *Parser): i32 {
+  parserExpect(parser, TK_CONTINUE, "continue");
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  return astAdd(parser.ast, NK_CONTINUE, 0, 0);
+}
+
+fn parseReturnStmt(parser: *Parser): i32 {
+  parserExpect(parser, TK_RETURN, "return");
+
+  let node: i32 = astAdd(parser.ast, NK_RETURN, 0, 0);
+
+  // `return;` carries no value and is only valid in a void function.
+  if (parserKind(parser) == TK_SEMICOLON) {
+    parserAdvance(parser);
+    return node;
+  }
+
+  parser.ast.nodes[node].a = parseExpr(parser);
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  return node;
+}
+
+fn parsePrintStmt(parser: *Parser): i32 {
+  parserExpect(parser, TK_PRINT, "print");
+  let expr: i32 = parseExpr(parser);
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  let node: i32 = astAdd(parser.ast, NK_PRINT, 0, 0);
+  parser.ast.nodes[node].a = expr;
+
+  return node;
+}
+
+fn parseParamList(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let node: i32 = astAdd(parser.ast, NK_PARAMS, start.line, start.column);
+  parserExpect(parser, TK_LPAREN, "(");
+
+  if (parserKind(parser) == TK_RPAREN) {
+    parserAdvance(parser);
+    return node;
+  }
+
+  while (true) {
+    let name: *Token = parserExpect(parser, TK_IDENT, "parameter name");
+    parserExpect(parser, TK_COLON, ":");
+
+    let param: i32 = astAdd(parser.ast, NK_PARAM, name.line, name.column);
+    astSetText(parser.ast, param, name);
+    parser.ast.nodes[param].a = parseType(parser);
+    astAddItem(parser.ast, node, param);
+
+    if (parserKind(parser) != TK_COMMA) {
+      break;
+    }
+    parserAdvance(parser);
+  }
+
+  parserExpect(parser, TK_RPAREN, ")");
+
+  return node;
+}
+
+fn parseFuncDecl(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let line: i32 = start.line;
+  let column: i32 = start.column;
+
+  parserExpect(parser, TK_FN, "fn");
+  let name: *Token = parserExpect(parser, TK_IDENT, "identifier");
+  let params: i32 = parseParamList(parser);
+  parserExpect(parser, TK_COLON, ":");
+  let returnType: i32 = parseType(parser);
+  let body: i32 = parseBlock(parser);
+
+  let node: i32 = astAdd(parser.ast, NK_FN, line, column);
+  astSetText(parser.ast, node, name);
+  parser.ast.nodes[node].a = returnType;
+  parser.ast.nodes[node].b = params;
+  parser.ast.nodes[node].c = body;
+
+  return node;
+}
+
+// ExternDecl -> 'extern' 'fn' IDENT '(' ParamList? ')' ':' Type ';'
+fn parseExternDecl(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let line: i32 = start.line;
+  let column: i32 = start.column;
+
+  parserExpect(parser, TK_EXTERN, "extern");
+  parserExpect(parser, TK_FN, "fn");
+  let name: *Token = parserExpect(parser, TK_IDENT, "identifier");
+  let params: i32 = parseParamList(parser);
+  parserExpect(parser, TK_COLON, ":");
+  let returnType: i32 = parseType(parser);
+  parserExpect(parser, TK_SEMICOLON, ";");
+
+  let node: i32 = astAdd(parser.ast, NK_EXTERN, line, column);
+  astSetText(parser.ast, node, name);
+  parser.ast.nodes[node].a = returnType;
+  parser.ast.nodes[node].b = params;
+
+  return node;
+}
+
+// StructDecl -> 'struct' IDENT '{' (IDENT ':' Type ','?)* '}'
+fn parseStructDecl(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let line: i32 = start.line;
+  let column: i32 = start.column;
+
+  parserExpect(parser, TK_STRUCT, "struct");
+  let name: *Token = parserExpect(parser, TK_IDENT, "struct name");
+  parserExpect(parser, TK_LBRACE, "{");
+
+  let node: i32 = astAdd(parser.ast, NK_STRUCT, line, column);
+  astSetText(parser.ast, node, name);
+
+  while (parserKind(parser) != TK_RBRACE && parserKind(parser) != TK_END) {
+    let fieldName: *Token = parserExpect(parser, TK_IDENT, "field name");
+    parserExpect(parser, TK_COLON, ":");
+
+    let field: i32 = astAdd(parser.ast, NK_FIELD, fieldName.line,
+                            fieldName.column);
+    astSetText(parser.ast, field, fieldName);
+    parser.ast.nodes[field].a = parseType(parser);
+    astAddItem(parser.ast, node, field);
+
+    if (parserKind(parser) == TK_COMMA) {
+      parserAdvance(parser);
+    }
+  }
+
+  parserExpect(parser, TK_RBRACE, "}");
+
+  return node;
+}
+
+fn parseProgram(parser: *Parser): i32 {
+  let node: i32 = astAdd(parser.ast, NK_PROGRAM, 0, 0);
+
+  while (parserKind(parser) != TK_END) {
+    astAddItem(parser.ast, node, parseStatement(parser));
+  }
+
+  return node;
+}

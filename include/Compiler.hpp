@@ -16,6 +16,8 @@ public:
     // Print the token stream and stop. This exists so the C++ lexer and the
     // self-hosted one in selfhost/ can be diffed against each other.
     bool dumpTokens = false;
+    // Print the parsed tree and stop, for the same reason.
+    bool dumpAst = false;
   };
 
   explicit Compiler(Options options);

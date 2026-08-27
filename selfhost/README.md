@@ -28,6 +28,10 @@ stable and diffable, not to satisfy the compiler.
 | `00_prelude.ode` | libc externs, growable text, failure, file I/O |
 | `10_token.ode` | token kinds, `Token`, `TokenList` |
 | `20_lexer.ode` | the lexer |
+| `30_ast.ode` | the node arena |
+| `40_parser.ode` | expressions |
+| `50_parser_stmt.ode` | statements and declarations |
+| `80_dump.ode` | the token and tree dumps |
 | `90_main.ode` | the driver |
 
 ## How correctness is checked
@@ -37,13 +41,18 @@ stable and diffable, not to satisfy the compiler.
 their output byte for byte. The C++ compiler is the reference; any difference
 is a porting bug.
 
-Right now that means the token stream, via `ode --dump-tokens` and the dump
-`ode1` prints. Later phases get compared the same way as they land. This is
-the answer to the gap `LIMITATIONS.md` section 8.1 describes: two compilers
-that have to agree need something better than bisecting a failing program.
+Right now that means the token stream (`--dump-tokens`) and the parsed tree
+(`--dump-ast`), both of which each compiler prints in the same format. Later
+phases get compared the same way as they land. This is the answer to the gap
+`LIMITATIONS.md` section 8.1 describes: two compilers that have to agree need
+something better than bisecting a failing program.
 
-Three real defects came out of it already, none of which a by-eye reading
-would have caught:
+The dump formats are a contract. `ASTPrinter` in the C++ compiler and
+`80_dump.ode` here have to be changed together, and `difftest.sh` is what
+catches it when they are not.
+
+Real defects have come out of it already, none of which a by-eye reading would
+have caught:
 
 - Type names lex as their own kind, not as identifiers.
 - A leading `-` folds into a number literal, but only where the previous token
@@ -64,6 +73,24 @@ is usable by the compiler's own source only one generation later. In practice:
 - No variadic `extern`, so decimal formatting is written out by hand.
 - Globals are initialised from constants and assigned at start-up.
 - One `.` follows one pointer level.
+
+## The AST
+
+Nodes live in one arena and refer to each other by index rather than by
+pointer, because the arena moves when it grows and a held pointer would
+dangle. There are no sum types, so every node is the same struct with a kind
+tag: `a`, `b` and `c` are the fixed children and mean different things per
+kind, and `items` is the child list that only some kinds use.
+
+Children are stored in the order they print, so the dumper walks `a`, `b`, `c`
+and then `items` for every kind without a case per node type.
+
+## What is not ported yet
+
+- **Error recovery.** The C++ compiler reports every error in a run; this one
+  stops at the first. `difftest.sh` therefore only requires that both reject
+  the same sources, not that they produce the same diagnostics.
+- **The analyzer and the IR emitter**, which are what come next.
 
 ## Where it is going
 

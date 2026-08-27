@@ -1,0 +1,210 @@
+// ---------------------------------------------------------------------------
+// The AST.
+//
+// Nodes live in one growable arena and refer to each other by index, not by
+// pointer: the arena moves when it grows, so a held pointer would dangle. An
+// index of NO_NODE is the absent child.
+//
+// There are no sum types, so every node is the same struct with a kind tag.
+// `a`, `b` and `c` are the fixed children and mean different things per kind;
+// `items` is the variable-length child list that only some kinds use.
+// ---------------------------------------------------------------------------
+
+let NO_NODE: i32 = -1;
+
+let NK_PROGRAM: i32 = 1;
+let NK_BLOCK: i32 = 2;
+let NK_VARDECL: i32 = 3;
+let NK_ASSIGN: i32 = 4;
+let NK_IF: i32 = 5;
+let NK_WHILE: i32 = 6;
+let NK_BREAK: i32 = 7;
+let NK_CONTINUE: i32 = 8;
+let NK_FN: i32 = 9;
+let NK_EXTERN: i32 = 10;
+let NK_STRUCT: i32 = 11;
+let NK_FIELD: i32 = 12;
+let NK_CALL: i32 = 13;
+let NK_RETURN: i32 = 14;
+let NK_PRINT: i32 = 15;
+let NK_EXPRSTMT: i32 = 16;
+let NK_BINARY: i32 = 17;
+let NK_UNARY: i32 = 18;
+let NK_CAST: i32 = 19;
+let NK_FIELDACCESS: i32 = 20;
+let NK_INDEX: i32 = 21;
+let NK_STRUCTLIT: i32 = 22;
+let NK_FINIT: i32 = 23;
+let NK_SIZEOF: i32 = 24;
+let NK_NUMBER: i32 = 25;
+let NK_STRING: i32 = 26;
+let NK_CHAR: i32 = 27;
+let NK_BOOL: i32 = 28;
+let NK_IDENT: i32 = 29;
+let NK_TYPE: i32 = 30;
+let NK_PARAMS: i32 = 31;
+let NK_PARAM: i32 = 32;
+let NK_ARGS: i32 = 33;
+
+struct Node {
+  kind: i32,
+  line: i32,
+  column: i32,
+  // A name, an operator's spelling, or a literal's decoded text.
+  text: *i8,
+  textLength: i64,
+  // Fixed children, NO_NODE when absent:
+  //   vardecl  a=type   b=expr
+  //   assign   a=target b=expr
+  //   if       a=cond   b=then   c=else
+  //   while    a=cond   b=body
+  //   fn       a=type   b=params c=body
+  //   extern   a=type   b=params
+  //   field    a=type
+  //   param    a=type
+  //   finit    a=value
+  //   call     a=args
+  //   return   a=expr
+  //   print    a=expr
+  //   exprstmt a=expr
+  //   binary   a=left   b=right
+  //   unary    a=operand
+  //   cast     a=expr   b=type
+  //   field access a=object
+  //   index    a=base   b=index
+  //   sizeof   a=type
+  a: i32,
+  b: i32,
+  c: i32,
+  // Pointer depth, for a type node.
+  extra: i32,
+  // Child indices, for program, block, struct, structlit, params and args.
+  items: *i32,
+  itemCount: i32,
+  itemCapacity: i32,
+}
+
+struct Ast {
+  nodes: *Node,
+  count: i32,
+  capacity: i32,
+}
+
+fn astNew(): *Ast {
+  let ast: *Ast = malloc(sizeof(Ast) as i64) as *Ast;
+  ast.capacity = 256;
+  ast.count = 0;
+  ast.nodes = malloc(sizeof(Node) as i64 * ast.capacity as i64) as *Node;
+
+  return ast;
+}
+
+fn astAdd(ast: *Ast, kind: i32, line: i32, column: i32): i32 {
+  if (ast.count == ast.capacity) {
+    ast.capacity = ast.capacity * 2;
+    ast.nodes = realloc(ast.nodes as *i8,
+                        sizeof(Node) as i64 * ast.capacity as i64) as *Node;
+  }
+
+  let index: i32 = ast.count;
+  ast.nodes[index].kind = kind;
+  ast.nodes[index].line = line;
+  ast.nodes[index].column = column;
+  ast.nodes[index].text = nullText();
+  ast.nodes[index].textLength = 0 as i64;
+  ast.nodes[index].a = NO_NODE;
+  ast.nodes[index].b = NO_NODE;
+  ast.nodes[index].c = NO_NODE;
+  ast.nodes[index].extra = 0;
+  ast.nodes[index].items = 0 as i64 as *i32;
+  ast.nodes[index].itemCount = 0;
+  ast.nodes[index].itemCapacity = 0;
+  ast.count = ast.count + 1;
+
+  return index;
+}
+
+// Copies a token's text onto a node, length included so a `'\0'` survives.
+fn astSetText(ast: *Ast, index: i32, token: *Token): void {
+  ast.nodes[index].text = token.text;
+  ast.nodes[index].textLength = token.length;
+}
+
+fn astAddItem(ast: *Ast, parent: i32, child: i32): void {
+  if (ast.nodes[parent].itemCount == ast.nodes[parent].itemCapacity) {
+    if (ast.nodes[parent].itemCapacity == 0) {
+      ast.nodes[parent].itemCapacity = 4;
+      ast.nodes[parent].items =
+          malloc(sizeof(i32) as i64 * 4 as i64) as *i32;
+    } else {
+      ast.nodes[parent].itemCapacity = ast.nodes[parent].itemCapacity * 2;
+      ast.nodes[parent].items =
+          realloc(ast.nodes[parent].items as *i8,
+                  sizeof(i32) as i64 *
+                      ast.nodes[parent].itemCapacity as i64) as *i32;
+    }
+  }
+
+  let count: i32 = ast.nodes[parent].itemCount;
+  ast.nodes[parent].items[count] = child;
+  ast.nodes[parent].itemCount = count + 1;
+}
+
+fn nodeKindName(kind: i32): *i8 {
+  if (kind == NK_PROGRAM) { return "program"; }
+  if (kind == NK_BLOCK) { return "block"; }
+  if (kind == NK_VARDECL) { return "vardecl"; }
+  if (kind == NK_ASSIGN) { return "assign"; }
+  if (kind == NK_IF) { return "if"; }
+  if (kind == NK_WHILE) { return "while"; }
+  if (kind == NK_BREAK) { return "break"; }
+  if (kind == NK_CONTINUE) { return "continue"; }
+  if (kind == NK_FN) { return "fn"; }
+  if (kind == NK_EXTERN) { return "extern"; }
+  if (kind == NK_STRUCT) { return "struct"; }
+  if (kind == NK_FIELD) { return "field"; }
+  if (kind == NK_CALL) { return "call"; }
+  if (kind == NK_RETURN) { return "return"; }
+  if (kind == NK_PRINT) { return "print"; }
+  if (kind == NK_EXPRSTMT) { return "exprstmt"; }
+  if (kind == NK_BINARY) { return "binary"; }
+  if (kind == NK_UNARY) { return "unary"; }
+  if (kind == NK_CAST) { return "cast"; }
+  if (kind == NK_FIELDACCESS) { return "fieldaccess"; }
+  if (kind == NK_INDEX) { return "index"; }
+  if (kind == NK_STRUCTLIT) { return "structlit"; }
+  if (kind == NK_FINIT) { return "finit"; }
+  if (kind == NK_SIZEOF) { return "sizeof"; }
+  if (kind == NK_NUMBER) { return "number"; }
+  if (kind == NK_STRING) { return "string"; }
+  if (kind == NK_CHAR) { return "char"; }
+  if (kind == NK_BOOL) { return "bool"; }
+  if (kind == NK_IDENT) { return "ident"; }
+  if (kind == NK_TYPE) { return "type"; }
+  if (kind == NK_PARAMS) { return "params"; }
+  if (kind == NK_PARAM) { return "param"; }
+  if (kind == NK_ARGS) { return "args"; }
+
+  return "?";
+}
+
+// True for the kinds whose text is worth printing in a dump.
+fn nodeCarriesText(kind: i32): bool {
+  if (kind == NK_VARDECL || kind == NK_FN || kind == NK_EXTERN) {
+    return true;
+  }
+  if (kind == NK_STRUCT || kind == NK_FIELD || kind == NK_CALL) {
+    return true;
+  }
+  if (kind == NK_BINARY || kind == NK_UNARY || kind == NK_FIELDACCESS) {
+    return true;
+  }
+  if (kind == NK_STRUCTLIT || kind == NK_FINIT || kind == NK_PARAM) {
+    return true;
+  }
+  if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
+    return true;
+  }
+
+  return kind == NK_BOOL || kind == NK_IDENT || kind == NK_TYPE;
+}

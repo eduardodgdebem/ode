@@ -1,277 +1,223 @@
 #include "Parser/ASTPrinter.hpp"
 
-void ASTPrinter::visit(const AST::ProgramNode &node) {
-  printIndent("Program");
-  indent();
-  for (const auto &stmt : node.statements()) {
-    stmt->accept(*this);
+#include <format>
+
+std::string ASTPrinter::escape(const std::string &text) {
+  std::string escaped;
+
+  for (char character : text) {
+    switch (character) {
+    case '\\': escaped += "\\\\"; break;
+    case '\n': escaped += "\\n"; break;
+    case '\t': escaped += "\\t"; break;
+    case '\r': escaped += "\\r"; break;
+    case '\'': escaped += "\\'"; break;
+    case '\0': escaped += "\\0"; break;
+    default: escaped += character;
+    }
   }
-  unindent();
+
+  return escaped;
+}
+
+void ASTPrinter::emitLine(const std::string &text) {
+  for (int i = 0; i < indentLevel_; ++i) {
+    out_ << "  ";
+  }
+  out_ << text << '\n';
+}
+
+void ASTPrinter::emit(const std::string &kind, int line, int column) {
+  emitLine(std::format("{} {}:{}", kind, line, column));
+}
+
+void ASTPrinter::emitNamed(const std::string &kind, const std::string &text,
+                           int line, int column) {
+  emitLine(std::format("{} '{}' {}:{}", kind, escape(text), line, column));
+}
+
+void ASTPrinter::child(const AST::Node *node) {
+  if (!node) {
+    return;
+  }
+  ++indentLevel_;
+  node->accept(*this);
+  --indentLevel_;
+}
+
+void ASTPrinter::visit(const AST::ProgramNode &node) {
+  emit("program", node.line(), node.column());
+  for (const auto &stmt : node.statements()) {
+    child(stmt.get());
+  }
 }
 
 void ASTPrinter::visit(const AST::BlockNode &node) {
-  printIndent("Block");
-  indent();
+  emit("block", node.line(), node.column());
   for (const auto &stmt : node.statements()) {
-    stmt->accept(*this);
+    child(stmt.get());
   }
-  unindent();
 }
 
 void ASTPrinter::visit(const AST::VarDeclNode &node) {
-  printIndent("VarDecl: " + node.name().value);
-  indent();
-  if (node.type())
-    node.type()->accept(*this);
-  if (node.expr())
-    node.expr()->accept(*this);
-  unindent();
+  emitNamed("vardecl", node.name().value, node.line(), node.column());
+  child(node.type());
+  child(node.expr());
 }
 
 void ASTPrinter::visit(const AST::AssignNode &node) {
-  printIndent("Assign");
-  indent();
-  printIndent("Target:");
-  indent();
-  node.target()->accept(*this);
-  unindent();
-  printIndent("Value:");
-  indent();
-  node.expr()->accept(*this);
-  unindent();
-  unindent();
+  emit("assign", node.line(), node.column());
+  child(node.target());
+  child(node.expr());
 }
 
 void ASTPrinter::visit(const AST::IfStmtNode &node) {
-  printIndent("IfStmt");
-  indent();
-  printIndent("Condition:");
-  indent();
-  node.condition()->accept(*this);
-  unindent();
-
-  printIndent("Then:");
-  indent();
-  node.thenBlock()->accept(*this);
-  unindent();
-
-  if (node.hasElse()) {
-    printIndent("Else:");
-    indent();
-    node.elseBlock()->accept(*this);
-    unindent();
-  }
-  unindent();
+  emit("if", node.line(), node.column());
+  child(node.condition());
+  child(node.thenBlock());
+  child(node.elseBlock());
 }
 
 void ASTPrinter::visit(const AST::WhileStmtNode &node) {
-  printIndent("WhileStmt");
-  indent();
-  printIndent("Condition:");
-  indent();
-  node.condition()->accept(*this);
-  unindent();
-
-  printIndent("Body:");
-  indent();
-  node.body()->accept(*this);
-  unindent();
-  unindent();
+  emit("while", node.line(), node.column());
+  child(node.condition());
+  child(node.body());
 }
 
 void ASTPrinter::visit(const AST::BreakStmtNode &node) {
-  printIndent("Break");
+  emit("break", node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::ContinueStmtNode &node) {
-  printIndent("Continue");
+  emit("continue", node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::FuncDeclNode &node) {
-  printIndent("FuncDecl: " + node.name().value);
-  indent();
-  if (node.returnType()) {
-    printIndent("ReturnType:");
-    indent();
-    node.returnType()->accept(*this);
-    unindent();
-  }
-  if (node.params()) {
-    printIndent("Params:");
-    indent();
-    node.params()->accept(*this);
-    unindent();
-  }
-  if (node.body()) {
-    printIndent("Body:");
-    indent();
-    node.body()->accept(*this);
-    unindent();
-  }
-  unindent();
+  emitNamed("fn", node.name().value, node.line(), node.column());
+  child(node.returnType());
+  child(node.params());
+  child(node.body());
 }
 
 void ASTPrinter::visit(const AST::ExternFuncDeclNode &node) {
-  printIndent("ExternFuncDecl: " + node.name().value);
-  indent();
-  if (node.returnType()) {
-    printIndent("ReturnType:");
-    indent();
-    node.returnType()->accept(*this);
-    unindent();
-  }
-  if (node.params()) {
-    printIndent("Params:");
-    indent();
-    node.params()->accept(*this);
-    unindent();
-  }
-  unindent();
+  emitNamed("extern", node.name().value, node.line(), node.column());
+  child(node.returnType());
+  child(node.params());
 }
 
+// A field has no node of its own, so it prints at its name's position with
+// its type nested underneath.
 void ASTPrinter::visit(const AST::StructDeclNode &node) {
-  printIndent("StructDecl: " + node.name().value);
-  indent();
+  emitNamed("struct", node.name().value, node.line(), node.column());
+  ++indentLevel_;
   for (const auto &field : node.fields()) {
-    printIndent("Field: " + field.name.value);
-    indent();
-    field.type->accept(*this);
-    unindent();
+    emitNamed("field", field.name.value, field.name.line, field.name.column);
+    child(field.type.get());
   }
-  unindent();
+  --indentLevel_;
 }
 
 void ASTPrinter::visit(const AST::FuncCallNode &node) {
-  printIndent("FuncCall: " + node.name().value);
-  indent();
-  if (node.args())
-    node.args()->accept(*this);
-  unindent();
+  emitNamed("call", node.name().value, node.line(), node.column());
+  child(node.args());
 }
 
 void ASTPrinter::visit(const AST::ReturnStmtNode &node) {
-  printIndent(node.expr() ? "ReturnStmt" : "ReturnStmt (void)");
-  if (node.expr()) {
-    indent();
-    node.expr()->accept(*this);
-    unindent();
-  }
+  emit("return", node.line(), node.column());
+  child(node.expr());
 }
 
 void ASTPrinter::visit(const AST::PrintStmtNode &node) {
-  printIndent("PrintStmt");
-  indent();
-  node.expr()->accept(*this);
-  unindent();
+  emit("print", node.line(), node.column());
+  child(node.expr());
 }
 
 void ASTPrinter::visit(const AST::ExprStmtNode &node) {
-  printIndent("ExprStmt");
-  indent();
-  node.expr()->accept(*this);
-  unindent();
+  emit("exprstmt", node.line(), node.column());
+  child(node.expr());
 }
 
 void ASTPrinter::visit(const AST::BinaryOpNode &node) {
-  printIndent("BinaryOp: " + node.op().value);
-  indent();
-  node.left()->accept(*this);
-  node.right()->accept(*this);
-  unindent();
+  emitNamed("binary", node.op().value, node.line(), node.column());
+  child(node.left());
+  child(node.right());
 }
 
 void ASTPrinter::visit(const AST::UnaryOpNode &node) {
-  printIndent("UnaryOp: " + node.op().value);
-  indent();
-  node.operand()->accept(*this);
-  unindent();
+  emitNamed("unary", node.op().value, node.line(), node.column());
+  child(node.operand());
 }
 
 void ASTPrinter::visit(const AST::CastNode &node) {
-  printIndent("Cast");
-  indent();
-  node.expr()->accept(*this);
-  node.type()->accept(*this);
-  unindent();
+  emit("cast", node.line(), node.column());
+  child(node.expr());
+  child(node.type());
 }
 
 void ASTPrinter::visit(const AST::FieldAccessNode &node) {
-  printIndent("FieldAccess: ." + node.field().value);
-  indent();
-  node.object()->accept(*this);
-  unindent();
+  emitNamed("fieldaccess", node.field().value, node.line(), node.column());
+  child(node.object());
 }
 
 void ASTPrinter::visit(const AST::IndexNode &node) {
-  printIndent("Index");
-  indent();
-  node.base()->accept(*this);
-  node.index()->accept(*this);
-  unindent();
+  emit("index", node.line(), node.column());
+  child(node.base());
+  child(node.index());
 }
 
 void ASTPrinter::visit(const AST::StructLiteralNode &node) {
-  printIndent("StructLiteral: " + node.typeName().value);
-  indent();
+  emitNamed("structlit", node.typeName().value, node.line(), node.column());
+  ++indentLevel_;
   for (const auto &field : node.fields()) {
-    printIndent("Field: " + field.name.value);
-    indent();
-    field.value->accept(*this);
-    unindent();
+    emitNamed("finit", field.name.value, field.name.line, field.name.column);
+    child(field.value.get());
   }
-  unindent();
+  --indentLevel_;
 }
 
 void ASTPrinter::visit(const AST::SizeOfNode &node) {
-  printIndent("SizeOf");
-  indent();
-  node.type()->accept(*this);
-  unindent();
+  emit("sizeof", node.line(), node.column());
+  child(node.type());
 }
 
 void ASTPrinter::visit(const AST::NumberNode &node) {
-  printIndent("Number: " + node.value().value);
+  emitNamed("number", node.value().value, node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::StringLiteralNode &node) {
-  printIndent("String: \"" + node.value().value + "\"");
+  emitNamed("string", node.value().value, node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::CharLiteralNode &node) {
-  printIndent("Char: '" + node.value().value + "'");
+  emitNamed("char", node.value().value, node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::BooleanNode &node) {
-  printIndent("Boolean: " + node.value().value);
+  emitNamed("bool", node.value().value, node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::IdentifierNode &node) {
-  printIndent("Identifier: " + node.name().value);
+  emitNamed("ident", node.name().value, node.line(), node.column());
 }
 
 void ASTPrinter::visit(const AST::TypeNode &node) {
-  printIndent("Type: " + std::string(node.pointerDepth(), '*') +
-              node.type().value);
+  emitLine(std::format("type '{}' depth={} {}:{}", escape(node.type().value),
+                       node.pointerDepth(), node.line(), node.column()));
 }
 
 void ASTPrinter::visit(const AST::ParamListNode &node) {
-  printIndent("ParamList");
-  indent();
+  emit("params", node.line(), node.column());
+  ++indentLevel_;
   for (const auto &param : node.params()) {
-    printIndent("Param: " + param.name.value);
-    indent();
-    if (param.type)
-      param.type->accept(*this);
-    unindent();
+    emitNamed("param", param.name.value, param.name.line, param.name.column);
+    child(param.type.get());
   }
-  unindent();
+  --indentLevel_;
 }
 
 void ASTPrinter::visit(const AST::ArgListNode &node) {
-  printIndent("ArgList");
-  indent();
+  emit("args", node.line(), node.column());
   for (const auto &arg : node.args()) {
-    arg->accept(*this);
+    child(arg.get());
   }
-  unindent();
 }

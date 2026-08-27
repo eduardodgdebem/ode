@@ -1,0 +1,112 @@
+// ---------------------------------------------------------------------------
+// Dumps, for comparing this compiler against the C++ one.
+//
+// The formats here are a contract: selfhost/difftest.sh compares this output
+// byte for byte against what `ode --dump-tokens` and `ode --dump-ast` print,
+// so a change here needs the same change on the C++ side.
+// ---------------------------------------------------------------------------
+
+// Text is escaped rather than written raw so that a literal newline or NUL
+// inside a string cannot break the line-per-node format.
+fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
+  let index: i64 = 0 as i64;
+
+  while (index < length) {
+    let character: i8 = text[index];
+
+    if (character == '\\') {
+      bufAdd(out, "\\\\");
+    } else if (character == '\n') {
+      bufAdd(out, "\\n");
+    } else if (character == '\t') {
+      bufAdd(out, "\\t");
+    } else if (character == '\r') {
+      bufAdd(out, "\\r");
+    } else if (character == '\'') {
+      bufAdd(out, "\\'");
+    } else if (character == 0 as i8) {
+      bufAdd(out, "\\0");
+    } else {
+      bufPush(out, character);
+    }
+
+    index = index + 1 as i64;
+  }
+}
+
+fn dumpTokens(list: *TokenList, out: *Buf): void {
+  let index: i32 = 0;
+
+  while (index < list.count) {
+    let token: *Token = tokenAt(list, index);
+
+    // The end token is the parser's sentinel, not part of the source, and the
+    // C++ lexer does not produce one.
+    if (token.kind == TK_END) {
+      index = index + 1;
+      continue;
+    }
+
+    bufAddInt(out, token.line as i64);
+    bufPush(out, ':');
+    bufAddInt(out, token.column as i64);
+    bufPush(out, ' ');
+    bufAdd(out, kindName(token.kind));
+
+    // An operator's text is its own name, so printing both says nothing.
+    if (token.kind == TK_IDENT || token.kind == TK_NUMBER ||
+        token.kind == TK_STRING || token.kind == TK_CHAR ||
+        token.kind == TK_BOOL || token.kind == TK_TYPE) {
+      bufAdd(out, " '");
+      bufAddBytes(out, token.text, token.length);
+      bufPush(out, '\'');
+    }
+
+    bufPush(out, '\n');
+    index = index + 1;
+  }
+}
+
+// Children print in slot order -- a, then b, then c, then the item list --
+// which is the order every kind stores them in, so no kind needs its own case.
+fn dumpNode(ast: *Ast, index: i32, depth: i32, out: *Buf): void {
+  if (index == NO_NODE) {
+    return;
+  }
+
+  let level: i32 = 0;
+  while (level < depth) {
+    bufAdd(out, "  ");
+    level = level + 1;
+  }
+
+  let kind: i32 = ast.nodes[index].kind;
+  bufAdd(out, nodeKindName(kind));
+
+  if (nodeCarriesText(kind)) {
+    bufAdd(out, " '");
+    dumpEscaped(out, ast.nodes[index].text, ast.nodes[index].textLength);
+    bufPush(out, '\'');
+  }
+
+  if (kind == NK_TYPE) {
+    bufAdd(out, " depth=");
+    bufAddInt(out, ast.nodes[index].extra as i64);
+  }
+
+  bufPush(out, ' ');
+  bufAddInt(out, ast.nodes[index].line as i64);
+  bufPush(out, ':');
+  bufAddInt(out, ast.nodes[index].column as i64);
+  bufPush(out, '\n');
+
+  dumpNode(ast, ast.nodes[index].a, depth + 1, out);
+  dumpNode(ast, ast.nodes[index].b, depth + 1, out);
+  dumpNode(ast, ast.nodes[index].c, depth + 1, out);
+
+  let item: i32 = 0;
+  while (item < ast.nodes[index].itemCount) {
+    dumpNode(ast, ast.nodes[index].items[item], depth + 1, out);
+    item = item + 1;
+  }
+}
