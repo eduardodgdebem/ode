@@ -1,0 +1,9 @@
+struct Point {
+  x: i32,
+}
+
+extern fn plot(point: Point): void;
+
+fn main(): i32 {
+  return 0;
+}

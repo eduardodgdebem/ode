@@ -1,0 +1,1 @@
+wrong_return_type.ode:2:3: error: wrong return type: expected 'i32' but got 'bool'

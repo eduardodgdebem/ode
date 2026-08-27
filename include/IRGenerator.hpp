@@ -74,7 +74,11 @@ private:
   llvm::LLVMContext context_;
   std::unique_ptr<llvm::Module> module_;
   llvm::IRBuilder<> builder_;
-  std::unordered_map<std::string, llvm::AllocaInst *> allocaMap_;
+  // One map of local slots per open block, innermost last. This mirrors the
+  // analyzer's SymbolTable: without it a `let` in a nested block would
+  // overwrite the outer slot of the same name and never give it back.
+  std::vector<std::unordered_map<std::string, llvm::AllocaInst *>>
+      allocaScopes_;
   const ResolvedTypes &resolvedTypes_;
   const StructTable &structs_;
   std::unordered_map<std::string, llvm::StructType *> structTypes_;
@@ -103,6 +107,11 @@ private:
   llvm::AllocaInst *createEntryBlockAlloca(llvm::Function *func,
                                            const std::string &name,
                                            llvm::Type *type);
+  void enterScope();
+  void exitScope();
+  // Binds a name to its slot in the innermost open scope. The slot itself
+  // still belongs to the function's entry block; only the binding is scoped.
+  void declareLocal(const std::string &name, llvm::AllocaInst *alloca);
   // Resolves a name to its storage, whether that is a local alloca or a
   // module-level global.
   llvm::Value *variableAddress(const std::string &name);

@@ -1,4 +1,6 @@
 #pragma once
+#include "SourceError.hpp"
+
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -9,6 +11,11 @@ private:
   std::filesystem::path filePath;
 
 public:
+  class Error : public SourceError {
+  public:
+    explicit Error(const std::string &msg) : SourceError(msg) {}
+  };
+
   Reader(std::filesystem::path filePath);
 
   ~Reader();

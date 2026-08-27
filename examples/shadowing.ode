@@ -1,0 +1,61 @@
+// A name declared in a nested block is a new variable, and the outer one of
+// the same name is untouched once the block ends. Parameters shadow the same
+// way, and a `let` may read the variable it shadows in its own initialiser.
+
+fn shadowParam(x: i32): i32 {
+  {
+    let x: i32 = 99;
+    print(x);
+  }
+
+  return x;
+}
+
+fn shadowInLoop(n: i32): i32 {
+  let total: i32 = 0;
+  let i: i32 = 0;
+
+  while (i < n) {
+    let total: i32 = i * 100;
+    print(total);
+    i = i + 1;
+  }
+
+  return total;
+}
+
+fn readsWhatItShadows(x: i32): i32 {
+  {
+    let x: i32 = x + 1;
+    print(x);
+  }
+
+  return x;
+}
+
+fn main(): i32 {
+  let x: i32 = 1;
+
+  {
+    let x: i32 = 99;
+    {
+      let x: i32 = 7;
+      print(x);
+    }
+    print(x);
+  }
+
+  print(x);
+
+  if (true) {
+    let x: bool = false;
+    print(x);
+  }
+
+  print(x);
+  print(shadowParam(1));
+  print(shadowInLoop(3));
+  print(readsWhatItShadows(41));
+
+  return 0;
+}

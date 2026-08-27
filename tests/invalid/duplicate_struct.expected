@@ -1,0 +1,1 @@
+duplicate_struct.ode:5:1: error: struct 'Point' is declared more than once

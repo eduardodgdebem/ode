@@ -6,7 +6,21 @@
 // `i32` is {I32, 0}, `*i32` is {I32, 1}, `**i8` is {I8, 2}.
 class Type {
 public:
-  enum class Kind { I8, U8, I32, I64, U64, F32, Bool, Void, Struct };
+  enum class Kind {
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    I64,
+    U64,
+    F32,
+    F64,
+    Bool,
+    Void,
+    Struct
+  };
 
   Type() : kind_(Kind::Void), pointerDepth_(0) {}
   explicit Type(Kind kind, int pointerDepth = 0)
@@ -38,12 +52,25 @@ public:
   }
 
   bool isInteger() const {
-    if (isPointer() || kind_ == Kind::Struct)
+    if (isPointer())
       return false;
-    return kind_ == Kind::I8 || kind_ == Kind::U8 || kind_ == Kind::I32 ||
-           kind_ == Kind::I64 || kind_ == Kind::U64;
+    switch (kind_) {
+    case Kind::I8:
+    case Kind::U8:
+    case Kind::I16:
+    case Kind::U16:
+    case Kind::I32:
+    case Kind::U32:
+    case Kind::I64:
+    case Kind::U64:
+      return true;
+    default:
+      return false;
+    }
   }
-  bool isFloat() const { return !isPointer() && kind_ == Kind::F32; }
+  bool isFloat() const {
+    return !isPointer() && (kind_ == Kind::F32 || kind_ == Kind::F64);
+  }
   bool isBool() const { return !isPointer() && kind_ == Kind::Bool; }
   bool isVoid() const { return !isPointer() && kind_ == Kind::Void; }
   bool isNumeric() const { return isInteger() || isFloat(); }
@@ -51,18 +78,26 @@ public:
   // Unsigned kinds use zero-extension, unsigned division and unsigned
   // comparisons; everything else is treated as signed.
   bool isSigned() const {
-    return isInteger() && kind_ != Kind::U8 && kind_ != Kind::U64;
+    return isInteger() && kind_ != Kind::U8 && kind_ != Kind::U16 &&
+           kind_ != Kind::U32 && kind_ != Kind::U64;
   }
 
+  // Zero for anything without a width of its own: bool, void, structs.
   unsigned bitWidth() const {
     switch (kind_) {
     case Kind::I8:
     case Kind::U8:
       return 8;
+    case Kind::I16:
+    case Kind::U16:
+      return 16;
     case Kind::I32:
+    case Kind::U32:
+    case Kind::F32:
       return 32;
     case Kind::I64:
     case Kind::U64:
+    case Kind::F64:
       return 64;
     default:
       return 0;
@@ -82,14 +117,22 @@ public:
       return out + "i8";
     case Kind::U8:
       return out + "u8";
+    case Kind::I16:
+      return out + "i16";
+    case Kind::U16:
+      return out + "u16";
     case Kind::I32:
       return out + "i32";
+    case Kind::U32:
+      return out + "u32";
     case Kind::I64:
       return out + "i64";
     case Kind::U64:
       return out + "u64";
     case Kind::F32:
       return out + "f32";
+    case Kind::F64:
+      return out + "f64";
     case Kind::Bool:
       return out + "bool";
     case Kind::Void:
@@ -106,14 +149,22 @@ public:
       out = Kind::I8;
     else if (name == "u8")
       out = Kind::U8;
+    else if (name == "i16")
+      out = Kind::I16;
+    else if (name == "u16")
+      out = Kind::U16;
     else if (name == "i32")
       out = Kind::I32;
+    else if (name == "u32")
+      out = Kind::U32;
     else if (name == "i64")
       out = Kind::I64;
     else if (name == "u64" || name == "usize")
       out = Kind::U64;
     else if (name == "f32")
       out = Kind::F32;
+    else if (name == "f64")
+      out = Kind::F64;
     else if (name == "bool")
       out = Kind::Bool;
     else if (name == "void")

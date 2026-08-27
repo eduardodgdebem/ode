@@ -11,9 +11,11 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {"else", Token::Type::Else},       {"return", Token::Type::Return},
       {"print", Token::Type::Print},     {"true", Token::Type::Boolean},
       {"false", Token::Type::Boolean},   {"i8", Token::Type::Type},
-      {"u8", Token::Type::Type},         {"i32", Token::Type::Type},
-      {"i64", Token::Type::Type},        {"u64", Token::Type::Type},
-      {"usize", Token::Type::Type},      {"f32", Token::Type::Type},
+      {"u8", Token::Type::Type},         {"i16", Token::Type::Type},
+      {"u16", Token::Type::Type},        {"i32", Token::Type::Type},
+      {"u32", Token::Type::Type},        {"i64", Token::Type::Type},
+      {"u64", Token::Type::Type},        {"usize", Token::Type::Type},
+      {"f32", Token::Type::Type},        {"f64", Token::Type::Type},
       {"bool", Token::Type::Type},       {"void", Token::Type::Type},
       {"=", Token::Type::Assign},        {"==", Token::Type::Equal},
       {"!=", Token::Type::NotEqual},     {"<", Token::Type::Less},
@@ -27,7 +29,12 @@ const Token::TokenTypeMap &Token::Classifier::getTokenMap() {
       {",", Token::Type::Comma},         {":", Token::Type::Colon},
       {"\"", Token::Type::DoubleQuotes}, {"!", Token::Type::Not},
       {"&", Token::Type::Ampersand},     {"[", Token::Type::LBracket},
-      {"]", Token::Type::RBracket},      {".", Token::Type::Dot}};
+      {"]", Token::Type::RBracket},      {".", Token::Type::Dot},
+      {"%", Token::Type::Percent},       {"|", Token::Type::Pipe},
+      {"^", Token::Type::Caret},         {"<<", Token::Type::ShiftLeft},
+      {">>", Token::Type::ShiftRight},   {"+=", Token::Type::PlusAssign},
+      {"-=", Token::Type::MinusAssign},  {"*=", Token::Type::MultiplyAssign},
+      {"/=", Token::Type::DivideAssign}, {"%=", Token::Type::PercentAssign}};
 
   return tokens;
 }

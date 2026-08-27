@@ -1,0 +1,5 @@
+fn main(): i32 {
+  extern fn puts(text: *i8): i32;
+
+  return 0;
+}

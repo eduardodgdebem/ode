@@ -18,6 +18,18 @@ bool isLValue(const AST::Node *node) {
   }
   return false;
 }
+
+// The lexer folds a leading '-' into a number token where the position allows
+// it, so a literal carries its own sign. A negative one only fits a signed
+// type, and reaches one further from zero than the positive maximum does.
+bool fitsIn(unsigned long long magnitude, bool negative, Type type) {
+  unsigned bits = type.bitWidth();
+  if (!type.isSigned()) {
+    return !negative && magnitude <= ~0ULL >> (64 - bits);
+  }
+  unsigned long long max = ~0ULL >> (65 - bits);
+  return magnitude <= (negative ? max + 1 : max);
+}
 } // namespace
 
 // Every expression the analyzer proves well-typed is recorded here, so that
@@ -152,6 +164,13 @@ Type SemanticAnalyzer::checkUnaryOp(const AST::UnaryOpNode &node) {
     }
     return operandType;
 
+  case Token::Type::Plus:
+    if (!operandType.isNumeric()) {
+      fail("unary plus requires a numeric operand",
+                  std::format("got '{}'", operandType.toString()));
+    }
+    return operandType;
+
   case Token::Type::Not:
     if (!operandType.isBool()) {
       fail("logical NOT requires boolean operand",
@@ -199,6 +218,14 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
     if (left.isVoid()) {
       fail("cannot compare void values");
     }
+    // A struct is an aggregate; there is no single machine instruction to
+    // compare one, and comparing them field by field would be a feature of
+    // its own.
+    if (left.isStruct()) {
+      fail(std::format("cannot compare struct '{}' values",
+                       left.structName()),
+           "compare their fields instead");
+    }
     return Type(Type::Kind::Bool);
 
   case Token::Type::Greater:
@@ -212,6 +239,10 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
     }
     if (left.isBool() || left.isVoid()) {
       fail("cannot compare boolean or void values");
+    }
+    if (left.isStruct()) {
+      fail(std::format("cannot order struct '{}' values", left.structName()),
+           "compare their fields instead");
     }
     return Type(Type::Kind::Bool);
 
@@ -268,14 +299,34 @@ Type SemanticAnalyzer::checkBinaryOp(const AST::BinaryOpNode &node) {
     }
     return left;
 
+  // Remainder, the bitwise operators and the shifts all lower to an LLVM
+  // instruction that wants two integers of one width, which is also what the
+  // absence of implicit conversions would demand anyway.
+  case Token::Type::Percent:
+  case Token::Type::Ampersand:
+  case Token::Type::Pipe:
+  case Token::Type::Caret:
+  case Token::Type::ShiftLeft:
+  case Token::Type::ShiftRight:
+    if (left != right) {
+      fail(std::format("'{}' requires same type operands", node.op().value),
+                  std::format("got '{}' and '{}'", left.toString(),
+                              right.toString()));
+    }
+    if (!left.isInteger()) {
+      fail(std::format("'{}' requires integer operands", node.op().value),
+                  std::format("got '{}'", left.toString()));
+    }
+    return left;
+
   default:
     fail("unknown binary operator");
   }
 }
 
 Type SemanticAnalyzer::checkCast(const AST::CastNode &node) {
-  Type from = checkExpr(node.expr());
   Type to = parseType(node.type());
+  Type from = checkCastOperand(node.expr(), to);
 
   auto reject = [&](const std::string &why) {
     fail(std::format("cannot cast '{}' to '{}'", from.toString(),
@@ -321,16 +372,53 @@ Type SemanticAnalyzer::checkCast(const AST::CastNode &node) {
   return to;
 }
 
-Type SemanticAnalyzer::checkNumberLiteral(const AST::NumberNode &node) {
-  if (node.value().value.find('.') != std::string::npos) {
-    return Type(Type::Kind::F32);
+Type SemanticAnalyzer::checkCastOperand(const AST::Node *node, Type target) {
+  auto *num = dynamic_cast<const AST::NumberNode *>(node);
+  if (!num) {
+    return checkExpr(node);
   }
-  long long value = std::stoll(node.value().value);
-  if (value <= INT32_MIN || value >= INT32_MAX) {
-    fail("number is out of range for i32",
-                "use an explicit cast such as `... as i64`");
+
+  ErrorContext context(*this, node);
+  Type type = checkNumberLiteral(*num, target);
+  types_[node] = type;
+  return type;
+}
+
+Type SemanticAnalyzer::checkNumberLiteral(const AST::NumberNode &node,
+                                          Type target) {
+  const std::string &text = node.value().value;
+  if (text.find('.') != std::string::npos) {
+    return target.isFloat() ? target : Type(Type::Kind::F32);
   }
-  return Type(Type::Kind::I32);
+
+  // A literal that fits `i32` stays `i32` even under a cast, so that a
+  // narrowing conversion such as `300 as i8` keeps meaning "truncate an
+  // in-range i32" rather than becoming an out-of-range literal. Only a value
+  // `i32` cannot hold takes the cast's target type, which is what makes
+  // `3000000000 as i64` expressible at all.
+  Type fallback(Type::Kind::I32);
+  if (!target.isInteger()) {
+    target = fallback;
+  }
+
+  bool negative = text.front() == '-';
+  unsigned long long magnitude;
+  try {
+    magnitude = std::stoull(negative ? text.substr(1) : text);
+  } catch (const std::out_of_range &) {
+    fail(std::format("number is out of range for '{}'", target.toString()));
+  }
+
+  if (fitsIn(magnitude, negative, fallback)) {
+    return fallback;
+  }
+  if (!fitsIn(magnitude, negative, target)) {
+    fail(std::format("number is out of range for '{}'", target.toString()),
+                target == fallback
+                    ? "use an explicit cast such as `... as i64`"
+                    : "the value does not fit the type it is cast to");
+  }
+  return target;
 }
 
 Type SemanticAnalyzer::parseType(const AST::Node *node) {

@@ -12,6 +12,14 @@ AST::NodePtr Parser::located(AST::NodePtr node, const Token &at) {
   return node;
 }
 
+AST::NodePtr Parser::reparse(size_t start) {
+  size_t resume = pos_;
+  pos_ = start;
+  auto copy = parseExpr();
+  pos_ = resume;
+  return copy;
+}
+
 Token Parser::current() const {
   if (isAtEnd())
     return Token{Token::Type::End, ""};

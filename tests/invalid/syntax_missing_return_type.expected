@@ -1,0 +1,1 @@
+syntax_missing_return_type.ode:1:11: error: expected ':' but got '{'

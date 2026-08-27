@@ -1,0 +1,1 @@
+function_used_as_variable.ode:6:9: error: 'helper' is a function, not a variable

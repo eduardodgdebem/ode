@@ -1,0 +1,268 @@
+# Known limitations
+
+Everything here was reproduced against the compiler at the time of writing.
+Each entry says how to trigger it and what happens.
+
+The list is ordered by how much it hurts, not by how hard it is to fix.
+Section 1 holds outright defects — a crash or a wrong answer. Everything after
+it is a feature that does not exist yet, or a deliberate decision.
+
+**Not limitations**, though they are easy to assume: `main` can take
+`(argc: i32, argv: **i8)` and read them, and file I/O works through `extern`
+declarations of `fopen` / `fgetc` / `fclose`. Both are verified.
+
+---
+
+## 1. Defects
+
+None known.
+
+Four were recorded here and have since been fixed: a nested block overwriting
+the outer variable of the same name, `==` and `<` on two structs tripping an
+LLVM assertion, a function declared inside another emitting invalid IR, and a
+missing input file reported as a missing `main`. Each is now pinned by the
+regression suite, so a recurrence fails a check rather than reaching a user.
+
+Two further latent bugs turned up while fixing those and are also closed: a
+`let` bound its name before its initialiser was generated, so `let x = x + 1;`
+in an inner block would have read its own uninitialised slot once scoping
+existed; and `print` promoted anything whose kind was `i8` — including `*i8` —
+through `ptrtoint`, truncating every printed string to 32 bits. That one only
+worked because the constants sat below 4GB.
+
+## 2. Missing operators
+
+Remainder, the bitwise operators, the shifts, compound assignment and unary
+plus were added and are exercised by `examples/operators.ode`. What is left:
+
+| Missing | Example | Notes |
+|---|---|---|
+| `for` loops | `for (...) { }` | `while` covers it |
+
+Two notes on what did land. There is no `&=`, `|=`, `^=`, `<<=` or `>>=`: the
+lexer only ever tries two characters when matching an operator, so a
+three-character one needs a change there first. And compound assignment
+desugars in the parser to `a = a op b`, which puts the target into the tree
+twice, so a side effect in the target — `a[next()] += 1` — runs twice.
+
+## 3. Missing types
+
+| Missing | Notes |
+|---|---|
+| Function pointers | No function type exists, so dispatch tables have to be `if`/`else if` chains |
+| Fixed-size arrays (`[i8; 256]`) | Deliberate — see 6.2 |
+| Tagged unions | Deliberate — see 6.3 |
+
+The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
+`i64`/`u64` (spelled `usize` too), plus `f32` and `f64`.
+
+Function pointers are the significant one. Without them, a table-driven parser
+is not expressible and dispatch stays as chained conditionals.
+
+## 4. Type system
+
+### 4.1 A literal takes a wider type only from a cast written directly on it
+
+Literals are `i32`, or `f32` when they contain a `.`. A literal written as the
+direct operand of a cast takes the target's type when `i32` cannot hold the
+value, so a wide constant can be written as itself:
+
+```rust
+let big: i64 = 3000000000 as i64;
+let all: u64 = 18446744073709551615 as u64;
+```
+
+A value that does fit `i32` keeps it, so a narrowing cast still truncates:
+`300 as i8` is 44, not an out-of-range literal.
+
+Two shapes are still rejected, because in neither is the literal the cast's
+operand:
+
+```rust
+let big: i64 = -3000000000 as i64;  // `as` binds looser than unary minus, so
+                                    // the operand is the negation, not the 3e9
+let f: f64 = 3000000000 as f64;     // the target is not an integer type, so
+                                    // the literal falls back to i32
+```
+
+Both have a direct workaround — `-(3000000000 as i64)` and
+`3000000000 as i64 as f64` — so this is a wart rather than a wall.
+
+*Fix:* look through a negation in `checkCastOperand`, and type literals from
+context generally rather than only under a cast.
+
+### 4.2 No implicit conversions
+
+**Deliberate.** Every width change needs `as`, so `let n: i64 = 0;` is an
+error and `let n: i64 = 0 as i64;` is required. Explicit, but verbose in
+arithmetic-heavy code.
+
+### 4.3 `.` follows exactly one level of pointer
+
+`node.field` works when `node` is a struct or a `*Struct`. A `**Struct`
+requires `(*node).field`:
+
+```
+error: cannot read field 'x': '**P' is not a struct
+```
+
+### 4.4 Globals must be initialised from constants
+
+```rust
+let A: i32 = 1;
+let B: i32 = A;   // error: initialiser of global 'B' is not constant
+```
+
+Only literals, `sizeof`, and casts or negations of those. Global initialisers
+become LLVM constant initialisers, so anything computed has to be assigned from
+an `init()` function at start-up.
+
+### 4.5 No all-paths-return analysis
+
+**Deliberate.** Falling off the end of a non-void function is allowed and
+yields a zero value. Several examples rely on it, including `main` in
+`example2` through `example5`.
+
+### 4.6 `print` does not accept structs
+
+```
+error: unsupported type for print statement
+```
+
+`print` handles integers, floats, booleans and pointers only. This diagnostic
+also carries no line or column — see 5.2.
+
+## 5. Diagnostics
+
+### 5.1 Only the first error is reported
+
+There is no error recovery. The compiler stops at the first problem, so a file
+with three type errors requires three compile-and-fix cycles.
+
+This is the biggest ergonomic gap for self-hosting work, and the largest change
+on this page: it needs synchronising recovery points in the parser and
+non-fatal diagnostics through the analyzer.
+
+### 5.2 Some diagnostics have no position
+
+- Errors raised by the IR generator, including `print` of an unsupported type.
+  Most are internal invariants with nothing in the source to point at, but
+  `print` is user-facing.
+- `rejectStructCycles`, which works over collected layouts rather than
+  declarations.
+- `validateType` reports at the enclosing declaration rather than at the type
+  name, so `let b: Missing = 2;` points at the `let` rather than at `Missing`.
+  The line is right; the column is off.
+
+### 5.3 No warnings
+
+There is no diagnostic short of a hard error — no unused variable, no
+unreachable code, no implicit truncation notice.
+
+## 6. Deliberate omissions
+
+Choices, not oversights. Each has a reason and a workaround.
+
+### 6.1 No variadic `extern`
+
+`extern fn printf(fmt: *i8, ...): i32;` cannot be written; every declaration is
+fixed-arity. Nothing self-hosting needs is variadic — `malloc`, `fopen`,
+`fread`, `write`, `strlen`, `exit` are all fixed — and the built-in `print`
+covers debugging output.
+
+### 6.2 No fixed-size array types
+
+An array is a pointer plus indexing: `malloc` for the storage, `a[i]` to reach
+it. A real array type would add a second axis to `Type` for one bootstrap
+convenience.
+
+### 6.3 No sum types
+
+A kind tag plus one struct holding every variant's fields stands in, as
+`examples/expr_tree.ode` shows. Wasteful in memory, and exactly what a C
+bootstrap compiler does.
+
+### 6.4 Structs cannot cross `extern` by value
+
+```
+error: extern 'f' takes a struct by value: take a pointer instead
+```
+
+Passing an aggregate across the C ABI needs target-specific lowering — `sret`,
+`byval`, register pairs — that this compiler does not implement. Emitting a
+plain LLVM aggregate would produce calls that disagree with the C side.
+Struct-by-value between two Ode functions is fine.
+
+### 6.5 No modules
+
+The whole program is one file. The self-hosted compiler is expected to be a
+single file of roughly 4,000–5,000 lines, which is unpleasant but workable.
+
+## 7. Codegen and runtime
+
+### 7.1 No runtime checks
+
+Division by zero produces garbage rather than a diagnostic or a trap:
+
+```rust
+let z: i32 = 0;
+print(10 / z);     // prints an arbitrary value
+```
+
+There are also no bounds checks on indexing, no null checks on dereference,
+and no integer overflow detection. `example6` relies on the last of these —
+`fib(47)` overflows `i32` and prints a negative number.
+
+### 7.2 Identical string literals are not shared
+
+Every string literal creates its own private global, so the same text written
+twice is stored twice. Irrelevant at current scale.
+
+### 7.3 No optimisation control
+
+The target machine is always built at `CodeGenOptLevel::Default` and there is
+no flag to change it, no `-O` equivalent, and no LLVM pass pipeline beyond what
+that implies.
+
+### 7.4 Only `//` comments
+
+No block comments, no nesting.
+
+### 7.5 Limited string escapes
+
+`\n`, `\t`, `\r`, `\0`, `\\`, `\"` and `\'`. No `\xNN`, no unicode escapes, and
+no multi-line string literals — a string may not cross a newline.
+
+## 8. Tooling
+
+### 8.1 Testing is end-to-end only
+
+`tests/run_tests.sh` compiles, links and runs every `examples/*.ode` against a
+recorded stdout, and checks every `tests/invalid/*.ode` against the diagnostic
+it must produce. `ctest` runs it as `regression`, and `--update` re-records
+every expectation in one pass.
+
+What it does not do is test any component in isolation. There are no unit
+tests for the lexer, the parser, the analyzer or codegen, so a fault is
+located by bisecting a failing program rather than by a failing assertion. For
+the self-hosting port, where two compilers need diffing against each other,
+that will start to matter.
+
+### 8.2 Linking shells out to `clang++`
+
+`Linker::link` builds a `clang++` command and calls `std::system`, so `clang++`
+must be on `PATH`. The paths are now single-quoted, so a space or a shell
+metacharacter in one no longer re-splits the command or gets executed, but
+running a shell at all is still more than the job needs; `posix_spawn` would
+remove both the shell and the `PATH` lookup.
+
+### 8.3 Intermediates are always written
+
+`ode -o <path>` writes the executable where asked, with `<path>.ll` and
+`<path>.o` beside it; `--no-intermediates` deletes those two once linking
+succeeds. With no flags the compiler writes `<stem>.ll`, `<stem>.o` and
+`<stem>` into the working directory.
+
+The residue is that the `.ll` and `.o` are always written before they can be
+removed, so there is no way to compile without touching the filesystem beyond
+the output, and no way to ask for only the IR without also linking.

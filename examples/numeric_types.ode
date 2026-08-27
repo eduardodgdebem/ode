@@ -1,0 +1,54 @@
+// The full numeric set: every integer width in both signednesses, both float
+// widths, the conversions between them, and literals wider than i32.
+
+fn main(): i32 {
+  // i16 and u16 print through the same promotion to i32 that i8 and u8 use.
+  let small: i16 = 30000 as i16;
+  print(small);              // 30000
+
+  let smallUnsigned: u16 = 65535 as u16;
+  print(smallUnsigned);      // 65535
+
+  // Narrowing keeps the low bits: 100000 is 0x186A0, and 0x86A0 read as a
+  // signed 16-bit value is -31072.
+  let truncated: i16 = 100000 as i16;
+  print(truncated);          // -31072
+
+  // u32 holds values i32 cannot, and divides unsigned.
+  let wide: u32 = 4000000000 as u32;
+  print(wide);               // 4000000000
+  print(wide / 2 as u32);    // 2000000000
+
+  // 16777217 is the first integer f32 cannot represent: it has 24 bits of
+  // mantissa, and this needs 25. f64 holds it exactly.
+  let exact: f64 = 16777217.0 as f64;
+  print(exact);              // 16777217.000000
+
+  // Narrowing to f32 rounds it down to the nearest representable value...
+  let rounded: f32 = exact as f32;
+  print(rounded);            // 16777216.000000
+
+  // ...and widening back does not recover the lost bit.
+  let widened: f64 = rounded as f64;
+  print(widened);            // 16777216.000000
+
+  // Integers convert to f64 and back the same way they do to f32.
+  let fromInt: f64 = 3000000000 as i64 as f64;
+  print(fromInt);            // 3000000000.000000
+  print(fromInt as i64);     // 3000000000
+
+  // A literal too wide for i32 takes the type it is cast to, so this no
+  // longer has to be built out of arithmetic.
+  let huge: i64 = 3000000000 as i64;
+  print(huge);               // 3000000000
+
+  let hugest: u64 = 18446744073709551615 as u64;
+  print(hugest);             // 18446744073709551615
+
+  // A literal that does fit i32 keeps it, so casting down still truncates
+  // rather than becoming an out-of-range literal.
+  let narrow: i8 = 300 as i8;
+  print(narrow);             // 44
+
+  return 0;
+}

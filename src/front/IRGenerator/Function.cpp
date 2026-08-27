@@ -21,18 +21,22 @@ void IRGenerator::visit(const AST::FuncDeclNode &node) {
   builder_.SetInsertPoint(block);
 
   currentFunc_ = func;
-  allocaMap_.clear();
+  allocaScopes_.clear();
   loops_.clear();
 
+  // The parameters live one scope outside the body, so that a `let` at the
+  // top of the body may shadow a parameter of the same name.
+  enterScope();
   for (auto &arg : func->args()) {
     std::string name = arg.getName().str();
     llvm::AllocaInst *alloca =
         createEntryBlockAlloca(func, name, arg.getType());
-    allocaMap_[name] = alloca;
+    declareLocal(name, alloca);
     builder_.CreateStore(&arg, alloca);
   }
 
   node.body()->accept(*this);
+  exitScope();
 
   llvm::BasicBlock *currentBlock = builder_.GetInsertBlock();
   if (!currentBlock->getTerminator()) {

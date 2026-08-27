@@ -1,0 +1,9 @@
+fn sum(a: i32, b: i32): i32 {
+  return a + b;
+}
+
+fn main(): i32 {
+  print(sum(1));
+
+  return 0;
+}

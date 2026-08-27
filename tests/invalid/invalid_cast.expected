@@ -1,0 +1,1 @@
+invalid_cast.ode:7:26: error: cannot cast 'Point' to 'i32': no such conversion

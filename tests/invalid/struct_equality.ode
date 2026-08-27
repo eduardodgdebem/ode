@@ -1,0 +1,9 @@
+struct Point { x: i32, }
+
+fn main(): i32 {
+  let a: Point = Point { x: 1 };
+  let b: Point = Point { x: 1 };
+
+  print(a == b);
+  return 0;
+}

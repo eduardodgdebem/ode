@@ -1,0 +1,1 @@
+integer_literal_out_of_range.ode:2:20: error: number is out of range for 'i32': use an explicit cast such as `... as i64`
