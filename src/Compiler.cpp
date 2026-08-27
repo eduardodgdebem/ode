@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "Diagnostics.hpp"
 #include "IRGenerator.hpp"
 #include "Lexer/Lexer.hpp"
 #include "Linker.hpp"
@@ -23,14 +24,50 @@ void Compiler::run() {
   try {
     compile();
   } catch (const SourceError &error) {
-    // Only the driver knows which file is being compiled, so it is what
-    // turns a line:column into a full file:line:column reference.
-    throw std::runtime_error(
-        error.hasPosition()
-            ? std::format("{}:{}:{}: error: {}", options.inputPath.string(),
-                          error.line(), error.column(), error.message())
-            : std::format("{}: error: {}", options.inputPath.string(),
-                          error.message()));
+    // An error that escaped a phase's recovery, so it is the only one there
+    // is to report.
+    Diagnostics single;
+    single.report(error);
+    throw std::runtime_error(formatDiagnostics(single));
+  }
+}
+
+// Only the driver knows which file is being compiled, so it is what turns a
+// line:column into a full file:line:column reference.
+std::string Compiler::formatDiagnostics(const Diagnostics &diagnostics) const {
+  std::string report;
+
+  for (const Diagnostic &diagnostic : diagnostics.entries()) {
+    if (!report.empty()) {
+      report += '\n';
+    }
+    report += diagnostic.line > 0
+                  ? std::format("{}:{}:{}: error: {}",
+                                options.inputPath.string(), diagnostic.line,
+                                diagnostic.column, diagnostic.message)
+                  : std::format("{}: error: {}", options.inputPath.string(),
+                                diagnostic.message);
+  }
+
+  // A single error reads better on its own; a count is only worth printing
+  // once there is more than one thing to count. Past the limit the count and
+  // the list disagree, so the summary says which is which rather than letting
+  // a truncated list read as the whole story.
+  if (diagnostics.count() > diagnostics.entries().size()) {
+    report += std::format("\n{} errors generated, showing the first {}.",
+                          diagnostics.count(), diagnostics.entries().size());
+  } else if (diagnostics.count() > 1) {
+    report += std::format("\n{} errors generated.", diagnostics.count());
+  }
+
+  return report;
+}
+
+// Stops the compile if the phase that just ran found anything, so that the
+// next phase never runs on a tree that is known to be wrong.
+void Compiler::stopIfErrors(const Diagnostics &diagnostics) const {
+  if (!diagnostics.empty()) {
+    throw std::runtime_error(formatDiagnostics(diagnostics));
   }
 }
 
@@ -41,14 +78,23 @@ void Compiler::compile() {
   std::unique_ptr<Lexer> lexer = std::make_unique<Lexer>(fileText);
   std::vector<Token> tokens = lexer->tokenize();
 
-  std::unique_ptr<Parser> parser = std::make_unique<Parser>(tokens);
+  Diagnostics diagnostics;
+
+  std::unique_ptr<Parser> parser =
+      std::make_unique<Parser>(tokens, diagnostics);
   AST::NodePtr root = parser->parse();
+
+  // A tree with a hole in it says nothing trustworthy about types, so the
+  // syntax errors are reported on their own rather than alongside whatever
+  // the analyzer would invent from the wreckage.
+  stopIfErrors(diagnostics);
 
   auto printer = std::make_unique<ASTPrinter>();
   // printer->visit(static_cast<const AST::ProgramNode&>(*root));
 
-  auto analyzer = std::make_unique<SemanticAnalyzer>();
+  auto analyzer = std::make_unique<SemanticAnalyzer>(diagnostics);
   analyzer->analyze(*root);
+  stopIfErrors(diagnostics);
 
   std::unique_ptr<IRGenerator> irgen = std::make_unique<IRGenerator>(
       "myProgram", analyzer->resolvedTypes(), analyzer->structs());

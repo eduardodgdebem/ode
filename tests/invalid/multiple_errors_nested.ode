@@ -1,0 +1,15 @@
+// Recovery works at every block depth, not just the top level of a function.
+fn main(): i32 {
+  if (true) {
+    let a: bool = 1;
+
+    while (true) {
+      let b: bool = 2;
+      break;
+    }
+
+    let c: bool = 3;
+  }
+
+  return 0;
+}

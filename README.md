@@ -22,6 +22,20 @@ can jump to directly:
 examples/broken.ode:12:3: error: type mismatch in declaration of 'wrong': declared as 'bool' but assigned 'i32'
 ```
 
+The compiler does not stop at the first one. Both the parser and the analyzer
+recover at the next statement boundary and keep checking, so one run reports
+everything it can find:
+
+```
+broken.ode:4:3: error: type mismatch in declaration of 'a': declared as 'bool' but assigned 'i32'
+broken.ode:11:3: error: if condition must be boolean: got 'i32'
+broken.ode:15:3: error: while condition must be boolean: got 'i32'
+3 errors generated.
+```
+
+Syntax errors are reported on their own, without the type errors that would be
+guessed from a tree that did not parse. See `LIMITATIONS.md` section 5.1.
+
 ## Running the Compiler
 
 To compile an Ode source file, you can run the following command:

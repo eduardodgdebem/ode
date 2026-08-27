@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Diagnostics.hpp"
+
 #include <filesystem>
+#include <string>
 
 class Compiler {
 public:
@@ -17,6 +20,10 @@ public:
 
 private:
   void compile();
+  // Renders every diagnostic as file:line:column: error: message, which is
+  // what an editor can jump to.
+  std::string formatDiagnostics(const Diagnostics &diagnostics) const;
+  void stopIfErrors(const Diagnostics &diagnostics) const;
 
   Options options;
 };
