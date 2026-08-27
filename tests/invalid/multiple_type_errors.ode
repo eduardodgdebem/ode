@@ -1,0 +1,20 @@
+// Every one of these is reported in a single run. The three `let`s each bind
+// their name despite the bad initialiser, so the uses below them add nothing.
+fn main(): i32 {
+  let a: bool = 1;
+  let b: i32 = true;
+  let c: i32 = "text";
+
+  print(a);
+  print(b + c);
+
+  if (b) {
+    print(1);
+  }
+
+  while (c) {
+    break;
+  }
+
+  return 0;
+}

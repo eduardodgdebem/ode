@@ -1,0 +1,4 @@
+multiple_errors_nested.ode:4:5: error: type mismatch in declaration of 'a': declared as 'bool' but assigned 'i32'
+multiple_errors_nested.ode:7:7: error: type mismatch in declaration of 'b': declared as 'bool' but assigned 'i32'
+multiple_errors_nested.ode:11:5: error: type mismatch in declaration of 'c': declared as 'bool' but assigned 'i32'
+3 errors generated.

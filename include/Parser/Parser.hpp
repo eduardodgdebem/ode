@@ -1,5 +1,6 @@
 #pragma once
 #include "AST.hpp"
+#include "Diagnostics.hpp"
 #include "SourceError.hpp"
 
 #include <format>
@@ -7,7 +8,7 @@
 
 class Parser {
 public:
-  explicit Parser(std::vector<Token> &tokens);
+  Parser(std::vector<Token> &tokens, Diagnostics &diagnostics);
 
   class Error : public SourceError {
   public:
@@ -33,6 +34,7 @@ public:
 
 private:
   std::vector<Token> tokens_;
+  Diagnostics &diagnostics_;
   size_t pos_;
   // False as soon as a block is opened. `fn`, `extern` and `struct` are
   // file-level constructs, and a body is not the file level.
@@ -48,6 +50,16 @@ private:
   bool isAtEnd() const;
   void expect(Token::Type type, const std::string &name);
   Token consume(Token::Type type, const std::string &name);
+
+  // True for a token that can only begin a statement, which is where a
+  // recovering parser can pick the file back up.
+  static bool startsStatement(Token::Type type);
+  // Skips to the next plausible statement boundary after an error, stepping
+  // over a whole `{ ... }` body rather than descending into one.
+  void synchronize();
+  // Parses one statement, recording the error and resynchronising if it does
+  // not parse. Returns null for a statement that recovery dropped.
+  AST::NodePtr parseStatementRecovering();
 
   // Parses the expression starting at `start` again and leaves the position
   // where it was, so that a desugaring can use the same operand twice without
@@ -72,8 +84,10 @@ private:
   AST::NodePtr parsePrimary();
   AST::NodePtr parseStatement();
   AST::NodePtr parseStatementInner();
-  // Rejects a declaration written anywhere but the top level of the program.
-  void requireTopLevel(const std::string &construct);
+  // Rejects a declaration written anywhere but the top level of the program,
+  // after it has been parsed. Returns it when it is in the right place.
+  AST::NodePtr requireTopLevel(const Token &at, const std::string &construct,
+                               AST::NodePtr declaration);
   AST::NodePtr parseVarDecl();
   AST::NodePtr parseExprStmt();
   AST::NodePtr parseBlock();

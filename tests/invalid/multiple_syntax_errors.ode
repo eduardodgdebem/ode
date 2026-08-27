@@ -1,0 +1,16 @@
+// A missing semicolon in three separate functions. Recovery resumes at the
+// next statement, so each one is found in the same run.
+fn first(): i32 {
+  let a: i32 = 1
+  return a;
+}
+
+fn second(): i32 {
+  let b: i32 = 2;
+  return b
+}
+
+fn main(): i32 {
+  print(first() + second())
+  return 0;
+}

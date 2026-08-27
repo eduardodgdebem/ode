@@ -11,26 +11,26 @@ void SemanticAnalyzer::visit(const AST::ProgramNode &node) {
   // then fields, then globals and function signatures, which may both refer
   // to any struct.
   for (const auto &stmt : node.statements()) {
-    registerStructName(stmt.get());
+    recover([&] { registerStructName(stmt.get()); });
   }
   for (const auto &stmt : node.statements()) {
-    registerStructFields(stmt.get());
+    recover([&] { registerStructFields(stmt.get()); });
   }
-  rejectStructCycles();
+  recover([&] { rejectStructCycles(); });
 
   for (const auto &stmt : node.statements()) {
-    hoistGlobal(stmt.get());
+    recover([&] { hoistGlobal(stmt.get()); });
   }
   for (const auto &stmt : node.statements()) {
-    hoistSignature(stmt.get());
+    recover([&] { hoistSignature(stmt.get()); });
   }
 
   for (const auto &stmt : node.statements()) {
-    stmt->accept(*this);
+    recover([&] { stmt->accept(*this); });
   }
 
   if (!symbols_.lookup("main")) {
-    fail("No main function found");
+    recover([&] { fail("No main function found"); });
   }
 }
 
@@ -173,7 +173,7 @@ void SemanticAnalyzer::visit(const AST::BlockNode &node) {
   ErrorContext context(*this, &node);
   symbols_.enterScope();
   for (const auto &stmt : node.statements()) {
-    stmt->accept(*this);
+    recover([&] { stmt->accept(*this); });
   }
   symbols_.exitScope();
 }
@@ -187,23 +187,32 @@ void SemanticAnalyzer::visit(const AST::VarDeclNode &node) {
     fail(std::format("variable '{}' cannot be void", node.name().value));
   }
 
-  Type exprType = checkExpr(node.expr());
+  // The initialiser is checked before the name is bound, so `let x = x + 1;`
+  // cannot see the slot it is initialising. A failure here is recorded rather
+  // than thrown, because the name is still worth binding: without it every
+  // later mention of the variable would report a second, invented error.
+  try {
+    Type exprType = checkExpr(node.expr());
 
-  if (declaredType != exprType) {
-    fail(
-        std::format("type mismatch in declaration of '{}'", node.name().value),
-        std::format("declared as '{}' but assigned '{}'",
-                    typeToString(declaredType), typeToString(exprType)));
+    if (declaredType != exprType) {
+      fail(std::format("type mismatch in declaration of '{}'",
+                       node.name().value),
+           std::format("declared as '{}' but assigned '{}'",
+                       typeToString(declaredType), typeToString(exprType)));
+    }
+
+    // Globals were declared during hoisting; all that is left is to confirm
+    // the initialiser can be emitted as an LLVM constant.
+    if (globals_.contains(&node) && !isConstantExpr(node.expr())) {
+      fail(std::format("initialiser of global '{}' is not constant",
+                       node.name().value),
+           "globals may only be initialised from literals");
+    }
+  } catch (const SourceError &error) {
+    diagnostics_.report(error);
   }
 
-  // Globals were declared during hoisting; all that is left is to confirm the
-  // initialiser can be emitted as an LLVM constant.
   if (globals_.contains(&node)) {
-    if (!isConstantExpr(node.expr())) {
-      fail(std::format("initialiser of global '{}' is not constant",
-                              node.name().value),
-                  "globals may only be initialised from literals");
-    }
     return;
   }
 

@@ -134,14 +134,39 @@ also carries no line or column — see 5.2.
 
 ## 5. Diagnostics
 
-### 5.1 Only the first error is reported
+### 5.1 Errors are batched within a phase, but not across phases
 
-There is no error recovery. The compiler stops at the first problem, so a file
-with three type errors requires three compile-and-fix cycles.
+Both the parser and the analyzer recover and keep going, so a file with three
+type errors reports all three in one run:
 
-This is the biggest ergonomic gap for self-hosting work, and the largest change
-on this page: it needs synchronising recovery points in the parser and
-non-fatal diagnostics through the analyzer.
+```
+main.ode:4:3: error: type mismatch in declaration of 'a': declared as 'bool' but assigned 'i32'
+main.ode:11:3: error: if condition must be boolean: got 'i32'
+main.ode:15:3: error: while condition must be boolean: got 'i32'
+3 errors generated.
+```
+
+Recovery is per statement. The parser discards tokens up to the next `;` or the
+start of the next statement, stepping over a whole `{ ... }` body rather than
+descending into one, so a malformed function header costs its body instead of
+producing a second round of errors from inside it. The analyzer catches at the
+same granularity, putting back any scope the abandoned statement left open. A
+`let` whose initialiser failed still binds its name to the declared type, so
+the statements below it do not report an invented "undefined variable".
+
+Past 20 errors the list stops being useful, so it is truncated and the summary
+says so: `47 errors generated, showing the first 20.`
+
+What is left:
+
+- **Syntax and type errors do not appear together.** A tree with a hole in it
+  says nothing trustworthy about types, so when the parser reports anything the
+  compiler stops before the analyzer runs. Fixing the syntax and recompiling is
+  what surfaces the type errors.
+- **The lexer does not recover.** An unterminated string or a bad character
+  literal is still reported on its own.
+- **Codegen does not recover**, but by then everything user-facing has already
+  been checked.
 
 ### 5.2 Some diagnostics have no position
 

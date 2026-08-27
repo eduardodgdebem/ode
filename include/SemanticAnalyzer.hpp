@@ -1,4 +1,5 @@
 #pragma once
+#include "Diagnostics.hpp"
 #include "Parser/AST.hpp"
 #include "SourceError.hpp"
 #include "StructTable.hpp"
@@ -40,6 +41,10 @@ public:
 
   void enterScope();
   void exitScope();
+  // The number of open scopes, and a way back to a previous count. Recovery
+  // uses these to undo the scopes an abandoned statement left open.
+  size_t depth() const { return scopes_.size(); }
+  void truncateTo(size_t depth);
   // `line` and `column` locate the declaration for the duplicate-symbol
   // diagnostic; zero means unknown.
   void declare(const std::string &name, Symbol::Kind kind, Type type,
@@ -60,6 +65,9 @@ public:
           int column = 0)
         : SourceError(std::format("{}: {}", context, detail), line, column) {}
   };
+
+  explicit SemanticAnalyzer(Diagnostics &diagnostics)
+      : diagnostics_(diagnostics) {}
 
   void analyze(AST::Node &root);
 
@@ -127,6 +135,27 @@ private:
   };
 
   const AST::Node *errorNode_ = nullptr;
+  Diagnostics &diagnostics_;
+
+  // Runs one checking step, recording any error rather than abandoning the
+  // whole analysis. Anything a throw skipped past is put back, so the next
+  // statement is checked as though the failed one were not there.
+  template <typename Step> void recover(Step &&step) {
+    size_t depth = symbols_.depth();
+    int loops = loopDepth_;
+    bool wasInFunction = inFunction_;
+    Type returnType = currentReturnType_;
+
+    try {
+      step();
+    } catch (const SourceError &error) {
+      diagnostics_.report(error);
+      symbols_.truncateTo(depth);
+      loopDepth_ = loops;
+      inFunction_ = wasInFunction;
+      currentReturnType_ = returnType;
+    }
+  }
 
   // Throws an Error positioned at whatever is currently being checked.
   [[noreturn]] void fail(const std::string &msg) const;

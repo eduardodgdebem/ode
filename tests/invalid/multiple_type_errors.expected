@@ -1,0 +1,6 @@
+multiple_type_errors.ode:4:3: error: type mismatch in declaration of 'a': declared as 'bool' but assigned 'i32'
+multiple_type_errors.ode:5:3: error: type mismatch in declaration of 'b': declared as 'i32' but assigned 'bool'
+multiple_type_errors.ode:6:3: error: type mismatch in declaration of 'c': declared as 'i32' but assigned '*i8'
+multiple_type_errors.ode:11:3: error: if condition must be boolean: got 'i32'
+multiple_type_errors.ode:15:3: error: while condition must be boolean: got 'i32'
+5 errors generated.

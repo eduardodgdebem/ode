@@ -29,6 +29,10 @@ AST::NodePtr Parser::parseStatement() {
 }
 
 AST::NodePtr Parser::parseStatementInner() {
+  // Held across the parse of a declaration, whose body reaches this function
+  // again and would otherwise leave the keyword's position behind.
+  Token start = current();
+
   switch (current().type) {
   case Token::Type::Let:
     return parseVarDecl();
@@ -42,15 +46,18 @@ AST::NodePtr Parser::parseStatementInner() {
     return parseBreakStmt();
   case Token::Type::Continue:
     return parseContinueStmt();
-  case Token::Type::Fn:
-    requireTopLevel("fn");
-    return parseFuncDecl();
-  case Token::Type::Extern:
-    requireTopLevel("extern");
-    return parseExternDecl();
-  case Token::Type::Struct:
-    requireTopLevel("struct");
-    return parseStructDecl();
+  case Token::Type::Fn: {
+    AST::NodePtr declaration = parseFuncDecl();
+    return requireTopLevel(start, "fn", std::move(declaration));
+  }
+  case Token::Type::Extern: {
+    AST::NodePtr declaration = parseExternDecl();
+    return requireTopLevel(start, "extern", std::move(declaration));
+  }
+  case Token::Type::Struct: {
+    AST::NodePtr declaration = parseStructDecl();
+    return requireTopLevel(start, "struct", std::move(declaration));
+  }
   case Token::Type::Return:
     return parseReturnStmt();
   case Token::Type::Print:
@@ -60,13 +67,20 @@ AST::NodePtr Parser::parseStatementInner() {
   }
 }
 
-void Parser::requireTopLevel(const std::string &construct) {
+// The declaration is parsed before it is rejected, so that recovery resumes
+// after it rather than inside it. Rejecting at the leading keyword instead
+// would leave the parser pointing at `fn` in `extern fn`, which then reports
+// a second error for the same declaration.
+AST::NodePtr Parser::requireTopLevel(const Token &at,
+                                     const std::string &construct,
+                                     AST::NodePtr declaration) {
   if (!atTopLevel_) {
-    throw Error::at(current(),
+    throw Error::at(at,
                     std::format("'{}' declarations are only allowed at the "
                                 "top level of the program",
                                 construct));
   }
+  return declaration;
 }
 
 AST::NodePtr Parser::parseVarDecl() {
@@ -132,7 +146,9 @@ AST::NodePtr Parser::parseBlock() {
   atTopLevel_ = false;
   while (current().type != Token::Type::RBrace &&
          current().type != Token::Type::End) {
-    block->addStatement(parseStatement());
+    if (auto stmt = parseStatementRecovering()) {
+      block->addStatement(std::move(stmt));
+    }
   }
   atTopLevel_ = wasTopLevel;
 

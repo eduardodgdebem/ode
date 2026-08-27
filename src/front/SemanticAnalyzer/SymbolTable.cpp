@@ -14,6 +14,12 @@ void SymbolTable::exitScope() {
   }
 }
 
+void SymbolTable::truncateTo(size_t depth) {
+  while (scopes_.size() > depth) {
+    scopes_.pop_back();
+  }
+}
+
 void SymbolTable::declare(const std::string &name, Symbol::Kind kind, Type type,
                           std::vector<Type> params, int line, int column) {
   auto &current = scopes_.back();
