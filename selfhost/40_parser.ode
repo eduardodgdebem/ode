@@ -59,12 +59,81 @@ fn parserFail(parser: *Parser, expected: *i8): void {
   }
 
   bufPush(message, '\'');
-  failAt(token.line, token.column, message.data);
+  report(token.line, token.column, message.data);
+}
+
+fn parserErrorNode(parser: *Parser): i32 {
+  let token: *Token = parserCurrent(parser);
+  return astAdd(parser.ast, NK_ERROR, token.line, token.column);
+}
+
+// True for a token that can only begin a statement, which is where a
+// recovering parser can pick the file back up.
+fn startsStatement(kind: i32): bool {
+  if (kind == TK_FN || kind == TK_EXTERN || kind == TK_STRUCT) {
+    return true;
+  }
+  if (kind == TK_LET || kind == TK_IF || kind == TK_WHILE) {
+    return true;
+  }
+  if (kind == TK_RETURN || kind == TK_PRINT) {
+    return true;
+  }
+
+  return kind == TK_BREAK || kind == TK_CONTINUE;
+}
+
+// Recovery is per statement: everything up to the next `;` or the start of
+// the next statement is discarded. A `{` is skipped whole, so a malformed
+// function header costs its body rather than turning it into a second round
+// of errors.
+fn parserSynchronize(parser: *Parser): void {
+  let depth: i32 = 0;
+
+  while (parserKind(parser) != TK_END) {
+    let kind: i32 = parserKind(parser);
+
+    if (kind == TK_LBRACE) {
+      depth = depth + 1;
+      parserAdvance(parser);
+      continue;
+    }
+
+    if (kind == TK_RBRACE) {
+      // At depth zero this closes the block being parsed, which is the
+      // caller's to consume.
+      if (depth == 0) {
+        return;
+      }
+      depth = depth - 1;
+      parserAdvance(parser);
+      if (depth == 0) {
+        return;
+      }
+      continue;
+    }
+
+    if (depth == 0) {
+      if (kind == TK_SEMICOLON) {
+        parserAdvance(parser);
+        return;
+      }
+      if (startsStatement(kind)) {
+        return;
+      }
+    }
+
+    parserAdvance(parser);
+  }
 }
 
 fn parserExpect(parser: *Parser, kind: i32, name: *i8): *Token {
+  // The offending token is left where it is. Consuming it would throw away
+  // the very thing recovery needs to see -- a `}` swallowed here would leave
+  // the parser inside a block that has already ended.
   if (parserKind(parser) != kind) {
     parserFail(parser, name);
+    return parserCurrent(parser);
   }
 
   let token: *Token = parserCurrent(parser);
@@ -91,6 +160,8 @@ fn parseType(parser: *Parser): i32 {
 
   if (parserKind(parser) != TK_TYPE && parserKind(parser) != TK_IDENT) {
     parserFail(parser, "type");
+    // Same reason: the token that is not a type is the one recovery reads.
+    return astAdd(parser.ast, NK_TYPE, startLine, startColumn);
   }
 
   let name: *Token = parserCurrent(parser);
@@ -316,6 +387,10 @@ fn parsePostfix(parser: *Parser): i32 {
       parserAdvance(parser);
 
       let field: *Token = parserExpect(parser, TK_IDENT, "field name");
+      if (FAILED) {
+        return expr;
+      }
+
       let node: i32 = astAdd(parser.ast, NK_FIELDACCESS, line, column);
       astSetText(parser.ast, node, field);
       parser.ast.nodes[node].a = expr;
@@ -331,6 +406,9 @@ fn parsePostfix(parser: *Parser): i32 {
 
       let index: i32 = parseExpr(parser);
       parserExpect(parser, TK_RBRACKET, "]");
+      if (FAILED) {
+        return expr;
+      }
 
       let node: i32 = astAdd(parser.ast, NK_INDEX, line, column);
       parser.ast.nodes[node].a = expr;
@@ -383,7 +461,7 @@ fn parsePrimary(parser: *Parser): i32 {
   }
 
   parserFail(parser, "number, string, character, boolean, identifier, or '('");
-  return NO_NODE;
+  return parserErrorNode(parser);
 }
 
 // SizeOf -> 'sizeof' '(' Type ')'
@@ -459,6 +537,11 @@ fn parseStructLiteral(parser: *Parser): i32 {
 
     if (parserKind(parser) == TK_COMMA) {
       parserAdvance(parser);
+    }
+    // Without this the loop would sit on the token that failed, because a
+    // failed `expect` does not consume anything.
+    if (FAILED) {
+      break;
     }
   }
 

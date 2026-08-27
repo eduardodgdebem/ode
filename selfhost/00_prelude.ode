@@ -197,8 +197,111 @@ fn intToText(value: i64): *i8 {
 }
 
 // ---------------------------------------------------------------------------
-// Failure. The compiler has no exceptions, so a diagnostic is printed and the
-// process stops.
+// Diagnostics.
+//
+// Ode has no exceptions, so a phase cannot unwind out of a failed construct
+// the way the C++ compiler does. Instead `FAILED` is raised, every function
+// on the way out returns promptly, and the phase's statement loop clears it
+// and moves to the next statement. While it is raised no further diagnostic
+// is recorded, so one mistake produces one message.
+// ---------------------------------------------------------------------------
+
+struct Diagnostic {
+  message: *i8,
+  line: i32,
+  column: i32,
+}
+
+struct Diagnostics {
+  items: *Diagnostic,
+  count: i32,
+  capacity: i32,
+  // Everything reported, including any past the limit that was not kept.
+  total: i32,
+}
+
+// Past this many the list stops being useful and starts being noise.
+let DIAG_LIMIT: i32 = 20;
+
+let DIAGS: *Diagnostics = 0 as i64 as *Diagnostics;
+// Raised by the construct that failed, lowered by whatever recovers from it.
+let FAILED: bool = false;
+
+fn diagnosticsNew(): *Diagnostics {
+  let bag: *Diagnostics = malloc(sizeof(Diagnostics) as i64) as *Diagnostics;
+  bag.capacity = DIAG_LIMIT;
+  bag.count = 0;
+  bag.total = 0;
+  bag.items =
+      malloc(sizeof(Diagnostic) as i64 * bag.capacity as i64) as *Diagnostic;
+
+  return bag;
+}
+
+fn report(line: i32, column: i32, message: *i8): void {
+  // The first message about a construct is the one worth keeping; anything
+  // after it is the same mistake seen from further away.
+  if (FAILED) {
+    return;
+  }
+  FAILED = true;
+
+  DIAGS.total = DIAGS.total + 1;
+  if (DIAGS.count >= DIAGS.capacity) {
+    return;
+  }
+
+  DIAGS.items[DIAGS.count].message = message;
+  DIAGS.items[DIAGS.count].line = line;
+  DIAGS.items[DIAGS.count].column = column;
+  DIAGS.count = DIAGS.count + 1;
+}
+
+fn hasErrors(): bool {
+  return DIAGS.total > 0;
+}
+
+// Prints everything recorded, in the same shape the C++ compiler uses.
+fn printDiagnostics(): void {
+  let out: *Buf = bufNew();
+  let index: i32 = 0;
+
+  while (index < DIAGS.count) {
+    bufAdd(out, SOURCE_PATH);
+
+    // A line of 0 means the position is unknown, which whole-program checks
+    // report; those name the file alone.
+    if (DIAGS.items[index].line > 0) {
+      bufPush(out, ':');
+      bufAddInt(out, DIAGS.items[index].line as i64);
+      bufPush(out, ':');
+      bufAddInt(out, DIAGS.items[index].column as i64);
+    }
+
+    bufAdd(out, ": error: ");
+    bufAdd(out, DIAGS.items[index].message);
+    bufPush(out, '\n');
+    index = index + 1;
+  }
+
+  // A single error reads better on its own; a count is only worth printing
+  // once there is more than one thing to count.
+  if (DIAGS.total > DIAGS.count) {
+    bufAddInt(out, DIAGS.total as i64);
+    bufAdd(out, " errors generated, showing the first ");
+    bufAddInt(out, DIAGS.count as i64);
+    bufAdd(out, ".\n");
+  } else if (DIAGS.total > 1) {
+    bufAddInt(out, DIAGS.total as i64);
+    bufAdd(out, " errors generated.\n");
+  }
+
+  writeBuf(STDERR, out);
+}
+
+// ---------------------------------------------------------------------------
+// Fatal failure, for the phases that do not recover: the lexer, and anything
+// that has already been type-checked by the time codegen sees it.
 // ---------------------------------------------------------------------------
 
 fn failAt(line: i32, column: i32, message: *i8): void {

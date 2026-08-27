@@ -45,6 +45,8 @@ let NK_TYPE: i32 = 30;
 let NK_PARAMS: i32 = 31;
 let NK_PARAM: i32 = 32;
 let NK_ARGS: i32 = 33;
+// Stands in for a construct that did not parse.
+let NK_ERROR: i32 = 34;
 
 struct Node {
   kind: i32,
@@ -184,6 +186,7 @@ fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_PARAMS) { return "params"; }
   if (kind == NK_PARAM) { return "param"; }
   if (kind == NK_ARGS) { return "args"; }
+  if (kind == NK_ERROR) { return "error"; }
 
   return "?";
 }

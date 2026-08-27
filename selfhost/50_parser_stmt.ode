@@ -26,6 +26,28 @@ fn parserReparse(parser: *Parser, start: i32): i32 {
   return copy;
 }
 
+// Parses one statement, recording the error and resynchronising if it does
+// not parse. Returns NO_NODE for a statement that recovery dropped.
+fn parseStatementRecovering(parser: *Parser): i32 {
+  let start: i32 = parser.pos;
+  let node: i32 = parseStatement(parser);
+
+  if (!FAILED) {
+    return node;
+  }
+
+  // A statement that failed on its very first token would otherwise be
+  // retried forever, so recovery always costs at least one token.
+  if (parser.pos == start) {
+    parserAdvance(parser);
+  }
+
+  parserSynchronize(parser);
+  FAILED = false;
+
+  return NO_NODE;
+}
+
 fn parseStatement(parser: *Parser): i32 {
   let start: *Token = parserCurrent(parser);
   let startLine: i32 = start.line;
@@ -80,7 +102,7 @@ fn requireTopLevel(parser: *Parser, at: *Token, construct: *i8,
     bufAdd(message, construct);
     bufAdd(message, "' declarations are only allowed at the top level of the ");
     bufAdd(message, "program");
-    failAt(at.line, at.column, message.data);
+    report(at.line, at.column, message.data);
   }
 
   return declaration;
@@ -169,7 +191,10 @@ fn parseBlock(parser: *Parser): i32 {
   parser.atTopLevel = false;
 
   while (parserKind(parser) != TK_RBRACE && parserKind(parser) != TK_END) {
-    astAddItem(parser.ast, node, parseStatement(parser));
+    let statement: i32 = parseStatementRecovering(parser);
+    if (statement != NO_NODE) {
+      astAddItem(parser.ast, node, statement);
+    }
   }
 
   parser.atTopLevel = wasTopLevel;
@@ -360,6 +385,9 @@ fn parseStructDecl(parser: *Parser): i32 {
     if (parserKind(parser) == TK_COMMA) {
       parserAdvance(parser);
     }
+    if (FAILED) {
+      break;
+    }
   }
 
   parserExpect(parser, TK_RBRACE, "}");
@@ -371,7 +399,10 @@ fn parseProgram(parser: *Parser): i32 {
   let node: i32 = astAdd(parser.ast, NK_PROGRAM, 0, 0);
 
   while (parserKind(parser) != TK_END) {
-    astAddItem(parser.ast, node, parseStatement(parser));
+    let statement: i32 = parseStatementRecovering(parser);
+    if (statement != NO_NODE) {
+      astAddItem(parser.ast, node, statement);
+    }
   }
 
   return node;

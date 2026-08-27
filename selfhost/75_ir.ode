@@ -1316,6 +1316,24 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     return intToText(value as i64);
   }
 
+  // A pointer-typed global cannot be initialised from a bare integer: LLVM
+  // wants `null` for zero, and an inttoptr for anything else. This is the one
+  // place a constant's spelling depends on the type it is being stored into.
+  if (typeIsPointer(type)) {
+    let text: *i8 = genNumberLiteral(e, node);
+
+    if (textEquals(text, "0")) {
+      return "null";
+    }
+
+    let out: *Buf = bufNew();
+    bufAdd(out, "inttoptr (i64 ");
+    bufAdd(out, text);
+    bufAdd(out, " to ptr)");
+
+    return bufTake(out);
+  }
+
   return genNumberLiteral(e, node);
 }
 

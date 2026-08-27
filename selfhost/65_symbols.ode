@@ -65,6 +65,13 @@ fn symbolExitScope(table: *SymbolTable): void {
 }
 
 // Innermost first, so a shadowing declaration wins.
+// Undoes the scopes an abandoned statement left open.
+fn symbolTruncateScopes(table: *SymbolTable, depth: i32): void {
+  while (table.scopeCount > depth) {
+    symbolExitScope(table);
+  }
+}
+
 fn symbolFind(table: *SymbolTable, name: *i8): i32 {
   let index: i32 = table.count - 1;
 
@@ -102,7 +109,8 @@ fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
     bufAdd(message, "symbol '");
     bufAdd(message, name);
     bufAdd(message, "' already declared in this scope");
-    failAt(line, column, message.data);
+    report(line, column, message.data);
+    return;
   }
 
   if (table.count == table.capacity) {

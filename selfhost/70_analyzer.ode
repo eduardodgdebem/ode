@@ -50,7 +50,7 @@ fn analyzerNew(ast: *Ast): *Analyzer {
 // ---------------------------------------------------------------------------
 
 fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
-  failAt(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
+  report(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
 }
 
 fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
@@ -186,6 +186,12 @@ fn isLValue(an: *Analyzer, node: i32): bool {
 }
 
 fn checkExpr(an: *Analyzer, node: i32): Type {
+  // Once a construct has failed, the types under it are guesses at best and
+  // out-of-range lookups at worst, so nothing more is inferred from it.
+  if (FAILED) {
+    return typeMake(TY_NONE, 0);
+  }
+
   let type: Type = inferExprType(an, node);
   an.types[node] = type;
 
@@ -226,6 +232,7 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
 
     if (symbol < 0) {
       analyzerFail(an, node, quoted("undefined variable ", name, ""));
+      return typeMake(TY_NONE, 0);
     }
     if (an.symbols.items[symbol].kind != SYM_VAR) {
       analyzerFail(an, node, quoted("", name, " is a function, not a variable"));
@@ -255,6 +262,7 @@ fn checkCall(an: *Analyzer, node: i32): Type {
 
   if (symbol < 0) {
     analyzerFail(an, node, quoted("undefined function ", name, ""));
+    return typeMake(TY_NONE, 0);
   }
   if (an.symbols.items[symbol].kind != SYM_FN) {
     analyzerFail(an, node, quoted("", name, " is not a function"));
@@ -640,6 +648,7 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   if (structIndex < 0) {
     analyzerFail2(an, node, quoted("field ", field, ""),
                   quoted("unknown type ", typeToText(structType), ""));
+    return typeMake(TY_NONE, 0);
   }
 
   let fieldIndex: i32 = structFieldIndex(an.structs, structIndex, field);
@@ -651,6 +660,7 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
     bufAdd(message, field);
     bufPush(message, '\'');
     analyzerFail(an, node, message.data);
+    return typeMake(TY_NONE, 0);
   }
 
   return an.structs.items[structIndex].fields[fieldIndex].type;
@@ -682,6 +692,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   if (structIndex < 0) {
     analyzerFail2(an, node, quoted("in literal for ", name, ""),
                   quoted("unknown type ", name, ""));
+    return typeStruct(name, 0);
   }
 
   let fieldCount: i32 = an.structs.items[structIndex].count;
@@ -707,6 +718,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
       bufAdd(message, fieldName);
       bufPush(message, '\'');
       analyzerFail(an, node, message.data);
+      return typeStruct(name, 0);
     }
     if (initialised[fieldIndex] != 0 as i8) {
       analyzerFail(an, node,
@@ -779,7 +791,33 @@ fn isConstantExpr(an: *Analyzer, node: i32): bool {
 // Statements.
 // ---------------------------------------------------------------------------
 
+// Runs one checking step, then puts back anything a failure skipped past so
+// the next statement is checked as though the failed one were not there.
+// Returns with FAILED lowered; the diagnostic has already been recorded.
+fn analyzeRecovering(an: *Analyzer, node: i32): void {
+  let depth: i32 = an.symbols.scopeCount;
+  let loops: i32 = an.loopDepth;
+  let wasInFunction: bool = an.inFunction;
+  let returnType: Type = an.currentReturnType;
+
+  analyzeStatement(an, node);
+
+  if (!FAILED) {
+    return;
+  }
+
+  symbolTruncateScopes(an.symbols, depth);
+  an.loopDepth = loops;
+  an.inFunction = wasInFunction;
+  an.currentReturnType = returnType;
+  FAILED = false;
+}
+
 fn analyzeStatement(an: *Analyzer, node: i32): void {
+  if (FAILED) {
+    return;
+  }
+
   let kind: i32 = an.ast.nodes[node].kind;
 
   if (kind == NK_BLOCK) { analyzeBlock(an, node); return; }
@@ -820,7 +858,7 @@ fn analyzeBlock(an: *Analyzer, node: i32): void {
 
   let index: i32 = 0;
   while (index < an.ast.nodes[node].itemCount) {
-    analyzeStatement(an, an.ast.nodes[node].items[index]);
+    analyzeRecovering(an, an.ast.nodes[node].items[index]);
     index = index + 1;
   }
 
@@ -841,7 +879,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
   // cannot see the slot it is initialising.
   let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
 
-  if (!typeEquals(declaredType, exprType)) {
+  if (!FAILED && !typeEquals(declaredType, exprType)) {
     let context: *Buf = bufNew();
     bufAdd(context, "type mismatch in declaration of '");
     bufAdd(context, name);
@@ -860,7 +898,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
   // Globals were declared during hoisting; all that is left is to confirm the
   // initialiser can be emitted as an LLVM constant.
   if (an.isGlobal[node] != 0 as i8) {
-    if (!isConstantExpr(an, an.ast.nodes[node].b)) {
+    if (!FAILED && !isConstantExpr(an, an.ast.nodes[node].b)) {
       analyzerFail2(an, node,
                     quoted("initialiser of global ", name, " is not constant"),
                     "globals may only be initialised from literals");
@@ -1219,36 +1257,41 @@ fn analyze(an: *Analyzer, program: i32): void {
   let index: i32 = 0;
   while (index < count) {
     registerStructName(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
     index = index + 1;
   }
 
   index = 0;
   while (index < count) {
     registerStructFields(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
     index = index + 1;
   }
 
   rejectStructCycles(an, program);
+  FAILED = false;
 
   index = 0;
   while (index < count) {
     hoistGlobal(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
     index = index + 1;
   }
 
   index = 0;
   while (index < count) {
     hoistSignature(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
     index = index + 1;
   }
 
   index = 0;
   while (index < count) {
-    analyzeStatement(an, an.ast.nodes[program].items[index]);
+    analyzeRecovering(an, an.ast.nodes[program].items[index]);
     index = index + 1;
   }
 
   if (symbolFind(an.symbols, "main") < 0) {
-    fail("No main function found");
+    report(0, 0, "No main function found");
   }
 }

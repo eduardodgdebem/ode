@@ -12,14 +12,23 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SELFHOST_DIR="$ROOT_DIR/selfhost"
-ODE="$ROOT_DIR/build/ode"
-OUT="$ROOT_DIR/build/ode1"
+ODE="$ROOT_DIR/build/ode1"
+OUT="$ROOT_DIR/build/ode2"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ode) ODE="$2"; shift 2 ;;
-    --out) OUT="$2"; shift 2 ;;
-    *) echo "build.sh: unknown option '$1'" >&2; exit 2 ;;
+  --ode)
+    ODE="$2"
+    shift 2
+    ;;
+  --out)
+    OUT="$2"
+    shift 2
+    ;;
+  *)
+    echo "build.sh: unknown option '$1'" >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -46,8 +55,8 @@ SOURCES=$(ls "$SELFHOST_DIR"/*.ode | sort)
     cat "$source"
     echo
   done
-} > "$COMBINED"
+} >"$COMBINED"
 
 "$ODE" -o "$OUT" "$COMBINED"
 
-echo "built $OUT from $(wc -l < "$COMBINED" | tr -d ' ') lines"
+echo "built $OUT from $(wc -l <"$COMBINED" | tr -d ' ') lines"
