@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Parser/AST.hpp"
+#include "SemanticAnalyzer.hpp"
 #include <iostream>
 #include <ostream>
 #include <string>
@@ -15,8 +16,11 @@
 // change here needs the same change there.
 class ASTPrinter : public AST::Visitor {
 public:
-  explicit ASTPrinter(std::ostream &out = std::cout)
-      : out_(out), indentLevel_(0) {}
+  // With `types`, every expression the analyzer resolved gets its type
+  // appended as `: i32`. Without it, only the tree is printed.
+  explicit ASTPrinter(std::ostream &out = std::cout,
+                      const ResolvedTypes *types = nullptr)
+      : out_(out), types_(types), indentLevel_(0) {}
 
   void visit(const AST::ProgramNode &node) override;
   void visit(const AST::BlockNode &node) override;
@@ -51,15 +55,22 @@ public:
 
 private:
   std::ostream &out_;
+  const ResolvedTypes *types_;
   int indentLevel_;
+
+  // The type annotation for a node, or empty when there is none to print.
+  std::string annotation(const AST::Node &node) const;
 
   // A literal newline or NUL inside a string would otherwise break the
   // line-per-node format.
   static std::string escape(const std::string &text);
 
-  void emit(const std::string &kind, int line, int column);
-  void emitNamed(const std::string &kind, const std::string &text, int line,
-                 int column);
+  void emit(const std::string &kind, const AST::Node &node);
+  void emitNamed(const std::string &kind, const std::string &text,
+                 const AST::Node &node);
+  // For a construct printed at a token's position rather than a node's.
+  void emitAt(const std::string &kind, const std::string &text, int line,
+              int column);
   void emitLine(const std::string &text);
 
   // Prints a child one level deeper, skipping a null one.

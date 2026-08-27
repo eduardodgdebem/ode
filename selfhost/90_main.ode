@@ -8,11 +8,13 @@
 
 let SOURCE_PATH: *i8 = "<none>";
 
-let USAGE: *i8 = "usage: ode1 [--dump-tokens | --dump-ast] <input.ode>\n";
+let USAGE: *i8 =
+    "usage: ode1 [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n";
 
 fn main(argc: i32, argv: **i8): i32 {
   let wantTokens: bool = false;
   let wantAst: bool = false;
+  let wantTypes: bool = false;
   let path: *i8 = nullText();
 
   let index: i32 = 1;
@@ -23,6 +25,8 @@ fn main(argc: i32, argv: **i8): i32 {
       wantTokens = true;
     } else if (textEquals(argument, "--dump-ast")) {
       wantAst = true;
+    } else if (textEquals(argument, "--dump-types")) {
+      wantTypes = true;
     } else if (argument[0] == '-') {
       writeText(STDERR, USAGE);
       return 2;
@@ -59,11 +63,21 @@ fn main(argc: i32, argv: **i8): i32 {
   let root: i32 = parseProgram(parser);
 
   if (wantAst) {
-    dumpNode(ast, root, 0, out);
+    dumpNode(ast, nullTypes(), root, 0, out);
     writeBuf(STDOUT, out);
     return 0;
   }
 
-  // Nothing else is wired up yet, so parsing cleanly is the whole result.
+  let an: *Analyzer = analyzerNew(ast);
+  analyze(an, root);
+
+  if (wantTypes) {
+    dumpNode(ast, an.types, root, 0, out);
+    writeBuf(STDOUT, out);
+    return 0;
+  }
+
+  // The IR emitter is what comes next; until then, checking cleanly is the
+  // whole result.
   return 0;
 }

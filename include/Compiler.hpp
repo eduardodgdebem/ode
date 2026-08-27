@@ -18,6 +18,8 @@ public:
     bool dumpTokens = false;
     // Print the parsed tree and stop, for the same reason.
     bool dumpAst = false;
+    // Print the tree with every resolved expression type, for the same reason.
+    bool dumpTypes = false;
   };
 
   explicit Compiler(Options options);

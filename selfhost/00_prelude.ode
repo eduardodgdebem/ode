@@ -198,6 +198,13 @@ fn intToText(value: i64): *i8 {
 // ---------------------------------------------------------------------------
 
 fn failAt(line: i32, column: i32, message: *i8): void {
+  // A line of 0 means the position is unknown, which whole-program checks
+  // report; those name the file alone rather than pointing at 0:0.
+  if (line <= 0) {
+    fail(message);
+    return;
+  }
+
   let out: *Buf = bufNew();
   bufAdd(out, SOURCE_PATH);
   bufPush(out, ':');

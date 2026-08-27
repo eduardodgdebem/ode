@@ -366,8 +366,10 @@ fn tokenize(source: *i8): *TokenList {
     lastKind = tokenAt(list, list.count - 1).kind;
   }
 
-  tokenListAdd(list, TK_END, textCopy(""), 0 as i64, lexer.line,
-               lexer.column);
+  // The end token carries no position. The C++ parser synthesises one the
+  // same way, so a diagnostic about running out of input names the file
+  // rather than pointing past its last line.
+  tokenListAdd(list, TK_END, textCopy(""), 0 as i64, 0, 0);
 
   return list;
 }

@@ -196,6 +196,12 @@ void Compiler::compile() {
   analyzer->analyze(*root);
   stopIfErrors(diagnostics);
 
+  if (options.dumpTypes) {
+    ASTPrinter printer(std::cout, &analyzer->resolvedTypes());
+    root->accept(printer);
+    return;
+  }
+
   std::unique_ptr<IRGenerator> irgen = std::make_unique<IRGenerator>(
       "myProgram", analyzer->resolvedTypes(), analyzer->structs());
 

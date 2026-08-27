@@ -15,6 +15,7 @@ constexpr std::string_view usage =
     "  --no-intermediates  delete the .ll and .o once linking succeeds\n"
     "  --dump-tokens       print the token stream and stop\n"
     "  --dump-ast          print the parsed tree and stop\n"
+    "  --dump-types        print the tree with resolved types and stop\n"
     "  -h, --help          show this message";
 
 Compiler::Options parseArguments(int argc, char *argv[]) {
@@ -35,6 +36,8 @@ Compiler::Options parseArguments(int argc, char *argv[]) {
       options.dumpTokens = true;
     } else if (argument == "--dump-ast") {
       options.dumpAst = true;
+    } else if (argument == "--dump-types") {
+      options.dumpTypes = true;
     } else if (argument.starts_with('-') && argument.size() > 1) {
       throw std::runtime_error(
           std::format("ode: error: unknown option '{}'\n{}", argument, usage));

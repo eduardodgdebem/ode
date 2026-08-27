@@ -1,0 +1,122 @@
+// ---------------------------------------------------------------------------
+// The symbol table.
+//
+// Scopes are a flat stack of symbols plus the index each scope starts at,
+// rather than a stack of maps: entering a scope pushes a marker and leaving
+// one truncates back to it. Lookup walks backwards, so an inner declaration
+// shadows an outer one for free.
+// ---------------------------------------------------------------------------
+
+let SYM_VAR: i32 = 1;
+let SYM_FN: i32 = 2;
+
+struct Symbol {
+  name: *i8,
+  kind: i32,
+  // For a function this is the return type.
+  type: Type,
+  params: *Type,
+  paramCount: i32,
+}
+
+struct SymbolTable {
+  items: *Symbol,
+  count: i32,
+  capacity: i32,
+  scopeStarts: *i32,
+  scopeCount: i32,
+  scopeCapacity: i32,
+}
+
+fn symbolTableNew(): *SymbolTable {
+  let table: *SymbolTable = malloc(sizeof(SymbolTable) as i64) as *SymbolTable;
+  table.capacity = 64;
+  table.count = 0;
+  table.items = malloc(sizeof(Symbol) as i64 * table.capacity as i64) as *Symbol;
+  table.scopeCapacity = 16;
+  table.scopeCount = 0;
+  table.scopeStarts =
+      malloc(sizeof(i32) as i64 * table.scopeCapacity as i64) as *i32;
+
+  symbolEnterScope(table);
+
+  return table;
+}
+
+fn symbolEnterScope(table: *SymbolTable): void {
+  if (table.scopeCount == table.scopeCapacity) {
+    table.scopeCapacity = table.scopeCapacity * 2;
+    table.scopeStarts =
+        realloc(table.scopeStarts as *i8,
+                sizeof(i32) as i64 * table.scopeCapacity as i64) as *i32;
+  }
+
+  table.scopeStarts[table.scopeCount] = table.count;
+  table.scopeCount = table.scopeCount + 1;
+}
+
+fn symbolExitScope(table: *SymbolTable): void {
+  if (table.scopeCount == 0) {
+    return;
+  }
+
+  table.scopeCount = table.scopeCount - 1;
+  table.count = table.scopeStarts[table.scopeCount];
+}
+
+// Innermost first, so a shadowing declaration wins.
+fn symbolFind(table: *SymbolTable, name: *i8): i32 {
+  let index: i32 = table.count - 1;
+
+  while (index >= 0) {
+    if (textEquals(table.items[index].name, name)) {
+      return index;
+    }
+    index = index - 1;
+  }
+
+  return -1;
+}
+
+// Only the innermost scope, which is what a redeclaration check needs: the
+// same name in an enclosing scope is shadowing, not a conflict.
+fn symbolFindInScope(table: *SymbolTable, name: *i8): i32 {
+  let start: i32 = table.scopeStarts[table.scopeCount - 1];
+  let index: i32 = table.count - 1;
+
+  while (index >= start) {
+    if (textEquals(table.items[index].name, name)) {
+      return index;
+    }
+    index = index - 1;
+  }
+
+  return -1;
+}
+
+fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
+                 params: *Type, paramCount: i32, line: i32,
+                 column: i32): void {
+  if (symbolFindInScope(table, name) >= 0) {
+    let message: *Buf = bufNew();
+    bufAdd(message, "symbol '");
+    bufAdd(message, name);
+    bufAdd(message, "' already declared in this scope");
+    failAt(line, column, message.data);
+  }
+
+  if (table.count == table.capacity) {
+    table.capacity = table.capacity * 2;
+    table.items = realloc(table.items as *i8,
+                          sizeof(Symbol) as i64 * table.capacity as i64) as
+        *Symbol;
+  }
+
+  let index: i32 = table.count;
+  table.items[index].name = name;
+  table.items[index].kind = kind;
+  table.items[index].type = type;
+  table.items[index].params = params;
+  table.items[index].paramCount = paramCount;
+  table.count = index + 1;
+}

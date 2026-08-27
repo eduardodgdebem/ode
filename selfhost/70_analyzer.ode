@@ -1,0 +1,1254 @@
+// ---------------------------------------------------------------------------
+// The semantic analyzer.
+//
+// Two passes over the top level: struct names, then struct fields, then
+// globals and function signatures, then the bodies. Without the hoisting a
+// function could only call functions declared above it, which rules out
+// mutual recursion.
+//
+// Every expression it proves well-typed is recorded in `types`, so the IR
+// generator can look the answer up instead of deriving it a second time.
+// ---------------------------------------------------------------------------
+
+struct Analyzer {
+  ast: *Ast,
+  symbols: *SymbolTable,
+  structs: *StructTable,
+  // One entry per node, TY_NONE for anything that is not an expression.
+  types: *Type,
+  // Per node: whether this `let` is a program-level global.
+  isGlobal: *i8,
+  loopDepth: i32,
+  inFunction: bool,
+  currentReturnType: Type,
+}
+
+fn analyzerNew(ast: *Ast): *Analyzer {
+  let an: *Analyzer = malloc(sizeof(Analyzer) as i64) as *Analyzer;
+  an.ast = ast;
+  an.symbols = symbolTableNew();
+  an.structs = structTableNew();
+  an.types = malloc(sizeof(Type) as i64 * ast.count as i64) as *Type;
+  an.isGlobal = malloc(ast.count as i64);
+  an.loopDepth = 0;
+  an.inFunction = false;
+  an.currentReturnType = typeMake(TY_VOID, 0);
+
+  let index: i32 = 0;
+  while (index < ast.count) {
+    an.types[index] = typeMake(TY_NONE, 0);
+    an.isGlobal[index] = 0 as i8;
+    index = index + 1;
+  }
+
+  return an;
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics. There is no recovery here yet: the first error stops the
+// compile, where the C++ compiler would go on to report the rest.
+// ---------------------------------------------------------------------------
+
+fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
+  failAt(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
+}
+
+fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
+                 detail: *i8): void {
+  let message: *Buf = bufNew();
+  bufAdd(message, context);
+  bufAdd(message, ": ");
+  bufAdd(message, detail);
+
+  analyzerFail(an, node, message.data);
+}
+
+// "expected 'a' but got 'b'"-shaped detail, which several checks want.
+fn expectedButGot(expected: *i8, got: *i8): *i8 {
+  let message: *Buf = bufNew();
+  bufAdd(message, "expected '");
+  bufAdd(message, expected);
+  bufAdd(message, "' but got '");
+  bufAdd(message, got);
+  bufPush(message, '\'');
+
+  return bufTake(message);
+}
+
+fn gotType(type: Type): *i8 {
+  let message: *Buf = bufNew();
+  bufAdd(message, "got '");
+  bufAdd(message, typeToText(type));
+  bufPush(message, '\'');
+
+  return bufTake(message);
+}
+
+fn gotTwoTypes(left: Type, right: Type): *i8 {
+  let message: *Buf = bufNew();
+  bufAdd(message, "got '");
+  bufAdd(message, typeToText(left));
+  bufAdd(message, "' and '");
+  bufAdd(message, typeToText(right));
+  bufPush(message, '\'');
+
+  return bufTake(message);
+}
+
+fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
+  let message: *Buf = bufNew();
+  bufAdd(message, prefix);
+  bufPush(message, '\'');
+  bufAdd(message, name);
+  bufPush(message, '\'');
+  bufAdd(message, suffix);
+
+  return bufTake(message);
+}
+
+// ---------------------------------------------------------------------------
+// Types out of the tree.
+// ---------------------------------------------------------------------------
+
+fn analyzerParseType(an: *Analyzer, node: i32): Type {
+  if (node == NO_NODE || an.ast.nodes[node].kind != NK_TYPE) {
+    failAt(0, 0, "expected type annotation");
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let depth: i32 = an.ast.nodes[node].extra;
+  let kind: i32 = typeKindFromName(name);
+
+  // A built-in type lexes as its own token kind; anything else is a struct
+  // name, which lexes as an identifier.
+  if (kind == TY_NONE) {
+    return typeStruct(name, depth);
+  }
+
+  return typeMake(kind, depth);
+}
+
+fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
+                        context: *i8): void {
+  if (type.kind != TY_STRUCT) {
+    return;
+  }
+
+  if (structIndexOf(an.structs, type.structName) < 0) {
+    analyzerFail2(an, node, context, quoted("unknown type ",
+                                            typeToText(type), ""));
+  }
+}
+
+fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type {
+  if (params == NO_NODE || an.ast.nodes[params].kind != NK_PARAMS) {
+    *countOut = 0;
+    return 0 as i64 as *Type;
+  }
+
+  let count: i32 = an.ast.nodes[params].itemCount;
+  *countOut = count;
+
+  if (count == 0) {
+    return 0 as i64 as *Type;
+  }
+
+  let types: *Type = malloc(sizeof(Type) as i64 * count as i64) as *Type;
+  let index: i32 = 0;
+
+  while (index < count) {
+    let param: i32 = an.ast.nodes[params].items[index];
+    types[index] = analyzerParseType(an, an.ast.nodes[param].a);
+    index = index + 1;
+  }
+
+  return types;
+}
+
+// ---------------------------------------------------------------------------
+// Expressions.
+// ---------------------------------------------------------------------------
+
+// Only identifiers, fields, indices and pointer dereferences denote storage
+// that can be assigned to or have its address taken.
+fn isLValue(an: *Analyzer, node: i32): bool {
+  let kind: i32 = an.ast.nodes[node].kind;
+
+  if (kind == NK_IDENT || kind == NK_FIELDACCESS || kind == NK_INDEX) {
+    return true;
+  }
+
+  if (kind == NK_UNARY) {
+    return textEquals(an.ast.nodes[node].text, "*");
+  }
+
+  return false;
+}
+
+fn checkExpr(an: *Analyzer, node: i32): Type {
+  let type: Type = inferExprType(an, node);
+  an.types[node] = type;
+
+  return type;
+}
+
+fn inferExprType(an: *Analyzer, node: i32): Type {
+  let kind: i32 = an.ast.nodes[node].kind;
+
+  if (kind == NK_BINARY) { return checkBinaryOp(an, node); }
+  if (kind == NK_UNARY) { return checkUnaryOp(an, node); }
+  if (kind == NK_CAST) { return checkCast(an, node); }
+  if (kind == NK_FIELDACCESS) { return checkFieldAccess(an, node); }
+  if (kind == NK_INDEX) { return checkIndex(an, node); }
+  if (kind == NK_STRUCTLIT) { return checkStructLiteral(an, node); }
+  if (kind == NK_CALL) { return checkCall(an, node); }
+  if (kind == NK_NUMBER) {
+    return checkNumberLiteral(an, node, typeMake(TY_I32, 0));
+  }
+  if (kind == NK_BOOL) { return typeMake(TY_BOOL, 0); }
+  // A string literal is a pointer into a private constant, so it behaves like
+  // any other `*i8` from there on.
+  if (kind == NK_STRING) { return typeMake(TY_I8, 1); }
+  if (kind == NK_CHAR) { return typeMake(TY_I8, 0); }
+
+  if (kind == NK_SIZEOF) {
+    let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
+    analyzerValidateType(an, node, type, "in sizeof");
+    if (typeIsVoid(type)) {
+      analyzerFail(an, node, "sizeof(void) is not allowed");
+    }
+    return typeMake(TY_U64, 0);
+  }
+
+  if (kind == NK_IDENT) {
+    let name: *i8 = an.ast.nodes[node].text;
+    let symbol: i32 = symbolFind(an.symbols, name);
+
+    if (symbol < 0) {
+      analyzerFail(an, node, quoted("undefined variable ", name, ""));
+    }
+    if (an.symbols.items[symbol].kind != SYM_VAR) {
+      analyzerFail(an, node, quoted("", name, " is a function, not a variable"));
+    }
+
+    return an.symbols.items[symbol].type;
+  }
+
+  analyzerFail(an, node, "unknown expression node type");
+  return typeMake(TY_VOID, 0);
+}
+
+// `at` is the assignment being checked. The failure is reported there rather
+// than at the target, because the target has not been type-checked yet and it
+// is the statement that is wrong.
+fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
+  if (!isLValue(an, target)) {
+    analyzerFail(an, at, "left-hand side of assignment is not assignable");
+  }
+
+  return checkExpr(an, target);
+}
+
+fn checkCall(an: *Analyzer, node: i32): Type {
+  let name: *i8 = an.ast.nodes[node].text;
+  let symbol: i32 = symbolFind(an.symbols, name);
+
+  if (symbol < 0) {
+    analyzerFail(an, node, quoted("undefined function ", name, ""));
+  }
+  if (an.symbols.items[symbol].kind != SYM_FN) {
+    analyzerFail(an, node, quoted("", name, " is not a function"));
+  }
+
+  let args: i32 = an.ast.nodes[node].a;
+  let argCount: i32 = 0;
+  if (args != NO_NODE) {
+    argCount = an.ast.nodes[args].itemCount;
+  }
+
+  let paramCount: i32 = an.symbols.items[symbol].paramCount;
+
+  if (argCount != paramCount) {
+    let detail: *Buf = bufNew();
+    bufAdd(detail, "expected ");
+    bufAddInt(detail, paramCount as i64);
+    bufAdd(detail, " but got ");
+    bufAddInt(detail, argCount as i64);
+
+    analyzerFail2(an, node, quoted("wrong number of arguments to ", name, ""),
+                  detail.data);
+  }
+
+  let index: i32 = 0;
+  while (index < argCount) {
+    let argument: i32 = an.ast.nodes[args].items[index];
+    let argType: Type = checkExpr(an, argument);
+    let paramType: Type = an.symbols.items[symbol].params[index];
+
+    if (!typeEquals(argType, paramType)) {
+      let context: *Buf = bufNew();
+      bufAdd(context, "argument ");
+      bufAddInt(context, (index + 1) as i64);
+      bufAdd(context, " of '");
+      bufAdd(context, name);
+      bufAdd(context, "' has the wrong type");
+
+      analyzerFail2(an, node, context.data,
+                    expectedButGot(typeToText(paramType),
+                                   typeToText(argType)));
+    }
+
+    index = index + 1;
+  }
+
+  return an.symbols.items[symbol].type;
+}
+
+fn checkUnaryOp(an: *Analyzer, node: i32): Type {
+  let op: *i8 = an.ast.nodes[node].text;
+  let operand: i32 = an.ast.nodes[node].a;
+
+  // Address-of inspects the operand as storage rather than as a value.
+  if (textEquals(op, "&")) {
+    if (!isLValue(an, operand)) {
+      analyzerFail(an, node, "cannot take the address of a temporary value");
+    }
+
+    let addressed: Type = checkExpr(an, operand);
+    if (typeIsVoid(addressed)) {
+      analyzerFail(an, node, "cannot take the address of a void value");
+    }
+
+    return typePointerTo(addressed);
+  }
+
+  let operandType: Type = checkExpr(an, operand);
+
+  if (textEquals(op, "-")) {
+    if (!typeIsNumeric(operandType)) {
+      analyzerFail2(an, node, "unary minus requires a numeric operand",
+                    gotType(operandType));
+    }
+    return operandType;
+  }
+
+  if (textEquals(op, "+")) {
+    if (!typeIsNumeric(operandType)) {
+      analyzerFail2(an, node, "unary plus requires a numeric operand",
+                    gotType(operandType));
+    }
+    return operandType;
+  }
+
+  if (textEquals(op, "!")) {
+    if (!typeIsBool(operandType)) {
+      analyzerFail2(an, node, "logical NOT requires boolean operand",
+                    gotType(operandType));
+    }
+    return typeMake(TY_BOOL, 0);
+  }
+
+  if (textEquals(op, "*")) {
+    if (!typeIsPointer(operandType)) {
+      analyzerFail2(an, node, "cannot dereference a non-pointer value",
+                    gotType(operandType));
+    }
+    if (typeIsVoid(typePointee(operandType))) {
+      analyzerFail2(an, node, "cannot dereference '*void'",
+                    "cast it to a concrete pointer type first");
+    }
+    return typePointee(operandType);
+  }
+
+  analyzerFail(an, node, quoted("unknown unary operator ", op, ""));
+  return typeMake(TY_VOID, 0);
+}
+
+fn checkBinaryOp(an: *Analyzer, node: i32): Type {
+  let op: *i8 = an.ast.nodes[node].text;
+  let left: Type = checkExpr(an, an.ast.nodes[node].a);
+  let right: Type = checkExpr(an, an.ast.nodes[node].b);
+
+  if (textEquals(op, "||") || textEquals(op, "&&")) {
+    if (!typeIsBool(left) || !typeIsBool(right)) {
+      analyzerFail2(an, node, "logical operators require boolean operands",
+                    gotTwoTypes(left, right));
+    }
+    return typeMake(TY_BOOL, 0);
+  }
+
+  if (textEquals(op, "==") || textEquals(op, "!=")) {
+    if (!typeEquals(left, right)) {
+      analyzerFail2(an, node, "equality operators require same type operands",
+                    gotTwoTypes(left, right));
+    }
+    if (typeIsVoid(left)) {
+      analyzerFail(an, node, "cannot compare void values");
+    }
+    // A struct is an aggregate; there is no single machine instruction to
+    // compare one, and comparing them field by field would be a feature of
+    // its own.
+    if (typeIsStruct(left)) {
+      analyzerFail2(an, node,
+                    quoted("cannot compare struct ", left.structName,
+                           " values"),
+                    "compare their fields instead");
+    }
+    return typeMake(TY_BOOL, 0);
+  }
+
+  if (textEquals(op, ">") || textEquals(op, ">=") || textEquals(op, "<") ||
+      textEquals(op, "<=")) {
+    if (!typeEquals(left, right)) {
+      analyzerFail2(an, node,
+                    "comparison operators require same type operands",
+                    gotTwoTypes(left, right));
+    }
+    if (typeIsBool(left) || typeIsVoid(left)) {
+      analyzerFail(an, node, "cannot compare boolean or void values");
+    }
+    if (typeIsStruct(left)) {
+      analyzerFail2(an, node,
+                    quoted("cannot order struct ", left.structName, " values"),
+                    "compare their fields instead");
+    }
+    return typeMake(TY_BOOL, 0);
+  }
+
+  let isAdd: bool = textEquals(op, "+");
+  let isSub: bool = textEquals(op, "-");
+
+  // Pointer arithmetic: p + i, i + p, p - i, and p - q.
+  if (isAdd || isSub) {
+    if (typeIsPointer(left) || typeIsPointer(right)) {
+      if (typeIsPointer(left) && typeIsPointer(right)) {
+        if (!isSub) {
+          analyzerFail(an, node, "cannot add two pointers");
+        }
+        if (!typeEquals(left, right)) {
+          analyzerFail2(an, node,
+                        "pointer difference requires identical pointer types",
+                        gotTwoTypes(left, right));
+        }
+        if (typeIsVoid(typePointee(left))) {
+          analyzerFail(an, node,
+                       "cannot take the difference of '*void' pointers");
+        }
+        return typeMake(TY_I64, 0);
+      }
+
+      let pointer: Type = left;
+      let offset: Type = right;
+      if (!typeIsPointer(left)) {
+        pointer = right;
+        offset = left;
+      }
+
+      if (typeIsPointer(right) && isSub) {
+        analyzerFail(an, node, "cannot subtract a pointer from an integer");
+      }
+      if (!typeIsInteger(offset)) {
+        analyzerFail2(an, node, "pointer arithmetic requires an integer offset",
+                      gotType(offset));
+      }
+      if (typeIsVoid(typePointee(pointer))) {
+        analyzerFail2(an, node, "cannot do arithmetic on '*void'",
+                      "cast it to a concrete pointer type first");
+      }
+      return pointer;
+    }
+  }
+
+  if (isAdd || isSub || textEquals(op, "*") || textEquals(op, "/")) {
+    if (typeIsPointer(left) || typeIsPointer(right)) {
+      analyzerFail(an, node, "pointers do not support this operator");
+    }
+    if (!typeEquals(left, right)) {
+      analyzerFail2(an, node, "arithmetic operators require same type operands",
+                    gotTwoTypes(left, right));
+    }
+    if (!typeIsNumeric(left)) {
+      analyzerFail2(an, node, "arithmetic requires numeric operands",
+                    gotType(left));
+    }
+    return left;
+  }
+
+  // Remainder, the bitwise operators and the shifts all lower to an LLVM
+  // instruction that wants two integers of one width, which is also what the
+  // absence of implicit conversions would demand anyway.
+  if (textEquals(op, "%") || textEquals(op, "&") || textEquals(op, "|") ||
+      textEquals(op, "^") || textEquals(op, "<<") || textEquals(op, ">>")) {
+    if (!typeEquals(left, right)) {
+      analyzerFail2(an, node, quoted("", op, " requires same type operands"),
+                    gotTwoTypes(left, right));
+    }
+    if (!typeIsInteger(left)) {
+      analyzerFail2(an, node, quoted("", op, " requires integer operands"),
+                    gotType(left));
+    }
+    return left;
+  }
+
+  analyzerFail(an, node, "unknown binary operator");
+  return typeMake(TY_VOID, 0);
+}
+
+fn castRejection(an: *Analyzer, node: i32, from: Type, to: Type,
+                 why: *i8): void {
+  let context: *Buf = bufNew();
+  bufAdd(context, "cannot cast '");
+  bufAdd(context, typeToText(from));
+  bufAdd(context, "' to '");
+  bufAdd(context, typeToText(to));
+  bufPush(context, '\'');
+
+  analyzerFail2(an, node, context.data, why);
+}
+
+fn checkCast(an: *Analyzer, node: i32): Type {
+  let to: Type = analyzerParseType(an, an.ast.nodes[node].b);
+  let from: Type = checkCastOperand(an, an.ast.nodes[node].a, to);
+
+  if (typeIsVoid(from) || typeIsVoid(to)) {
+    castRejection(an, node, from, to, "void is not a value type");
+  }
+
+  if (typeEquals(from, to)) { return to; }
+  if (typeIsNumeric(from) && typeIsNumeric(to)) { return to; }
+  if (typeIsBool(from) && typeIsInteger(to)) { return to; }
+  if (typeIsInteger(from) && typeIsBool(to)) { return to; }
+  if (typeIsPointer(from) && typeIsPointer(to)) { return to; }
+
+  // Pointers only convert to and from a pointer-sized integer.
+  if (typeIsPointer(from) && typeIsInteger(to)) {
+    if (typeBitWidth(to) != 64) {
+      castRejection(an, node, from, to,
+                    "pointers only convert to a 64-bit integer (i64, u64, usize)");
+    }
+    return to;
+  }
+  if (typeIsInteger(from) && typeIsPointer(to)) {
+    if (typeBitWidth(from) != 64) {
+      castRejection(an, node, from, to,
+                    "only a 64-bit integer (i64, u64, usize) converts to a pointer");
+    }
+    return to;
+  }
+
+  castRejection(an, node, from, to, "no such conversion");
+  return to;
+}
+
+// checkExpr for the operand of a cast. A literal operand is offered the
+// cast's target type, so that a value too wide for `i32` can be written at
+// all: `3000000000 as i64`.
+fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
+  if (an.ast.nodes[node].kind != NK_NUMBER) {
+    return checkExpr(an, node);
+  }
+
+  let type: Type = checkNumberLiteral(an, node, target);
+  an.types[node] = type;
+
+  return type;
+}
+
+fn textHasDot(text: *i8, length: i64): bool {
+  let index: i64 = 0 as i64;
+
+  while (index < length) {
+    if (text[index] == '.') {
+      return true;
+    }
+    index = index + 1 as i64;
+  }
+
+  return false;
+}
+
+fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
+  let text: *i8 = an.ast.nodes[node].text;
+  let length: i64 = an.ast.nodes[node].textLength;
+
+  if (textHasDot(text, length)) {
+    if (typeIsFloat(target)) {
+      return target;
+    }
+    return typeMake(TY_F32, 0);
+  }
+
+  // A literal that fits `i32` stays `i32` even under a cast, so that a
+  // narrowing conversion such as `300 as i8` keeps meaning "truncate an
+  // in-range i32" rather than becoming an out-of-range literal. Only a value
+  // `i32` cannot hold takes the cast's target type, which is what makes
+  // `3000000000 as i64` expressible at all.
+  let fallback: Type = typeMake(TY_I32, 0);
+  let wanted: Type = target;
+  if (!typeIsInteger(target)) {
+    wanted = fallback;
+  }
+
+  let negative: bool = text[0] == '-';
+  let start: i64 = 0 as i64;
+  if (negative) {
+    start = 1 as i64;
+  }
+
+  let overflowed: *bool = malloc(sizeof(bool) as i64) as *bool;
+  let magnitude: u64 = parseMagnitude(text, start, length, overflowed);
+
+  if (*overflowed) {
+    analyzerFail(an, node, quoted("number is out of range for ",
+                                  typeToText(wanted), ""));
+  }
+
+  if (fitsIn(magnitude, negative, fallback)) {
+    return fallback;
+  }
+
+  if (!fitsIn(magnitude, negative, wanted)) {
+    let detail: *i8 = "the value does not fit the type it is cast to";
+    if (typeEquals(wanted, fallback)) {
+      detail = "use an explicit cast such as `... as i64`";
+    }
+    analyzerFail2(an, node,
+                  quoted("number is out of range for ", typeToText(wanted), ""),
+                  detail);
+  }
+
+  return wanted;
+}
+
+fn checkFieldAccess(an: *Analyzer, node: i32): Type {
+  let field: *i8 = an.ast.nodes[node].text;
+  let objectType: Type = checkExpr(an, an.ast.nodes[node].a);
+
+  // A single level of pointer is followed automatically, so `p.field` works
+  // whether `p` is a struct or a pointer to one.
+  let structType: Type = objectType;
+  if (objectType.pointerDepth == 1) {
+    structType = typePointee(objectType);
+  }
+
+  if (!typeIsStruct(structType)) {
+    analyzerFail2(an, node, quoted("cannot read field ", field, ""),
+                  quoted("", typeToText(objectType), " is not a struct"));
+  }
+
+  let structIndex: i32 = structIndexOf(an.structs, structType.structName);
+  if (structIndex < 0) {
+    analyzerFail2(an, node, quoted("field ", field, ""),
+                  quoted("unknown type ", typeToText(structType), ""));
+  }
+
+  let fieldIndex: i32 = structFieldIndex(an.structs, structIndex, field);
+  if (fieldIndex < 0) {
+    let message: *Buf = bufNew();
+    bufAdd(message, "struct '");
+    bufAdd(message, structType.structName);
+    bufAdd(message, "' has no field '");
+    bufAdd(message, field);
+    bufPush(message, '\'');
+    analyzerFail(an, node, message.data);
+  }
+
+  return an.structs.items[structIndex].fields[fieldIndex].type;
+}
+
+fn checkIndex(an: *Analyzer, node: i32): Type {
+  let baseType: Type = checkExpr(an, an.ast.nodes[node].a);
+  let indexType: Type = checkExpr(an, an.ast.nodes[node].b);
+
+  if (!typeIsPointer(baseType)) {
+    analyzerFail2(an, node, "cannot index a non-pointer value",
+                  gotType(baseType));
+  }
+  if (typeIsVoid(typePointee(baseType))) {
+    analyzerFail2(an, node, "cannot index '*void'",
+                  "cast it to a concrete pointer type first");
+  }
+  if (!typeIsInteger(indexType)) {
+    analyzerFail2(an, node, "index must be an integer", gotType(indexType));
+  }
+
+  return typePointee(baseType);
+}
+
+fn checkStructLiteral(an: *Analyzer, node: i32): Type {
+  let name: *i8 = an.ast.nodes[node].text;
+  let structIndex: i32 = structIndexOf(an.structs, name);
+
+  if (structIndex < 0) {
+    analyzerFail2(an, node, quoted("in literal for ", name, ""),
+                  quoted("unknown type ", name, ""));
+  }
+
+  let fieldCount: i32 = an.structs.items[structIndex].count;
+  let initialised: *i8 = malloc(fieldCount as i64);
+
+  let index: i32 = 0;
+  while (index < fieldCount) {
+    initialised[index] = 0 as i8;
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < an.ast.nodes[node].itemCount) {
+    let init: i32 = an.ast.nodes[node].items[index];
+    let fieldName: *i8 = an.ast.nodes[init].text;
+    let fieldIndex: i32 = structFieldIndex(an.structs, structIndex, fieldName);
+
+    if (fieldIndex < 0) {
+      let message: *Buf = bufNew();
+      bufAdd(message, "struct '");
+      bufAdd(message, name);
+      bufAdd(message, "' has no field '");
+      bufAdd(message, fieldName);
+      bufPush(message, '\'');
+      analyzerFail(an, node, message.data);
+    }
+    if (initialised[fieldIndex] != 0 as i8) {
+      analyzerFail(an, node,
+                   quoted("field ", fieldName, " is initialised twice"));
+    }
+    initialised[fieldIndex] = 1 as i8;
+
+    let valueType: Type = checkExpr(an, an.ast.nodes[init].a);
+    let fieldType: Type =
+        an.structs.items[structIndex].fields[fieldIndex].type;
+
+    if (!typeEquals(valueType, fieldType)) {
+      let context: *Buf = bufNew();
+      bufAdd(context, "field '");
+      bufAdd(context, fieldName);
+      bufAdd(context, "' of '");
+      bufAdd(context, name);
+      bufAdd(context, "' has the wrong type");
+
+      analyzerFail2(an, node, context.data,
+                    expectedButGot(typeToText(fieldType),
+                                   typeToText(valueType)));
+    }
+
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < fieldCount) {
+    if (initialised[index] == 0 as i8) {
+      let message: *Buf = bufNew();
+      bufAdd(message, "field '");
+      bufAdd(message, an.structs.items[structIndex].fields[index].name);
+      bufAdd(message, "' of '");
+      bufAdd(message, name);
+      bufAdd(message, "' is missing");
+      analyzerFail(an, node, message.data);
+    }
+    index = index + 1;
+  }
+
+  return typeStruct(name, 0);
+}
+
+// Global initialisers become LLVM constant initialisers, so they may only be
+// literals and casts or negations of those.
+fn isConstantExpr(an: *Analyzer, node: i32): bool {
+  let kind: i32 = an.ast.nodes[node].kind;
+
+  if (kind == NK_NUMBER || kind == NK_BOOL || kind == NK_STRING) {
+    return true;
+  }
+  if (kind == NK_CHAR || kind == NK_SIZEOF) {
+    return true;
+  }
+  if (kind == NK_CAST) {
+    return isConstantExpr(an, an.ast.nodes[node].a);
+  }
+  if (kind == NK_UNARY) {
+    if (!textEquals(an.ast.nodes[node].text, "-")) {
+      return false;
+    }
+    return isConstantExpr(an, an.ast.nodes[node].a);
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Statements.
+// ---------------------------------------------------------------------------
+
+fn analyzeStatement(an: *Analyzer, node: i32): void {
+  let kind: i32 = an.ast.nodes[node].kind;
+
+  if (kind == NK_BLOCK) { analyzeBlock(an, node); return; }
+  if (kind == NK_VARDECL) { analyzeVarDecl(an, node); return; }
+  if (kind == NK_ASSIGN) { analyzeAssign(an, node); return; }
+  if (kind == NK_IF) { analyzeIf(an, node); return; }
+  if (kind == NK_WHILE) { analyzeWhile(an, node); return; }
+  if (kind == NK_FN) { analyzeFuncDecl(an, node); return; }
+  if (kind == NK_EXTERN) { analyzeExternDecl(an, node); return; }
+  if (kind == NK_RETURN) { analyzeReturn(an, node); return; }
+  if (kind == NK_PRINT) { analyzePrint(an, node); return; }
+  if (kind == NK_EXPRSTMT) { checkExpr(an, an.ast.nodes[node].a); return; }
+
+  if (kind == NK_BREAK) {
+    if (an.loopDepth == 0) {
+      analyzerFail(an, node, "break used outside of a loop");
+    }
+    return;
+  }
+
+  if (kind == NK_CONTINUE) {
+    if (an.loopDepth == 0) {
+      analyzerFail(an, node, "continue used outside of a loop");
+    }
+    return;
+  }
+
+  // A struct declaration was handled by the two registration passes.
+  if (kind == NK_STRUCT) {
+    return;
+  }
+
+  analyzerFail(an, node, "unknown statement node type");
+}
+
+fn analyzeBlock(an: *Analyzer, node: i32): void {
+  symbolEnterScope(an.symbols);
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[node].itemCount) {
+    analyzeStatement(an, an.ast.nodes[node].items[index]);
+    index = index + 1;
+  }
+
+  symbolExitScope(an.symbols);
+}
+
+fn analyzeVarDecl(an: *Analyzer, node: i32): void {
+  let name: *i8 = an.ast.nodes[node].text;
+  let declaredType: Type = analyzerParseType(an, an.ast.nodes[node].a);
+
+  analyzerValidateType(an, node, declaredType,
+                       quoted("in declaration of ", name, ""));
+  if (typeIsVoid(declaredType)) {
+    analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
+  }
+
+  // The initialiser is checked before the name is bound, so `let x = x + 1;`
+  // cannot see the slot it is initialising.
+  let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
+
+  if (!typeEquals(declaredType, exprType)) {
+    let context: *Buf = bufNew();
+    bufAdd(context, "type mismatch in declaration of '");
+    bufAdd(context, name);
+    bufPush(context, '\'');
+
+    let detail: *Buf = bufNew();
+    bufAdd(detail, "declared as '");
+    bufAdd(detail, typeToText(declaredType));
+    bufAdd(detail, "' but assigned '");
+    bufAdd(detail, typeToText(exprType));
+    bufPush(detail, '\'');
+
+    analyzerFail2(an, node, context.data, detail.data);
+  }
+
+  // Globals were declared during hoisting; all that is left is to confirm the
+  // initialiser can be emitted as an LLVM constant.
+  if (an.isGlobal[node] != 0 as i8) {
+    if (!isConstantExpr(an, an.ast.nodes[node].b)) {
+      analyzerFail2(an, node,
+                    quoted("initialiser of global ", name, " is not constant"),
+                    "globals may only be initialised from literals");
+    }
+    return;
+  }
+
+  symbolDeclare(an.symbols, name, SYM_VAR, declaredType, 0 as i64 as *Type, 0,
+                an.ast.nodes[node].line, an.ast.nodes[node].column);
+}
+
+fn analyzeAssign(an: *Analyzer, node: i32): void {
+  let targetType: Type = checkAssignTarget(an, node, an.ast.nodes[node].a);
+  let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
+
+  if (!typeEquals(targetType, exprType)) {
+    analyzerFail2(an, node, "type mismatch in assignment",
+                  expectedButGot(typeToText(targetType),
+                                 typeToText(exprType)));
+  }
+}
+
+fn analyzeIf(an: *Analyzer, node: i32): void {
+  let condType: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (!typeIsBool(condType)) {
+    analyzerFail2(an, node, "if condition must be boolean", gotType(condType));
+  }
+
+  analyzeStatement(an, an.ast.nodes[node].b);
+  if (an.ast.nodes[node].c != NO_NODE) {
+    analyzeStatement(an, an.ast.nodes[node].c);
+  }
+}
+
+fn analyzeWhile(an: *Analyzer, node: i32): void {
+  let condType: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (!typeIsBool(condType)) {
+    analyzerFail2(an, node, "while condition must be boolean",
+                  gotType(condType));
+  }
+
+  an.loopDepth = an.loopDepth + 1;
+  analyzeStatement(an, an.ast.nodes[node].b);
+  an.loopDepth = an.loopDepth - 1;
+}
+
+fn analyzeReturn(an: *Analyzer, node: i32): void {
+  if (!an.inFunction) {
+    analyzerFail(an, node, "return used outside of a function");
+  }
+
+  if (an.ast.nodes[node].a == NO_NODE) {
+    if (!typeIsVoid(an.currentReturnType)) {
+      analyzerFail2(an, node, "return without a value",
+                    quoted("this function returns ",
+                           typeToText(an.currentReturnType), ""));
+    }
+    return;
+  }
+
+  let returned: Type = checkExpr(an, an.ast.nodes[node].a);
+
+  if (typeIsVoid(an.currentReturnType)) {
+    analyzerFail2(an, node, "returning a value from a void function",
+                  gotType(returned));
+  }
+
+  if (!typeEquals(returned, an.currentReturnType)) {
+    analyzerFail2(an, node, "wrong return type",
+                  expectedButGot(typeToText(an.currentReturnType),
+                                 typeToText(returned)));
+  }
+}
+
+fn analyzePrint(an: *Analyzer, node: i32): void {
+  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (typeIsVoid(type)) {
+    analyzerFail(an, node, "cannot print a void value");
+  }
+}
+
+fn analyzeFuncDecl(an: *Analyzer, node: i32): void {
+  let name: *i8 = an.ast.nodes[node].text;
+
+  // Top-level functions were already recorded by the hoisting pass.
+  if (symbolFind(an.symbols, name) < 0) {
+    let paramCount: i32 = 0;
+    let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b,
+                                           &paramCount);
+    symbolDeclare(an.symbols, name, SYM_FN,
+                  analyzerParseType(an, an.ast.nodes[node].a), params,
+                  paramCount, an.ast.nodes[node].line,
+                  an.ast.nodes[node].column);
+  }
+
+  symbolEnterScope(an.symbols);
+
+  let paramList: i32 = an.ast.nodes[node].b;
+  if (paramList != NO_NODE) {
+    let index: i32 = 0;
+    while (index < an.ast.nodes[paramList].itemCount) {
+      let param: i32 = an.ast.nodes[paramList].items[index];
+      let paramType: Type = analyzerParseType(an, an.ast.nodes[param].a);
+      symbolDeclare(an.symbols, an.ast.nodes[param].text, SYM_VAR, paramType,
+                    0 as i64 as *Type, 0, an.ast.nodes[param].line,
+                    an.ast.nodes[param].column);
+      index = index + 1;
+    }
+  }
+
+  // A nested function gets its own return type and loop nesting; neither
+  // leaks in from the function it is written inside.
+  let wasInFunction: bool = an.inFunction;
+  let previousReturnType: Type = an.currentReturnType;
+  let previousLoopDepth: i32 = an.loopDepth;
+
+  an.inFunction = true;
+  an.currentReturnType = analyzerParseType(an, an.ast.nodes[node].a);
+  an.loopDepth = 0;
+
+  analyzeStatement(an, an.ast.nodes[node].c);
+
+  an.inFunction = wasInFunction;
+  an.currentReturnType = previousReturnType;
+  an.loopDepth = previousLoopDepth;
+
+  symbolExitScope(an.symbols);
+}
+
+fn analyzeExternDecl(an: *Analyzer, node: i32): void {
+  let name: *i8 = an.ast.nodes[node].text;
+  let paramCount: i32 = 0;
+  let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
+
+  if (symbolFind(an.symbols, name) < 0) {
+    symbolDeclare(an.symbols, name, SYM_FN,
+                  analyzerParseType(an, an.ast.nodes[node].a), params,
+                  paramCount, an.ast.nodes[node].line,
+                  an.ast.nodes[node].column);
+  }
+
+  let index: i32 = 0;
+  while (index < paramCount) {
+    if (typeIsVoid(params[index])) {
+      analyzerFail(an, node, quoted("extern ", name, " has a void parameter"));
+    }
+    index = index + 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The top level, in the order the passes have to run.
+// ---------------------------------------------------------------------------
+
+fn registerStructName(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NK_STRUCT) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  if (structIndexOf(an.structs, name) >= 0) {
+    analyzerFail(an, node,
+                 quoted("struct ", name, " is declared more than once"));
+  }
+
+  structTableAdd(an.structs, name);
+}
+
+fn registerStructFields(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NK_STRUCT) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let structIndex: i32 = structIndexOf(an.structs, name);
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[node].itemCount) {
+    let field: i32 = an.ast.nodes[node].items[index];
+    let fieldName: *i8 = an.ast.nodes[field].text;
+
+    if (structFieldIndex(an.structs, structIndex, fieldName) >= 0) {
+      let message: *Buf = bufNew();
+      bufAdd(message, "struct '");
+      bufAdd(message, name);
+      bufAdd(message, "' declares field '");
+      bufAdd(message, fieldName);
+      bufAdd(message, "' twice");
+      analyzerFail(an, node, message.data);
+    }
+
+    let type: Type = analyzerParseType(an, an.ast.nodes[field].a);
+
+    let context: *Buf = bufNew();
+    bufAdd(context, "field '");
+    bufAdd(context, fieldName);
+    bufAdd(context, "' of struct '");
+    bufAdd(context, name);
+    bufPush(context, '\'');
+    analyzerValidateType(an, node, type, context.data);
+
+    if (typeIsVoid(type)) {
+      let message: *Buf = bufNew();
+      bufAdd(message, "field '");
+      bufAdd(message, fieldName);
+      bufAdd(message, "' of struct '");
+      bufAdd(message, name);
+      bufAdd(message, "' cannot be void");
+      analyzerFail(an, node, message.data);
+    }
+
+    structAddField(an.structs, structIndex, fieldName, type);
+    index = index + 1;
+  }
+}
+
+// A struct that contains itself by value has no finite size. Going through a
+// pointer is fine, and is how linked structures are built.
+fn rejectStructCycles(an: *Analyzer, program: i32): void {
+  let count: i32 = an.structs.count;
+  let start: i32 = 0;
+
+  while (start < count) {
+    let seen: *i8 = malloc(count as i64);
+    let stack: *i32 = malloc(sizeof(i32) as i64 * count as i64) as *i32;
+    let stackCount: i32 = 0;
+
+    let index: i32 = 0;
+    while (index < count) {
+      seen[index] = 0 as i8;
+      index = index + 1;
+    }
+
+    seen[start] = 1 as i8;
+    stack[stackCount] = start;
+    stackCount = stackCount + 1;
+
+    while (stackCount > 0) {
+      stackCount = stackCount - 1;
+      let current: i32 = stack[stackCount];
+
+      let field: i32 = 0;
+      while (field < an.structs.items[current].count) {
+        let type: Type = an.structs.items[current].fields[field].type;
+
+        if (typeIsStruct(type)) {
+          if (textEquals(type.structName, an.structs.items[start].name)) {
+            analyzerFail2(an, program,
+                          quoted("struct ", an.structs.items[start].name,
+                                 " contains itself"),
+                          "use a pointer to break the cycle");
+          }
+
+          let target: i32 = structIndexOf(an.structs, type.structName);
+          if (target >= 0 && seen[target] == 0 as i8) {
+            seen[target] = 1 as i8;
+            stack[stackCount] = target;
+            stackCount = stackCount + 1;
+          }
+        }
+
+        field = field + 1;
+      }
+    }
+
+    free(seen);
+    free(stack as *i8);
+    start = start + 1;
+  }
+}
+
+fn hoistGlobal(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NK_VARDECL) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
+
+  analyzerValidateType(an, node, type, quoted("in declaration of ", name, ""));
+  if (typeIsVoid(type)) {
+    analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
+  }
+
+  an.isGlobal[node] = 1 as i8;
+  symbolDeclare(an.symbols, name, SYM_VAR, type, 0 as i64 as *Type, 0,
+                an.ast.nodes[node].line, an.ast.nodes[node].column);
+}
+
+fn hoistSignature(an: *Analyzer, node: i32): void {
+  let kind: i32 = an.ast.nodes[node].kind;
+  if (kind != NK_FN && kind != NK_EXTERN) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let returnType: Type = analyzerParseType(an, an.ast.nodes[node].a);
+  let paramCount: i32 = 0;
+  let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
+
+  let what: *i8 = "return type of '";
+  if (kind == NK_EXTERN) {
+    what = "return type of extern '";
+  }
+
+  let context: *Buf = bufNew();
+  bufAdd(context, what);
+  bufAdd(context, name);
+  bufPush(context, '\'');
+  analyzerValidateType(an, node, returnType, context.data);
+
+  let index: i32 = 0;
+  while (index < paramCount) {
+    let paramContext: *Buf = bufNew();
+    if (kind == NK_EXTERN) {
+      bufAdd(paramContext, "parameter of extern '");
+    } else {
+      bufAdd(paramContext, "parameter of '");
+    }
+    bufAdd(paramContext, name);
+    bufPush(paramContext, '\'');
+    analyzerValidateType(an, node, params[index], paramContext.data);
+    index = index + 1;
+  }
+
+  // Passing a struct by value across the C ABI needs target-specific lowering
+  // that this compiler does not do, so require a pointer.
+  if (kind == NK_EXTERN) {
+    if (typeIsStruct(returnType)) {
+      analyzerFail2(an, node,
+                    quoted("extern ", name, " returns a struct by value"),
+                    "return a pointer instead");
+    }
+
+    index = 0;
+    while (index < paramCount) {
+      if (typeIsStruct(params[index])) {
+        analyzerFail2(an, node,
+                      quoted("extern ", name, " takes a struct by value"),
+                      "take a pointer instead");
+      }
+      index = index + 1;
+    }
+  }
+
+  symbolDeclare(an.symbols, name, SYM_FN, returnType, params, paramCount,
+                an.ast.nodes[node].line, an.ast.nodes[node].column);
+}
+
+fn analyze(an: *Analyzer, program: i32): void {
+  let count: i32 = an.ast.nodes[program].itemCount;
+
+  // Struct names come first so that two structs may point at each other, then
+  // fields, then globals and function signatures, which may both refer to any
+  // struct.
+  let index: i32 = 0;
+  while (index < count) {
+    registerStructName(an, an.ast.nodes[program].items[index]);
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    registerStructFields(an, an.ast.nodes[program].items[index]);
+    index = index + 1;
+  }
+
+  rejectStructCycles(an, program);
+
+  index = 0;
+  while (index < count) {
+    hoistGlobal(an, an.ast.nodes[program].items[index]);
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    hoistSignature(an, an.ast.nodes[program].items[index]);
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    analyzeStatement(an, an.ast.nodes[program].items[index]);
+    index = index + 1;
+  }
+
+  if (symbolFind(an.symbols, "main") < 0) {
+    fail("No main function found");
+  }
+}

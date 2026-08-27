@@ -67,9 +67,17 @@ fn dumpTokens(list: *TokenList, out: *Buf): void {
   }
 }
 
+fn nullTypes(): *Type {
+  return 0 as i64 as *Type;
+}
+
 // Children print in slot order -- a, then b, then c, then the item list --
 // which is the order every kind stores them in, so no kind needs its own case.
-fn dumpNode(ast: *Ast, index: i32, depth: i32, out: *Buf): void {
+//
+// `types` is the analyzer's resolved-type table, or null to dump the tree on
+// its own. A node the analyzer never typed prints without an annotation.
+fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
+            out: *Buf): void {
   if (index == NO_NODE) {
     return;
   }
@@ -98,15 +106,23 @@ fn dumpNode(ast: *Ast, index: i32, depth: i32, out: *Buf): void {
   bufAddInt(out, ast.nodes[index].line as i64);
   bufPush(out, ':');
   bufAddInt(out, ast.nodes[index].column as i64);
+
+  if (types != nullTypes()) {
+    if (types[index].kind != TY_NONE) {
+      bufAdd(out, " : ");
+      bufAdd(out, typeToText(types[index]));
+    }
+  }
+
   bufPush(out, '\n');
 
-  dumpNode(ast, ast.nodes[index].a, depth + 1, out);
-  dumpNode(ast, ast.nodes[index].b, depth + 1, out);
-  dumpNode(ast, ast.nodes[index].c, depth + 1, out);
+  dumpNode(ast, types, ast.nodes[index].a, depth + 1, out);
+  dumpNode(ast, types, ast.nodes[index].b, depth + 1, out);
+  dumpNode(ast, types, ast.nodes[index].c, depth + 1, out);
 
   let item: i32 = 0;
   while (item < ast.nodes[index].itemCount) {
-    dumpNode(ast, ast.nodes[index].items[item], depth + 1, out);
+    dumpNode(ast, types, ast.nodes[index].items[item], depth + 1, out);
     item = item + 1;
   }
 }

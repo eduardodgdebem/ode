@@ -34,10 +34,12 @@ for binary in "$ODE" "$ODE1"; do
   fi
 done
 
-# Compares one phase's output for one source. A source the C++ compiler
-# rejects only has to be rejected by the self-hosted one too: the diagnostics
-# themselves are not compared, because the self-hosted compiler does not
-# recover from errors yet and so reports only the first.
+# Compares one phase's output for one source.
+#
+# For a source the C++ compiler rejects, the diagnostic is compared too --
+# but only where the C++ compiler reported exactly one. The self-hosted
+# compiler does not recover from errors yet, so where the C++ one goes on to
+# report more, all that can be required is that both reject.
 compare() {
   local phase="$1" flag="$2" source="$3" name
   name="$(basename "$source")"
@@ -52,13 +54,31 @@ compare() {
   local ode_status=$?
 
   if [ $cpp_status -ne 0 ]; then
-    if [ $ode_status -ne 0 ]; then
-      printf '  %-7s %-40s ok (both reject)\n' "$phase" "$name"
-      passed=$((passed + 1))
-    else
+    if [ $ode_status -eq 0 ]; then
       printf '  %-7s %-40s FAIL (C++ rejects, self-hosted accepts)\n' \
         "$phase" "$name"
       sed 's/^/      /' < "$WORK_DIR/cpp.err"
+      failed=$((failed + 1))
+      return
+    fi
+
+    # More than one error means the C++ compiler recovered and kept going,
+    # which the self-hosted one cannot do yet.
+    if grep -q 'errors generated\.$' "$WORK_DIR/cpp.err"; then
+      printf '  %-7s %-40s ok (both reject, %s errors)\n' "$phase" "$name" \
+        "$(sed -n 's/^\([0-9][0-9]*\) errors generated.*/\1/p' \
+             "$WORK_DIR/cpp.err" | head -1)"
+      passed=$((passed + 1))
+      return
+    fi
+
+    if cmp -s "$WORK_DIR/cpp.err" "$WORK_DIR/ode.err"; then
+      printf '  %-7s %-40s ok (both reject, same diagnostic)\n' "$phase" "$name"
+      passed=$((passed + 1))
+    else
+      printf '  %-7s %-40s FAIL (diagnostics differ)\n' "$phase" "$name"
+      diff -u --label c++ "$WORK_DIR/cpp.err" \
+              --label self-hosted "$WORK_DIR/ode.err" | sed 's/^/      /'
       failed=$((failed + 1))
     fi
     return
@@ -102,6 +122,12 @@ echo
 
 for source in $(sources); do
   compare ast --dump-ast "$source"
+done
+
+echo
+
+for source in $(sources); do
+  compare types --dump-types "$source"
 done
 
 echo

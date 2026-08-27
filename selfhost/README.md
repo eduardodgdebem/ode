@@ -31,7 +31,10 @@ stable and diffable, not to satisfy the compiler.
 | `30_ast.ode` | the node arena |
 | `40_parser.ode` | expressions |
 | `50_parser_stmt.ode` | statements and declarations |
-| `80_dump.ode` | the token and tree dumps |
+| `60_type.ode` | types and struct layouts |
+| `65_symbols.ode` | the symbol table |
+| `70_analyzer.ode` | the semantic analyzer |
+| `80_dump.ode` | the token, tree and type dumps |
 | `90_main.ode` | the driver |
 
 ## How correctness is checked
@@ -41,9 +44,15 @@ stable and diffable, not to satisfy the compiler.
 their output byte for byte. The C++ compiler is the reference; any difference
 is a porting bug.
 
-Right now that means the token stream (`--dump-tokens`) and the parsed tree
-(`--dump-ast`), both of which each compiler prints in the same format. Later
-phases get compared the same way as they land. This is the answer to the gap
+Right now that means the token stream (`--dump-tokens`), the parsed tree
+(`--dump-ast`) and the tree with every resolved expression type
+(`--dump-types`), each of which both compilers print in the same format. Later
+phases get compared the same way as they land.
+
+Sources the C++ compiler *rejects* are compared too: where it reports a single
+error, the diagnostic itself has to match character for character. Only where
+it recovers and reports several -- which the self-hosted compiler cannot do
+yet -- is the weaker "both reject" all that is required. This is the answer to the gap
 `LIMITATIONS.md` section 8.1 describes: two compilers that have to agree need
 something better than bisecting a failing program.
 
@@ -61,6 +70,14 @@ have caught:
   negation of `-5`.
 - A token cannot hold its text as a NUL-terminated string, because `'\0'` is a
   token whose text is one NUL byte. Tokens carry an explicit length instead.
+- An unassignable target is reported at the assignment, not at the expression
+  that turned out not to be one, so `1 + 1 = 2;` points at the statement.
+- The end-of-input token carries no position, because the C++ parser
+  synthesises one that way and a diagnostic about running out of input names
+  the file rather than pointing past its last line.
+
+Comparing diagnostics is what found the last three of those. While only
+"both reject" was required, all three passed.
 
 ## What the port has to stay inside
 
@@ -85,12 +102,26 @@ kind, and `items` is the child list that only some kinds use.
 Children are stored in the order they print, so the dumper walks `a`, `b`, `c`
 and then `items` for every kind without a case per node type.
 
+## Types
+
+A type is a base kind plus a pointer depth, with a name as well for structs.
+They are passed by value, which Ode allows between its own functions, so the
+checks read the way the C++ `Type` class does.
+
+Resolved types live in one array indexed by node, parallel to the arena, with
+`TY_NONE` for the nodes that are not expressions. That is the same information
+the C++ analyzer keeps in a map keyed by node pointer, and `--dump-types` is
+what makes the two comparable.
+
+There is no `~` operator, so the integer maxima that literal range checking
+needs are built by shifting rather than by complementing zero.
+
 ## What is not ported yet
 
 - **Error recovery.** The C++ compiler reports every error in a run; this one
-  stops at the first. `difftest.sh` therefore only requires that both reject
-  the same sources, not that they produce the same diagnostics.
-- **The analyzer and the IR emitter**, which are what come next.
+  stops at the first. Where the C++ compiler reports several errors,
+  `difftest.sh` can only require that both reject.
+- **The IR emitter**, which is what comes next.
 
 ## Where it is going
 
