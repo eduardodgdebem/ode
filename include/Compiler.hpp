@@ -13,6 +13,9 @@ public:
     // `ode foo.ode` has always done.
     std::filesystem::path outputPath;
     bool keepIntermediates = true;
+    // Print the token stream and stop. This exists so the C++ lexer and the
+    // self-hosted one in selfhost/ can be diffed against each other.
+    bool dumpTokens = false;
   };
 
   explicit Compiler(Options options);

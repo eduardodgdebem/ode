@@ -1,0 +1,373 @@
+// ---------------------------------------------------------------------------
+// Lexer.
+//
+// One pass over the source. Position is tracked as a byte offset plus a line
+// and column, so every token can be pointed at in a diagnostic.
+// ---------------------------------------------------------------------------
+
+struct Lexer {
+  source: *i8,
+  pos: i64,
+  length: i64,
+  line: i32,
+  column: i32,
+}
+
+fn lexerNew(source: *i8): *Lexer {
+  let lexer: *Lexer = malloc(sizeof(Lexer) as i64) as *Lexer;
+  lexer.source = source;
+  lexer.pos = 0 as i64;
+  lexer.length = strlen(source);
+  lexer.line = 1;
+  lexer.column = 1;
+
+  return lexer;
+}
+
+fn lexerAtEnd(lexer: *Lexer): bool {
+  return lexer.pos >= lexer.length;
+}
+
+fn lexerPeek(lexer: *Lexer): i8 {
+  if (lexerAtEnd(lexer)) {
+    return 0 as i8;
+  }
+
+  return lexer.source[lexer.pos];
+}
+
+fn lexerPeekNext(lexer: *Lexer): i8 {
+  if (lexer.pos + 1 as i64 >= lexer.length) {
+    return 0 as i8;
+  }
+
+  return lexer.source[lexer.pos + 1 as i64];
+}
+
+fn lexerAdvance(lexer: *Lexer): i8 {
+  let character: i8 = lexerPeek(lexer);
+  lexer.pos = lexer.pos + 1 as i64;
+
+  if (character == '\n') {
+    lexer.line = lexer.line + 1;
+    lexer.column = 1;
+  } else {
+    lexer.column = lexer.column + 1;
+  }
+
+  return character;
+}
+
+fn isDigit(character: i8): bool {
+  return character >= '0' && character <= '9';
+}
+
+fn isAlpha(character: i8): bool {
+  if (character >= 'a' && character <= 'z') {
+    return true;
+  }
+  if (character >= 'A' && character <= 'Z') {
+    return true;
+  }
+
+  return character == '_';
+}
+
+fn isAlphaNumeric(character: i8): bool {
+  return isAlpha(character) || isDigit(character);
+}
+
+fn isSpace(character: i8): bool {
+  return character == ' ' || character == '\t' || character == '\n' ||
+         character == '\r';
+}
+
+// Whitespace and `//` comments, which run to the end of the line.
+fn lexerSkipTrivia(lexer: *Lexer): void {
+  while (!lexerAtEnd(lexer)) {
+    let character: i8 = lexerPeek(lexer);
+
+    if (isSpace(character)) {
+      lexerAdvance(lexer);
+      continue;
+    }
+
+    if (character == '/' && lexerPeekNext(lexer) == '/') {
+      while (!lexerAtEnd(lexer) && lexerPeek(lexer) != '\n') {
+        lexerAdvance(lexer);
+      }
+      continue;
+    }
+
+    return;
+  }
+}
+
+fn keywordKind(text: *i8): i32 {
+  if (textEquals(text, "let")) { return TK_LET; }
+  if (textEquals(text, "if")) { return TK_IF; }
+  if (textEquals(text, "else")) { return TK_ELSE; }
+  if (textEquals(text, "fn")) { return TK_FN; }
+  if (textEquals(text, "extern")) { return TK_EXTERN; }
+  if (textEquals(text, "struct")) { return TK_STRUCT; }
+  if (textEquals(text, "sizeof")) { return TK_SIZEOF; }
+  if (textEquals(text, "return")) { return TK_RETURN; }
+  if (textEquals(text, "while")) { return TK_WHILE; }
+  if (textEquals(text, "break")) { return TK_BREAK; }
+  if (textEquals(text, "continue")) { return TK_CONTINUE; }
+  if (textEquals(text, "print")) { return TK_PRINT; }
+  if (textEquals(text, "as")) { return TK_AS; }
+  if (textEquals(text, "true")) { return TK_BOOL; }
+  if (textEquals(text, "false")) { return TK_BOOL; }
+
+  // Type names are their own kind rather than identifiers, which is what the
+  // parser reads to tell `let x: i32` from `let x: Point`.
+  if (textEquals(text, "i8")) { return TK_TYPE; }
+  if (textEquals(text, "u8")) { return TK_TYPE; }
+  if (textEquals(text, "i16")) { return TK_TYPE; }
+  if (textEquals(text, "u16")) { return TK_TYPE; }
+  if (textEquals(text, "i32")) { return TK_TYPE; }
+  if (textEquals(text, "u32")) { return TK_TYPE; }
+  if (textEquals(text, "i64")) { return TK_TYPE; }
+  if (textEquals(text, "u64")) { return TK_TYPE; }
+  if (textEquals(text, "usize")) { return TK_TYPE; }
+  if (textEquals(text, "f32")) { return TK_TYPE; }
+  if (textEquals(text, "f64")) { return TK_TYPE; }
+  if (textEquals(text, "bool")) { return TK_TYPE; }
+  if (textEquals(text, "void")) { return TK_TYPE; }
+
+  return TK_IDENT;
+}
+
+// Decodes the character after a backslash. The set matches what the C++
+// compiler accepts: no \xNN and no unicode.
+fn escapeValue(character: i8, line: i32, column: i32): i8 {
+  if (character == 'n') { return '\n'; }
+  if (character == 't') { return '\t'; }
+  if (character == 'r') { return '\r'; }
+  if (character == '0') { return 0 as i8; }
+  if (character == '\\') { return '\\'; }
+  if (character == '"') { return '"'; }
+  if (character == '\'') { return '\''; }
+
+  failAt(line, column, "unknown escape sequence");
+  return 0 as i8;
+}
+
+fn lexerReadIdentifier(lexer: *Lexer, list: *TokenList): void {
+  let line: i32 = lexer.line;
+  let column: i32 = lexer.column;
+  let start: i64 = lexer.pos;
+
+  while (!lexerAtEnd(lexer) && isAlphaNumeric(lexerPeek(lexer))) {
+    lexerAdvance(lexer);
+  }
+
+  let count: i64 = lexer.pos - start;
+  let text: *i8 = textSlice(lexer.source, start, count);
+  tokenListAdd(list, keywordKind(text), text, count, line, column);
+}
+
+// A leading `-` belongs to the literal only where the previous token cannot
+// end an expression, which is what makes `print(-17 % 5)` one negative number
+// and `x = 5 - 3` a subtraction. The set is the C++ lexer's, reproduced rather
+// than redesigned: the two compilers have to agree on what the source means.
+// Note that `=` is absent, so `let c: i32 = --5;` is a negation of `-5`.
+fn foldsNegative(lastKind: i32): bool {
+  if (lastKind == TK_NONE) {
+    return true;
+  }
+
+  if (lastKind == TK_EQ || lastKind == TK_NE) { return true; }
+  if (lastKind == TK_LT || lastKind == TK_LE) { return true; }
+  if (lastKind == TK_GT || lastKind == TK_GE) { return true; }
+  if (lastKind == TK_PLUS || lastKind == TK_MINUS) { return true; }
+  if (lastKind == TK_STAR || lastKind == TK_SLASH) { return true; }
+  if (lastKind == TK_ANDAND || lastKind == TK_OROR) { return true; }
+  if (lastKind == TK_LPAREN || lastKind == TK_LBRACE) { return true; }
+  if (lastKind == TK_COMMA || lastKind == TK_COLON) { return true; }
+
+  return lastKind == TK_RETURN;
+}
+
+fn lexerReadNumber(lexer: *Lexer, list: *TokenList): void {
+  let line: i32 = lexer.line;
+  let column: i32 = lexer.column;
+  let start: i64 = lexer.pos;
+
+  if (lexerPeek(lexer) == '-') {
+    lexerAdvance(lexer);
+  }
+
+  // Digits and dots both run on, so `1.` and `1.2.3` lex as one number here
+  // and are rejected later. Splitting them instead would disagree with the
+  // C++ lexer on where the token ends.
+  while (!lexerAtEnd(lexer) &&
+         (isDigit(lexerPeek(lexer)) || lexerPeek(lexer) == '.')) {
+    lexerAdvance(lexer);
+  }
+
+  let count: i64 = lexer.pos - start;
+  let text: *i8 = textSlice(lexer.source, start, count);
+  tokenListAdd(list, TK_NUMBER, text, count, line, column);
+}
+
+fn lexerReadString(lexer: *Lexer, list: *TokenList): void {
+  let line: i32 = lexer.line;
+  let column: i32 = lexer.column;
+  lexerAdvance(lexer);
+
+  let text: *Buf = bufNew();
+
+  while (true) {
+    if (lexerAtEnd(lexer)) {
+      failAt(line, column, "unterminated string literal");
+    }
+
+    let character: i8 = lexerPeek(lexer);
+    if (character == '"') {
+      lexerAdvance(lexer);
+      break;
+    }
+    if (character == '\n') {
+      failAt(line, column, "string literal may not cross a newline");
+    }
+
+    if (character == '\\') {
+      lexerAdvance(lexer);
+      let escaped: i8 = lexerAdvance(lexer);
+      bufPush(text, escapeValue(escaped, lexer.line, lexer.column));
+      continue;
+    }
+
+    bufPush(text, lexerAdvance(lexer));
+  }
+
+  let count: i64 = text.length;
+  tokenListAdd(list, TK_STRING, bufTake(text), count, line, column);
+}
+
+fn lexerReadChar(lexer: *Lexer, list: *TokenList): void {
+  let line: i32 = lexer.line;
+  let column: i32 = lexer.column;
+  lexerAdvance(lexer);
+
+  let text: *Buf = bufNew();
+  let character: i8 = lexerAdvance(lexer);
+
+  if (character == '\\') {
+    let escaped: i8 = lexerAdvance(lexer);
+    bufPush(text, escapeValue(escaped, line, column));
+  } else {
+    bufPush(text, character);
+  }
+
+  if (lexerPeek(lexer) != '\'') {
+    failAt(line, column, "character literal must hold exactly one character");
+  }
+  lexerAdvance(lexer);
+
+  let count: i64 = text.length;
+  tokenListAdd(list, TK_CHAR, bufTake(text), count, line, column);
+}
+
+// Two-character operators are tried before one-character ones, so `<=` never
+// lexes as `<` followed by `=`.
+fn lexerReadOperator(lexer: *Lexer, list: *TokenList): void {
+  let line: i32 = lexer.line;
+  let column: i32 = lexer.column;
+  let first: i8 = lexerPeek(lexer);
+  let second: i8 = lexerPeekNext(lexer);
+  let kind: i32 = 0 - 1;
+
+  if (first == '=' && second == '=') { kind = TK_EQ; }
+  else if (first == '!' && second == '=') { kind = TK_NE; }
+  else if (first == '<' && second == '=') { kind = TK_LE; }
+  else if (first == '>' && second == '=') { kind = TK_GE; }
+  else if (first == '&' && second == '&') { kind = TK_ANDAND; }
+  else if (first == '|' && second == '|') { kind = TK_OROR; }
+  else if (first == '<' && second == '<') { kind = TK_SHL; }
+  else if (first == '>' && second == '>') { kind = TK_SHR; }
+  else if (first == '+' && second == '=') { kind = TK_PLUS_ASSIGN; }
+  else if (first == '-' && second == '=') { kind = TK_MINUS_ASSIGN; }
+  else if (first == '*' && second == '=') { kind = TK_STAR_ASSIGN; }
+  else if (first == '/' && second == '=') { kind = TK_SLASH_ASSIGN; }
+  else if (first == '%' && second == '=') { kind = TK_PERCENT_ASSIGN; }
+
+  if (kind >= 0) {
+    lexerAdvance(lexer);
+    lexerAdvance(lexer);
+    tokenListAdd(list, kind, textCopy(kindName(kind)),
+                 strlen(kindName(kind)), line, column);
+    return;
+  }
+
+  if (first == '=') { kind = TK_ASSIGN; }
+  else if (first == '+') { kind = TK_PLUS; }
+  else if (first == '-') { kind = TK_MINUS; }
+  else if (first == '*') { kind = TK_STAR; }
+  else if (first == '/') { kind = TK_SLASH; }
+  else if (first == '%') { kind = TK_PERCENT; }
+  else if (first == '!') { kind = TK_NOT; }
+  else if (first == '&') { kind = TK_AMP; }
+  else if (first == '|') { kind = TK_PIPE; }
+  else if (first == '^') { kind = TK_CARET; }
+  else if (first == '<') { kind = TK_LT; }
+  else if (first == '>') { kind = TK_GT; }
+  else if (first == '(') { kind = TK_LPAREN; }
+  else if (first == ')') { kind = TK_RPAREN; }
+  else if (first == '{') { kind = TK_LBRACE; }
+  else if (first == '}') { kind = TK_RBRACE; }
+  else if (first == '[') { kind = TK_LBRACKET; }
+  else if (first == ']') { kind = TK_RBRACKET; }
+  else if (first == '.') { kind = TK_DOT; }
+  else if (first == ';') { kind = TK_SEMICOLON; }
+  else if (first == ',') { kind = TK_COMMA; }
+  else if (first == ':') { kind = TK_COLON; }
+  else {
+    failAt(line, column, "unexpected character");
+  }
+
+  lexerAdvance(lexer);
+  tokenListAdd(list, kind, textCopy(kindName(kind)), strlen(kindName(kind)),
+               line, column);
+}
+
+fn tokenize(source: *i8): *TokenList {
+  let lexer: *Lexer = lexerNew(source);
+  let list: *TokenList = tokenListNew();
+  // What the negative-literal rule reads to decide whether a `-` starts a
+  // number or is an operator.
+  let lastKind: i32 = TK_NONE;
+
+  while (true) {
+    lexerSkipTrivia(lexer);
+    if (lexerAtEnd(lexer)) {
+      break;
+    }
+
+    let character: i8 = lexerPeek(lexer);
+
+    if (isAlpha(character)) {
+      lexerReadIdentifier(lexer, list);
+    } else if (isDigit(character)) {
+      lexerReadNumber(lexer, list);
+    } else if (character == '-' && isDigit(lexerPeekNext(lexer)) &&
+               foldsNegative(lastKind)) {
+      lexerReadNumber(lexer, list);
+    } else if (character == '"') {
+      lexerReadString(lexer, list);
+    } else if (character == '\'') {
+      lexerReadChar(lexer, list);
+    } else {
+      lexerReadOperator(lexer, list);
+    }
+
+    lastKind = tokenAt(list, list.count - 1).kind;
+  }
+
+  tokenListAdd(list, TK_END, textCopy(""), 0 as i64, lexer.line,
+               lexer.column);
+
+  return list;
+}

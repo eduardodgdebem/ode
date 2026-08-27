@@ -13,6 +13,7 @@ constexpr std::string_view usage =
     "  -o <path>           write the executable to <path>; the .ll and .o\n"
     "                      are written alongside it as <path>.ll and <path>.o\n"
     "  --no-intermediates  delete the .ll and .o once linking succeeds\n"
+    "  --dump-tokens       print the token stream and stop\n"
     "  -h, --help          show this message";
 
 Compiler::Options parseArguments(int argc, char *argv[]) {
@@ -29,6 +30,8 @@ Compiler::Options parseArguments(int argc, char *argv[]) {
       options.outputPath = argv[i];
     } else if (argument == "--no-intermediates") {
       options.keepIntermediates = false;
+    } else if (argument == "--dump-tokens") {
+      options.dumpTokens = true;
     } else if (argument.starts_with('-') && argument.size() > 1) {
       throw std::runtime_error(
           std::format("ode: error: unknown option '{}'\n{}", argument, usage));

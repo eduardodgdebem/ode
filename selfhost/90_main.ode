@@ -1,0 +1,66 @@
+// ---------------------------------------------------------------------------
+// Driver.
+//
+// For now this is the lexer's front door: read a file, tokenize it, and dump
+// the tokens. The parser, analyzer and IR emitter land behind the same entry
+// point as they are written.
+// ---------------------------------------------------------------------------
+
+let SOURCE_PATH: *i8 = "<none>";
+
+fn dumpTokens(list: *TokenList): void {
+  let out: *Buf = bufNew();
+  let index: i32 = 0;
+
+  while (index < list.count) {
+    let token: *Token = tokenAt(list, index);
+
+    // The end token is the parser's sentinel, not part of the source, and the
+    // C++ lexer does not produce one. Leaving it out keeps the two dumps
+    // directly comparable.
+    if (token.kind == TK_END) {
+      index = index + 1;
+      continue;
+    }
+
+    bufAddInt(out, token.line as i64);
+    bufPush(out, ':');
+    bufAddInt(out, token.column as i64);
+    bufPush(out, ' ');
+    bufAdd(out, kindName(token.kind));
+
+    // An operator's text is its own name, so printing both says nothing.
+    if (token.kind == TK_IDENT || token.kind == TK_NUMBER ||
+        token.kind == TK_STRING || token.kind == TK_CHAR ||
+        token.kind == TK_BOOL || token.kind == TK_TYPE) {
+      bufAdd(out, " '");
+      bufAddBytes(out, token.text, token.length);
+      bufPush(out, '\'');
+    }
+
+    bufPush(out, '\n');
+    index = index + 1;
+  }
+
+  writeBuf(STDOUT, out);
+  bufFree(out);
+}
+
+fn main(argc: i32, argv: **i8): i32 {
+  if (argc < 2) {
+    writeText(STDERR, "usage: ode <input.ode>\n");
+    return 1;
+  }
+
+  SOURCE_PATH = argv[1];
+
+  let source: *i8 = readFile(SOURCE_PATH);
+  if (isNullText(source)) {
+    fail("cannot open input file");
+  }
+
+  let tokens: *TokenList = tokenize(source);
+  dumpTokens(tokens);
+
+  return 0;
+}

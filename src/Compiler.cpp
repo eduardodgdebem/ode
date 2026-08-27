@@ -1,6 +1,7 @@
 #include "Compiler.hpp"
 
 #include <filesystem>
+#include <iostream>
 #include <format>
 #include <memory>
 #include <string>
@@ -17,6 +18,88 @@
 #include "Reader.hpp"
 #include "SemanticAnalyzer.hpp"
 #include "SourceError.hpp"
+
+namespace {
+
+// The names the self-hosted lexer prints, so that the two dumps compare
+// directly. Operators name themselves.
+std::string tokenKindName(Token::Type type) {
+  switch (type) {
+  case Token::Type::Identifier: return "ident";
+  case Token::Type::Number: return "number";
+  case Token::Type::String: return "string";
+  case Token::Type::Char: return "char";
+  case Token::Type::Boolean: return "bool";
+  case Token::Type::Type: return "type";
+  case Token::Type::Let: return "let";
+  case Token::Type::If: return "if";
+  case Token::Type::Else: return "else";
+  case Token::Type::Fn: return "fn";
+  case Token::Type::Extern: return "extern";
+  case Token::Type::Struct: return "struct";
+  case Token::Type::SizeOf: return "sizeof";
+  case Token::Type::Return: return "return";
+  case Token::Type::While: return "while";
+  case Token::Type::Break: return "break";
+  case Token::Type::Continue: return "continue";
+  case Token::Type::Print: return "print";
+  case Token::Type::As: return "as";
+  case Token::Type::Assign: return "=";
+  case Token::Type::Plus: return "+";
+  case Token::Type::Minus: return "-";
+  case Token::Type::Multiply: return "*";
+  case Token::Type::Divide: return "/";
+  case Token::Type::Percent: return "%";
+  case Token::Type::Not: return "!";
+  case Token::Type::Ampersand: return "&";
+  case Token::Type::Pipe: return "|";
+  case Token::Type::Caret: return "^";
+  case Token::Type::ShiftLeft: return "<<";
+  case Token::Type::ShiftRight: return ">>";
+  case Token::Type::And: return "&&";
+  case Token::Type::Or: return "||";
+  case Token::Type::Equal: return "==";
+  case Token::Type::NotEqual: return "!=";
+  case Token::Type::Less: return "<";
+  case Token::Type::LessEqual: return "<=";
+  case Token::Type::Greater: return ">";
+  case Token::Type::GreaterEqual: return ">=";
+  case Token::Type::PlusAssign: return "+=";
+  case Token::Type::MinusAssign: return "-=";
+  case Token::Type::MultiplyAssign: return "*=";
+  case Token::Type::DivideAssign: return "/=";
+  case Token::Type::PercentAssign: return "%=";
+  case Token::Type::LParen: return "(";
+  case Token::Type::RParen: return ")";
+  case Token::Type::LBrace: return "{";
+  case Token::Type::RBrace: return "}";
+  case Token::Type::LBracket: return "[";
+  case Token::Type::RBracket: return "]";
+  case Token::Type::Dot: return ".";
+  case Token::Type::Semicolon: return ";";
+  case Token::Type::Comma: return ",";
+  case Token::Type::Colon: return ":";
+  case Token::Type::End: return "end";
+  default: return "?";
+  }
+}
+
+// An operator's text is its own name, so printing both would say nothing.
+bool tokenCarriesText(Token::Type type) {
+  switch (type) {
+  case Token::Type::Identifier:
+  case Token::Type::Number:
+  case Token::Type::String:
+  case Token::Type::Char:
+  case Token::Type::Boolean:
+  case Token::Type::Type:
+    return true;
+  default:
+    return false;
+  }
+}
+
+} // namespace
 
 Compiler::Compiler(Options options) : options(std::move(options)) {}
 
@@ -77,6 +160,20 @@ void Compiler::compile() {
 
   std::unique_ptr<Lexer> lexer = std::make_unique<Lexer>(fileText);
   std::vector<Token> tokens = lexer->tokenize();
+
+  if (options.dumpTokens) {
+    std::string dump;
+    for (const Token &token : tokens) {
+      dump += std::format("{}:{} {}", token.line, token.column,
+                          tokenKindName(token.type));
+      if (tokenCarriesText(token.type)) {
+        dump += std::format(" '{}'", token.value);
+      }
+      dump += '\n';
+    }
+    std::cout << dump;
+    return;
+  }
 
   Diagnostics diagnostics;
 
