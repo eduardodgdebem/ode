@@ -22,6 +22,7 @@ import {
 } from "./expressions";
 import { analyzeMethodBodies } from "./methods";
 import { analyzeMatch } from "./enums";
+import { isTemplate } from "./generics";
 
 // Runs one checking step, then puts back anything a failure skipped past so
 // the next statement is checked as though the failed one were not there.
@@ -46,7 +47,8 @@ export fn analyzeRecovering(an: *Analyzer, node: i32): void {
 }
 
 export fn analyzeStatement(an: *Analyzer, node: i32): void {
-  if (FAILED) {
+  // A generic is checked as its instances, not as itself.
+  if (FAILED || isTemplate(an, node)) {
     return;
   }
 

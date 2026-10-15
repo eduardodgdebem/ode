@@ -243,10 +243,23 @@ be:
 - methods cannot be added to a struct from outside its declaration (Rust's
   separate `impl`, or Go declaring them anywhere in the package), nor to a
   type that is not a struct;
-- there are no interfaces or traits, so nothing can be generic over "anything
-  with a `len()`" -- a struct of function values is the nearest thing;
+- there are no interfaces or traits, so a generic cannot require "anything
+  with a `len()`" -- it is checked per instance instead, and an instance whose
+  type lacks one fails there;
 - every method is visible wherever its struct is: there is no `pub`, and no
   private helper method.
+
+### 6.7 Generics are written out and checked per instance
+
+- Type arguments are always written: `max<i64>(a, b)`, never `max(a, b)`.
+- There are no constraints on a type parameter, so a generic's body is only
+  checked once it has arguments, and an error in it is reported for each
+  instance it shows up in.
+- A method cannot take type parameters of its own, beyond its struct's.
+- A function type cannot be a type argument yet, and a type parameter cannot
+  be used as a struct's name in an expression (`T.new()`).
+- Each instance is compiled separately, so a generic used with many types
+  makes the binary bigger accordingly.
 
 ## 7. Codegen and runtime
 

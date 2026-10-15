@@ -1,0 +1,17 @@
+struct Box<T> {
+  value: T,
+}
+
+fn identity<T>(x: T): T {
+  return x;
+}
+
+fn twice<T>(x: T): T {
+  return x + x;
+}
+
+fn main(): i32 {
+  let ok: i32 = twice<i32>(2);
+  let bad: bool = twice<bool>(true);
+  return 0;
+}

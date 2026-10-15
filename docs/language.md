@@ -143,6 +143,37 @@ set to `null` for "no function". It is a pointer to code, so C can call it:
 `extern fn qsort(base: *i8, count: i64, size: i64, compare: fn(*i8, *i8): i32): void;`
 takes a comparison written in Ode.
 
+## Generics
+
+A struct or a function can take type parameters, and is used with type
+arguments written out:
+
+```rust
+struct List<T> {
+  items: *T,
+  count: i32,
+  capacity: i32,
+
+  fn new(): *List<T> { ... }
+  fn push(self: *List<T>, item: T): void { ... }
+  fn at(self: *List<T>, index: i32): T { return self.items[index]; }
+}
+
+fn max<T>(a: T, b: T): T {
+  if (a > b) { return a; }
+  return b;
+}
+
+let names: *List<*i8> = List<*i8>.new();
+names.push("ode");
+print(max<i64>(3 as i64, 9 as i64));
+```
+
+Each set of arguments makes an instance -- `List<i32>` and `List<*i8>` are
+separate structs, compiled separately -- so a generic costs nothing at run
+time. A generic's body is checked for each instance, and an error in it is
+reported against the instance that hit it.
+
 ## Calling C
 
 `extern` declares a function supplied by the C runtime or another object

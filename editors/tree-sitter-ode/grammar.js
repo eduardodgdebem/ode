@@ -27,6 +27,12 @@ module.exports = grammar({
 
   extras: $ => [/\s/, $.comment],
 
+  // `Name<` starts type arguments or a comparison; the parser keeps both
+  // readings until one of them fails, as the compiler's lookahead does.
+  conflicts: $ => [
+    [$._expression, $.generic_expression],
+  ],
+
   word: $ => $.identifier,
 
   rules: {
@@ -77,9 +83,14 @@ module.exports = grammar({
       )),
     ),
 
+    type_parameters: $ => seq('<', $.identifier, repeat(seq(',', $.identifier)), '>'),
+
+    type_arguments: $ => prec.dynamic(1, seq('<', $.type, repeat(seq(',', $.type)), '>')),
+
     function_declaration: $ => seq(
       'fn',
       field('name', $.identifier),
+      optional(field('type_parameters', $.type_parameters)),
       field('parameters', $.parameter_list),
       ':',
       field('return_type', $.type),
@@ -128,6 +139,7 @@ module.exports = grammar({
     struct_declaration: $ => seq(
       'struct',
       field('name', $._type_identifier),
+      optional(field('type_parameters', $.type_parameters)),
       field('body', $.field_declaration_list),
     ),
 
@@ -153,8 +165,14 @@ module.exports = grammar({
       $.pointer_type,
       $.function_type,
       $.primitive_type,
+      $.generic_type,
       $._type_identifier,
     ),
+
+    generic_type: $ => prec(1, seq(
+      field('name', $._type_identifier),
+      field('arguments', $.type_arguments),
+    )),
 
     function_type: $ => seq(
       'fn',
@@ -276,6 +294,7 @@ module.exports = grammar({
       $.index_expression,
       $.call_expression,
       $.method_call_expression,
+      $.generic_expression,
       $.struct_literal,
       $.sizeof_expression,
       $.parenthesized_expression,
@@ -333,8 +352,9 @@ module.exports = grammar({
     )),
 
     call_expression: $ => prec.left(PREC.call, seq(
-      field('function', choice($.identifier, $.index_expression,
-                               $.call_expression, $.parenthesized_expression)),
+      field('function', choice($.identifier, $.generic_expression,
+                               $.index_expression, $.call_expression,
+                               $.parenthesized_expression)),
       field('arguments', $.argument_list),
     )),
 
@@ -347,6 +367,12 @@ module.exports = grammar({
       field('arguments', $.argument_list),
     )),
 
+    // `List<i32>` in an expression: before `.new()`, `(...)` or `{ ... }`.
+    generic_expression: $ => prec.dynamic(1, seq(
+      field('name', $.identifier),
+      field('arguments', $.type_arguments),
+    )),
+
     argument_list: $ => seq(
       '(',
       optional(seq($._expression, repeat(seq(',', $._expression)), optional(','))),
@@ -354,7 +380,7 @@ module.exports = grammar({
     ),
 
     struct_literal: $ => prec(PREC.call, seq(
-      field('name', $._type_identifier),
+      field('name', choice($._type_identifier, $.generic_expression)),
       field('body', $.field_initializer_list),
     )),
 

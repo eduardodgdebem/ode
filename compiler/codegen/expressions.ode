@@ -18,7 +18,7 @@ import { ReceiverMode } from "../semantics/methods";
 import { CallTarget } from "../semantics/functions";
 import {
   Emitter, freshTemp, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
-  emitCondBranch, variableAddress, internString,
+  emitCondBranch, variableAddress, llvmName, internString,
 } from "./emitter";
 import { llvmTypeName, sizeOfType, zeroValue } from "./layout";
 
@@ -506,11 +506,7 @@ fn genCall(e: *Emitter, node: i32): *i8 {
 
 // `@name`: a call straight to the function the analyzer resolved.
 fn direct(e: *Emitter, node: i32): *i8 {
-  let out: *Buf = Buf.new();
-  out.push('@');
-  out.add(e.an.linkNames[node]);
-
-  return out.take();
+  return llvmName('@', e.an.linkNames[node]);
 }
 
 // The type a function value is loaded as. Every pointer is the same `ptr`.

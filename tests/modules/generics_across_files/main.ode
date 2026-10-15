@@ -1,0 +1,20 @@
+// A generic declared in one file, instantiated in another with a struct that
+// file declares, and called through an alias. lib.ode has a private Point of
+// its own, which its generic must not confuse with this one.
+
+import { Stack, peekOr as top } from "./lib";
+
+struct Point {
+  x: i32,
+  y: i32,
+}
+
+fn main(): i32 {
+  let points: *Stack<Point> = Stack<Point>.new();
+  points.push(Point { x: 1, y: 2 });
+  points.push(Point { x: 3, y: 4 });
+  print(points.peek().y);
+  print(top<i32>(Stack<i32>.new(), 42));
+  print(points.origin().x);
+  return 0;
+}

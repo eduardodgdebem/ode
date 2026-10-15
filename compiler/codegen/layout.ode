@@ -7,9 +7,8 @@
 // the whole is rounded up to the widest field's.
 // ---------------------------------------------------------------------------
 
-import { Buf } from "../support/text";
 import { TypeKind, Type } from "../semantics/types";
-import { Emitter } from "./emitter";
+import { Emitter, llvmName } from "./emitter";
 
 export fn llvmTypeName(type: Type): *i8 {
   // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.
@@ -21,10 +20,7 @@ export fn llvmTypeName(type: Type): *i8 {
   }
 
   if (type.kind == TypeKind.Struct) {
-    let name: *Buf = Buf.new();
-    name.push('%');
-    name.add(type.structName);
-    return name.take();
+    return llvmName('%', type.structName);
   }
 
   match (type.kind) {

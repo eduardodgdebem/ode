@@ -174,7 +174,7 @@ fn addPadded(out: *Buf, text: *i8, width: i32): void {
   }
 }
 
-fn textContains(text: *i8, part: *i8): bool {
+export fn textContains(text: *i8, part: *i8): bool {
   let length: i64 = strlen(text);
   let partLength: i64 = strlen(part);
   let start: i64 = 0 as i64;

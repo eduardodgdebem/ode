@@ -65,6 +65,11 @@ export enum NodeKind {
   // A call of a value rather than of a name: `table[i](x)`.
   CallValue,
   For,
+  // `<T, U>` after a generic declaration's name, and one of its names.
+  TypeParams,
+  TypeParam,
+  // The `<i64>` of a generic call, `max<i64>(a, b)`.
+  TypeArgs,
 }
 
 struct Node {
@@ -102,6 +107,11 @@ struct Node {
   //   fntype   a=return type, items=parameter types
   //   callvalue a=callee b=args
   //   for      a=start  b=end    c=body, and the loop variable's name
+  //
+  // Generics: a generic struct or fn keeps its TypeParams node's index in
+  // `extra`. A type node naming a generic carries its type arguments as
+  // items -- `List<i32>` -- and so does the one a generic struct literal
+  // keeps in `a`. A generic call keeps its arguments in a typeargs node, `b`.
   a: i32,
   b: i32,
   c: i32,
@@ -238,6 +248,9 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     NodeKind.FnType => { return "fntype"; }
     NodeKind.CallValue => { return "callvalue"; }
     NodeKind.For => { return "for"; }
+    NodeKind.TypeParams => { return "typeparams"; }
+    NodeKind.TypeParam => { return "typeparam"; }
+    NodeKind.TypeArgs => { return "typeargs"; }
   }
 
   return "?";
@@ -264,7 +277,7 @@ export fn nodeCarriesText(kind: NodeKind): bool {
     return true;
   }
   if (kind == NodeKind.Enum || kind == NodeKind.EnumMember ||
-      kind == NodeKind.For) {
+      kind == NodeKind.For || kind == NodeKind.TypeParam) {
     return true;
   }
 

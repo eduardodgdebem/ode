@@ -1,0 +1,1 @@
+generic_function_without_arguments.ode:10:10: error: generic function 'identity' needs type arguments: write identity<...>(...)

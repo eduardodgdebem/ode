@@ -9,8 +9,8 @@
 
 import { FAILED } from "../support/diagnostics";
 import { TokenKind, Token } from "./token";
-import { NodeKind } from "./ast";
-import { Parser, parseType } from "./parser";
+import { NO_NODE, NodeKind } from "./ast";
+import { Parser, parseType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
 
 export fn parseExpr(parser: *Parser): i32 {
   return parseLogicOr(parser);
@@ -327,6 +327,11 @@ fn parsePrimary(parser: *Parser): i32 {
     else => {}
   }
 
+  if (kind == TokenKind.Ident && parser.peek().kind == TokenKind.Lt &&
+      looksLikeTypeArgs(parser)) {
+    return parseGenericPrimary(parser);
+  }
+
   if (kind == TokenKind.Ident) {
     if (parser.peek().kind == TokenKind.LParen) {
       return parseFuncCall(parser);
@@ -398,10 +403,47 @@ fn parseArgList(parser: *Parser): i32 {
 }
 
 // StructLiteral -> IDENT '{' (IDENT ':' Expr ','?)* '}'
+// `Name<args>` in an expression: a generic call, a generic struct literal,
+// or the type in front of a static method call, `List<i32>.new()`.
+fn parseGenericPrimary(parser: *Parser): i32 {
+  let name: *Token = parser.current();
+  let typeNode: i32 = parser.ast.add(NodeKind.Type, name.line, name.column);
+  parser.ast.setText(typeNode, name);
+  parser.advance();
+  parseTypeArgs(parser, typeNode);
+
+  if (parser.kind() == TokenKind.LParen) {
+    // The arguments belong to a function, not to a type of that name.
+    parser.ast.nodes[typeNode].kind = NodeKind.TypeArgs;
+    parser.advance();
+    let args: i32 = parseArgList(parser);
+    parser.expect(TokenKind.RParen, ")");
+
+    let call: i32 = parser.ast.add(NodeKind.Call, name.line, name.column);
+    parser.ast.setText(call, name);
+    parser.ast.nodes[call].a = args;
+    parser.ast.nodes[call].b = typeNode;
+    return call;
+  }
+
+  if (parser.kind() == TokenKind.LBrace) {
+    return parseStructLiteralBody(parser, name, typeNode);
+  }
+
+  return typeNode;
+}
+
 fn parseStructLiteral(parser: *Parser): i32 {
   let name: *Token = parser.expect(TokenKind.Ident, "struct name");
+  return parseStructLiteralBody(parser, name, NO_NODE);
+}
+
+// The `{ field: value, ... }` of a struct literal, for the struct `name`,
+// whose type arguments are in `typeNode` when it is generic.
+fn parseStructLiteralBody(parser: *Parser, name: *Token, typeNode: i32): i32 {
   let node: i32 = parser.ast.add(NodeKind.StructLit, name.line, name.column);
   parser.ast.setText(node, name);
+  parser.ast.nodes[node].a = typeNode;
 
   parser.expect(TokenKind.LBrace, "{");
 

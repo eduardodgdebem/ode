@@ -6,7 +6,7 @@ import { Buf, textEquals, textSlice } from "../support/text";
 import { FAILED, report } from "../support/diagnostics";
 import { TokenKind, Token } from "./token";
 import { NO_NODE, NodeKind } from "./ast";
-import { Parser, startsStatement, parseType } from "./parser";
+import { Parser, startsStatement, parseType, parseTypeParams } from "./parser";
 import { parseExpr } from "./expressions";
 
 // `a op= b` is sugar for `a = a op b`; this names the binary operator each
@@ -379,6 +379,10 @@ fn parseFuncDecl(parser: *Parser): i32 {
 
   parser.expect(TokenKind.Fn, "fn");
   let name: *Token = parser.expect(TokenKind.Ident, "identifier");
+  let typeParams: i32 = 0;
+  if (parser.kind() == TokenKind.Lt) {
+    typeParams = parseTypeParams(parser);
+  }
   let params: i32 = parseParamList(parser);
   parser.expect(TokenKind.Colon, ":");
   let returnType: i32 = parseType(parser);
@@ -386,6 +390,7 @@ fn parseFuncDecl(parser: *Parser): i32 {
 
   let node: i32 = parser.ast.add(NodeKind.Fn, line, column);
   parser.ast.setText(node, name);
+  parser.ast.nodes[node].extra = typeParams;
   parser.ast.nodes[node].a = returnType;
   parser.ast.nodes[node].b = params;
   parser.ast.nodes[node].c = body;
@@ -415,7 +420,8 @@ fn parseExternDecl(parser: *Parser): i32 {
   return node;
 }
 
-// StructDecl -> 'struct' IDENT '{' (IDENT ':' Type ','? | FuncDecl)* '}'
+// StructDecl -> 'struct' IDENT TypeParams? '{' (IDENT ':' Type ','? |
+//               FuncDecl)* '}'
 //
 // A function written inside a struct is a method of it. One whose first
 // parameter is `self`, of the struct's type or a pointer to it, is called on
@@ -427,10 +433,15 @@ fn parseStructDecl(parser: *Parser): i32 {
 
   parser.expect(TokenKind.Struct, "struct");
   let name: *Token = parser.expect(TokenKind.Ident, "struct name");
+  let typeParams: i32 = 0;
+  if (parser.kind() == TokenKind.Lt) {
+    typeParams = parseTypeParams(parser);
+  }
   parser.expect(TokenKind.LBrace, "{");
 
   let node: i32 = parser.ast.add(NodeKind.Struct, line, column);
   parser.ast.setText(node, name);
+  parser.ast.nodes[node].extra = typeParams;
 
   while (parser.kind() != TokenKind.RBrace && parser.kind() != TokenKind.End) {
     if (parser.kind() == TokenKind.Fn) {

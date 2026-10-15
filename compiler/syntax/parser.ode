@@ -157,7 +157,7 @@ export fn startsStatement(kind: TokenKind): bool {
 // Types.
 // ---------------------------------------------------------------------------
 
-// Type -> '*'* (BaseType | FnType)
+// Type -> '*'* (BaseType | IDENT TypeArgs? | FnType)
 export fn parseType(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let startLine: i32 = start.line;
@@ -206,5 +206,108 @@ export fn parseType(parser: *Parser): i32 {
   parser.ast.setText(node, name);
   parser.ast.nodes[node].extra = depth;
 
+  // `List<i32>`: in a type, a `<` can only open type arguments.
+  if (name.kind == TokenKind.Ident && parser.kind() == TokenKind.Lt) {
+    parseTypeArgs(parser, node);
+  }
+
   return node;
+}
+
+// TypeArgs -> '<' Type (',' Type)* '>'
+//
+// The arguments become the items of `node`.
+export fn parseTypeArgs(parser: *Parser, node: i32): void {
+  parser.expect(TokenKind.Lt, "<");
+
+  while (true) {
+    parser.ast.addItem(node, parseType(parser));
+    if (parser.kind() != TokenKind.Comma || FAILED) {
+      break;
+    }
+    parser.advance();
+  }
+
+  expectCloseAngle(parser);
+}
+
+// The `>` closing type arguments or parameters. Nested ones end in `>>`,
+// which lexes as a shift; that token is split, its first half taken here and
+// its second left for the list around this one.
+fn expectCloseAngle(parser: *Parser): void {
+  if (parser.kind() == TokenKind.Shr) {
+    let token: *Token = parser.current();
+    token.kind = TokenKind.Gt;
+    token.text = ">";
+    token.length = 1 as i64;
+    token.column = token.column + 1;
+    return;
+  }
+
+  parser.expect(TokenKind.Gt, ">");
+}
+
+// TypeParams -> '<' IDENT (',' IDENT)* '>'
+export fn parseTypeParams(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let node: i32 = parser.ast.add(NodeKind.TypeParams, start.line, start.column);
+  parser.expect(TokenKind.Lt, "<");
+
+  while (true) {
+    let name: *Token = parser.expect(TokenKind.Ident, "type parameter");
+    if (FAILED) {
+      break;
+    }
+    let param: i32 = parser.ast.add(NodeKind.TypeParam, name.line, name.column);
+    parser.ast.setText(param, name);
+    parser.ast.addItem(node, param);
+
+    if (parser.kind() != TokenKind.Comma) {
+      break;
+    }
+    parser.advance();
+  }
+
+  expectCloseAngle(parser);
+
+  return node;
+}
+
+// Whether the `<` after the name at the cursor opens type arguments --
+// `List<i32>.new()`, `Pair<i32, bool> { ... }`, `max<i64>(a, b)` -- rather
+// than a comparison. It does when what follows is a run of things that can
+// be written in a type, closed by a `>` and followed by `.`, `{` or `(`.
+// The same tokens could be two comparisons passed as arguments,
+// `f(a < b, c > (d))`; as in C#, that reads as a generic call, and a
+// comparison there is written in parentheses.
+export fn looksLikeTypeArgs(parser: *Parser): bool {
+  let index: i32 = parser.pos + 1;
+  let depth: i32 = 0;
+
+  while (true) {
+    let kind: TokenKind = parser.tokens.at(index).kind;
+    match (kind) {
+      TokenKind.Lt => { depth = depth + 1; }
+      TokenKind.Gt => { depth = depth - 1; }
+      TokenKind.Shr => { depth = depth - 2; }
+      TokenKind.Type, TokenKind.Ident, TokenKind.Star, TokenKind.Comma,
+      TokenKind.Fn, TokenKind.LParen, TokenKind.RParen, TokenKind.Colon => {}
+      else => {
+        return false;
+      }
+    }
+    index = index + 1;
+
+    if (depth <= 0) {
+      break;
+    }
+  }
+
+  if (depth != 0) {
+    return false;
+  }
+
+  let next: TokenKind = parser.tokens.at(index).kind;
+  return next == TokenKind.Dot || next == TokenKind.LBrace ||
+         next == TokenKind.LParen;
 }

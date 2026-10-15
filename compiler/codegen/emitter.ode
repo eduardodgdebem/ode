@@ -11,7 +11,7 @@
 // parameters. Naming them sidesteps the rule entirely.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
+import { malloc, realloc, strlen } from "../support/libc";
 import { Buf, textEquals } from "../support/text";
 import { Ast } from "../syntax/ast";
 import { Type } from "../semantics/types";
@@ -207,11 +207,35 @@ export fn variableAddress(e: *Emitter, node: i32): *i8 {
     index = index - 1;
   }
 
-  let global: *Buf = Buf.new();
-  global.push('@');
-  global.add(e.an.linkNames[node]);
+  return llvmName('@', e.an.linkNames[node]);
+}
 
-  return global.take();
+// `%name` or `@name`, quoted when the name holds anything LLVM does not allow
+// bare -- which a generic's instances do: `%"List<i32>"`.
+export fn llvmName(sigil: i8, name: *i8): *i8 {
+  let out: *Buf = Buf.new();
+  out.push(sigil);
+
+  let bare: bool = true;
+  for (index in 0 as i64..strlen(name)) {
+    let c: i8 = name[index];
+    let plain: bool = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                      (c >= '0' && c <= '9') || c == '_' || c == '.' ||
+                      c == '$' || c == '-';
+    if (!plain) {
+      bare = false;
+    }
+  }
+
+  if (bare) {
+    out.add(name);
+  } else {
+    out.push('"');
+    out.add(name);
+    out.push('"');
+  }
+
+  return out.take();
 }
 
 // ---------------------------------------------------------------------------

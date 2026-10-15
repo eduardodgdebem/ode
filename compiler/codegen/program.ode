@@ -11,9 +11,10 @@ import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
 import { analyzerParseType } from "../semantics/analyzer";
+import { isTemplate } from "../semantics/generics";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
-  declareLocal, internString,
+  declareLocal, llvmName, internString,
 } from "./emitter";
 import { llvmTypeName, sizeOfType, zeroValue } from "./layout";
 import { emitStore, genNumberLiteral } from "./expressions";
@@ -25,8 +26,8 @@ fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
   out.add(keyword);
   out.push(' ');
   out.add(llvmTypeName(returnType));
-  out.add(" @");
-  out.add(e.an.linkNames[node]);
+  out.push(' ');
+  out.add(llvmName('@', e.an.linkNames[node]));
   out.push('(');
 
   let params: i32 = e.ast.nodes[node].b;
@@ -130,10 +131,7 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     return "null";
   }
   if (kind == NodeKind.Ident) {
-    let name: *Buf = Buf.new();
-    name.push('@');
-    name.add(e.an.linkNames[node]);
-    return name.take();
+    return llvmName('@', e.an.linkNames[node]);
   }
   if (kind == NodeKind.FieldAccess) {
     return intToText(e.an.values[node]);
@@ -197,8 +195,7 @@ fn genGlobal(e: *Emitter, node: i32): void {
   // points at it.
   let value: *i8 = genConstant(e, e.ast.nodes[node].b, type);
 
-  e.head.push('@');
-  e.head.add(e.an.linkNames[node]);
+  e.head.add(llvmName('@', e.an.linkNames[node]));
   e.head.add(" = global ");
   e.head.add(llvmTypeName(type));
   e.head.push(' ');
@@ -212,8 +209,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   // Named struct types come first, so a function signature can mention one.
   let index: i32 = 0;
   while (index < e.an.structs.count) {
-    e.head.push('%');
-    e.head.add(e.an.structs.items[index].name);
+    e.head.add(llvmName('%', e.an.structs.items[index].name));
     e.head.add(" = type { ");
 
     let field: i32 = 0;
@@ -252,6 +248,11 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
 
   for (index in 0..count) {
     let statement: i32 = e.ast.nodes[program].items[index];
+    // A generic is compiled as its instances, which are items of their own.
+    if (isTemplate(e.an, statement)) {
+      continue;
+    }
+
     if (e.ast.nodes[statement].kind == NodeKind.Fn) {
       genFunction(e, statement);
     }
