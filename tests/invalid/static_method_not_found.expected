@@ -1,0 +1,1 @@
+static_method_not_found.ode:19:23: error: struct 'Point' has no method 'origin'

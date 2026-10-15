@@ -1,0 +1,19 @@
+struct Point {
+  x: i32,
+
+  fn first(self: Point): bool {
+    return self.x;
+  }
+
+  fn second(self: Point): i32 {
+    return self.missing;
+  }
+
+  fn third(self: Point): Unknown {
+    return self.x;
+  }
+}
+
+fn main(): i32 {
+  return 0;
+}

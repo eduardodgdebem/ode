@@ -246,6 +246,43 @@ node.value = 1;
 Structs pass and return by value between Ode functions, but not across
 `extern` — that would need target-specific C ABI lowering.
 
+### Methods
+
+A function written inside a struct is a method of it. If its first parameter
+is `self`, it is called on a value; otherwise it is called on the struct's
+name, like an associated function in Rust:
+
+```rust
+struct Vec2 {
+  x: i32,
+  y: i32,
+
+  fn new(x: i32, y: i32): Vec2 {
+    return Vec2 { x: x, y: y };
+  }
+
+  fn lengthSquared(self: Vec2): i32 {      // gets a copy
+    return self.x * self.x + self.y * self.y;
+  }
+
+  fn scale(self: *Vec2, by: i32): void {   // can change the receiver
+    self.x = self.x * by;
+    self.y = self.y * by;
+  }
+}
+
+let v: Vec2 = Vec2.new(3, 4);
+v.scale(2);                // passed &v
+let p: *Vec2 = &v;
+print(p.lengthSquared());  // passed *p
+```
+
+As in Go, the receiver is adapted to `self`: a variable is passed by address
+to a `*Vec2` method, and a pointer is followed for a `Vec2` one. `self` is an
+ordinary, explicitly typed parameter, as in Zig, so `Vec2.scale(&v, 2)` is the
+same call written out. Methods come with their struct, so importing the
+struct is enough to call them. `examples/methods.ode` shows the rest.
+
 ### Strings
 
 A string literal has type `*i8` and points at a NUL-terminated constant; a
@@ -338,8 +375,8 @@ it.
 `examples/` holds a program per feature — `mutual_recursion.ode`,
 `pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
 `arrays.ode`, `expr_tree.ode`, `strings.ode`, `nested_control.ode`,
-`shadowing.ode`, `tokenizer.ode`, `short_circuit.ode` and `modules.ode` cover
-the ones above.
+`shadowing.ode`, `tokenizer.ode`, `short_circuit.ode`, `modules.ode` and
+`methods.ode` cover the ones above.
 
 ### Grammar
 

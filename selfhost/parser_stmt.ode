@@ -390,7 +390,11 @@ fn parseExternDecl(parser: *Parser): i32 {
   return node;
 }
 
-// StructDecl -> 'struct' IDENT '{' (IDENT ':' Type ','?)* '}'
+// StructDecl -> 'struct' IDENT '{' (IDENT ':' Type ','? | FuncDecl)* '}'
+//
+// A function written inside a struct is a method of it. One whose first
+// parameter is `self`, of the struct's type or a pointer to it, is called on
+// a value: `p.length()`. Any other is called on the struct: `Point.new(1, 2)`.
 fn parseStructDecl(parser: *Parser): i32 {
   let start: *Token = parserCurrent(parser);
   let line: i32 = start.line;
@@ -404,6 +408,14 @@ fn parseStructDecl(parser: *Parser): i32 {
   astSetText(parser.ast, node, name);
 
   while (parserKind(parser) != TK_RBRACE && parserKind(parser) != TK_END) {
+    if (parserKind(parser) == TK_FN) {
+      astAddItem(parser.ast, node, parseFuncDecl(parser));
+      if (FAILED) {
+        break;
+      }
+      continue;
+    }
+
     let fieldName: *Token = parserExpect(parser, TK_IDENT, "field name");
     parserExpect(parser, TK_COLON, ":");
 

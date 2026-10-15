@@ -1,0 +1,1 @@
+duplicate_method.ode:8:3: error: method 'Point.get' is declared more than once

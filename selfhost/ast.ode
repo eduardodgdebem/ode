@@ -52,6 +52,7 @@ export let NK_ARGS: i32 = 33;
 export let NK_ERROR: i32 = 34;
 export let NK_IMPORT: i32 = 35;
 export let NK_IMPORTNAME: i32 = 36;
+export let NK_METHODCALL: i32 = 37;
 
 struct Node {
   kind: i32,
@@ -81,6 +82,7 @@ struct Node {
   //   index    a=base   b=index
   //   sizeof   a=type
   //   importname a=alias, an ident, when the name is renamed with `as`
+  //   methodcall a=receiver, or the struct's name b=args
   a: i32,
   b: i32,
   c: i32,
@@ -88,7 +90,7 @@ struct Node {
   // the driver has found it.
   extra: i32,
   // Child indices, for program, block, struct, structlit, params, args and
-  // import.
+  // import. A struct's items are its fields and then, mixed in, its methods.
   items: *i32,
   itemCount: i32,
   itemCapacity: i32,
@@ -207,6 +209,7 @@ export fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_ERROR) { return "error"; }
   if (kind == NK_IMPORT) { return "import"; }
   if (kind == NK_IMPORTNAME) { return "importname"; }
+  if (kind == NK_METHODCALL) { return "methodcall"; }
 
   return "?";
 }
@@ -228,7 +231,7 @@ export fn nodeCarriesText(kind: i32): bool {
   if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
     return true;
   }
-  if (kind == NK_IMPORT || kind == NK_IMPORTNAME) {
+  if (kind == NK_IMPORT || kind == NK_IMPORTNAME || kind == NK_METHODCALL) {
     return true;
   }
 

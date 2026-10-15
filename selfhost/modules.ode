@@ -29,7 +29,7 @@ import {
 } from "./prelude";
 import {
   NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_STRUCTLIT, NK_TYPE,
-  NK_IMPORT,
+  NK_IMPORT, NK_METHODCALL, NK_IDENT,
 } from "./ast";
 import { TY_NONE, typeKindFromName } from "./type";
 import { Symbol, SymbolTable, symbolDeclare } from "./symbols";
@@ -294,6 +294,34 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
 
     module = module + 1;
   }
+
+  // A method is named after its struct, `Point.length`, which no free
+  // function can be called. Claiming it still guards against a file whose
+  // stem happens to be a struct's name.
+  index = 0;
+  while (index < count) {
+    let item: i32 = an.ast.nodes[program].items[index];
+
+    if (an.ast.nodes[item].kind == NK_STRUCT) {
+      let member: i32 = 0;
+      while (member < an.ast.nodes[item].itemCount) {
+        let method: i32 = an.ast.nodes[item].items[member];
+
+        if (an.ast.nodes[method].kind == NK_FN) {
+          let name: *Buf = bufNew();
+          bufAdd(name, an.linkNames[item]);
+          bufPush(name, '.');
+          bufAdd(name, an.ast.nodes[method].text);
+          an.linkNames[method] =
+              claimName(values, an.ast.nodes[item].module, bufTake(name));
+        }
+
+        member = member + 1;
+      }
+    }
+
+    index = index + 1;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +471,18 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
     let names: bool = kind == NK_STRUCTLIT;
     if (kind == NK_TYPE) {
       names = typeKindFromName(an.ast.nodes[node].text) == TY_NONE;
+    }
+
+    // `Point.new()` names a struct where a value usually goes. Whether it
+    // does depends on what is in scope, which the analyzer decides, so this
+    // only records the struct the name would mean.
+    if (kind == NK_METHODCALL) {
+      let receiver: i32 = an.ast.nodes[node].a;
+      if (an.ast.nodes[receiver].kind == NK_IDENT) {
+        an.structRefs[node] =
+            resolveStructName(an, program, an.ast.nodes[node].module,
+                              an.ast.nodes[receiver].text);
+      }
     }
 
     if (names) {

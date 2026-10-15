@@ -24,6 +24,7 @@ import {
   NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
   NK_STRUCTLIT, NK_FINIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL,
   NK_IDENT, NK_TYPE, NK_ARGS, NK_ERROR, Ast, astAdd, astSetText, astAddItem,
+  NK_METHODCALL,
 } from "./ast";
 
 export struct Parser {
@@ -410,6 +411,26 @@ fn parsePostfix(parser: *Parser): i32 {
       let field: *Token = parserExpect(parser, TK_IDENT, "field name");
       if (FAILED) {
         return expr;
+      }
+
+      // `value.name(...)` calls a method rather than reading a field. The
+      // receiver may also be a struct's name, for `Point.new(...)`; which of
+      // the two it is waits for the analyzer, since only it knows whether the
+      // name is a variable.
+      if (parserKind(parser) == TK_LPAREN) {
+        parserAdvance(parser);
+        let args: i32 = parseArgList(parser);
+        parserExpect(parser, TK_RPAREN, ")");
+        if (FAILED) {
+          return expr;
+        }
+
+        let call: i32 = astAdd(parser.ast, NK_METHODCALL, line, column);
+        astSetText(parser.ast, call, field);
+        parser.ast.nodes[call].a = expr;
+        parser.ast.nodes[call].b = args;
+        expr = call;
+        continue;
       }
 
       let node: i32 = astAdd(parser.ast, NK_FIELDACCESS, line, column);

@@ -135,3 +135,13 @@
   ";"
   "."
 ] @punctuation.delimiter
+
+; Methods
+
+(field_declaration_list
+  (function_declaration name: (identifier) @function.method))
+
+(method_call_expression method: (field_identifier) @function.method.call)
+
+((identifier) @variable.builtin
+  (#eq? @variable.builtin "self"))

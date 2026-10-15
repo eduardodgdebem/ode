@@ -1,0 +1,1 @@
+method_on_non_struct.ode:3:15: error: cannot call method 'abs': 'i32' is not a struct

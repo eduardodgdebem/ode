@@ -21,7 +21,7 @@ import {
   NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_CALL, NK_RETURN, NK_PRINT,
   NK_EXPRSTMT, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
   NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
-  Ast,
+  Ast, NK_METHODCALL,
 } from "./ast";
 import {
   TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
@@ -30,7 +30,9 @@ import {
   typeBitWidth, typePointee, typeEquals, structIndexOf, structFieldIndex,
 } from "./type";
 import { NameSet, nameSetNew, nameSetHas, nameSetAdd } from "./modules";
-import { Analyzer, analyzerParseType, textHasDot } from "./analyzer";
+import {
+  Analyzer, analyzerParseType, textHasDot, RECV_NONE, RECV_ADDRESS, RECV_LOAD,
+} from "./analyzer";
 
 struct Local {
   name: *i8,
@@ -808,9 +810,42 @@ fn genUnary(e: *Emitter, node: i32): *i8 {
 // up again: the call's own type is the return type, and every argument was
 // required to have exactly its parameter's type.
 fn genCall(e: *Emitter, node: i32): *i8 {
+  return genCallWith(e, node, e.ast.nodes[node].a, "", "");
+}
+
+// A method call is a call with the receiver, when there is one, put in front
+// of the arguments as `self`.
+fn genMethodCall(e: *Emitter, node: i32): *i8 {
+  let mode: i8 = e.an.receivers[node];
+  if (mode == RECV_NONE) {
+    return genCallWith(e, node, e.ast.nodes[node].b, "", "");
+  }
+
+  let object: i32 = e.ast.nodes[node].a;
+  let objectType: Type = typeOfNode(e, object);
+
+  if (mode == RECV_ADDRESS) {
+    return genCallWith(e, node, e.ast.nodes[node].b, "ptr",
+                       genAddress(e, object));
+  }
+
+  if (mode == RECV_LOAD) {
+    let pointee: Type = typePointee(objectType);
+    let value: *i8 = emitLoad(e, pointee, genExpr(e, object));
+    return genCallWith(e, node, e.ast.nodes[node].b, llvmTypeName(pointee),
+                       value);
+  }
+
+  return genCallWith(e, node, e.ast.nodes[node].b, llvmTypeName(objectType),
+                     genExpr(e, object));
+}
+
+// Writes the call `node` resolved to, passing `args`, preceded by `first` of
+// type `firstType` when that is not empty.
+fn genCallWith(e: *Emitter, node: i32, args: i32, firstType: *i8,
+               first: *i8): *i8 {
   let returnType: Type = typeOfNode(e, node);
 
-  let args: i32 = e.ast.nodes[node].a;
   let argCount: i32 = 0;
   if (args != NO_NODE) {
     argCount = e.ast.nodes[args].itemCount;
@@ -832,9 +867,16 @@ fn genCall(e: *Emitter, node: i32): *i8 {
   bufAdd(line, e.an.linkNames[node]);
   bufPush(line, '(');
 
+  let hasFirst: bool = strlen(firstType) > 0 as i64;
+  if (hasFirst) {
+    bufAdd(line, firstType);
+    bufPush(line, ' ');
+    bufAdd(line, first);
+  }
+
   index = 0;
   while (index < argCount) {
-    if (index > 0) {
+    if (index > 0 || hasFirst) {
       bufAdd(line, ", ");
     }
     bufAdd(line, llvmTypeName(typeOfNode(e, e.ast.nodes[args].items[index])));
@@ -947,6 +989,7 @@ fn genExpr(e: *Emitter, node: i32): *i8 {
   if (kind == NK_BINARY) { return genBinary(e, node); }
   if (kind == NK_UNARY) { return genUnary(e, node); }
   if (kind == NK_CALL) { return genCall(e, node); }
+  if (kind == NK_METHODCALL) { return genMethodCall(e, node); }
   if (kind == NK_STRUCTLIT) { return genStructLiteral(e, node); }
 
   if (kind == NK_CAST) {
@@ -1430,6 +1473,18 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
     let statement: i32 = e.ast.nodes[program].items[index];
     if (e.ast.nodes[statement].kind == NK_FN) {
       genFunction(e, statement);
+    }
+
+    // A struct's methods are functions like any other once named.
+    if (e.ast.nodes[statement].kind == NK_STRUCT) {
+      let member: i32 = 0;
+      while (member < e.ast.nodes[statement].itemCount) {
+        let method: i32 = e.ast.nodes[statement].items[member];
+        if (e.ast.nodes[method].kind == NK_FN) {
+          genFunction(e, method);
+        }
+        member = member + 1;
+      }
     }
     index = index + 1;
   }

@@ -1,0 +1,85 @@
+// Methods: functions written inside a struct.
+//
+// One whose first parameter is `self` is called on a value. `self` may be the
+// struct, which the method gets a copy of, or a pointer to it, which lets the
+// method change it. Either way the call is written the same, on a value or on
+// a pointer: the compiler takes the address or follows the pointer to match.
+//
+// A method without `self` is called on the struct's name, the way an
+// associated function is in Rust or a namespaced one is in Zig.
+
+struct Vec2 {
+  x: i32,
+  y: i32,
+
+  fn new(x: i32, y: i32): Vec2 {
+    return Vec2 { x: x, y: y };
+  }
+
+  fn zero(): Vec2 {
+    return Vec2.new(0, 0);
+  }
+
+  // By value: works on a copy.
+  fn lengthSquared(self: Vec2): i32 {
+    return self.x * self.x + self.y * self.y;
+  }
+
+  fn plus(self: Vec2, other: Vec2): Vec2 {
+    return Vec2.new(self.x + other.x, self.y + other.y);
+  }
+
+  // By pointer: changes the receiver.
+  fn scale(self: *Vec2, by: i32): void {
+    self.x = self.x * by;
+    self.y = self.y * by;
+  }
+
+  // Methods call each other through `self` like anything else.
+  fn doubledLength(self: *Vec2): i32 {
+    self.scale(2);
+    return self.lengthSquared();
+  }
+}
+
+struct Counter {
+  hits: i32,
+
+  fn bump(self: *Counter): *Counter {
+    self.hits = self.hits + 1;
+    return self;
+  }
+}
+
+fn main(): i32 {
+  let v: Vec2 = Vec2.new(3, 4);
+  print(v.lengthSquared());
+
+  // A by-pointer method on a variable is passed its address.
+  v.scale(2);
+  print(v.x);
+
+  // A by-value method on a pointer is passed what it points at.
+  let p: *Vec2 = &v;
+  print(p.lengthSquared());
+
+  // Calls chain, and a by-value method takes a temporary.
+  print(Vec2.new(1, 1).plus(Vec2.new(2, 3)).lengthSquared());
+  print(Vec2.zero().lengthSquared());
+
+  let w: Vec2 = Vec2.new(1, 2);
+  print(w.doubledLength());
+  print(w.y);
+
+  // Any method can be called on the struct with `self` written out.
+  print(Vec2.lengthSquared(w));
+  Vec2.scale(&w, 10);
+  print(w.x);
+
+  // A method returning the pointer it was given chains on it.
+  let c: Counter = Counter { hits: 0 };
+  c.bump().bump().bump();
+  print(c.hits);
+
+  return 0;
+}
