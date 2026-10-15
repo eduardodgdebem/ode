@@ -1,0 +1,79 @@
+// for loops over a range: the start included, the end not.
+
+let calls: i32 = 0;
+
+fn limit(): i32 {
+  calls = calls + 1;
+  return 4;
+}
+
+fn main(): i32 {
+  let sum: i32 = 0;
+  for (i in 0..10) {
+    sum = sum + i;
+  }
+  print(sum);
+
+  // The bounds may be any integer type; a literal bound takes the other's.
+  let count: i64 = 3000000000 as i64;
+  let last: i64 = 0 as i64;
+  for (i in 2999999998 as i64..count) {
+    last = i;
+  }
+  print(last);
+
+  let bytes: u8 = 0 as u8;
+  for (b in 250 as u8..255 as u8) {
+    bytes = bytes + 1 as u8;
+  }
+  print(bytes);
+
+  // An empty range runs nothing, and a negative start counts up from it.
+  for (i in 5..5) {
+    print("never");
+  }
+  let negatives: i32 = 0;
+  for (i in -3..0) {
+    negatives = negatives + i;
+  }
+  print(negatives);
+
+  // break and continue.
+  let odd: i32 = 0;
+  for (i in 0..100) {
+    if (i % 2 == 0) {
+      continue;
+    }
+    if (i > 9) {
+      break;
+    }
+    odd = odd + i;
+  }
+  print(odd);
+
+  // Assigning to the variable does not change how many passes there are.
+  let passes: i32 = 0;
+  for (i in 0..5) {
+    i = 100;
+    passes = passes + 1;
+  }
+  print(passes);
+
+  // Nested, and the end evaluated once.
+  let cells: i32 = 0;
+  for (row in 0..limit()) {
+    for (column in 0..row) {
+      cells = cells + 1;
+    }
+  }
+  print(cells);
+  print(calls);
+
+  // The variable is scoped to the loop, so the name can be reused.
+  let i: i32 = 42;
+  for (i in 0..2) {
+  }
+  print(i);
+
+  return 0;
+}

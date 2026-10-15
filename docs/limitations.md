@@ -37,7 +37,6 @@ plus were added and are exercised by `examples/operators.ode`. What is left:
 
 | Missing | Example | Notes |
 |---|---|---|
-| `for` loops | `for (...) { }` | `while` covers it |
 
 Two notes on what did land. There is no `&=`, `|=`, `^=`, `<<=` or `>>=`: the
 lexer only ever tries two characters when matching an operator, so a

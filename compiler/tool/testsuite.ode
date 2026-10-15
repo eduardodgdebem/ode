@@ -169,10 +169,8 @@ fn colour(code: *i8): *i8 {
 fn addPadded(out: *Buf, text: *i8, width: i32): void {
   out.add(text);
 
-  let length: i32 = strlen(text) as i32;
-  while (length < width) {
+  for (length in strlen(text) as i32..width) {
     out.push(' ');
-    length = length + 1;
   }
 }
 
@@ -438,52 +436,45 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   let runs: *i8 = joinPath(ws.root, "tests/run");
   let names: *TextList = listDirectory(runs);
   let index: i32 = 0;
-  while (index < names.count) {
+  for (index in 0..names.count) {
     let file: *i8 = names.at(index);
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       let name: *i8 = withoutExtension(file);
       runProgramCase(suite, "run", joinPath(runs, file), name,
                      withSuffix(joinPath(runs, name), ".out"));
     }
-    index = index + 1;
   }
 
   let examples: *i8 = joinPath(ws.root, "examples");
   let expectedExamples: *i8 = joinPath(ws.root, "tests/examples");
   makeDirectories(expectedExamples);
   names = listDirectory(examples);
-  index = 0;
-  while (index < names.count) {
+  for (index in 0..names.count) {
     let file: *i8 = names.at(index);
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       let name: *i8 = withoutExtension(file);
       runProgramCase(suite, "example", joinPath(examples, file), name,
                      withSuffix(joinPath(expectedExamples, name), ".out"));
     }
-    index = index + 1;
   }
 
   let invalid: *i8 = joinPath(ws.root, "tests/invalid");
   names = listDirectory(invalid);
-  index = 0;
-  while (index < names.count) {
+  for (index in 0..names.count) {
     let file: *i8 = names.at(index);
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       runInvalid(suite, joinPath(invalid, file), withoutExtension(file));
     }
-    index = index + 1;
   }
 
   let modules: *i8 = joinPath(ws.root, "tests/modules");
   names = listDirectory(modules);
-  index = 0;
-  while (index < names.count) {
+  for (index in 0..names.count) {
     let name: *i8 = names.at(index);
     let caseDir: *i8 = joinPath(modules, name);
     if (isDirectory(caseDir) && suite.selected(name)) {
       runModule(suite, caseDir, name);
     }
-    index = index + 1;
   }
 
   if (suite.selected("output-flag")) {

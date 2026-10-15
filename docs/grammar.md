@@ -4,7 +4,7 @@
 
 - **Program** → TopLevel*
 - **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | Statement
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
 
@@ -41,6 +41,7 @@ cycles.
 - **Assign** → LValue (`=` | `+=` | `-=` | `*=` | `/=` | `%=`) Expr `;`
 - **IfStmt** → `if` `(` Expr `)` Block (`else` (Block | IfStmt))?
 - **WhileStmt** → `while` `(` Expr `)` Block
+- **ForStmt** → `for` `(` IDENT `in` Expr `..` Expr `)` Block
 - **BreakStmt** → `break` `;`
 - **ContinueStmt** → `continue` `;`
 - **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
@@ -243,8 +244,16 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   pointer prints as an address.
 - `else if` chains without nesting: the `if` after an `else` becomes the else
   branch directly, so no wrapping block is needed.
-- `break` and `continue` act on the innermost enclosing `while`, and are
-  rejected outside a loop. A function written inside a loop does not see it.
+- `for (i in start..end)` runs its body with `i` taking each value from
+  `start` up to, but not including, `end`. Both bounds are evaluated once,
+  before the first pass, and are integers of one type: a bound that is not a
+  bare literal decides it, so `0..count` counts in `count`'s type, and two
+  literals count in `i32`. `i` is a new variable for each loop, scoped to its
+  body; assigning to it does not change how many passes there are. `in` is
+  only a keyword here.
+- `break` and `continue` act on the innermost enclosing `while` or `for`, and
+  are rejected outside a loop. In a `for`, `continue` moves on to the next
+  value. A function written inside a loop does not see it.
 - `return;` is only valid in a `void` function, and `return expr;` only in a
   non-void one, where the expression's type must match the declared return
   type. Falling off the end of a non-void function is still permitted and

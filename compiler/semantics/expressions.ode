@@ -174,8 +174,7 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
                   detail.data);
   }
 
-  let index: i32 = 0;
-  while (index < argCount) {
+  for (index in 0..argCount) {
     let argument: i32 = an.ast.nodes[args].items[index];
     let argType: Type = checkExpr(an, argument);
     let paramType: Type = params[index];
@@ -192,8 +191,6 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
                     expectedButGot(paramType.toText(),
                                    argType.toText()));
     }
-
-    index = index + 1;
   }
 }
 
@@ -469,13 +466,10 @@ fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
 }
 
 export fn textHasDot(text: *i8, length: i64): bool {
-  let index: i64 = 0 as i64;
-
-  while (index < length) {
+  for (index in 0 as i64..length) {
     if (text[index] == '.') {
       return true;
     }
-    index = index + 1 as i64;
   }
 
   return false;
@@ -617,9 +611,8 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   let initialised: *i8 = malloc(fieldCount as i64);
 
   let index: i32 = 0;
-  while (index < fieldCount) {
+  for (index in 0..fieldCount) {
     initialised[index] = 0 as i8;
-    index = index + 1;
   }
 
   index = 0;
@@ -664,8 +657,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
     index = index + 1;
   }
 
-  index = 0;
-  while (index < fieldCount) {
+  for (index in 0..fieldCount) {
     if (initialised[index] == 0 as i8) {
       let message: *Buf = Buf.new();
       message.add("field '");
@@ -675,7 +667,6 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
       message.add("' is missing");
       analyzerFail(an, node, message.data);
     }
-    index = index + 1;
   }
 
   return Type.ofStruct(name, 0);
@@ -712,4 +703,56 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   }
 
   return false;
+}
+
+// An integer literal, or one negated: `5`, `-5`, `- 5`.
+export fn isNumberLiteral(an: *Analyzer, node: i32): bool {
+  let literal: i32 = node;
+  if (an.ast.nodes[node].kind == NodeKind.Unary &&
+      textEquals(an.ast.nodes[node].text, "-")) {
+    literal = an.ast.nodes[node].a;
+  }
+
+  if (an.ast.nodes[literal].kind != NodeKind.Number) {
+    return false;
+  }
+
+  // A float literal is a literal, but not one an integer can take.
+  return !textHasDot(an.ast.nodes[literal].text,
+                     an.ast.nodes[literal].textLength);
+}
+
+// Types a number literal as `type` rather than as i32, provided it fits --
+// which is how `0` stands for an i64 where one is wanted. Reports and returns
+// false when it does not fit.
+export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
+  let literal: i32 = node;
+  let negated: bool = false;
+  if (an.ast.nodes[node].kind == NodeKind.Unary) {
+    literal = an.ast.nodes[node].a;
+    negated = true;
+  }
+
+  let text: *i8 = an.ast.nodes[literal].text;
+  let negative: bool = text[0] == '-';
+  let start: i64 = 0 as i64;
+  if (negative) {
+    start = 1 as i64;
+  }
+
+  let overflowed: bool = false;
+  let magnitude: u64 = parseMagnitude(text, start,
+                                      an.ast.nodes[literal].textLength,
+                                      &overflowed);
+  if (negated) {
+    negative = !negative;
+  }
+  if (overflowed || !fitsIn(magnitude, negative, type)) {
+    analyzerFail(an, node, quoted("number is out of range for ", type.toText(), ""));
+    return false;
+  }
+
+  an.types[literal] = type;
+  an.types[node] = type;
+  return true;
 }

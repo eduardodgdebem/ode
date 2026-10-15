@@ -92,8 +92,7 @@ export struct Analyzer {
     an.inFunction = false;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
 
-    let index: i32 = 0;
-    while (index < ast.count) {
+    for (index in 0..ast.count) {
       an.types[index] = Type.make(TypeKind.None, 0);
       an.isGlobal[index] = 0 as i8;
       an.linkNames[index] = null;
@@ -103,7 +102,6 @@ export struct Analyzer {
       an.functionRefs[index] = 0 as i8;
       an.callTargets[index] = CallTarget.Direct;
       an.values[index] = 0 as i64;
-      index = index + 1;
     }
 
     return an;
@@ -206,11 +204,9 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
   // A function type is valid when everything in its signature is.
   if (type.kind == TypeKind.Function) {
     let signature: i32 = signatureIndex(an, type);
-    let index: i32 = 0;
-    while (index < an.signatures[signature].count) {
+    for (index in 0..an.signatures[signature].count) {
       analyzerValidateType(an, node, an.signatures[signature].params[index],
                            context);
-      index = index + 1;
     }
     analyzerValidateType(an, node, an.signatures[signature].result, context);
     return;
@@ -240,12 +236,10 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
   }
 
   let types: *Type = malloc(sizeof(Type) as i64 * count as i64) as *Type;
-  let index: i32 = 0;
 
-  while (index < count) {
+  for (index in 0..count) {
     let param: i32 = an.ast.nodes[params].items[index];
     types[index] = analyzerParseType(an, an.ast.nodes[param].a);
-    index = index + 1;
   }
 
   return types;
@@ -327,17 +321,14 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
 // pointer is fine, and is how linked structures are built.
 fn rejectStructCycles(an: *Analyzer, program: i32): void {
   let count: i32 = an.structs.count;
-  let start: i32 = 0;
 
-  while (start < count) {
+  for (start in 0..count) {
     let seen: *i8 = malloc(count as i64);
     let stack: *i32 = malloc(sizeof(i32) as i64 * count as i64) as *i32;
     let stackCount: i32 = 0;
 
-    let index: i32 = 0;
-    while (index < count) {
+    for (index in 0..count) {
       seen[index] = 0 as i8;
-      index = index + 1;
     }
 
     seen[start] = 1 as i8;
@@ -348,8 +339,7 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
       stackCount = stackCount - 1;
       let current: i32 = stack[stackCount];
 
-      let field: i32 = 0;
-      while (field < an.structs.items[current].count) {
+      for (field in 0..an.structs.items[current].count) {
         let type: Type = an.structs.items[current].fields[field].type;
 
         if (type.isStruct()) {
@@ -367,14 +357,11 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
             stackCount = stackCount + 1;
           }
         }
-
-        field = field + 1;
       }
     }
 
     free(seen);
     free(stack as *i8);
-    start = start + 1;
   }
 }
 
@@ -431,7 +418,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
   analyzerValidateType(an, node, returnType, context.data);
 
   let index: i32 = 0;
-  while (index < paramCount) {
+  for (index in 0..paramCount) {
     let paramContext: *Buf = Buf.new();
     if (kind == NodeKind.Extern) {
       paramContext.add("parameter of extern '");
@@ -441,7 +428,6 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     paramContext.add(name);
     paramContext.push('\'');
     analyzerValidateType(an, node, params[index], paramContext.data);
-    index = index + 1;
   }
 
   // Passing a struct by value across the C ABI needs target-specific lowering
@@ -453,14 +439,12 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
                     "return a pointer instead");
     }
 
-    index = 0;
-    while (index < paramCount) {
+    for (index in 0..paramCount) {
       if (params[index].isStruct()) {
         analyzerFail2(an, node,
                       quoted("extern ", name, " takes a struct by value"),
                       "take a pointer instead");
       }
-      index = index + 1;
     }
   }
 
@@ -481,75 +465,62 @@ export fn analyze(an: *Analyzer, program: i32): void {
   // Enums first: a struct field, a global or a signature may have one as its
   // type, and parsing a type name needs to know whether it is one.
   let index: i32 = 0;
-  while (index < count) {
+  for (index in 0..count) {
     registerEnum(an, an.ast.nodes[program].items[index]);
     FAILED = false;
-    index = index + 1;
   }
 
   // Struct names come first so that two structs may point at each other, then
   // fields, then globals and function signatures, which may both refer to any
   // struct. Structs go into one table for every file: by now each reference
   // names the struct its own file can see.
-  index = 0;
-  while (index < count) {
+  for (index in 0..count) {
     registerStructName(an, an.ast.nodes[program].items[index]);
     FAILED = false;
-    index = index + 1;
   }
 
-  index = 0;
-  while (index < count) {
+  for (index in 0..count) {
     registerStructFields(an, an.ast.nodes[program].items[index]);
     FAILED = false;
-    index = index + 1;
   }
 
   rejectStructCycles(an, program);
   FAILED = false;
 
-  index = 0;
-  while (index < count) {
+  for (index in 0..count) {
     registerMethods(an, an.ast.nodes[program].items[index]);
-    index = index + 1;
   }
 
   // Values are hoisted a file at a time, each into a scope of its own, so
   // that one file's names are not another's. What each file declares is kept
   // for the files that import from it.
   let module: i32 = 0;
-  while (module < MODULE_COUNT) {
+  for (module in 0..MODULE_COUNT) {
     SOURCE_PATH = modulePath(module);
     an.symbols.enterScope();
     let start: i32 = an.symbols.count;
 
-    index = 0;
-    while (index < count) {
+    for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {
         hoistGlobal(an, an.ast.nodes[program].items[index]);
         FAILED = false;
       }
-      index = index + 1;
     }
 
-    index = 0;
-    while (index < count) {
+    for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {
         hoistSignature(an, an.ast.nodes[program].items[index]);
         FAILED = false;
       }
-      index = index + 1;
     }
 
     an.moduleSymbols[module] = SymbolList.copyFrom(an.symbols, start);
     an.symbols.exitScope();
-    module = module + 1;
   }
 
   // Each file's bodies see its own top level and what it imports, and
   // nothing else.
-  module = 0;
-  while (module < MODULE_COUNT) {
+  for (module in 0..MODULE_COUNT) {
     SOURCE_PATH = modulePath(module);
     an.symbols.enterScope();
 
@@ -562,16 +533,13 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
     declareImports(an, program, module);
 
-    index = 0;
-    while (index < count) {
+    for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {
         analyzeRecovering(an, an.ast.nodes[program].items[index]);
       }
-      index = index + 1;
     }
 
     an.symbols.exitScope();
-    module = module + 1;
   }
 
   SOURCE_PATH = modulePath(0);

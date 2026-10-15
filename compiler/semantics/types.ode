@@ -342,13 +342,10 @@ export struct StructTable {
 
   // Returns -1 when no struct of that name has been declared.
   fn indexOf(self: *StructTable, name: *i8): i32 {
-    let index: i32 = 0;
-
-    while (index < self.count) {
+    for (index in 0..self.count) {
       if (textEquals(self.items[index].name, name)) {
         return index;
       }
-      index = index + 1;
     }
 
     return -1;
@@ -377,13 +374,10 @@ export struct StructTable {
   // Returns -1 when the struct has no such field.
   fn fieldIndex(self: *StructTable, structIndex: i32,
                 name: *i8): i32 {
-    let index: i32 = 0;
-
-    while (index < self.items[structIndex].count) {
+    for (index in 0..self.items[structIndex].count) {
       if (textEquals(self.items[structIndex].fields[index].name, name)) {
         return index;
       }
-      index = index + 1;
     }
 
     return -1;

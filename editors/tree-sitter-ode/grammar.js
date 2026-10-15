@@ -181,6 +181,7 @@ module.exports = grammar({
       $.assignment_statement,
       $.if_statement,
       $.while_statement,
+      $.for_statement,
       $.match_statement,
       $.break_statement,
       $.continue_statement,
@@ -238,6 +239,19 @@ module.exports = grammar({
     while_statement: $ => seq(
       'while',
       '(', field('condition', $._expression), ')',
+      field('body', $.block),
+    ),
+
+    // `in` is only a keyword here, so it is matched as a word.
+    for_statement: $ => seq(
+      'for',
+      '(',
+      field('variable', $.identifier),
+      'in',
+      field('start', $._expression),
+      '..',
+      field('end', $._expression),
+      ')',
       field('body', $.block),
     ),
 

@@ -55,7 +55,15 @@ fn classify(c: i8): i32 {
 }
 ```
 
-`break` and `continue` act on the innermost `while`. A `void` function returns
+`for` counts over a range, the start included and the end not:
+
+```rust
+for (i in 0..count) {
+  total = total + values[i];
+}
+```
+
+`break` and `continue` act on the innermost `while` or `for`. A `void` function returns
 with a bare `return;`, and the compiler checks that every `return` matches the
 declared return type.
 

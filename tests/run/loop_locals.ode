@@ -1,0 +1,18 @@
+// Ten million passes through a loop whose condition uses `&&` and whose body
+// declares a local. Each takes a stack slot; they are made once, on entry to
+// the function, so the loop runs in constant stack. Made where they appear,
+// they would take a fresh slot on every pass and overflow the stack.
+
+fn main(): i32 {
+  let total: i64 = 0 as i64;
+  let i: i32 = 0;
+
+  while (i < 10000000 && total >= 0 as i64) {
+    let step: i64 = (i % 7) as i64;
+    total = total + step;
+    i = i + 1;
+  }
+
+  print(total);
+  return 0;
+}

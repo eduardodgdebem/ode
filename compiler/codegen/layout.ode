@@ -50,15 +50,13 @@ fn alignOfType(e: *Emitter, type: Type): i32 {
   if (type.kind == TypeKind.Struct) {
     let structIndex: i32 = e.an.structs.indexOf(type.structName);
     let widest: i32 = 1;
-    let index: i32 = 0;
 
-    while (index < e.an.structs.items[structIndex].count) {
+    for (index in 0..e.an.structs.items[structIndex].count) {
       let fieldAlign: i32 =
           alignOfType(e, e.an.structs.items[structIndex].fields[index].type);
       if (fieldAlign > widest) {
         widest = fieldAlign;
       }
-      index = index + 1;
     }
 
     return widest;
@@ -91,13 +89,11 @@ export fn sizeOfType(e: *Emitter, type: Type): i32 {
   if (type.kind == TypeKind.Struct) {
     let structIndex: i32 = e.an.structs.indexOf(type.structName);
     let offset: i32 = 0;
-    let index: i32 = 0;
 
-    while (index < e.an.structs.items[structIndex].count) {
+    for (index in 0..e.an.structs.items[structIndex].count) {
       let fieldType: Type = e.an.structs.items[structIndex].fields[index].type;
       offset = alignUp(offset, alignOfType(e, fieldType));
       offset = offset + sizeOfType(e, fieldType);
-      index = index + 1;
     }
 
     return alignUp(offset, alignOfType(e, type));

@@ -229,15 +229,13 @@ export fn stemOf(path: *i8): *i8 {
   let start: i64 = 0 as i64;
   let end: i64 = length;
 
-  let index: i64 = 0 as i64;
-  while (index < length) {
+  for (index in 0 as i64..length) {
     if (path[index] == '/') {
       start = index + 1 as i64;
     }
     if (path[index] == '.') {
       end = index;
     }
-    index = index + 1 as i64;
   }
 
   if (end <= start) {

@@ -50,13 +50,11 @@ fn signatureText(params: *Type, count: i32, result: Type): *i8 {
   let out: *Buf = Buf.new();
   out.add("fn(");
 
-  let index: i32 = 0;
-  while (index < count) {
+  for (index in 0..count) {
     if (index > 0) {
       out.add(", ");
     }
     out.add(params[index].toText());
-    index = index + 1;
   }
 
   out.add("): ");
@@ -71,13 +69,11 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
                 depth: i32): Type {
   let text: *i8 = signatureText(params, count, result);
 
-  let index: i32 = 0;
-  while (index < an.signatureCount) {
+  for (index in 0..an.signatureCount) {
     if (textEquals(an.signatures[index].text, text)) {
       return Type { kind: TypeKind.Function, pointerDepth: depth,
                     structName: an.signatures[index].text };
     }
-    index = index + 1;
   }
 
   if (an.signatureCount == an.signatureCapacity) {
@@ -97,13 +93,10 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
 
 // Where the signature of a function type is in the table.
 export fn signatureIndex(an: *Analyzer, type: Type): i32 {
-  let index: i32 = 0;
-
-  while (index < an.signatureCount) {
+  for (index in 0..an.signatureCount) {
     if (textEquals(an.signatures[index].text, type.structName)) {
       return index;
     }
-    index = index + 1;
   }
 
   failAt(0, 0, "function type without a recorded signature");
@@ -118,10 +111,8 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
     params = malloc(sizeof(Type) as i64 * count as i64) as *Type;
   }
 
-  let index: i32 = 0;
-  while (index < count) {
+  for (index in 0..count) {
     params[index] = analyzerParseType(an, an.ast.nodes[node].items[index]);
-    index = index + 1;
   }
 
   let result: Type = analyzerParseType(an, an.ast.nodes[node].a);
@@ -142,7 +133,7 @@ export fn checkFunctionRef(an: *Analyzer, node: i32, symbol: i32): Type {
 // Checks a call through a value of type `callee`, which has to be a
 // function's. `name` is what the diagnostics call it.
 export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
-                    args: i32): Type {
+                           args: i32): Type {
   if (!callee.isFunction()) {
     analyzerFail(an, node, quoted("", name, " is not a function"));
     return Type.make(TypeKind.None, 0);

@@ -1,0 +1,5 @@
+fn main(): i32 {
+  for (i of 0..10) {
+  }
+  return 0;
+}
