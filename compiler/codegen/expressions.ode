@@ -573,9 +573,8 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
   // may emit instructions of its own.
   let values: **i8 = malloc(sizeof(*i8) as i64 * (argCount + 1) as i64) as **i8;
   let index: i32 = 0;
-  while (index < argCount) {
+  for (index in 0..argCount) {
     values[index] = genExpr(e, e.ast.nodes[args].items[index]);
-    index = index + 1;
   }
 
   let line: *Buf = Buf.new();
@@ -592,15 +591,13 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
     line.add(first);
   }
 
-  index = 0;
-  while (index < argCount) {
+  for (index in 0..argCount) {
     if (index > 0 || hasFirst) {
       line.add(", ");
     }
     line.add(llvmTypeName(typeOfNode(e, e.ast.nodes[args].items[index])));
     line.push(' ');
     line.add(values[index]);
-    index = index + 1;
   }
   line.push(')');
 

@@ -68,10 +68,8 @@ struct Hasher {
   }
 
   fn addBytes(self: *Hasher, data: *i8, count: i64): void {
-    let index: i64 = 0 as i64;
-    while (index < count) {
+    for (index in 0 as i64..count) {
       self.value = (self.value ^ data[index] as u8 as u64) * FNV_PRIME;
-      index = index + 1 as i64;
     }
   }
 
@@ -126,22 +124,18 @@ fn hashInputs(ws: *Workspace): Inputs {
   FAILED = false;
 
   let lines: i32 = 0;
-  let module: i32 = 0;
-  while (module < MODULE_COUNT) {
+  for (module in 0..MODULE_COUNT) {
     let bytes: *Buf = readBytes(modulePath(module));
     hasher.addText(modulePath(module));
     if (bytes != null) {
       hasher.addBytes(bytes.data, bytes.length);
 
-      let index: i64 = 0 as i64;
-      while (index < bytes.length) {
+      for (index in 0 as i64..bytes.length) {
         if (bytes.data[index] == '\n') {
           lines = lines + 1;
         }
-        index = index + 1 as i64;
       }
     }
-    module = module + 1;
   }
 
   return Inputs { hash: hasher.hex(), lines: lines, modules: MODULE_COUNT };

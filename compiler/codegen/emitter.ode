@@ -257,10 +257,8 @@ export fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
   e.head.addInt(length + 1 as i64);
   e.head.add(" x i8] c\"");
 
-  let index: i64 = 0 as i64;
-  while (index < length) {
+  for (index in 0 as i64..length) {
     emitIRByte(e.head, text[index]);
-    index = index + 1 as i64;
   }
 
   e.head.add("\\00\"\n");

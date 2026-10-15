@@ -35,15 +35,12 @@ import { analyzeStatement } from "./statements";
 
 // The declaration of the enum whose IR name is `name`.
 fn enumDeclOf(an: *Analyzer, name: *i8): i32 {
-  let index: i32 = 0;
-
-  while (index < an.ast.nodes[an.program].itemCount) {
+  for (index in 0..an.ast.nodes[an.program].itemCount) {
     let item: i32 = an.ast.nodes[an.program].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Enum &&
         textEquals(an.ast.nodes[item].text, name)) {
       return item;
     }
-    index = index + 1;
   }
 
   return NO_NODE;
@@ -113,8 +110,7 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
     let member: i32 = an.ast.nodes[node].items[index];
     let memberName: *i8 = an.ast.nodes[member].text;
 
-    let earlier: i32 = 0;
-    while (earlier < index) {
+    for (earlier in 0..index) {
       let other: i32 = an.ast.nodes[node].items[earlier];
       if (textEquals(an.ast.nodes[other].text, memberName)) {
         let message: *Buf = Buf.new();
@@ -126,7 +122,6 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
         analyzerFail(an, member, message.data);
         FAILED = false;
       }
-      earlier = earlier + 1;
     }
 
     let valueNode: i32 = an.ast.nodes[member].a;
@@ -162,15 +157,13 @@ export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
   let declaration: i32 = enumDeclOf(an, enumName);
   let memberName: *i8 = an.ast.nodes[node].text;
 
-  let index: i32 = 0;
-  while (index < an.ast.nodes[declaration].itemCount) {
+  for (index in 0..an.ast.nodes[declaration].itemCount) {
     let member: i32 = an.ast.nodes[declaration].items[index];
     if (textEquals(an.ast.nodes[member].text, memberName)) {
       an.isConstant[node] = 1 as i8;
       an.values[node] = an.values[member];
       return Type.ofEnum(enumName, 0);
     }
-    index = index + 1;
   }
 
   let message: *Buf = Buf.new();
@@ -234,34 +227,26 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
 // The member of the enum declared at `declaration` whose value no arm of
 // `node` handles, or NO_NODE when every one is handled.
 fn unhandledMember(an: *Analyzer, node: i32, declaration: i32): i32 {
-  let index: i32 = 0;
-
-  while (index < an.ast.nodes[declaration].itemCount) {
+  for (index in 0..an.ast.nodes[declaration].itemCount) {
     let member: i32 = an.ast.nodes[declaration].items[index];
     if (!matchHandles(an, node, an.values[member])) {
       return member;
     }
-    index = index + 1;
   }
 
   return NO_NODE;
 }
 
 fn matchHandles(an: *Analyzer, node: i32, value: i64): bool {
-  let arm: i32 = 0;
-
-  while (arm < an.ast.nodes[node].itemCount) {
+  for (arm in 0..an.ast.nodes[node].itemCount) {
     let armNode: i32 = an.ast.nodes[node].items[arm];
-    let pattern: i32 = 0;
-    while (pattern < an.ast.nodes[armNode].itemCount) {
+    for (pattern in 0..an.ast.nodes[armNode].itemCount) {
       let patternNode: i32 = an.ast.nodes[armNode].items[pattern];
       if (an.isConstant[patternNode] != 0 as i8 &&
           an.values[patternNode] == value) {
         return true;
       }
-      pattern = pattern + 1;
     }
-    arm = arm + 1;
   }
 
   return false;
@@ -293,8 +278,7 @@ export fn analyzeMatch(an: *Analyzer, node: i32): void {
       hasElse = true;
     }
 
-    let pattern: i32 = 0;
-    while (pattern < an.ast.nodes[armNode].itemCount) {
+    for (pattern in 0..an.ast.nodes[armNode].itemCount) {
       let patternNode: i32 = an.ast.nodes[armNode].items[pattern];
       checkPattern(an, patternNode, subject);
       if (FAILED) {
@@ -310,8 +294,6 @@ export fn analyzeMatch(an: *Analyzer, node: i32): void {
         return;
       }
       an.isConstant[patternNode] = 1 as i8;
-
-      pattern = pattern + 1;
     }
 
     analyzeStatement(an, an.ast.nodes[armNode].a);

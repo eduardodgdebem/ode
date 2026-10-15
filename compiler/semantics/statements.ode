@@ -109,10 +109,8 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
 fn analyzeBlock(an: *Analyzer, node: i32): void {
   an.symbols.enterScope();
 
-  let index: i32 = 0;
-  while (index < an.ast.nodes[node].itemCount) {
+  for (index in 0..an.ast.nodes[node].itemCount) {
     analyzeRecovering(an, an.ast.nodes[node].items[index]);
-    index = index + 1;
   }
 
   an.symbols.exitScope();
@@ -225,8 +223,7 @@ fn analyzeFor(an: *Analyzer, node: i32): void {
     }
   }
 
-  let index: i32 = 0;
-  while (index < 2) {
+  for (index in 0..2) {
     let bound: i32 = start;
     if (index == 1) {
       bound = end;
@@ -249,8 +246,6 @@ fn analyzeFor(an: *Analyzer, node: i32): void {
         }
       }
     }
-
-    index = index + 1;
   }
 
   an.symbols.enterScope();
@@ -365,11 +360,9 @@ fn analyzeExternDecl(an: *Analyzer, node: i32): void {
                   an.ast.nodes[node].column);
   }
 
-  let index: i32 = 0;
-  while (index < paramCount) {
+  for (index in 0..paramCount) {
     if (params[index].isVoid()) {
       analyzerFail(an, node, quoted("extern ", name, " has a void parameter"));
     }
-    index = index + 1;
   }
 }

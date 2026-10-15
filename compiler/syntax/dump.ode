@@ -14,9 +14,7 @@ import { TypeKind, Type } from "../semantics/types";
 // Text is escaped rather than written raw so that a literal newline or NUL
 // inside a string cannot break the line-per-node format.
 fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
-  let index: i64 = 0 as i64;
-
-  while (index < length) {
+  for (index in 0 as i64..length) {
     let character: i8 = text[index];
 
     if (character == '\\') {
@@ -34,8 +32,6 @@ fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
     } else {
       out.push(character);
     }
-
-    index = index + 1 as i64;
   }
 }
 
@@ -82,10 +78,8 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
     return;
   }
 
-  let level: i32 = 0;
-  while (level < depth) {
+  for (level in 0..depth) {
     out.add("  ");
-    level = level + 1;
   }
 
   let kind: NodeKind = ast.nodes[index].kind;
@@ -124,9 +118,7 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
   dumpNode(ast, types, ast.nodes[index].b, depth + 1, out);
   dumpNode(ast, types, ast.nodes[index].c, depth + 1, out);
 
-  let item: i32 = 0;
-  while (item < ast.nodes[index].itemCount) {
+  for (item in 0..ast.nodes[index].itemCount) {
     dumpNode(ast, types, ast.nodes[index].items[item], depth + 1, out);
-    item = item + 1;
   }
 }

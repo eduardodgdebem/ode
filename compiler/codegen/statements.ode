@@ -109,10 +109,8 @@ export fn genStatement(e: *Emitter, node: i32): void {
 
   if (kind == NodeKind.Block) {
     emitterEnterScope(e);
-    let index: i32 = 0;
-    while (index < e.ast.nodes[node].itemCount) {
+    for (index in 0..e.ast.nodes[node].itemCount) {
       genStatement(e, e.ast.nodes[node].items[index]);
-      index = index + 1;
     }
     emitterExitScope(e);
     return;
@@ -268,12 +266,11 @@ fn genMatch(e: *Emitter, node: i32): void {
   let labels: **i8 = malloc(sizeof(*i8) as i64 * (armCount + 1) as i64) as **i8;
 
   let arm: i32 = 0;
-  while (arm < armCount) {
+  for (arm in 0..armCount) {
     labels[arm] = freshLabel(e);
     if (e.ast.nodes[e.ast.nodes[node].items[arm]].extra == 1) {
       fallback = labels[arm];
     }
-    arm = arm + 1;
   }
 
   let line: *Buf = Buf.new();
@@ -285,8 +282,7 @@ fn genMatch(e: *Emitter, node: i32): void {
   line.add(fallback);
   line.add(" [");
 
-  arm = 0;
-  while (arm < armCount) {
+  for (arm in 0..armCount) {
     let armNode: i32 = e.ast.nodes[node].items[arm];
     let pattern: i32 = 0;
     while (pattern < e.ast.nodes[armNode].itemCount) {
@@ -299,7 +295,6 @@ fn genMatch(e: *Emitter, node: i32): void {
       line.add(labels[arm]);
       pattern = pattern + 1;
     }
-    arm = arm + 1;
   }
   line.add(" ]");
 
@@ -308,12 +303,10 @@ fn genMatch(e: *Emitter, node: i32): void {
     e.terminated = true;
   }
 
-  arm = 0;
-  while (arm < armCount) {
+  for (arm in 0..armCount) {
     emitLabel(e, labels[arm]);
     genStatement(e, e.ast.nodes[e.ast.nodes[node].items[arm]].a);
     emitBranch(e, done);
-    arm = arm + 1;
   }
 
   emitLabel(e, done);

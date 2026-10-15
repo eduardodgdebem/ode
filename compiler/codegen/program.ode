@@ -35,8 +35,7 @@ fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
     count = e.ast.nodes[params].itemCount;
   }
 
-  let index: i32 = 0;
-  while (index < count) {
+  for (index in 0..count) {
     if (index > 0) {
       out.add(", ");
     }
@@ -49,8 +48,6 @@ fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
       out.add(" %p");
       out.addInt(index as i64);
     }
-
-    index = index + 1;
   }
 
   out.push(')');
@@ -236,8 +233,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
 
   // Several files may declare one extern, and LLVM takes one declaration.
   let declared: *NameSet = NameSet.new();
-  index = 0;
-  while (index < count) {
+  for (index in 0..count) {
     let statement: i32 = e.ast.nodes[program].items[index];
     if (e.ast.nodes[statement].kind == NodeKind.Extern &&
         !declared.has(e.an.linkNames[statement])) {
@@ -245,20 +241,16 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
       emitSignature(e, e.head, statement, "declare");
       e.head.push('\n');
     }
-    index = index + 1;
   }
 
-  index = 0;
-  while (index < count) {
+  for (index in 0..count) {
     let statement: i32 = e.ast.nodes[program].items[index];
     if (e.ast.nodes[statement].kind == NodeKind.VarDecl) {
       genGlobal(e, statement);
     }
-    index = index + 1;
   }
 
-  index = 0;
-  while (index < count) {
+  for (index in 0..count) {
     let statement: i32 = e.ast.nodes[program].items[index];
     if (e.ast.nodes[statement].kind == NodeKind.Fn) {
       genFunction(e, statement);
@@ -266,16 +258,13 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
 
     // A struct's methods are functions like any other once named.
     if (e.ast.nodes[statement].kind == NodeKind.Struct) {
-      let member: i32 = 0;
-      while (member < e.ast.nodes[statement].itemCount) {
+      for (member in 0..e.ast.nodes[statement].itemCount) {
         let method: i32 = e.ast.nodes[statement].items[member];
         if (e.ast.nodes[method].kind == NodeKind.Fn) {
           genFunction(e, method);
         }
-        member = member + 1;
       }
     }
-    index = index + 1;
   }
 
   let module: *Buf = Buf.new();

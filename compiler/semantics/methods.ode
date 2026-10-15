@@ -48,15 +48,12 @@ enum SelfKind {
 
 // The declaration of the struct whose IR name is `name`.
 fn structDeclOf(an: *Analyzer, name: *i8): i32 {
-  let index: i32 = 0;
-
-  while (index < an.ast.nodes[an.program].itemCount) {
+  for (index in 0..an.ast.nodes[an.program].itemCount) {
     let item: i32 = an.ast.nodes[an.program].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Struct &&
         textEquals(an.ast.nodes[item].text, name)) {
       return item;
     }
-    index = index + 1;
   }
 
   return NO_NODE;
@@ -65,15 +62,12 @@ fn structDeclOf(an: *Analyzer, name: *i8): i32 {
 // The first method of the struct declared at `structNode` named `name`, or
 // NO_NODE.
 fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
-  let index: i32 = 0;
-
-  while (index < an.ast.nodes[structNode].itemCount) {
+  for (index in 0..an.ast.nodes[structNode].itemCount) {
     let item: i32 = an.ast.nodes[structNode].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Fn &&
         textEquals(an.ast.nodes[item].text, name)) {
       return item;
     }
-    index = index + 1;
   }
 
   return NO_NODE;
@@ -141,11 +135,9 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
       let paramCount: i32 = 0;
       let params: *Type = analyzerParamTypes(an, an.ast.nodes[method].b,
                                              &paramCount);
-      let param: i32 = 0;
-      while (param < paramCount) {
+      for (param in 0..paramCount) {
         analyzerValidateType(an, method, params[param],
                              quoted("parameter of ", name, ""));
-        param = param + 1;
       }
 
       if (methodSelf(an, node, method) == SelfKind.Invalid) {
