@@ -1,0 +1,9 @@
+export let LIMIT: i32 = 21;
+
+export struct Counter {
+  hits: i32,
+}
+
+export fn bump(counter: *Counter): void {
+  counter.hits = counter.hits + 1;
+}

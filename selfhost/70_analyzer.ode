@@ -18,6 +18,11 @@ struct Analyzer {
   types: *Type,
   // Per node: whether this `let` is a program-level global.
   isGlobal: *i8,
+  // Per node: the IR name of the top-level declaration it is or refers to,
+  // null for anything else. See 68_modules.ode.
+  linkNames: **i8,
+  // Per module: the top-level values it declares.
+  moduleSymbols: *SymbolList,
   loopDepth: i32,
   inFunction: bool,
   currentReturnType: Type,
@@ -30,6 +35,9 @@ fn analyzerNew(ast: *Ast): *Analyzer {
   an.structs = structTableNew();
   an.types = malloc(sizeof(Type) as i64 * ast.count as i64) as *Type;
   an.isGlobal = malloc(ast.count as i64);
+  an.linkNames = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
+  an.moduleSymbols =
+      malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
   an.loopDepth = 0;
   an.inFunction = false;
   an.currentReturnType = typeMake(TY_VOID, 0);
@@ -38,6 +46,7 @@ fn analyzerNew(ast: *Ast): *Analyzer {
   while (index < ast.count) {
     an.types[index] = typeMake(TY_NONE, 0);
     an.isGlobal[index] = 0 as i8;
+    an.linkNames[index] = nullText();
     index = index + 1;
   }
 
@@ -50,6 +59,7 @@ fn analyzerNew(ast: *Ast): *Analyzer {
 // ---------------------------------------------------------------------------
 
 fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
+  SOURCE_PATH = modulePath(an.ast.nodes[node].module);
   report(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
 }
 
@@ -238,6 +248,7 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
       analyzerFail(an, node, quoted("", name, " is a function, not a variable"));
     }
 
+    an.linkNames[node] = an.symbols.items[symbol].linkName;
     return an.symbols.items[symbol].type;
   }
 
@@ -267,6 +278,7 @@ fn checkCall(an: *Analyzer, node: i32): Type {
   if (an.symbols.items[symbol].kind != SYM_FN) {
     analyzerFail(an, node, quoted("", name, " is not a function"));
   }
+  an.linkNames[node] = an.symbols.items[symbol].linkName;
 
   let args: i32 = an.ast.nodes[node].a;
   let argCount: i32 = 0;
@@ -845,8 +857,9 @@ fn analyzeStatement(an: *Analyzer, node: i32): void {
     return;
   }
 
-  // A struct declaration was handled by the two registration passes.
-  if (kind == NK_STRUCT) {
+  // A struct declaration was handled by the two registration passes, and an
+  // import by linkModules and the module's scope.
+  if (kind == NK_STRUCT || kind == NK_IMPORT) {
     return;
   }
 
@@ -1184,8 +1197,19 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
   }
 
   an.isGlobal[node] = 1 as i8;
-  symbolDeclare(an.symbols, name, SYM_VAR, type, 0 as i64 as *Type, 0,
+  declareTopLevel(an, node, name, SYM_VAR, type, 0 as i64 as *Type, 0);
+}
+
+// symbolDeclare for a top-level declaration, which also carries its IR name.
+fn declareTopLevel(an: *Analyzer, node: i32, name: *i8, kind: i32, type: Type,
+                   params: *Type, paramCount: i32): void {
+  let before: i32 = an.symbols.count;
+  symbolDeclare(an.symbols, name, kind, type, params, paramCount,
                 an.ast.nodes[node].line, an.ast.nodes[node].column);
+
+  if (an.symbols.count > before) {
+    an.symbols.items[before].linkName = an.linkNames[node];
+  }
 }
 
 fn hoistSignature(an: *Analyzer, node: i32): void {
@@ -1244,16 +1268,23 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     }
   }
 
-  symbolDeclare(an.symbols, name, SYM_FN, returnType, params, paramCount,
-                an.ast.nodes[node].line, an.ast.nodes[node].column);
+  declareTopLevel(an, node, name, SYM_FN, returnType, params, paramCount);
+}
+
+// Whether the program item at `index` belongs to `module`.
+fn itemInModule(an: *Analyzer, program: i32, index: i32, module: i32): bool {
+  return an.ast.nodes[an.ast.nodes[program].items[index]].module == module;
 }
 
 fn analyze(an: *Analyzer, program: i32): void {
   let count: i32 = an.ast.nodes[program].itemCount;
 
+  linkModules(an, program);
+
   // Struct names come first so that two structs may point at each other, then
   // fields, then globals and function signatures, which may both refer to any
-  // struct.
+  // struct. Structs go into one table for every file: by now each reference
+  // names the struct its own file can see.
   let index: i32 = 0;
   while (index < count) {
     registerStructName(an, an.ast.nodes[program].items[index]);
@@ -1271,27 +1302,68 @@ fn analyze(an: *Analyzer, program: i32): void {
   rejectStructCycles(an, program);
   FAILED = false;
 
-  index = 0;
-  while (index < count) {
-    hoistGlobal(an, an.ast.nodes[program].items[index]);
-    FAILED = false;
-    index = index + 1;
+  // Values are hoisted a file at a time, each into a scope of its own, so
+  // that one file's names are not another's. What each file declares is kept
+  // for the files that import from it.
+  let module: i32 = 0;
+  while (module < MODULE_COUNT) {
+    SOURCE_PATH = modulePath(module);
+    symbolEnterScope(an.symbols);
+    let start: i32 = an.symbols.count;
+
+    index = 0;
+    while (index < count) {
+      if (itemInModule(an, program, index, module)) {
+        hoistGlobal(an, an.ast.nodes[program].items[index]);
+        FAILED = false;
+      }
+      index = index + 1;
+    }
+
+    index = 0;
+    while (index < count) {
+      if (itemInModule(an, program, index, module)) {
+        hoistSignature(an, an.ast.nodes[program].items[index]);
+        FAILED = false;
+      }
+      index = index + 1;
+    }
+
+    an.moduleSymbols[module] = symbolListCopy(an.symbols, start);
+    symbolExitScope(an.symbols);
+    module = module + 1;
   }
 
-  index = 0;
-  while (index < count) {
-    hoistSignature(an, an.ast.nodes[program].items[index]);
-    FAILED = false;
-    index = index + 1;
+  // Each file's bodies see its own top level and what it imports, and
+  // nothing else.
+  module = 0;
+  while (module < MODULE_COUNT) {
+    SOURCE_PATH = modulePath(module);
+    symbolEnterScope(an.symbols);
+
+    let own: SymbolList = an.moduleSymbols[module];
+    let symbol: i32 = 0;
+    while (symbol < own.count) {
+      declareSymbolCopy(an.symbols, own.items[symbol]);
+      symbol = symbol + 1;
+    }
+
+    declareImports(an, program, module);
+
+    index = 0;
+    while (index < count) {
+      if (itemInModule(an, program, index, module)) {
+        analyzeRecovering(an, an.ast.nodes[program].items[index]);
+      }
+      index = index + 1;
+    }
+
+    symbolExitScope(an.symbols);
+    module = module + 1;
   }
 
-  index = 0;
-  while (index < count) {
-    analyzeRecovering(an, an.ast.nodes[program].items[index]);
-    index = index + 1;
-  }
-
-  if (symbolFind(an.symbols, "main") < 0) {
+  SOURCE_PATH = modulePath(0);
+  if (symbolListFind(an.moduleSymbols[0], "main") < 0) {
     report(0, 0, "No main function found");
   }
 }

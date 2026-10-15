@@ -7,4 +7,7 @@
 (extern_declaration name: (identifier) @local.definition.function)
 (struct_declaration name: (type_identifier) @local.definition.type)
 
+(import_specifier alias: (identifier) @local.definition.import)
+(import_specifier !alias name: (identifier) @local.definition.import)
+
 (identifier) @local.reference

@@ -10,6 +10,11 @@
 # Invalid cases are every tests/invalid/*.ode: each must fail to compile, and
 # the diagnostic is compared against tests/invalid/<name>.expected.
 #
+# Module cases are every tests/modules/<name>/, a program of several files
+# whose entry is main.ode. What it does is compared against
+# tests/modules/<name>.expected: the diagnostics if it fails to compile, and
+# what it prints if it compiles.
+#
 # --update rewrites the expected files from what the compiler does now, which
 # is how the suite is re-baselined after a deliberate language change. Read the
 # diff before committing it.
@@ -40,7 +45,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h|--help)
-      sed -n '2,16p' "${BASH_SOURCE[0]}" | cut -c3-
+      sed -n '2,21p' "${BASH_SOURCE[0]}" | cut -c3-
       exit 0
       ;;
     *)
@@ -71,6 +76,7 @@ failed=0
 updated=0
 valid_count=0
 invalid_count=0
+module_count=0
 failures=()
 
 report_pass() {
@@ -179,6 +185,47 @@ run_invalid() {
   fi
 }
 
+run_module() {
+  local case_dir="$1"
+  local name expected actual work
+  name="$(basename "$case_dir")"
+  selected "$name" || return 0
+  module_count=$((module_count + 1))
+
+  expected="$TESTS_DIR/modules/$name.expected"
+  actual="$WORK_DIR/modules-$name.actual"
+  work="$WORK_DIR/module-cases/$name"
+
+  # The whole directory is copied, and compiled from inside it, so the paths
+  # in a diagnostic are the ones relative to the entry file.
+  mkdir -p "$work"
+  cp -R "$case_dir"/. "$work"
+  if (cd "$work" && "$ODE" main.ode) > "$actual" 2>&1; then
+    "$work/main" > "$actual" 2>&1
+  fi
+
+  if [ $UPDATE -eq 1 ]; then
+    if [ ! -f "$expected" ] || ! cmp -s "$expected" "$actual"; then
+      cp "$actual" "$expected"
+      updated=$((updated + 1))
+    fi
+    report_pass module "$name"
+    return 0
+  fi
+
+  if [ ! -f "$expected" ]; then
+    report_fail module "$name" "no expected result recorded (run with --update)"
+    return 0
+  fi
+
+  if cmp -s "$expected" "$actual"; then
+    report_pass module "$name"
+  else
+    report_fail module "$name" "result differs"
+    show_diff "$expected" "$actual"
+  fi
+}
+
 # The driver flags have no expected-output file to record; they are checked
 # against the files they are supposed to produce.
 run_cli() {
@@ -231,6 +278,10 @@ for source in "$TESTS_DIR"/invalid/*.ode; do
   run_invalid "$source"
 done
 
+for case_dir in "$TESTS_DIR"/modules/*/; do
+  run_module "${case_dir%/}"
+done
+
 run_cli output-flag check_output_flag
 run_cli no-intermediates-flag check_no_intermediates_flag
 run_cli hostile-output-path check_hostile_output_path
@@ -238,11 +289,11 @@ run_cli no-input-file check_no_input_file
 
 echo
 if [ $UPDATE -eq 1 ]; then
-  echo "$valid_count valid, $invalid_count invalid: $updated expectation(s) rewritten"
+  echo "$valid_count valid, $invalid_count invalid, $module_count module: $updated expectation(s) rewritten"
 fi
 
 if [ $failed -eq 0 ]; then
-  echo "${GREEN}all $passed checks passed${OFF} ($valid_count valid, $invalid_count invalid)"
+  echo "${GREEN}all $passed checks passed${OFF} ($valid_count valid, $invalid_count invalid, $module_count module)"
   exit 0
 fi
 

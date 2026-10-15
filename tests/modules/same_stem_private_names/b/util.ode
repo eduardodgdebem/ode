@@ -1,0 +1,13 @@
+struct Box {
+  value: i32,
+  extra: i32,
+}
+
+fn scale(value: i32): i32 {
+  return value * 100;
+}
+
+export fn apply(value: i32): i32 {
+  let box: Box = Box { value: scale(value), extra: 0 };
+  return box.value + box.extra;
+}

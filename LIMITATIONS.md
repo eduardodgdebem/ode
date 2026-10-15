@@ -218,10 +218,24 @@ Passing an aggregate across the C ABI needs target-specific lowering — `sret`,
 plain LLVM aggregate would produce calls that disagree with the C side.
 Struct-by-value between two Ode functions is fine.
 
-### 6.5 No modules
+### 6.5 Modules are named imports only
 
-The whole program is one file. The self-hosted compiler is expected to be a
-single file of roughly 4,000–5,000 lines, which is unpleasant but workable.
+`import { a, b as c } from "./path";` and `export` on a declaration are all
+there is. Missing, compared with TypeScript:
+
+- no namespace import (`import * as m`) and so no qualified `m.name`;
+- no re-export (`export { a } from "./b"`) and no default export;
+- no bare specifiers or search path: every import is a file path, relative to
+  the importing file unless it starts with `/`.
+
+When two files declare the same name, the later one's IR name is qualified
+with its file's stem. That name can surface in a diagnostic about types, where
+a private `struct Pair` in `counter.ode` prints as `counter.Pair`. A private
+function is still an ordinary external symbol in the object file rather than
+`internal`.
+
+The lexer stops the compile at its first error, so a lexical error in an
+imported file ends the run there, before any other file's diagnostics.
 
 ## 7. Codegen and runtime
 

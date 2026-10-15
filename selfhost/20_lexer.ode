@@ -117,6 +117,10 @@ fn keywordKind(text: *i8): i32 {
   if (textEquals(text, "continue")) { return TK_CONTINUE; }
   if (textEquals(text, "print")) { return TK_PRINT; }
   if (textEquals(text, "as")) { return TK_AS; }
+  if (textEquals(text, "import")) { return TK_IMPORT; }
+  if (textEquals(text, "export")) { return TK_EXPORT; }
+  // `from` is not a keyword: it only means anything after an import list, and
+  // it is too useful a name to take away everywhere else.
   if (textEquals(text, "true")) { return TK_BOOL; }
   if (textEquals(text, "false")) { return TK_BOOL; }
 

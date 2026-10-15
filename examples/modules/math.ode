@@ -1,0 +1,9 @@
+// Imports from the file that imports it. A cycle is fine: every file is
+// loaded once, and declarations are hoisted before any body is checked.
+
+import { Vec2 } from "./geometry";
+
+export fn square(value: i32): i32 {
+  let v: Vec2 = Vec2 { x: value, y: 0 };
+  return v.x * v.x;
+}

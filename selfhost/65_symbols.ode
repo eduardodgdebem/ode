@@ -17,6 +17,9 @@ struct Symbol {
   type: Type,
   params: *Type,
   paramCount: i32,
+  // What the IR calls a top-level declaration, which differs from `name` when
+  // two files use one name or when an import renames it. Null for a local.
+  linkName: *i8,
 }
 
 struct SymbolTable {
@@ -126,5 +129,19 @@ fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
   table.items[index].type = type;
   table.items[index].params = params;
   table.items[index].paramCount = paramCount;
+  table.items[index].linkName = nullText();
   table.count = index + 1;
+}
+
+// Pushes a symbol already checked for conflicts, as it was declared.
+fn declareSymbolCopy(table: *SymbolTable, symbol: Symbol): void {
+  if (table.count == table.capacity) {
+    table.capacity = table.capacity * 2;
+    table.items = realloc(table.items as *i8,
+                          sizeof(Symbol) as i64 * table.capacity as i64) as
+        *Symbol;
+  }
+
+  table.items[table.count] = symbol;
+  table.count = table.count + 1;
 }

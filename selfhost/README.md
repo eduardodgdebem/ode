@@ -23,10 +23,15 @@ passes.
 
 ## Why the sources are concatenated
 
-Ode has no modules, so the compiler has to be one file. Keeping it as one file
-to *edit* would be miserable, so the sources are split here and `build.sh`
-concatenates them in name order into `build/ode1.ode`, which is what actually
-gets compiled.
+Ode had no modules when these sources were written, so the compiler had to be
+one file. Keeping it as one file to *edit* would be miserable, so the sources
+are split here and `build.sh` concatenates them in name order into
+`build/ode.ode`, which is what actually gets compiled.
+
+The language has `import` and `export` now, but the compiler can only use
+them once the checked-in seed understands them, since the seed is what
+compiles these sources first. Until `update-bootstrap.sh` refreshes it, the
+sources stay concatenated.
 
 Order does not affect meaning: function signatures, globals and struct names
 are all hoisted before any body is checked, so a function in `00_prelude.ode`
@@ -43,6 +48,7 @@ stable and diffable, not to satisfy the compiler.
 | `50_parser_stmt.ode` | statements and declarations |
 | `60_type.ode` | types and struct layouts |
 | `65_symbols.ode` | the symbol table |
+| `68_modules.ode` | files as modules: IR names, imports, per-file scopes |
 | `70_analyzer.ode` | the semantic analyzer |
 | `75_ir.ode` | the textual LLVM IR emitter |
 | `80_dump.ode` | the token, tree and type dumps |

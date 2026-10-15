@@ -73,6 +73,9 @@ fn startsStatement(kind: i32): bool {
   if (kind == TK_FN || kind == TK_EXTERN || kind == TK_STRUCT) {
     return true;
   }
+  if (kind == TK_IMPORT || kind == TK_EXPORT) {
+    return true;
+  }
   if (kind == TK_LET || kind == TK_IF || kind == TK_WHILE) {
     return true;
   }

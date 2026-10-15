@@ -33,6 +33,8 @@ module.exports = grammar({
     source_file: $ => repeat($._top_level),
 
     _top_level: $ => choice(
+      $.import_declaration,
+      $.export_declaration,
       $.function_declaration,
       $.extern_declaration,
       $.struct_declaration,
@@ -42,6 +44,36 @@ module.exports = grammar({
     // -----------------------------------------------------------------------
     // Declarations
     // -----------------------------------------------------------------------
+
+    // `from` is only a keyword here; elsewhere it is an ordinary identifier.
+    import_declaration: $ => seq(
+      'import',
+      '{',
+      optional(seq(
+        $.import_specifier,
+        repeat(seq(',', $.import_specifier)),
+        optional(','),
+      )),
+      '}',
+      'from',
+      field('source', $.string_literal),
+      ';',
+    ),
+
+    import_specifier: $ => seq(
+      field('name', $.identifier),
+      optional(seq('as', field('alias', $.identifier))),
+    ),
+
+    export_declaration: $ => seq(
+      'export',
+      field('declaration', choice(
+        $.function_declaration,
+        $.extern_declaration,
+        $.struct_declaration,
+        $.variable_declaration,
+      )),
+    ),
 
     function_declaration: $ => seq(
       'fn',

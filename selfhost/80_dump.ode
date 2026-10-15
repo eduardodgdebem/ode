@@ -97,6 +97,10 @@ fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
     bufPush(out, '\'');
   }
 
+  if (ast.nodes[index].exported) {
+    bufAdd(out, " export");
+  }
+
   if (kind == NK_TYPE) {
     bufAdd(out, " depth=");
     bufAddInt(out, ast.nodes[index].extra as i64);

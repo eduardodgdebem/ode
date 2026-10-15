@@ -1,0 +1,17 @@
+// Two files named util.ode, each with a private `scale` and a private
+// `Box`, and an exported function of the same name in each, renamed apart on
+// import.
+
+import { apply as applyA } from "./a/util";
+import { apply as applyB } from "./b/util";
+
+fn scale(value: i32): i32 {
+  return value;
+}
+
+fn main(): i32 {
+  print(scale(5));
+  print(applyA(5));
+  print(applyB(5));
+  return 0;
+}

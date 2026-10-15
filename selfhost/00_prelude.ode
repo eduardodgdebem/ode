@@ -208,6 +208,8 @@ fn intToText(value: i64): *i8 {
 // ---------------------------------------------------------------------------
 
 struct Diagnostic {
+  // The file being worked on when it was reported.
+  path: *i8,
   message: *i8,
   line: i32,
   column: i32,
@@ -252,6 +254,7 @@ fn report(line: i32, column: i32, message: *i8): void {
     return;
   }
 
+  DIAGS.items[DIAGS.count].path = SOURCE_PATH;
   DIAGS.items[DIAGS.count].message = message;
   DIAGS.items[DIAGS.count].line = line;
   DIAGS.items[DIAGS.count].column = column;
@@ -268,7 +271,7 @@ fn printDiagnostics(): void {
   let index: i32 = 0;
 
   while (index < DIAGS.count) {
-    bufAdd(out, SOURCE_PATH);
+    bufAdd(out, DIAGS.items[index].path);
 
     // A line of 0 means the position is unknown, which whole-program checks
     // report; those name the file alone.

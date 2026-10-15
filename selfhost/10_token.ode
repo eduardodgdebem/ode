@@ -29,6 +29,8 @@ let TK_BREAK: i32 = 19;
 let TK_CONTINUE: i32 = 20;
 let TK_PRINT: i32 = 21;
 let TK_AS: i32 = 22;
+let TK_IMPORT: i32 = 23;
+let TK_EXPORT: i32 = 24;
 
 let TK_ASSIGN: i32 = 30;
 let TK_PLUS: i32 = 31;
@@ -148,6 +150,8 @@ fn kindName(kind: i32): *i8 {
   if (kind == TK_CONTINUE) { return "continue"; }
   if (kind == TK_PRINT) { return "print"; }
   if (kind == TK_AS) { return "as"; }
+  if (kind == TK_IMPORT) { return "import"; }
+  if (kind == TK_EXPORT) { return "export"; }
 
   if (kind == TK_ASSIGN) { return "="; }
   if (kind == TK_PLUS) { return "+"; }

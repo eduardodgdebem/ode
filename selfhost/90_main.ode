@@ -36,6 +36,51 @@ fn stemOf(path: *i8): *i8 {
   return textSlice(path, start, end - start);
 }
 
+// Reads, lexes and parses one file onto the end of `program`. The lexer stops
+// the compile at its first error, so a file that cannot be lexed ends the run
+// here.
+fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
+              source: *i8): i32 {
+  let module: i32 = moduleAdd(path, real);
+  SOURCE_PATH = path;
+
+  let tokens: *TokenList = tokenize(source);
+  ast.currentModule = module;
+  parseModuleInto(parserNew(tokens, ast), program);
+
+  return module;
+}
+
+// Finds the file an import names, loading it the first time any file asks.
+fn loadImport(ast: *Ast, program: i32, item: i32): void {
+  let importer: *i8 = modulePath(ast.nodes[item].module);
+  let path: *i8 = resolveImportPath(importer, ast.nodes[item].text);
+  let real: *i8 = realpath(path, nullText());
+  let source: *i8 = nullText();
+
+  if (!isNullText(real)) {
+    let loaded: i32 = moduleFind(real);
+    if (loaded >= 0) {
+      ast.nodes[item].extra = loaded;
+      return;
+    }
+    source = readFile(path);
+  }
+
+  if (isNullText(source)) {
+    let message: *Buf = bufNew();
+    bufAdd(message, "cannot find module '");
+    bufAdd(message, ast.nodes[item].text);
+    bufPush(message, '\'');
+    SOURCE_PATH = importer;
+    report(ast.nodes[item].line, ast.nodes[item].column, message.data);
+    FAILED = false;
+    return;
+  }
+
+  ast.nodes[item].extra = loadModule(ast, program, path, real, source);
+}
+
 fn withSuffix(base: *i8, suffix: *i8): *i8 {
   let out: *Buf = bufNew();
   bufAdd(out, base);
@@ -107,8 +152,27 @@ fn main(argc: i32, argv: **i8): i32 {
   }
 
   let ast: *Ast = astNew();
-  let parser: *Parser = parserNew(tokens, ast);
-  let root: i32 = parseProgram(parser);
+  let root: i32 = astAdd(ast, NK_PROGRAM, 0, 0);
+
+  let real: *i8 = realpath(path, nullText());
+  if (isNullText(real)) {
+    real = path;
+  }
+  moduleAdd(path, real);
+  parseModuleInto(parserNew(tokens, ast), root);
+
+  // Imports are followed breadth first. A loaded file's declarations land on
+  // the end of the program's list, so walking the list to its end reaches
+  // every file's imports, and a file loaded twice is found by its real path.
+  let item: i32 = 0;
+  while (item < ast.nodes[root].itemCount) {
+    let statement: i32 = ast.nodes[root].items[item];
+    if (ast.nodes[statement].kind == NK_IMPORT) {
+      loadImport(ast, root, statement);
+    }
+    item = item + 1;
+  }
+  SOURCE_PATH = path;
 
   // A tree with a hole in it says nothing trustworthy about types, so the
   // syntax errors are reported on their own rather than alongside whatever

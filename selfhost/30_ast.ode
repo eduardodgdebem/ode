@@ -47,6 +47,8 @@ let NK_PARAM: i32 = 32;
 let NK_ARGS: i32 = 33;
 // Stands in for a construct that did not parse.
 let NK_ERROR: i32 = 34;
+let NK_IMPORT: i32 = 35;
+let NK_IMPORTNAME: i32 = 36;
 
 struct Node {
   kind: i32,
@@ -75,27 +77,38 @@ struct Node {
   //   field access a=object
   //   index    a=base   b=index
   //   sizeof   a=type
+  //   importname a=alias, an ident, when the name is renamed with `as`
   a: i32,
   b: i32,
   c: i32,
-  // Pointer depth, for a type node.
+  // Pointer depth, for a type node. For an import, the module it loads, once
+  // the driver has found it.
   extra: i32,
-  // Child indices, for program, block, struct, structlit, params and args.
+  // Child indices, for program, block, struct, structlit, params, args and
+  // import.
   items: *i32,
   itemCount: i32,
   itemCapacity: i32,
+  // The source file this node was parsed from, as an index into MODULES.
+  module: i32,
+  // Set on a top-level declaration written with `export`.
+  exported: bool,
 }
 
 struct Ast {
   nodes: *Node,
   count: i32,
   capacity: i32,
+  // Every file is parsed into the one arena, so nodes are stamped with the
+  // file being parsed as they are made.
+  currentModule: i32,
 }
 
 fn astNew(): *Ast {
   let ast: *Ast = malloc(sizeof(Ast) as i64) as *Ast;
   ast.capacity = 256;
   ast.count = 0;
+  ast.currentModule = 0;
   ast.nodes = malloc(sizeof(Node) as i64 * ast.capacity as i64) as *Node;
 
   return ast;
@@ -121,6 +134,8 @@ fn astAdd(ast: *Ast, kind: i32, line: i32, column: i32): i32 {
   ast.nodes[index].items = 0 as i64 as *i32;
   ast.nodes[index].itemCount = 0;
   ast.nodes[index].itemCapacity = 0;
+  ast.nodes[index].module = ast.currentModule;
+  ast.nodes[index].exported = false;
   ast.count = ast.count + 1;
 
   return index;
@@ -187,6 +202,8 @@ fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_PARAM) { return "param"; }
   if (kind == NK_ARGS) { return "args"; }
   if (kind == NK_ERROR) { return "error"; }
+  if (kind == NK_IMPORT) { return "import"; }
+  if (kind == NK_IMPORTNAME) { return "importname"; }
 
   return "?";
 }
@@ -206,6 +223,9 @@ fn nodeCarriesText(kind: i32): bool {
     return true;
   }
   if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
+    return true;
+  }
+  if (kind == NK_IMPORT || kind == NK_IMPORTNAME) {
     return true;
   }
 
