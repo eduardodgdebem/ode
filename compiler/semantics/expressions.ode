@@ -148,7 +148,7 @@ fn charType(expected: Type): Type {
 // Whether an expression is built from number and character literals and
 // sizes alone -- `1`, `-2`, `'a' + 1`, `sizeof(T) * 4` -- and so has no type
 // until its context gives it one.
-export fn isLiteralTree(an: *Analyzer, node: i32): bool {
+fn isLiteralTree(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
   if (kind == NodeKind.Number || kind == NodeKind.Sizeof ||
       kind == NodeKind.Char) {
@@ -217,9 +217,15 @@ fn checkCall(an: *Analyzer, node: i32): Type {
                             an.ast.nodes[node].a);
   }
 
-  checkArguments(an, node, name, an.ast.nodes[node].a,
-                 an.symbols.items[symbol].params,
-                 an.symbols.items[symbol].paramCount);
+  if (an.symbols.items[symbol].variadic) {
+    checkVariadicArguments(an, node, name, an.ast.nodes[node].a,
+                           an.symbols.items[symbol].params,
+                           an.symbols.items[symbol].paramCount);
+  } else {
+    checkArguments(an, node, name, an.ast.nodes[node].a,
+                   an.symbols.items[symbol].params,
+                   an.symbols.items[symbol].paramCount);
+  }
 
   return an.symbols.items[symbol].type;
 }
@@ -244,7 +250,16 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
                   detail.data);
   }
 
-  for (index in 0..argCount) {
+  if (argCount < paramCount) {
+    paramCount = argCount;
+  }
+  checkArgumentTypes(an, node, name, args, params, paramCount);
+}
+
+// Checks the first `count` arguments against their parameters.
+fn checkArgumentTypes(an: *Analyzer, node: i32, name: *i8, args: i32,
+                      params: *Type, count: i32): void {
+  for (index in 0..count) {
     let argument: i32 = an.ast.nodes[args].items[index];
     let paramType: Type = params[index];
     let argType: Type = checkExprAs(an, argument, paramType);
@@ -262,6 +277,52 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
                                    argType.toText()));
     }
   }
+}
+
+// A call of an extern declared with `...`: the named parameters are checked
+// as usual, and anything after them may be any value C can be handed.
+fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
+                          params: *Type, paramCount: i32): void {
+  let argCount: i32 = 0;
+  if (args != NO_NODE) {
+    argCount = an.ast.nodes[args].itemCount;
+  }
+
+  if (argCount < paramCount) {
+    let detail: *Buf = Buf.new();
+    detail.add("expected at least ");
+    detail.addInt(paramCount as i64);
+    detail.add(" but got ");
+    detail.addInt(argCount as i64);
+
+    analyzerFail2(an, node, quoted("wrong number of arguments to ", name, ""),
+                  detail.data);
+    return;
+  }
+
+  checkArgumentTypes(an, node, name, args, params, paramCount);
+
+  for (index in paramCount..argCount) {
+    let argument: i32 = an.ast.nodes[args].items[index];
+    let type: Type = checkExpr(an, argument);
+    if (FAILED) {
+      return;
+    }
+    if (type.isVoid() || type.isStruct()) {
+      let context: *Buf = Buf.new();
+      context.add("argument ");
+      context.addInt((index + 1) as i64);
+      context.add(" of '");
+      context.add(name);
+      context.add("' cannot go through '...'");
+      analyzerFail2(an, node, context.data,
+                    quoted("a ", type.toText(),
+                           " has no C type; pass a pointer or a number"));
+      return;
+    }
+  }
+
+  an.variadicAfter[node] = paramCount + 1;
 }
 
 fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {

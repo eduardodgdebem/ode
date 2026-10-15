@@ -1,5 +1,7 @@
 // Globals can be made from earlier globals and constant arithmetic.
 
+extern fn printf(format: *i8, ...): i32;
+
 enum Level { Low, Mid = 10, High }
 
 struct Pair {
@@ -27,18 +29,18 @@ let ON: bool = true;
 let STILL_ON: bool = ON;
 
 fn main(): i32 {
-  print(CELLS);
-  print(HALF);
-  print(MASK);
-  print(SHIFTED);
-  print(PAIR_SIZE);
-  print(NEGATIVE);
-  print(TRUNCATED);
-  print(TOP);
-  print(CHOSEN as i32);
-  print(ALIAS);
-  print(SAME_RATE);
-  print(STILL_ON);
+  printf("%d\n", CELLS);
+  printf("%d\n", HALF);
+  printf("%u\n", MASK);
+  printf("%u\n", SHIFTED);
+  printf("%lld\n", PAIR_SIZE);
+  printf("%d\n", NEGATIVE);
+  printf("%d\n", TRUNCATED);
+  printf("%d\n", TOP);
+  printf("%d\n", CHOSEN as i32);
+  printf("%s\n", ALIAS);
+  printf("%f\n", SAME_RATE);
+  printf("%d\n", STILL_ON);
 
   return 0;
 }

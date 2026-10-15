@@ -5,7 +5,9 @@ fn main(): i32 {
   let c: C = C { hits: 0 };
   bump(&c);
   bump(&c);
-  print(c.hits);
-  print(LIMIT + AGAIN);
+  printf("%d\n", c.hits);
+  printf("%d\n", LIMIT + AGAIN);
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

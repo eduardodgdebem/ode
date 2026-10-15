@@ -1,5 +1,7 @@
 // match: choosing a block by value, on enums, integers and characters.
 
+extern fn printf(format: *i8, ...): i32;
+
 enum Shape { Circle, Square, Triangle }
 
 fn sides(shape: Shape): i32 {
@@ -64,20 +66,20 @@ fn describe(n: i64): *i8 {
 }
 
 fn main(): i32 {
-  print(sides(Shape.Circle));
-  print(sides(Shape.Square));
-  print(sides(Shape.Triangle));
-  print(isRound(Shape.Circle));
-  print(isRound(Shape.Triangle));
+  printf("%d\n", sides(Shape.Circle));
+  printf("%d\n", sides(Shape.Square));
+  printf("%d\n", sides(Shape.Triangle));
+  printf("%d\n", isRound(Shape.Circle));
+  printf("%d\n", isRound(Shape.Triangle));
 
-  print(classify('7'));
-  print(classify('\t'));
-  print(classify('x'));
+  printf("%s\n", classify('7'));
+  printf("%s\n", classify('\t'));
+  printf("%s\n", classify('x'));
 
-  print(describe(0 as i64));
-  print(describe(-1 as i64));
-  print(describe(3000000000 as i64));
-  print(describe(42 as i64));
+  printf("%s\n", describe(0 as i64));
+  printf("%s\n", describe(-1 as i64));
+  printf("%s\n", describe(3000000000 as i64));
+  printf("%s\n", describe(42 as i64));
 
   // Arms that fall through to code after the match, inside a loop, with
   // break and continue acting on the loop.
@@ -100,16 +102,16 @@ fn main(): i32 {
     }
     total = total + 100;
   }
-  print(total);
+  printf("%d\n", total);
 
   // A u8 above 127.
   let byte: u8 = 200 as u8;
   match (byte) {
     200 => {
-      print("two hundred");
+      printf("%s\n", "two hundred");
     }
     else => {
-      print("not two hundred");
+      printf("%s\n", "not two hundred");
     }
   }
 

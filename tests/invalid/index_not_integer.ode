@@ -1,6 +1,8 @@
 fn main(): i32 {
   let text: *i8 = "ode";
-  print(text[true]);
+  printf("%d\n", text[true]);
 
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

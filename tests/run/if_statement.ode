@@ -1,5 +1,7 @@
 // An `if` without an `else`.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
   let num: i32 = 0;
 
@@ -7,5 +9,5 @@ fn main(): i32 {
     num = 9;
   }
 
-  print(num);
+  printf("%d\n", num);
 }

@@ -1,6 +1,8 @@
 // Generics: structs and functions with type parameters, made into one
 // instance per distinct set of type arguments.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn malloc(size: i64): *i8;
 extern fn realloc(block: *i8, size: i64): *i8;
 
@@ -62,28 +64,28 @@ fn main(): i32 {
   for (i in 0..10) {
     numbers.push(i * i);
   }
-  print(numbers.at(9));
-  print(numbers.count);
+  printf("%d\n", numbers.at(9));
+  printf("%d\n", numbers.count);
 
   let words: *List<*i8> = List<*i8>.new();
   words.push("hello");
   words.push("generics");
-  print(words.at(1));
+  printf("%s\n", words.at(1));
 
   let p: Pair<i32, bool> = Pair<i32, bool> { first: 7, second: true };
-  print(p.first);
-  print(p.second);
+  printf("%d\n", p.first);
+  printf("%d\n", p.second);
 
   let pairs: *List<Pair<i32, bool>> = List<Pair<i32, bool>>.new();
   pairs.push(p);
-  print(pairs.at(0).first);
+  printf("%d\n", pairs.at(0).first);
 
-  print(sumOf<i32>(numbers, 0));
+  printf("%d\n", sumOf<i32>(numbers, 0));
 
   let swapped: Pair<bool, i32> = swap<i32, bool>(p);
-  print(swapped.second);
+  printf("%d\n", swapped.second);
 
-  print(max<i32>(3, 9));
-  print(max<f64>(2.5 as f64, 1.5 as f64));
+  printf("%d\n", max<i32>(3, 9));
+  printf("%f\n", max<f64>(2.5 as f64, 1.5 as f64));
   return 0;
 }

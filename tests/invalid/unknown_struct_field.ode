@@ -4,7 +4,9 @@ struct Point {
 
 fn main(): i32 {
   let point: Point = Point { x: 1 };
-  print(point.z);
+  printf("%d\n", point.z);
 
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

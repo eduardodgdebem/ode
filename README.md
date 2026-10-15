@@ -12,10 +12,12 @@ struct Counter {
   }
 }
 
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
   let c: Counter = Counter { hits: 0 };
   c.bump();
-  print(c.hits);
+  printf("%d\n", c.hits);
   return 0;
 }
 ```

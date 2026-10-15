@@ -86,7 +86,6 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
     TokenKind.Break => { return parseBreakStmt(parser); }
     TokenKind.Continue => { return parseContinueStmt(parser); }
     TokenKind.Return => { return parseReturnStmt(parser); }
-    TokenKind.Print => { return parsePrintStmt(parser); }
     else => {}
   }
 
@@ -331,17 +330,6 @@ fn parseReturnStmt(parser: *Parser): i32 {
   return node;
 }
 
-fn parsePrintStmt(parser: *Parser): i32 {
-  parser.expect(TokenKind.Print, "print");
-  let expr: i32 = parseExpr(parser);
-  parser.expect(TokenKind.Semicolon, ";");
-
-  let node: i32 = parser.ast.add(NodeKind.Print, 0, 0);
-  parser.ast.nodes[node].a = expr;
-
-  return node;
-}
-
 fn parseParamList(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let node: i32 = parser.ast.add(NodeKind.Params, start.line, start.column);
@@ -353,6 +341,14 @@ fn parseParamList(parser: *Parser): i32 {
   }
 
   while (true) {
+    // `...` ends the list, and marks the function as taking any number of
+    // arguments after the ones named.
+    if (parser.kind() == TokenKind.Ellipsis) {
+      parser.advance();
+      parser.ast.nodes[node].extra = 1;
+      break;
+    }
+
     let name: *Token = parser.expect(TokenKind.Ident, "parameter name");
     parser.expect(TokenKind.Colon, ":");
 

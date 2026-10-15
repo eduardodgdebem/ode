@@ -13,7 +13,6 @@ import { textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type, parseMagnitude } from "./types";
-import { SymbolKind } from "./symbols";
 import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
 import { sizeOf } from "./layout";
 

@@ -3,6 +3,8 @@
 // an allocation, a pointer field for the link, and `.` following that pointer
 // without an explicit dereference.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn malloc(size: i64): *i8;
 extern fn free(block: *i8): void;
 
@@ -65,13 +67,13 @@ fn main(): i32 {
   list = push(list, 2);
   list = push(list, 3);
 
-  print(length(list));
-  print(sum(list));
+  printf("%d\n", length(list));
+  printf("%d\n", sum(list));
 
   // Chained through two pointers.
-  print(list.value);
-  print(list.next.value);
-  print(list.next.next.value);
+  printf("%d\n", list.value);
+  printf("%d\n", list.next.value);
+  printf("%d\n", list.next.next.value);
 
   release(list);
   return 0;

@@ -3,8 +3,8 @@
 //
 // Ode reaches libc through `extern`, with no headers: each function is
 // declared here by hand, with the types the C ABI gives it. Anything taking
-// or returning a struct is out of reach (structs cannot cross `extern` by
-// value), and so is anything variadic, such as printf.
+// or returning a struct is out of reach, since structs cannot cross `extern`
+// by value.
 // ---------------------------------------------------------------------------
 
 export extern fn malloc(size: i64): *i8;

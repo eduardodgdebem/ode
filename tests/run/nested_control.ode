@@ -3,6 +3,8 @@
 // inside an `if`, a `while` inside a `while`, and an early return from
 // inside a loop.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn classify(n: i32): i32 {
   if (n < 0) {
     return 0 - 1;
@@ -59,12 +61,12 @@ fn triangle(n: i32): i32 {
 }
 
 fn main(): i32 {
-  print(classify(0 - 5));
-  print(classify(6));
-  print(classify(9));
-  print(firstFactor(91));
-  print(firstFactor(13));
-  print(triangle(5));
+  printf("%d\n", classify(0 - 5));
+  printf("%d\n", classify(6));
+  printf("%d\n", classify(9));
+  printf("%d\n", firstFactor(91));
+  printf("%d\n", firstFactor(13));
+  printf("%d\n", triangle(5));
 
   return 0;
 }

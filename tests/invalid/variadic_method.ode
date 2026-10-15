@@ -1,0 +1,9 @@
+struct Log {
+  level: i32,
+
+  fn write(self: Log, format: *i8, ...): void {}
+}
+
+fn main(): i32 {
+  return 0;
+}

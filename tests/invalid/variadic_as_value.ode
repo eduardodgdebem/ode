@@ -1,0 +1,7 @@
+extern fn printf(format: *i8, ...): i32;
+
+fn main(): i32 {
+  let say: fn(*i8): i32 = printf;
+
+  return 0;
+}

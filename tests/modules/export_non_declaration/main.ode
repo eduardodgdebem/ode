@@ -1,4 +1,4 @@
-export print(1);
+export while (true) {}
 
 fn main(): i32 {
   return 0;

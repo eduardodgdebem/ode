@@ -1,6 +1,8 @@
 // Functions as values: stored, passed, returned, kept in structs and tables,
 // and handed to C as callbacks.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn malloc(size: i64): *i8;
 extern fn qsort(base: *i8, count: i64, size: i64,
                 compare: fn(*i8, *i8): i32): void;
@@ -68,13 +70,13 @@ fn compareInts(a: *i8, b: *i8): i32 {
 
 fn main(): i32 {
   let op: fn(i32, i32): i32 = add;
-  print(op(2, 3));
+  printf("%d\n", op(2, 3));
   op = multiply;
-  print(op(2, 3));
+  printf("%d\n", op(2, 3));
 
-  print(apply(square, 7));
-  print(apply(negate, 7));
-  print(apply(DEFAULT, 4));
+  printf("%d\n", apply(square, 7));
+  printf("%d\n", apply(negate, 7));
+  printf("%d\n", apply(DEFAULT, 4));
 
   let values: *i32 = malloc(sizeof(i32) as i64 * 5 as i64) as *i32;
   values[0] = 5;
@@ -82,34 +84,34 @@ fn main(): i32 {
   values[2] = 9;
   values[3] = 1;
   values[4] = 7;
-  print(fold(values, 5, 0, add));
-  print(fold(values, 5, 1, multiply));
-  print(pick('+')(10, 20));
-  print(pick('*')(10, 20));
+  printf("%d\n", fold(values, 5, 0, add));
+  printf("%d\n", fold(values, 5, 1, multiply));
+  printf("%d\n", pick('+')(10, 20));
+  printf("%d\n", pick('*')(10, 20));
 
   let op2: Operation = Operation { name: "square", run: square };
-  print(op2.run(9));
+  printf("%d\n", op2.run(9));
   let p: *Operation = &op2;
   p.run = negate;
-  print(p.run(9));
+  printf("%d\n", p.run(9));
 
   // A table of functions, indexed and called.
   let table: *fn(i32): i32 =
       malloc(sizeof(fn(i32): i32) as i64 * 2 as i64) as *fn(i32): i32;
   table[0] = square;
   table[1] = negate;
-  print(table[0](5) + table[1](5));
+  printf("%d\n", table[0](5) + table[1](5));
 
   // `null` is the absence of a function, and functions compare.
   let missing: fn(i32): i32 = null;
-  print(missing == null);
-  print(table[0] == square);
-  print(table[0] != table[1]);
+  printf("%d\n", missing == null);
+  printf("%d\n", table[0] == square);
+  printf("%d\n", table[0] != table[1]);
 
   qsort(values as *i8, 5 as i64, sizeof(i32) as i64, compareInts);
   let i: i32 = 0;
   while (i < 5) {
-    print(values[i]);
+    printf("%d\n", values[i]);
     i = i + 1;
   }
 

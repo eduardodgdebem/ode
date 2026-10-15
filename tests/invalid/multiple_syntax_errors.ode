@@ -11,6 +11,8 @@ fn second(): i32 {
 }
 
 fn main(): i32 {
-  print(first() + second())
+  printf("%d\n", first() + second())
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

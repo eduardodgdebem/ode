@@ -1,5 +1,7 @@
 // for loops over a range: the start included, the end not.
 
+extern fn printf(format: *i8, ...): i32;
+
 let calls: i32 = 0;
 
 fn limit(): i32 {
@@ -12,7 +14,7 @@ fn main(): i32 {
   for (i in 0..10) {
     sum = sum + i;
   }
-  print(sum);
+  printf("%d\n", sum);
 
   // The bounds may be any integer type; a literal bound takes the other's.
   let count: i64 = 3000000000 as i64;
@@ -20,23 +22,23 @@ fn main(): i32 {
   for (i in 2999999998 as i64..count) {
     last = i;
   }
-  print(last);
+  printf("%lld\n", last);
 
   let bytes: u8 = 0 as u8;
   for (b in 250 as u8..255 as u8) {
     bytes = bytes + 1 as u8;
   }
-  print(bytes);
+  printf("%u\n", bytes);
 
   // An empty range runs nothing, and a negative start counts up from it.
   for (i in 5..5) {
-    print("never");
+    printf("%s\n", "never");
   }
   let negatives: i32 = 0;
   for (i in -3..0) {
     negatives = negatives + i;
   }
-  print(negatives);
+  printf("%d\n", negatives);
 
   // break and continue.
   let odd: i32 = 0;
@@ -49,7 +51,7 @@ fn main(): i32 {
     }
     odd = odd + i;
   }
-  print(odd);
+  printf("%d\n", odd);
 
   // Assigning to the variable does not change how many passes there are.
   let passes: i32 = 0;
@@ -57,7 +59,7 @@ fn main(): i32 {
     i = 100;
     passes = passes + 1;
   }
-  print(passes);
+  printf("%d\n", passes);
 
   // Nested, and the end evaluated once.
   let cells: i32 = 0;
@@ -66,14 +68,14 @@ fn main(): i32 {
       cells = cells + 1;
     }
   }
-  print(cells);
-  print(calls);
+  printf("%d\n", cells);
+  printf("%d\n", calls);
 
   // The variable is scoped to the loop, so the name can be reused.
   let i: i32 = 42;
   for (i in 0..2) {
   }
-  print(i);
+  printf("%d\n", i);
 
   return 0;
 }

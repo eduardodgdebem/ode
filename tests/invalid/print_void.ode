@@ -1,9 +1,0 @@
-fn nothing(): void {
-  return;
-}
-
-fn main(): i32 {
-  print(nothing());
-
-  return 0;
-}

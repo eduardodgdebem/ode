@@ -114,6 +114,15 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
 
 // A function's name used as a value: its type is its signature.
 export fn checkFunctionRef(an: *Analyzer, node: i32, symbol: i32): Type {
+  // A function type has no `...`, so a variadic extern has no value as one.
+  if (an.symbols.items[symbol].variadic) {
+    analyzerFail2(an, node,
+                  quoted("cannot use ", an.symbols.items[symbol].name,
+                         " as a value"),
+                  "it takes '...', which a function type cannot say");
+    return Type.make(TypeKind.None, 0);
+  }
+
   an.functionRefs[node] = 1;
   an.linkNames[node] = an.symbols.items[symbol].linkName;
 

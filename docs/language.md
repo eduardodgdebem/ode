@@ -9,21 +9,25 @@ should.
 ## A first program
 
 ```rust
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
-  print("Hello, World!");
+  printf("Hello, World!\n");
   return 0;
 }
 ```
 
 Execution starts at `main`, and what it returns is the process's exit status.
-`print` writes any value but a struct, followed by a newline.
+Output goes through C: `printf` is declared with `extern` and called like any
+other function (see [Calling C](#calling-c)). The examples below leave its
+declaration out.
 
 Functions declare every parameter's type and their return type, and may be
 called before they are declared:
 
 ```rust
 fn main(): i32 {
-  print(sum(1, -1));
+  printf("%d\n", sum(1, -1));
   return 0;
 }
 
@@ -148,7 +152,7 @@ fn apply(f: fn(i32): i32, x: i32): i32 {
 }
 
 let op: fn(i32): i32 = square;
-print(apply(op, 7));     // 49
+printf("%d\n", apply(op, 7));  // 49
 ```
 
 A function value can be kept in a struct and called like a method, kept in a
@@ -180,7 +184,7 @@ fn max<T>(a: T, b: T): T {
 
 let names: *List<*i8> = List<*i8>.new();
 names.push("ode");
-print(max<i64>(3, 9));
+printf("%lld\n", max<i64>(3, 9));
 ```
 
 Each set of arguments makes an instance -- `List<i32>` and `List<*i8>` are
@@ -199,6 +203,21 @@ extern fn malloc(size: i64): *i8;
 extern fn free(block: *i8): void;
 extern fn putchar(character: i32): i32;
 ```
+
+A C function that takes a variable number of arguments is declared with
+`...` after the parameters it names, and called with any number after them:
+
+```rust
+extern fn printf(format: *i8, ...): i32;
+
+printf("%s is %d\n", name, age);
+```
+
+What goes through `...` is promoted as C promotes it — anything narrower than
+an `int`, and `bool`, widens to `i32`, and an `f32` to an `f64` — so the
+format has to match the promoted type: `%d` for an `i8`, `%f` for an `f32`,
+`%lld` for an `i64`, `%s` for a `*i8`. A struct cannot go through `...`, and
+only an `extern` can take it.
 
 ## Structs
 
@@ -258,7 +277,7 @@ struct Vec2 {
 let v: Vec2 = Vec2.new(3, 4);
 v.scale(2);                // passed &v
 let p: *Vec2 = &v;
-print(p.lengthSquared());  // passed *p
+printf("%d\n", p.lengthSquared());  // passed *p
 ```
 
 As in Go, the receiver is adapted to `self`: a variable is passed by address
@@ -322,8 +341,7 @@ fn isDigit(c: i8): bool {
 }
 ```
 
-`print` renders `*i8` as text; every other pointer prints as an address.
-Indexing a string yields its bytes, so `GREETING[0]` is `'O'`. Comments are
+`printf("%s", text)` writes one as text. Indexing a string yields its bytes, so `GREETING[0]` is `'O'`. Comments are
 recognised by the lexer, so a `//` inside a literal is just text.
 
 ## Arrays
@@ -334,7 +352,7 @@ works on either side of an assignment:
 ```rust
 let values: *i32 = malloc(sizeof(i32) * 8) as *i32;
 values[0] = 41;
-print(values[0]);
+printf("%d\n", values[0]);
 ```
 
 ## Globals
@@ -384,7 +402,7 @@ import { Vec2, vecAdd as add } from "./geometry";
 
 fn main(): i32 {
   let v: Vec2 = add(Vec2 { x: 1, y: 2 }, Vec2 { x: 3, y: 4 });
-  print(v.y);
+  printf("%d\n", v.y);
   return 0;
 }
 ```

@@ -2,6 +2,8 @@
 // compiler heap allocation and I/O without any of it being built into the
 // language.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn malloc(size: i64): *i8;
 extern fn free(block: *i8): void;
 extern fn putchar(character: i32): i32;
@@ -26,7 +28,7 @@ fn main(): i32 {
   putchar(10);
 
   // Pointer difference counts elements, not bytes.
-  print((buffer + length) - buffer);
+  printf("%lld\n", (buffer + length) - buffer);
 
   free(buffer);
   return 0;

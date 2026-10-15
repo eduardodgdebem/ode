@@ -3,6 +3,8 @@
 // The kind is an enum, and evaluating a node is a match on it, so a new kind
 // of node is a compile error at every match that does not handle it yet.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn malloc(size: i64): *i8;
 
 enum Kind { Number, Add, Multiply }
@@ -67,9 +69,9 @@ fn main(): i32 {
                            binary(Kind.Add, number(2), number(3)),
                            number(4));
 
-  print(eval(tree));
-  print(allocations);
-  print(sizeof(Expr));
+  printf("%d\n", eval(tree));
+  printf("%d\n", allocations);
+  printf("%llu\n", sizeof(Expr));
 
   return 0;
 }

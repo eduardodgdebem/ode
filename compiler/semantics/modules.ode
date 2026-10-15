@@ -576,6 +576,7 @@ export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
                           an.ast.nodes[importName].column);
             if (an.symbols.count > before) {
               an.symbols.items[before].linkName = symbols.items[found].linkName;
+              an.symbols.items[before].variadic = symbols.items[found].variadic;
             }
             FAILED = false;
           }

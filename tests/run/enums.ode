@@ -1,5 +1,7 @@
 // Enums: named integer constants with a type of their own.
 
+extern fn printf(format: *i8, ...): i32;
+
 enum Color { Red, Green, Blue }
 
 // Values count up from the one before, or from a value written out.
@@ -30,33 +32,33 @@ fn next(color: Color): Color {
 
 fn main(): i32 {
   let c: Color = Color.Red;
-  print(c == Color.Red);
-  print(c != Color.Blue);
+  printf("%d\n", c == Color.Red);
+  printf("%d\n", c != Color.Blue);
 
   c = next(next(c));
-  print(c == Color.Blue);
-  print(c as i32);
+  printf("%d\n", c == Color.Blue);
+  printf("%d\n", c as i32);
 
-  print(Status.Ok as i32);
-  print(Status.NotFound as i32);
-  print(Status.Gone as i32);
-  print(Status.Negative as i32);
-  print(Status.AfterNegative as i32);
+  printf("%d\n", Status.Ok as i32);
+  printf("%d\n", Status.NotFound as i32);
+  printf("%d\n", Status.Gone as i32);
+  printf("%d\n", Status.Negative as i32);
+  printf("%d\n", Status.AfterNegative as i32);
 
   // An integer converts to an enum only when asked.
   let fromNumber: Color = 1 as Color;
-  print(fromNumber == Color.Green);
+  printf("%d\n", fromNumber == Color.Green);
 
   // In a struct, a global, and as a sizeof.
   let pixel: Pixel = Pixel { x: 3, color: DEFAULT };
-  print(pixel.color == Color.Green);
-  print(sizeof(Color));
-  print(sizeof(Pixel));
+  printf("%d\n", pixel.color == Color.Green);
+  printf("%llu\n", sizeof(Color));
+  printf("%llu\n", sizeof(Pixel));
 
   // Through a pointer.
   let p: *Pixel = &pixel;
   p.color = Color.Blue;
-  print(pixel.color == Color.Blue);
+  printf("%d\n", pixel.color == Color.Blue);
 
   return 0;
 }

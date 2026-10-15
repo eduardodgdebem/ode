@@ -1,5 +1,7 @@
 // `.` follows however many pointers stand between it and the struct.
 
+extern fn printf(format: *i8, ...): i32;
+
 struct Point {
   x: i32,
   y: i32,
@@ -19,15 +21,15 @@ fn main(): i32 {
   let two: **Point = &one;
   let three: ***Point = &two;
 
-  print(two.x);
-  print(three.y);
+  printf("%d\n", two.x);
+  printf("%d\n", three.y);
 
   three.x = 10;
-  print(point.x);
+  printf("%d\n", point.x);
 
   two.shift(5);
-  print(point.x);
-  print(three.sum());
+  printf("%d\n", point.x);
+  printf("%d\n", three.sum());
 
   return 0;
 }

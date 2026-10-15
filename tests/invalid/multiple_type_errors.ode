@@ -5,11 +5,11 @@ fn main(): i32 {
   let b: i32 = true;
   let c: i32 = "text";
 
-  print(a);
-  print(b + c);
+  printf("%d\n", a);
+  printf("%d\n", b + c);
 
   if (b) {
-    print(1);
+    printf("%d\n", 1);
   }
 
   while (c) {
@@ -18,3 +18,5 @@ fn main(): i32 {
 
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

@@ -109,9 +109,15 @@ module.exports = grammar({
 
     parameter_list: $ => seq(
       '(',
-      optional(seq($.parameter, repeat(seq(',', $.parameter)), optional(','))),
+      optional(choice(
+        seq($.parameter, repeat(seq(',', $.parameter)),
+            optional(seq(',', $.variadic))),
+        $.variadic,
+      )),
       ')',
     ),
+
+    variadic: _ => '...',
 
     parameter: $ => seq(
       field('name', $.identifier),
@@ -204,7 +210,6 @@ module.exports = grammar({
       $.break_statement,
       $.continue_statement,
       $.return_statement,
-      $.print_statement,
       $.expression_statement,
       $.block,
     ),
@@ -278,7 +283,6 @@ module.exports = grammar({
 
     return_statement: $ => seq('return', optional($._expression), ';'),
 
-    print_statement: $ => seq('print', '(', $._expression, ')', ';'),
 
     expression_statement: $ => seq($._expression, ';'),
 
