@@ -9,6 +9,7 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals, copy, slice } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED, report } from "../support/diagnostics";
 import { TokenKind, TokenList, kindName } from "./token";
 
@@ -133,7 +134,7 @@ struct Lexer {
 
     while (true) {
       if (self.atEnd()) {
-        lexError(line, column, "unterminated string literal");
+        lexError(Problem.UnterminatedString, line, column);
         break;
       }
 
@@ -145,7 +146,7 @@ struct Lexer {
       // The string is taken to end with its line, so the next line lexes as
       // it was written.
       if (character == '\n') {
-        lexError(line, column, "string literal may not cross a newline");
+        lexError(Problem.StringCrossesLine, line, column);
         break;
       }
 
@@ -174,12 +175,11 @@ struct Lexer {
     let raw: *Builder = Builder.new();
     while (self.peek() != '`') {
       if (self.atEnd()) {
-        lexError(line, column, "unterminated string literal");
+        lexError(Problem.UnterminatedString, line, column);
         break;
       }
       if (self.peek() == '$' && self.peekNext() == '{') {
-        lexError(self.line, self.column,
-                 "a string cannot interpolate: `${` has no meaning in Ode");
+        lexError(Problem.StringInterpolation, self.line, self.column);
       }
       raw.push(self.advance());
     }
@@ -207,7 +207,7 @@ struct Lexer {
       let high: i32 = hexValue(self.peek());
       let low: i32 = hexValue(self.peekNext());
       if (high < 0 || low < 0) {
-        lexError(line, column, "\\x must be followed by two hex digits");
+        lexError(Problem.BadHexEscape, line, column);
         return 0;
       }
       self.advance();
@@ -235,7 +235,7 @@ struct Lexer {
     }
 
     if (self.peek() != '\'') {
-      lexError(line, column, "character literal must hold exactly one character");
+      lexError(Problem.CharacterLiteralLength, line, column);
       // Skip to its closing quote, if it has one on this line.
       while (!self.atEnd() && self.peek() != '\'' && self.peek() != '\n') {
         self.advance();
@@ -315,7 +315,7 @@ struct Lexer {
     else if (first == ',') { kind = TokenKind.Comma; }
     else if (first == ':') { kind = TokenKind.Colon; }
     else {
-      lexError(line, column, "unexpected character");
+      lexError(Problem.UnexpectedCharacter, line, column);
       self.advance();
       return;
     }
@@ -403,7 +403,7 @@ fn escapeValue(character: i8, line: i32, column: i32): i8 {
   if (character == '"') { return '"'; }
   if (character == '\'') { return '\''; }
 
-  lexError(line, column, "unknown escape sequence");
+  lexError(Problem.UnknownEscape, line, column);
   return character;
 }
 
@@ -422,8 +422,8 @@ fn hexValue(character: i8): i32 {
 
 // Records a lexer error and carries on: each is a mistake of its own, so every
 // one in the file is reported, though none of the file is parsed.
-fn lexError(line: i32, column: i32, message: *i8): void {
-  report(line, column, message);
+fn lexError(problem: Problem, line: i32, column: i32): void {
+  report(problem, line, column, Facts.none());
   FAILED = false;
 }
 

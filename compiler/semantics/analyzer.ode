@@ -14,8 +14,9 @@ import { free } from "std/c";
 import { alloc, grow } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import {
-  SOURCE_PATH, FAILED, report, reportWithNote, failAt,
+  SOURCE_PATH, FAILED, report, internalError,
 } from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
@@ -157,24 +158,17 @@ export struct Analyzer {
 // raises FAILED; see support/diagnostics.ode for how checking recovers.
 // ---------------------------------------------------------------------------
 
-export fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
+export fn analyzerFail(an: *Analyzer, node: i32, problem: Problem,
+                       facts: Facts): void {
   SOURCE_PATH = moduleDisplayPath(an.ast.nodes[node].module);
-  report(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
-}
-
-// A failure with a note saying more: what was expected, what to do instead.
-export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
-                        detail: *i8): void {
-  SOURCE_PATH = moduleDisplayPath(an.ast.nodes[node].module);
-  reportWithNote(an.ast.nodes[node].line, an.ast.nodes[node].column, context,
-                 detail);
+  report(problem, an.ast.nodes[node].line, an.ast.nodes[node].column, facts);
 }
 
 // A failure about a value, pointed at where the value starts. A binary
 // expression is recorded at its operator, so `a + b` is followed down to `a`.
-export fn analyzerFailAtValue(an: *Analyzer, value: i32, context: *i8,
-                              detail: *i8): void {
-  analyzerFail2(an, expressionStart(an, value), context, detail);
+export fn analyzerFailAtValue(an: *Analyzer, value: i32, problem: Problem,
+                              facts: Facts): void {
+  analyzerFail(an, expressionStart(an, value), problem, facts);
 }
 
 // The node an expression's text starts with.
@@ -205,38 +199,6 @@ export fn before(an: *Analyzer, a: i32, b: i32): bool {
   return an.ast.nodes[a].column < an.ast.nodes[b].column;
 }
 
-// "expected 'a' but got 'b'"-shaped detail, which several checks want.
-export fn expectedButGot(expected: *i8, got: *i8): *i8 {
-  let message: *Builder = Builder.new();
-  message.add("expected '");
-  message.add(expected);
-  message.add("' but got '");
-  message.add(got);
-  message.push('\'');
-
-  return message.take();
-}
-
-export fn gotType(type: Type): *i8 {
-  let message: *Builder = Builder.new();
-  message.add("got '");
-  message.add(type.toText());
-  message.push('\'');
-
-  return message.take();
-}
-
-export fn gotTwoTypes(left: Type, right: Type): *i8 {
-  let message: *Builder = Builder.new();
-  message.add("got '");
-  message.add(left.toText());
-  message.add("' and '");
-  message.add(right.toText());
-  message.push('\'');
-
-  return message.take();
-}
-
 export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
   let message: *Builder = Builder.new();
   message.add(prefix);
@@ -257,7 +219,7 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
     return parseFunctionType(an, node);
   }
   if (node == NO_NODE || an.ast.nodes[node].kind != NodeKind.Type) {
-    failAt(0, 0, "expected type annotation");
+    internalError(0, 0, "expected type annotation");
   }
 
   let name: *i8 = an.ast.nodes[node].text;
@@ -301,8 +263,8 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
   }
 
   if (an.structs.indexOf(type.structName) < 0) {
-    analyzerFail2(an, node, context, quoted("unknown type ",
-                                            type.toText(), ""));
+    analyzerFail(an, node, Problem.UnknownType,
+                 Facts.aboutTwo(type.toText(), context));
   }
 }
 
@@ -340,8 +302,7 @@ fn registerStructName(an: *Analyzer, node: i32): void {
 
   let name: *i8 = an.ast.nodes[node].text;
   if (an.structs.indexOf(name) >= 0 || an.enumNames.has(name)) {
-    analyzerFail(an, node,
-                 quoted("struct ", name, " is declared more than once"));
+    analyzerFail(an, node, Problem.DuplicateStruct, Facts.about(name));
   }
 
   an.structs.add(name);
@@ -367,13 +328,8 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     }
 
     if (an.structs.fieldIndex(structIndex, fieldName) >= 0) {
-      let message: *Builder = Builder.new();
-      message.add("struct '");
-      message.add(name);
-      message.add("' declares field '");
-      message.add(fieldName);
-      message.add("' twice");
-      analyzerFail(an, node, message.data);
+      analyzerFail(an, node, Problem.DuplicateField,
+                   Facts.aboutTwo(name, fieldName));
     }
 
     let type: Type = analyzerParseType(an, an.ast.nodes[field].a);
@@ -387,13 +343,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     analyzerValidateType(an, node, type, context.data);
 
     if (type.isVoid()) {
-      let message: *Builder = Builder.new();
-      message.add("field '");
-      message.add(fieldName);
-      message.add("' of struct '");
-      message.add(name);
-      message.add("' cannot be void");
-      analyzerFail(an, node, message.data);
+      analyzerFail(an, node, Problem.VoidField, Facts.aboutTwo(fieldName, name));
     }
 
     an.structs.addField(structIndex, fieldName, type);
@@ -428,10 +378,8 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
 
         if (type.isStruct()) {
           if (equals(type.structName, an.structs.items[start].name)) {
-            analyzerFail2(an, program,
-                          quoted("struct ", an.structs.items[start].name,
-                                 " contains itself"),
-                          "use a pointer to break the cycle");
+            analyzerFail(an, program, Problem.RecursiveStruct,
+                     Facts.about(an.structs.items[start].name));
           }
 
           let target: i32 = an.structs.indexOf(type.structName);
@@ -459,7 +407,7 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
 
   analyzerValidateType(an, node, type, quoted("in declaration of ", name, ""));
   if (type.isVoid()) {
-    analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
+    analyzerFail(an, node, Problem.VoidVariable, Facts.about(name));
   }
 
   an.isGlobal[node] = 1;
@@ -523,16 +471,12 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
   // that this compiler does not do, so require a pointer.
   if (kind == NodeKind.Extern) {
     if (returnType.isStruct()) {
-      analyzerFail2(an, node,
-                    quoted("extern ", name, " returns a struct by value"),
-                    "return a pointer instead");
+      analyzerFail(an, node, Problem.ExternReturnsStruct, Facts.about(name));
     }
 
     for (index in 0..paramCount) {
       if (params[index].isStruct()) {
-        analyzerFail2(an, node,
-                      quoted("extern ", name, " takes a struct by value"),
-                      "take a pointer instead");
+        analyzerFail(an, node, Problem.ExternTakesStruct, Facts.about(name));
       }
     }
   }
@@ -543,8 +487,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
   // Only C can read arguments it was not told the types of.
   if (isVariadic(an, node)) {
     if (kind != NodeKind.Extern) {
-      analyzerFail2(an, node, quoted("function ", name, " takes '...'"),
-                    "only an extern can take a variable number of arguments");
+      analyzerFail(an, node, Problem.VariadicFunction, Facts.about(name));
     } else if (an.symbols.count > before) {
       an.symbols.items[before].variadic = true;
     }
@@ -657,6 +600,6 @@ export fn analyze(an: *Analyzer, program: i32): void {
   SOURCE_PATH = moduleDisplayPath(0);
   // `ode test` brings its own main.
   if (!TEST_MODE && an.moduleSymbols[0].find("main") < 0) {
-    report(0, 0, "No main function found");
+    report(Problem.NoMain, 0, 0, Facts.none());
   }
 }

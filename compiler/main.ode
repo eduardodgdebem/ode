@@ -12,6 +12,7 @@
 import { readFile } from "std/fs";
 import { Builder, equals } from "std/text";
 import { STDOUT, STDERR } from "./support/libc";
+import { Problem } from "./support/problems";
 import { writeText, writeBuilder } from "./support/text";
 import {
   SOURCE_PATH, Diagnostics, DIAGS, hasErrors, printDiagnostics, fail,
@@ -64,13 +65,13 @@ fn testMain(argc: i32, argv: **i8): i32 {
   if (isDirectory(path)) {
     let files: *TextList = findSources(path);
     if (files.size() == 0) {
-      fail("no .ode files to test here");
+      fail(Problem.NothingToTest);
     }
     loadFiles(ast, root, files);
   } else {
     let source: *i8 = readFile(path);
     if (source == null) {
-      fail("cannot open input file");
+      fail(Problem.CannotOpenInput);
     }
     loadProgram(ast, root, path, source);
   }
@@ -95,7 +96,7 @@ fn testMain(argc: i32, argv: **i8): i32 {
 
   let directory: *i8 = makeTempDirectory("ode-test");
   if (directory == null) {
-    fail("cannot make a scratch directory");
+    fail(Problem.CannotMakeScratchDirectory);
   }
   let program: *i8 = joinPath(directory, "tests");
   buildExecutable(module, program, false);
@@ -170,7 +171,7 @@ fn main(argc: i32, argv: **i8): i32 {
 
   let source: *i8 = readFile(path);
   if (source == null) {
-    fail("cannot open input file");
+    fail(Problem.CannotOpenInput);
   }
 
   let tokens: *TokenList = tokenize(source);

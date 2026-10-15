@@ -22,19 +22,22 @@ import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals, slice, contains } from "std/text";
 import { STDERR } from "./libc";
+import { Problem, Facts, Description, describe } from "./problems";
 import { writeBuilder } from "./text";
 import { isatty } from "./system";
+import { TypeKind, Type } from "../semantics/types";
 import { colour } from "../tool/testsuite";
 
 // The file being worked on, which every diagnostic is reported against.
 export let SOURCE_PATH: *i8 = "<none>";
 
+// A problem, where it was found. Its words come from `describe`, when it is
+// printed.
 export struct Diagnostic {
+  problem: Problem,
+  facts: Facts,
   // The file being worked on when it was reported.
   path: *i8,
-  message: *i8,
-  // More about it, or null.
-  note: *i8,
   line: i32,
   column: i32,
 }
@@ -67,12 +70,7 @@ export let DIAGS: *Diagnostics = null;
 // Raised by the construct that failed, lowered by whatever recovers from it.
 export let FAILED: bool = false;
 
-export fn report(line: i32, column: i32, message: *i8): void {
-  reportWithNote(line, column, message, null);
-}
-
-export fn reportWithNote(line: i32, column: i32, message: *i8,
-                         note: *i8): void {
+export fn report(problem: Problem, line: i32, column: i32, facts: Facts): void {
   // The first message about a construct is the one worth keeping; anything
   // after it is the same mistake seen from further away.
   if (FAILED) {
@@ -86,7 +84,7 @@ export fn reportWithNote(line: i32, column: i32, message: *i8,
   }
 
   DIAGS.items.push(Diagnostic {
-    path: SOURCE_PATH, message: message, note: note, line: line,
+    problem: problem, facts: facts, path: SOURCE_PATH, line: line,
     column: column,
   });
 }
@@ -252,7 +250,7 @@ fn ansi(code: *i8): *i8 {
 }
 
 // Everything recorded, as printDiagnostics prints it.
-fn formatDiagnostics(colour: bool): *Builder {
+export fn formatDiagnostics(colour: bool): *Builder {
   let style: Style = styleFor(colour);
   let out: *Builder = Builder.new();
 
@@ -276,6 +274,8 @@ fn formatDiagnostics(colour: bool): *Builder {
 }
 
 fn formatOne(out: *Builder, diagnostic: Diagnostic, style: Style): void {
+  let words: Description = describe(diagnostic.problem, diagnostic.facts);
+
   // `file:line:column: error: message`, which most editors can jump to. A
   // line of 0 means the position is unknown, which whole-program checks
   // report; those name the file alone.
@@ -293,7 +293,7 @@ fn formatOne(out: *Builder, diagnostic: Diagnostic, style: Style): void {
   out.add(style.off);
   out.add(style.bold);
   out.push(' ');
-  out.add(diagnostic.message);
+  out.add(words.message);
   out.add(style.off);
   out.push('\n');
 
@@ -323,12 +323,12 @@ fn formatOne(out: *Builder, diagnostic: Diagnostic, style: Style): void {
     }
   }
 
-  if (diagnostic.note != null) {
+  if (words.note != null) {
     out.add(style.note);
     out.add("note:");
     out.add(style.off);
     out.push(' ');
-    out.add(diagnostic.note);
+    out.add(words.note);
     out.push('\n');
   }
 }
@@ -338,15 +338,21 @@ fn formatOne(out: *Builder, diagnostic: Diagnostic, style: Style): void {
 // anything that has already been type-checked by the time codegen sees it.
 // ---------------------------------------------------------------------------
 
-export fn failAt(line: i32, column: i32, message: *i8): void {
+fn failAt(problem: Problem, line: i32, column: i32, facts: Facts): void {
   DIAGS = Diagnostics.new();
-  report(line, column, message);
+  FAILED = false;
+  report(problem, line, column, facts);
   printDiagnostics();
   exit(1);
 }
 
-export fn fail(message: *i8): void {
-  failAt(0, 0, message);
+export fn fail(problem: Problem): void {
+  failAt(problem, 0, 0, Facts.none());
+}
+
+// A fault in the compiler itself, which no program should be able to cause.
+export fn internalError(line: i32, column: i32, what: *i8): void {
+  failAt(Problem.Internal, line, column, Facts.about(what));
 }
 
 test "lineOf finds each line, and nothing past the last" {
@@ -370,7 +376,8 @@ test "a diagnostic shows its line, the spot, and its note" {
   DIAGS = Diagnostics.new();
   registerSource("main.ode", "fn main(): i32 {\n\treturn true;\n}\n");
   SOURCE_PATH = "main.ode";
-  reportWithNote(2, 2, "wrong return type", "expected 'i32' but got 'bool'");
+  report(Problem.WrongReturnType, 2, 2,
+         Facts.aboutTypes(Type.make(TypeKind.I32, 0), Type.make(TypeKind.Bool, 0)));
   assertEq(formatDiagnostics(false).take(),
            "main.ode:2:2: error: wrong return type\n\treturn true;\n\t^~~~~~\nnote: expected 'i32' but got 'bool'\n");
 }
@@ -378,24 +385,24 @@ test "a diagnostic shows its line, the spot, and its note" {
 test "a diagnostic without a position names the file alone" {
   DIAGS = Diagnostics.new();
   SOURCE_PATH = "main.ode";
-  report(0, 0, "No main function found");
+  report(Problem.NoMain, 0, 0, Facts.none());
   FAILED = false;
-  report(0, 0, "a second one");
+  report(Problem.NoMain, 0, 0, Facts.none());
   assertEq(formatDiagnostics(false).take(),
-           "main.ode: error: No main function found\nmain.ode: error: a second one\n2 errors generated.\n");
+           "main.ode: error: No main function found\nmain.ode: error: No main function found\n2 errors generated.\n");
 }
 
 test "colour wraps the location, the label, the caret and the note" {
   DIAGS = Diagnostics.new();
   registerSource("main.ode", "let x: i32 = y;\n");
   SOURCE_PATH = "main.ode";
-  reportWithNote(1, 14, "undefined variable 'y'", "declare it first");
+  report(Problem.RecursiveStruct, 1, 14, Facts.about("Node"));
   let text: *i8 = formatDiagnostics(true).take();
   let off: *i8 = ansi("0");
   assert(contains(text, concat(ansi("1;31"), "error:", off)));
   assert(contains(text, concat(ansi("1;32"), "^", off)));
   assert(contains(text, concat(ansi("1;36"), "note:", off)));
-  assert(contains(text, "declare it first"));
+  assert(contains(text, "use a pointer to break the cycle"));
 }
 
 fn concat(a: *i8, b: *i8, c: *i8): *i8 {

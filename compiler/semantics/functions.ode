@@ -21,11 +21,10 @@
 
 import { alloc } from "std/mem";
 import { Builder, equals } from "std/text";
-import { FAILED, failAt } from "../support/diagnostics";
+import { Problem, Facts } from "../support/problems";
+import { FAILED, internalError } from "../support/diagnostics";
 import { TypeKind, Type } from "./types";
-import {
-  Analyzer, analyzerFail, analyzerFail2, quoted, analyzerParseType,
-} from "./analyzer";
+import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
 import { checkExpr, checkArguments } from "./expressions";
 
 export struct Signature {
@@ -48,6 +47,8 @@ export enum CallTarget {
   // testing.ode.
   Assert,
   AssertEq,
+  // `nameOf(Color.Red)`: the member's name.
+  NameOf,
 }
 
 fn signatureText(params: *Type, count: i32, result: Type): *i8 {
@@ -95,7 +96,7 @@ export fn signatureIndex(an: *Analyzer, type: Type): i64 {
     }
   }
 
-  failAt(0, 0, "function type without a recorded signature");
+  internalError(0, 0, "function type without a recorded signature");
   return -1;
 }
 
@@ -120,10 +121,8 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
 export fn checkFunctionRef(an: *Analyzer, node: i32, symbol: i32): Type {
   // A function type has no `...`, so a variadic extern has no value as one.
   if (an.symbols.items[symbol].variadic) {
-    analyzerFail2(an, node,
-                  quoted("cannot use ", an.symbols.items[symbol].name,
-                         " as a value"),
-                  "it takes '...', which a function type cannot say");
+    analyzerFail(an, node, Problem.VariadicAsValue,
+                 Facts.about(an.symbols.items[symbol].name));
     return Type.make(TypeKind.None, 0);
   }
 
@@ -140,7 +139,7 @@ export fn checkFunctionRef(an: *Analyzer, node: i32, symbol: i32): Type {
 export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
                            args: i32): Type {
   if (!callee.isFunction()) {
-    analyzerFail(an, node, quoted("", name, " is not a function"));
+    analyzerFail(an, node, Problem.NotAFunction, Facts.about(name));
     return Type.make(TypeKind.None, 0);
   }
 
@@ -159,9 +158,7 @@ export fn checkCallValue(an: *Analyzer, node: i32): Type {
   }
 
   if (!callee.isFunction()) {
-    analyzerFail2(an, node, quoted("cannot call a value of type ",
-                                   callee.toText(), ""),
-                  "only functions and function values can be called");
+    analyzerFail(an, node, Problem.CannotCall, Facts.aboutType(callee));
     return Type.make(TypeKind.None, 0);
   }
 

@@ -2,39 +2,67 @@
 // The test kit itself.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
+import { Problem } from "./support/problems";
+import { Diagnostic } from "./support/diagnostics";
+import { NodeKind } from "./syntax/ast";
+import { TypeKind, Type } from "./semantics/types";
 import {
-  errorsIn, errorsInFiles, irOf, treeOf, typeOf, mentions, Files, outputOf,
+  problemsIn, problemsInFiles, typeOf, irOf, parse, Parsed, mentions, Files,
+  outputOf,
 } from "./testkit";
 
-test "a clean program has no errors" {
-  assertEq(errorsIn("fn main(): i32 { return 0; }"), "");
+test "a clean program has no problems" {
+  assertEq(problemsIn("fn main(): i32 { return 0; }").count, 0);
 }
 
-test "errors are listed with their position and note" {
-  assertEq(errorsIn("fn main(): i32 { return true; }"),
-           "1:25: wrong return type: expected 'i32' but got 'bool'\n");
+test "a problem comes with where it is and what it was about" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      return true;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongReturnType);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 10);
+  assert(found.at(0).facts.expected.equals(Type.make(TypeKind.I32, 0)));
+  assert(found.at(0).facts.got.equals(Type.make(TypeKind.Bool, 0)));
 }
 
-test "every lexer error is listed, and the file is not parsed" {
-  assertEq(errorsIn("fn main(): i32 { $ return 0 # }"),
-           "1:18: unexpected character\n1:29: unexpected character\n");
+test "every lexer problem is found, and the file is not parsed" {
+  let found: *List<Diagnostic> = problemsIn("fn main(): i32 { $ return 0 # }");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.UnexpectedCharacter);
+  assertEq(found.at(0).column, 18);
+  assertEq(found.at(1).problem, Problem.UnexpectedCharacter);
+  assertEq(found.at(1).column, 29);
 }
 
 test "two snippets in one test do not see each other" {
-  assertEq(errorsIn("fn main(): i32 { return 1; } fn helper(): void {}"), "");
-  assertEq(errorsIn("fn main(): i32 { return helper(); }"),
-           "1:25: undefined function 'helper'\n");
+  assertEq(problemsIn("fn main(): i32 { return 1; } fn helper(): void {}").count, 0);
+  let found: *List<Diagnostic> = problemsIn("fn main(): i32 { return helper(); }");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedFunction);
+  assertEq(found.at(0).facts.name, "helper");
 }
 
-test "typeOf reads the type checking gives an expression" {
-  assertEq(typeOf("let a: i64 = 1;", "a + 1"), "i64");
-  assertEq(typeOf("", "'x'"), "i8");
-  assertEq(typeOf("let p: *i32 = null;", "p + 1"), "*i32");
+test "typeOf gives the type checking settles on" {
+  assert(typeOf("let a: i64 = 1;", "a + 1").equals(Type.make(TypeKind.I64, 0)));
+  assert(typeOf("", "'x'").equals(Type.make(TypeKind.I8, 0)));
+  assert(typeOf("let p: *i32 = null;", "p + 1").equals(Type.make(TypeKind.I32, 1)));
+  assert(typeOf("", "missing").equals(Type.make(TypeKind.None, 0)));
 }
 
-test "the tree and the IR can be inspected" {
-  assert(mentions(treeOf("fn main(): i32 { return 7; }"), "return"));
+test "the tree can be walked" {
+  let tree: Parsed = parse("fn main(): i32 { return 7; } struct Point { x: i32 }");
+  assertEq(tree.kind(tree.item(0)), NodeKind.Fn);
+  assertEq(tree.kind(tree.item(1)), NodeKind.Struct);
+}
+
+test "the IR of a clean snippet, and none for one that does not check" {
   assert(mentions(irOf("fn main(): i32 { return 7; }"), "ret i32 7"));
+  assertEq(irOf("fn main(): i32 { return x; }"), "");
 }
 
 test "a program is built and run" {
@@ -48,15 +76,19 @@ test "a program is built and run" {
   `), "42\nexit 3\n");
 }
 
-test "a program that does not compile gives its errors instead" {
-  assertEq(outputOf("fn main(): i32 { return x; }"),
-           "1:25: undefined variable 'x'\n");
-}
-
 test "a program of several files" {
   let files: *Files = Files.new();
   files.add("lib.ode", "export fn seven(): i32 { return 7; }\n");
-  files.add("main.ode", "import { seven } from \"./lib\";\nfn main(): i32 { return seven() + nope; }\n");
-  assertEq(errorsInFiles(files, "main.ode"), "2:35: undefined variable 'nope'\n");
+  files.add("main.ode", `
+    import { seven } from "./lib";
+
+    fn main(): i32 {
+      return seven() + nope;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedVariable);
+  assertEq(found.at(0).line, 4);
   files.release();
 }

@@ -8,10 +8,12 @@
 // ---------------------------------------------------------------------------
 
 import { strlen } from "std/c";
+import { List } from "std/list";
 import { Builder, equals } from "std/text";
 import { NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";
 import { moduleDisplayPath, NameSet } from "../semantics/modules";
+import { enumDeclOf } from "../semantics/enums";
 import { RUNNER_MODULE } from "../semantics/testing";
 import {
   Emitter, freshLabel, emitLine, emitLabel, emitCondBranch, llvmName,
@@ -135,6 +137,15 @@ fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Builder): *i8 {
     args.add(", ptr ");
     args.add(value);
     return "\"%s\"";
+  }
+
+  // An enum shows as its member: `Color.Red`.
+  if (type.isEnum()) {
+    args.add(", ptr ");
+    args.add(internString(e, type.toText(), strlen(type.toText())));
+    args.add(", ptr ");
+    args.add(memberName(e, value, type));
+    return "%s.%s";
   }
 
   if (type.isPointer() || type.isNull() || type.isFunction()) {
@@ -279,4 +290,85 @@ export fn emitTestMain(e: *Emitter, program: i32, tests: *Builder, names: *Build
   e.body.add(", ptr @ode.test.names, ptr @ode.test.functions, ");
   e.body.add("i32 %argc, ptr %argv)\n");
   e.body.add("  ret i32 %status\n}\n\n");
+}
+
+// `nameOf(value)`.
+export fn genNameOf(e: *Emitter, node: i32): *i8 {
+  let argument: i32 = e.ast.nodes[e.ast.nodes[node].a].items[0];
+  return memberName(e, genExpr(e, argument), typeOfNode(e, argument));
+}
+
+// The name of the member `value`, of the enum `type`, as a string.
+export fn memberName(e: *Emitter, value: *i8, type: Type): *i8 {
+  let known: bool = false;
+  for (index in 0..e.namedEnums.count) {
+    if (equals(e.namedEnums.at(index), type.structName)) {
+      known = true;
+    }
+  }
+  if (!known) {
+    e.namedEnums.push(type.structName);
+  }
+
+  let line: *Builder = Builder.new();
+  line.add("call ptr ");
+  line.add(namesFunction(type.structName));
+  line.add("(i32 ");
+  line.add(value);
+  line.push(')');
+  return emitAssign(e, line.data);
+}
+
+fn namesFunction(enumName: *i8): *i8 {
+  let name: *Builder = Builder.new();
+  name.add("ode.names.");
+  name.add(enumName);
+  return llvmName('@', name.data);
+}
+
+// For each enum a name was asked for, a function from its values to its
+// members' names; "?" for a value that is no member's.
+export fn emitEnumNames(e: *Emitter): void {
+  for (index in 0..e.namedEnums.count) {
+    let enumName: *i8 = e.namedEnums.at(index);
+    let declaration: i32 = enumDeclOf(e.an, enumName);
+
+    e.body.add("define private ptr ");
+    e.body.add(namesFunction(enumName));
+    e.body.add("(i32 %value) {\nentry:\n  switch i32 %value, label %unknown [");
+
+    // Two members of one value would be two cases of one value, which LLVM
+    // rejects; the first is the name it goes by.
+    let seen: *List<i64> = List<i64>.new();
+    let arms: *Builder = Builder.new();
+    for (member in 0..e.ast.nodes[declaration].itemCount) {
+      let node: i32 = e.ast.nodes[declaration].items[member];
+      let value: i64 = e.an.values[node];
+      let repeated: bool = false;
+      for (other in 0..seen.count) {
+        if (seen.at(other) == value) {
+          repeated = true;
+        }
+      }
+      if (!repeated) {
+        seen.push(value);
+        e.body.add(" i32 ");
+        e.body.addInt(value);
+        e.body.add(", label %m");
+        e.body.addInt(member as i64);
+
+        arms.add("m");
+        arms.addInt(member as i64);
+        arms.add(":\n  ret ptr ");
+        arms.add(internString(e, e.ast.nodes[node].text,
+                              strlen(e.ast.nodes[node].text)));
+        arms.push('\n');
+      }
+    }
+    e.body.add(" ]\n");
+    e.body.add(arms.data);
+    e.body.add("unknown:\n  ret ptr ");
+    e.body.add(internString(e, "?", 1));
+    e.body.add("\n}\n\n");
+  }
 }

@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type, parseMagnitude } from "./types";
@@ -148,12 +149,12 @@ fn foldBinary(an: *Analyzer, node: i32, type: Type): bool {
   let signed: bool = type.isSigned();
 
   if ((equals(op, "/") || equals(op, "%")) && right == 0) {
-    analyzerFail(an, node, "division by zero in a constant");
+    analyzerFail(an, node, Problem.ConstantDivisionByZero, Facts.none());
     return false;
   }
   if ((equals(op, "<<") || equals(op, ">>")) &&
       (right < 0 || right >= type.bitWidth() as i64)) {
-    analyzerFail(an, node, "shift amount out of range in a constant");
+    analyzerFail(an, node, Problem.ConstantShiftRange, Facts.none());
     return false;
   }
 

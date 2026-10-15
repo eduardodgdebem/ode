@@ -12,10 +12,12 @@
 // ---------------------------------------------------------------------------
 
 import { Builder, equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
+import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
 import { isLibraryModule } from "./modules";
-import { Analyzer, analyzerFail2, gotType, gotTwoTypes } from "./analyzer";
+import { Analyzer, analyzerFail } from "./analyzer";
 import { checkExpr, checkExprAs, isLiteralTree } from "./expressions";
 import { CallTarget } from "./functions";
 
@@ -50,22 +52,19 @@ export fn checkAssert(an: *Analyzer, node: i32): Type {
   an.callTargets[node] = CallTarget.Assert;
 
   if (count != 1 && count != 2) {
-    analyzerFail2(an, node, "wrong number of arguments to 'assert'",
-                  "expected a condition and, optionally, a message");
+    analyzerFail(an, node, Problem.AssertArguments, Facts.none());
     return Type.make(TypeKind.Void, 0);
   }
 
   let condition: Type = checkExpr(an, an.ast.nodes[args].items[0]);
   if (!condition.isBool()) {
-    analyzerFail2(an, node, "assert needs a boolean condition",
-                  gotType(condition));
+    analyzerFail(an, node, Problem.AssertNotBool, Facts.aboutType(condition));
   }
 
   if (count == 2) {
     let message: Type = checkExpr(an, an.ast.nodes[args].items[1]);
     if (!message.equals(Type.make(TypeKind.I8, 1))) {
-      analyzerFail2(an, node, "assert's message must be a string",
-                    gotType(message));
+      analyzerFail(an, node, Problem.AssertMessageNotText, Facts.aboutType(message));
     }
   }
 
@@ -83,8 +82,7 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
   an.callTargets[node] = CallTarget.AssertEq;
 
   if (argumentCount(an, args) != 2) {
-    analyzerFail2(an, node, "wrong number of arguments to 'assertEq'",
-                  "expected the actual value and the expected one");
+    analyzerFail(an, node, Problem.AssertEqArguments, Facts.none());
     return Type.make(TypeKind.Void, 0);
   }
 
@@ -102,11 +100,9 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
   }
 
   if (!actual.accepts(expected) && !expected.accepts(actual)) {
-    analyzerFail2(an, node, "assertEq compares values of the same type",
-                  gotTwoTypes(actual, expected));
+    analyzerFail(an, node, Problem.AssertEqTypes, Facts.aboutTypes(actual, expected));
   } else if (actual.isVoid() || actual.isStruct()) {
-    analyzerFail2(an, node, "assertEq cannot compare this type",
-                  gotType(actual));
+    analyzerFail(an, node, Problem.AssertEqType, Facts.aboutType(actual));
   }
 
   return Type.make(TypeKind.Void, 0);
@@ -117,6 +113,31 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
 // library's, unless the library is what is being tested.
 export fn runsTestsOf(module: i32): bool {
   return module == 0 || !isLibraryModule(module) || isLibraryModule(0);
+}
+
+export fn isNameOf(an: *Analyzer, node: i32): bool {
+  return isBuiltin(an, node, "nameOf");
+}
+
+// `nameOf(value)`: the name of the enum member `value` is, as a string --
+// "Red" for Color.Red -- for printing one.
+export fn checkNameOf(an: *Analyzer, node: i32): Type {
+  let args: i32 = an.ast.nodes[node].a;
+  an.callTargets[node] = CallTarget.NameOf;
+  if (argumentCount(an, args) != 1) {
+    analyzerFail(an, node, Problem.WrongArgumentCount,
+                 Facts.about("nameOf").withCounts(1,
+                                                  argumentCount(an, args) as i64));
+    return Type.make(TypeKind.I8, 1);
+  }
+
+  let type: Type = checkExpr(an, an.ast.nodes[args].items[0]);
+  if (!FAILED && !type.isEnum()) {
+    analyzerFail(an, node, Problem.WrongArgumentType,
+                 Facts.about("nameOf").withTypes(Type.ofEnum("enum", 0), type)
+                     .withCounts(1, 0));
+  }
+  return Type.make(TypeKind.I8, 1);
 }
 
 // The module `ode test` adds to the program, once it has been loaded.

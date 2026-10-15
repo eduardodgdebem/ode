@@ -9,13 +9,13 @@
 
 import { alloc } from "std/mem";
 import { Builder, fromInt } from "std/text";
-import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { before, analyzerParseType } from "../semantics/analyzer";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
+  codegenFault,
 } from "./emitter";
 import { llvmTypeName } from "./layout";
 import {
@@ -156,8 +156,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
-         "unsupported statement in code generation");
+  codegenFault(e, node, "unsupported statement in code generation");
 }
 
 // A pattern's value as LLVM spells it for an integer of `bits` bits: in the

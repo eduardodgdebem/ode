@@ -6,7 +6,8 @@
 
 import { strlen } from "std/c";
 import { readFile, writeFile, exists, removeFile } from "std/fs";
-import { Builder, slice } from "std/text";
+import { slice } from "std/text";
+import { Problem, Facts } from "./support/problems";
 import {
   SOURCE_PATH, DIAGS, FAILED, report, hasErrors, registerSource, fail,
 } from "./support/diagnostics";
@@ -68,20 +69,16 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
   }
 
   if (source == null) {
-    let message: *Builder = Builder.new();
-    message.add("cannot find module '");
-    message.add(spec);
-    message.push('\'');
     // Why, when it is not just a missing file.
+    let problem: Problem = Problem.ModuleNotFound;
     if (!isPathImport(spec) && !isStdImport(spec)) {
-      message.add(": a file is imported by its path, such as './");
-      message.add(spec);
-      message.add("', and a library module as 'std/...'");
+      problem = Problem.ImportNotAPath;
     } else if (!isPathImport(spec) && STD_DIRECTORY == null) {
-      message.add(": the standard library was not found; set ODE_STD to its directory");
+      problem = Problem.LibraryNotFound;
     }
     SOURCE_PATH = moduleDisplayPath(ast.nodes[item].module);
-    report(ast.nodes[item].line, ast.nodes[item].column, message.data);
+    report(problem, ast.nodes[item].line, ast.nodes[item].column,
+           Facts.about(spec));
     FAILED = false;
     // Tried, and reported: not to be tried again.
     ast.nodes[item].extra = -2;
@@ -133,7 +130,7 @@ export fn loadFiles(ast: *Ast, root: i32, paths: *TextList): void {
     let source: *i8 = readFile(path);
     if (source == null) {
       SOURCE_PATH = path;
-      report(0, 0, "cannot open input file");
+      report(Problem.CannotOpenInput, 0, 0, Facts.none());
       FAILED = false;
       continue;
     }
@@ -165,7 +162,7 @@ fn loadImports(ast: *Ast, root: i32): void {
 export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): void {
   let irPath: *i8 = withSuffix(output, ".ll");
   if (!writeFile(irPath, module)) {
-    fail("cannot write the LLVM IR");
+    fail(Problem.CannotWriteIr);
   }
 
   let objectPath: *i8 = withSuffix(output, ".o");
@@ -175,14 +172,14 @@ export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): vo
   assemble.add("-Wno-override-module");
 
   if (runCommand(assemble, null, null, StderrMode.Inherit) != 0) {
-    fail("assembling failed");
+    fail(Problem.AssemblingFailed);
   }
 
   let link: *TextList = ccCommand();
   link.add(objectPath).add("-o").add(output);
 
   if (runCommand(link, null, null, StderrMode.Inherit) != 0) {
-    fail("linking failed");
+    fail(Problem.LinkingFailed);
   }
 
   if (!keepIntermediates) {

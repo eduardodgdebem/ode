@@ -6,10 +6,15 @@
 // own, so the compiler's global state is fresh for it, and checking a snippet
 // costs no more than compiling it.
 //
-//   test "a mismatch is reported" {
-//     assertEq(errorsIn("fn main(): i32 { return true; }"),
-//              "1:25: wrong return type: expected 'i32' but got 'bool'\n");
+//   test "a return of the wrong type" {
+//     let found: *List<Diagnostic> = problemsIn("fn main(): i32 { return true; }");
+//     assertEq(found.count, 1);
+//     assertEq(found.at(0).problem, Problem.WrongReturnType);
+//     assertEq(found.at(0).column, 25);
 //   }
+//
+// A test asks which problem was found, where, and about what -- never how
+// it was worded, which describe() is free to change.
 //
 // The few that must run what they build -- does the program print what it
 // should -- compile in a child process and link with clang; see outputOf.
@@ -17,74 +22,57 @@
 
 import { exit } from "std/c";
 import { alloc, release } from "std/mem";
+import { List } from "std/list";
 import { readFile, writeFile } from "std/fs";
-import { Builder, equals, contains } from "std/text";
+import { Builder, contains } from "std/text";
 import { STDOUT } from "./support/libc";
-import { writeText } from "./support/text";
+import { writeBuilder } from "./support/text";
 import {
   SOURCE_PATH, Diagnostic, DIAGS, hasErrors, resetDiagnostics,
+  formatDiagnostics,
 } from "./support/diagnostics";
 import {
   TextList, StderrMode, runCommand, runInChild, environment, changeDirectory,
   joinPath, parentDirectory, makeDirectories, removeTree, makeTempDirectory,
 } from "./support/system";
 import { NodeKind, Ast } from "./syntax/ast";
-import { dumpNode } from "./syntax/dump";
+import { TypeKind, Type } from "./semantics/types";
 import { resetModules, STD_DIRECTORY } from "./semantics/modules";
 import { Analyzer, analyze } from "./semantics/analyzer";
 import { Emitter } from "./codegen/emitter";
 import { genProgram } from "./codegen/program";
 import { loadProgram, buildExecutable } from "./pipeline";
 
-// A snippet's file name, which its diagnostics and failed checks name.
+// A snippet's file name, which a failed check in a program it builds names.
 let SNIPPET: *i8 = "test.ode";
 
-// The diagnostics checking `source` produces, one a line, as
-// `line:column: message`, with `: note` after the message when it has one;
-// "" when it is clean. Lexing, parsing and checking all run, as far as each
-// one gets: a file that does not lex is not parsed, nor one that does not
-// parse checked.
-export fn errorsIn(source: *i8): *i8 {
+// The problems checking `source` finds, in the order found: each with its
+// Problem, where it is, and the Facts it was about. Lexing, parsing and
+// checking all run, as far as each gets: a file that does not lex is not
+// parsed, nor one that does not parse checked.
+//
+//   let found: *List<Diagnostic> = problemsIn("fn main(): i32 { return true; }");
+//   assertEq(found.count, 1);
+//   assertEq(found.at(0).problem, Problem.WrongReturnType);
+export fn problemsIn(source: *i8): *List<Diagnostic> {
   let program: Loaded = load(SNIPPET, source);
   analyzeLoaded(program);
-  return listErrors();
+  return DIAGS.items;
 }
 
-// errorsIn, for the program entered at `entry` among `files`.
-export fn errorsInFiles(files: *Files, entry: *i8): *i8 {
+// problemsIn, for the program entered at `entry` among `files`.
+export fn problemsInFiles(files: *Files, entry: *i8): *List<Diagnostic> {
   changeDirectory(files.directory);
   let source: *i8 = readFile(entry);
   assert(source != null, "no such file among the test's files");
   let program: Loaded = load(entry, source);
   analyzeLoaded(program);
-  return listErrors();
+  return DIAGS.items;
 }
 
-// The LLVM IR `source` compiles to. The snippet must be clean.
-export fn irOf(source: *i8): *i8 {
-  let program: Loaded = load(SNIPPET, source);
-  analyzeLoaded(program);
-  let errors: *i8 = listErrors();
-  if (!equals(errors, "")) {
-    return errors;
-  }
-  return genProgram(Emitter.new(program.ast, program.an), program.root);
-}
-
-// The tree `source` parses to, as --dump-ast prints it.
-export fn treeOf(source: *i8): *i8 {
-  let program: Loaded = load(SNIPPET, source);
-  let out: *Builder = Builder.new();
-  if (hasErrors()) {
-    return listErrors();
-  }
-  dumpNode(program.ast, null, program.root, 0, out);
-  return out.take();
-}
-
-// The type checking gives `expression` -- in a function whose body starts
-// with `setup` -- as the compiler writes types: `i64`, `*Point`.
-export fn typeOf(setup: *i8, expression: *i8): *i8 {
+// The type checking gives `expression`, in a function whose body starts
+// with `setup`. A snippet that does not check gives TypeKind.None.
+export fn typeOf(setup: *i8, expression: *i8): Type {
   let source: *Builder = Builder.new();
   source.add("fn main(): i32 {\n");
   source.add(setup);
@@ -95,16 +83,46 @@ export fn typeOf(setup: *i8, expression: *i8): *i8 {
   let program: Loaded = load(SNIPPET, source.data);
   analyzeLoaded(program);
   if (hasErrors()) {
-    return listErrors();
+    return Type.make(TypeKind.None, 0);
   }
 
   // The probe is the one expression statement in main's body.
   for (node in 0..program.ast.count) {
     if (program.ast.nodes[node].kind == NodeKind.ExprStmt) {
-      return program.an.types[program.ast.nodes[node].a].toText();
+      return program.an.types[program.ast.nodes[node].a];
     }
   }
-  return "<no probe>";
+  return Type.make(TypeKind.None, 0);
+}
+
+// The LLVM IR a clean snippet compiles to, or "" when it does not check.
+export fn irOf(source: *i8): *i8 {
+  let program: Loaded = load(SNIPPET, source);
+  analyzeLoaded(program);
+  if (hasErrors()) {
+    return "";
+  }
+  return genProgram(Emitter.new(program.ast, program.an), program.root);
+}
+
+// The tree `source` parses to, for looking at its nodes.
+export fn parse(source: *i8): Parsed {
+  let program: Loaded = load(SNIPPET, source);
+  return Parsed { ast: program.ast, root: program.root };
+}
+
+export struct Parsed {
+  ast: *Ast,
+  root: i32,
+
+  // The `index`th item at the top of the file.
+  fn item(self: Parsed, index: i32): i32 {
+    return self.ast.nodes[self.root].items[index];
+  }
+
+  fn kind(self: Parsed, node: i32): NodeKind {
+    return self.ast.nodes[node].kind;
+  }
 }
 
 // Whether `text` holds `part`, for checking a piece of a long output.
@@ -140,32 +158,6 @@ fn analyzeLoaded(program: Loaded): void {
   }
 }
 
-fn listErrors(): *i8 {
-  let out: *Builder = Builder.new();
-  for (index in 0..DIAGS.count()) {
-    let diagnostic: Diagnostic = DIAGS.at(index);
-    if (diagnostic.line > 0) {
-      out.addInt(diagnostic.line as i64);
-      out.push(':');
-      out.addInt(diagnostic.column as i64);
-      out.add(": ");
-    }
-    // Another file than the snippet is named.
-    if (!equals(diagnostic.path, SOURCE_PATH) &&
-        !equals(diagnostic.path, SNIPPET)) {
-      out.add(diagnostic.path);
-      out.add(": ");
-    }
-    out.add(diagnostic.message);
-    if (diagnostic.note != null) {
-      out.add(": ");
-      out.add(diagnostic.note);
-    }
-    out.push('\n');
-  }
-  return out.take();
-}
-
 // ---------------------------------------------------------------------------
 // Programs of several files, in a scratch directory.
 // ---------------------------------------------------------------------------
@@ -197,8 +189,9 @@ export struct Files {
 // ---------------------------------------------------------------------------
 
 // What `source` prints when it is built and run, stdout and stderr together,
-// followed by `exit N` when it does not exit with 0; or, when it does not
-// compile, its diagnostics as errorsIn lists them.
+// followed by `exit N` when it does not exit with 0. One that does not
+// compile gives its diagnostics instead, which no expected output matches,
+// and which show what went wrong.
 export fn outputOf(source: *i8): *i8 {
   let files: *Files = Files.new().add(SNIPPET, source);
   let output: *i8 = outputOfFiles(files, SNIPPET);
@@ -235,7 +228,7 @@ fn buildJob(): void {
   let program: Loaded = load(JOB_ENTRY, source);
   analyzeLoaded(program);
   if (hasErrors()) {
-    writeText(STDOUT, listErrors());
+    writeBuilder(STDOUT, formatDiagnostics(false));
     exit(1);
   }
 

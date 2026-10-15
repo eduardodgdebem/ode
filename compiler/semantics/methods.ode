@@ -12,13 +12,14 @@
 // ---------------------------------------------------------------------------
 
 import { Builder, equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
 import { SymbolKind } from "./symbols";
 import {
-  Analyzer, analyzerFail, analyzerFail2, quoted, analyzerParseType,
-  analyzerValidateType, analyzerParamTypes, isVariadic,
+  Analyzer, analyzerFail, quoted, analyzerParseType, analyzerValidateType,
+  analyzerParamTypes, isVariadic,
 } from "./analyzer";
 import { isLValue, checkExpr, checkArguments } from "./expressions";
 import { analyzeFunctionBody } from "./statements";
@@ -125,12 +126,10 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
       let name: *i8 = methodName(an, node, method);
 
       if (findMethod(an, node, an.ast.nodes[method].text) != method) {
-        analyzerFail(an, method,
-                     quoted("method ", name, " is declared more than once"));
+        analyzerFail(an, method, Problem.DuplicateMethod, Facts.about(name));
       }
       if (isVariadic(an, method)) {
-        analyzerFail2(an, method, quoted("method ", name, " takes '...'"),
-                      "only an extern can take a variable number of arguments");
+        analyzerFail(an, method, Problem.VariadicMethod, Facts.about(name));
       }
 
       analyzerValidateType(an, method,
@@ -146,15 +145,8 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
       }
 
       if (methodSelf(an, node, method) == SelfKind.Invalid) {
-        let detail: *Builder = Builder.new();
-        detail.add("it must be '");
-        detail.add(an.ast.nodes[node].text);
-        detail.add("' or '*");
-        detail.add(an.ast.nodes[node].text);
-        detail.push('\'');
-        analyzerFail2(an, method,
-                      quoted("'self' of ", name, " has the wrong type"),
-                      detail.data);
+        analyzerFail(an, method, Problem.SelfWrongType,
+                     Facts.aboutTwo(name, an.ast.nodes[node].text));
       }
 
       FAILED = false;
@@ -208,7 +200,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
       declaration = structDeclOf(an, an.structRefs[node]);
     }
     if (declaration == NO_NODE) {
-      analyzerFail(an, node, "only a struct's methods can be called on a type");
+      analyzerFail(an, node, Problem.StaticCallOnValue, Facts.none());
       return Type.make(TypeKind.None, 0);
     }
     return checkStaticCall(an, node, declaration);
@@ -222,8 +214,8 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   let structType: Type = objectType.base();
 
   if (!structType.isStruct()) {
-    analyzerFail2(an, node, quoted("cannot call method ", name, ""),
-                  quoted("", objectType.toText(), " is not a struct"));
+    analyzerFail(an, node, Problem.MethodOfNonStruct,
+                 Facts.about(name).withType(objectType));
     return Type.make(TypeKind.None, 0);
   }
 
@@ -246,13 +238,8 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   }
 
   if (method == NO_NODE) {
-    let message: *Builder = Builder.new();
-    message.add("struct '");
-    message.add(structType.structName);
-    message.add("' has no method '");
-    message.add(name);
-    message.push('\'');
-    analyzerFail(an, node, message.data);
+    analyzerFail(an, node, Problem.NoSuchMethod,
+                 Facts.aboutTwo(structType.structName, name));
     return Type.make(TypeKind.None, 0);
   }
 
@@ -264,12 +251,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   }
 
   if (self == SelfKind.None) {
-    let detail: *Builder = Builder.new();
-    detail.add("call it on the struct instead: '");
-    detail.add(fullName);
-    detail.add("(...)'");
-    analyzerFail2(an, node, quoted("", fullName, " has no 'self' parameter"),
-                  detail.data);
+    analyzerFail(an, node, Problem.NoSelf, Facts.about(fullName));
     return Type.make(TypeKind.None, 0);
   }
 
@@ -278,9 +260,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   if (self == SelfKind.Pointer && !receivesPointer) {
     // `self` is the value's address, and a temporary has none to take.
     if (!isLValue(an, object)) {
-      analyzerFail2(an, node,
-                    quoted("cannot call ", fullName, " on a temporary value"),
-                    "it takes 'self' by pointer, so store the value first");
+      analyzerFail(an, node, Problem.MethodOnTemporary, Facts.about(fullName));
       return Type.make(TypeKind.None, 0);
     }
     an.receivers[node] = ReceiverMode.Address;
@@ -309,13 +289,8 @@ fn checkStaticCall(an: *Analyzer, node: i32, structNode: i32): Type {
   let method: i32 = findMethod(an, structNode, name);
 
   if (method == NO_NODE) {
-    let message: *Builder = Builder.new();
-    message.add("struct '");
-    message.add(an.ast.nodes[structNode].text);
-    message.add("' has no method '");
-    message.add(name);
-    message.push('\'');
-    analyzerFail(an, node, message.data);
+    analyzerFail(an, node, Problem.NoSuchMethod,
+                 Facts.aboutTwo(an.ast.nodes[structNode].text, name));
     return Type.make(TypeKind.None, 0);
   }
 
