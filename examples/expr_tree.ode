@@ -21,7 +21,7 @@ let allocations: i32 = 0;
 fn newExpr(kind: Kind): *Expr {
   allocations = allocations + 1;
 
-  let node: *Expr = malloc(sizeof(Expr) as i64) as *Expr;
+  let node: *Expr = malloc(sizeof(Expr)) as *Expr;
   node.kind = kind;
   node.value = 0;
   node.left = null;
@@ -69,7 +69,7 @@ fn main(): i32 {
 
   print(eval(tree));
   print(allocations);
-  print(sizeof(Expr) as i32);
+  print(sizeof(Expr));
 
   return 0;
 }
