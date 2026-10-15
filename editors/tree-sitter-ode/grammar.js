@@ -426,10 +426,14 @@ module.exports = grammar({
 
     null_literal: _ => 'null',
 
-    string_literal: $ => seq(
-      '"',
-      repeat(choice($.escape_sequence, token.immediate(/[^"\\\n]+/))),
-      '"',
+    string_literal: $ => choice(
+      seq(
+        '"',
+        repeat(choice($.escape_sequence, token.immediate(/[^"\\\n]+/))),
+        '"',
+      ),
+      // Backticks: as written, across lines, with no escapes.
+      seq('`', optional(token.immediate(/[^`]+/)), token.immediate('`')),
     ),
 
     char_literal: $ => seq(
@@ -438,7 +442,7 @@ module.exports = grammar({
       "'",
     ),
 
-    escape_sequence: _ => token.immediate(/\\[ntr0\\"']/),
+    escape_sequence: _ => token.immediate(/\\([ntr0\\"']|x[0-9a-fA-F]{2})/),
 
     comment: _ => token(seq('//', /[^\n]*/)),
   },

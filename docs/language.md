@@ -331,7 +331,7 @@ match (c) {
 
 A string literal has type `*i8` and points at a NUL-terminated constant; a
 character literal has type `i8`. Escapes are `\n`, `\t`, `\r`, `\0`, `\\`,
-`\"` and `\'`.
+`\"`, `\'`, and `\x` with two hex digits for any byte.
 
 ```rust
 extern fn strlen(text: *i8): i64;
