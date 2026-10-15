@@ -1,7 +1,7 @@
 /**
  * Tree-sitter grammar for the Ode language.
  *
- * Mirrors gramma.md at the repository root. Precedence numbers follow the
+ * Mirrors docs/grammar.md in the repository. Precedence numbers follow the
  * "Operator Precedence" table there, lowest binding first.
  */
 
