@@ -23,7 +23,7 @@
 // every value. A value may appear in only one arm.
 // ---------------------------------------------------------------------------
 
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
@@ -38,7 +38,7 @@ fn enumDeclOf(an: *Analyzer, name: *i8): i32 {
   for (index in 0..an.ast.nodes[an.program].itemCount) {
     let item: i32 = an.ast.nodes[an.program].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Enum &&
-        textEquals(an.ast.nodes[item].text, name)) {
+        equals(an.ast.nodes[item].text, name)) {
       return item;
     }
   }
@@ -52,7 +52,7 @@ fn integerLiteralValue(an: *Analyzer, node: i32, ok: *bool): i64 {
   let kind: NodeKind = an.ast.nodes[node].kind;
   *ok = true;
 
-  if (kind == NodeKind.Unary && textEquals(an.ast.nodes[node].text, "-")) {
+  if (kind == NodeKind.Unary && equals(an.ast.nodes[node].text, "-")) {
     let inner: i64 = integerLiteralValue(an, an.ast.nodes[node].a, ok);
     return 0 - inner;
   }
@@ -112,8 +112,8 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
 
     for (earlier in 0..index) {
       let other: i32 = an.ast.nodes[node].items[earlier];
-      if (textEquals(an.ast.nodes[other].text, memberName)) {
-        let message: *Buf = Buf.new();
+      if (equals(an.ast.nodes[other].text, memberName)) {
+        let message: *Builder = Builder.new();
         message.add("enum '");
         message.add(name);
         message.add("' declares member '");
@@ -159,14 +159,14 @@ export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
 
   for (index in 0..an.ast.nodes[declaration].itemCount) {
     let member: i32 = an.ast.nodes[declaration].items[index];
-    if (textEquals(an.ast.nodes[member].text, memberName)) {
+    if (equals(an.ast.nodes[member].text, memberName)) {
       an.isConstant[node] = 1;
       an.values[node] = an.values[member];
       return Type.ofEnum(enumName, 0);
     }
   }
 
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("enum '");
   message.add(enumName);
   message.add("' has no member '");
@@ -312,7 +312,7 @@ export fn analyzeMatch(an: *Analyzer, node: i32): void {
     let declaration: i32 = enumDeclOf(an, subject.structName);
     let missing: i32 = unhandledMember(an, node, declaration);
     if (missing != NO_NODE) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("match on '");
       message.add(subject.structName);
       message.add("' does not handle '");

@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { alloc } from "std/mem";
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { FAILED, failAt } from "../support/diagnostics";
 import { TypeKind, Type } from "./types";
 import {
@@ -51,7 +51,7 @@ export enum CallTarget {
 }
 
 fn signatureText(params: *Type, count: i32, result: Type): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add("fn(");
 
   for (index in 0..count) {
@@ -74,7 +74,7 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
   let text: *i8 = signatureText(params, count, result);
 
   for (index in 0..an.signatures.count) {
-    if (textEquals(an.signatures.at(index).text, text)) {
+    if (equals(an.signatures.at(index).text, text)) {
       return Type { kind: TypeKind.Function, pointerDepth: depth,
                     structName: an.signatures.at(index).text };
     }
@@ -90,7 +90,7 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
 // Where the signature of a function type is in the table.
 export fn signatureIndex(an: *Analyzer, type: Type): i64 {
   for (index in 0..an.signatures.count) {
-    if (textEquals(an.signatures.at(index).text, type.structName)) {
+    if (equals(an.signatures.at(index).text, type.structName)) {
       return index;
     }
   }

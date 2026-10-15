@@ -10,10 +10,9 @@
 // ---------------------------------------------------------------------------
 
 import { strlen } from "std/c";
+import { Builder, equals, slice } from "std/text";
 import { remove, STDOUT, STDERR } from "./support/libc";
-import {
-  writeText, writeBuf, Buf, textEquals, textSlice,
-} from "./support/text";
+import { writeText, writeBuilder } from "./support/text";
 import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED, report, hasErrors, printDiagnostics,
   fail,
@@ -79,7 +78,7 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
   }
 
   if (source == null) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("cannot find module '");
     message.add(spec);
     message.push('\'');
@@ -234,7 +233,7 @@ fn executablePath(argv0: *i8): *i8 {
   let index: i64 = 0;
   while (true) {
     if (search[index] == ':' || search[index] == '\0') {
-      let candidate: *i8 = joinPath(textSlice(search, start, index - start),
+      let candidate: *i8 = joinPath(slice(search, start, index - start),
                                     argv0);
       if (isExecutable(candidate)) {
         return absolutePath(candidate);
@@ -281,10 +280,10 @@ fn findStdDirectory(argv0: *i8): *i8 {
 fn main(argc: i32, argv: **i8): i32 {
   STD_DIRECTORY = findStdDirectory(argv[0]);
 
-  if (argc >= 2 && textEquals(argv[1], "build")) {
+  if (argc >= 2 && equals(argv[1], "build")) {
     return buildMain(argc, argv);
   }
-  if (argc >= 2 && textEquals(argv[1], "test")) {
+  if (argc >= 2 && equals(argv[1], "test")) {
     return testMain(argc, argv);
   }
 
@@ -300,17 +299,17 @@ fn main(argc: i32, argv: **i8): i32 {
   while (index < argc) {
     let argument: *i8 = argv[index];
 
-    if (textEquals(argument, "--dump-tokens")) {
+    if (equals(argument, "--dump-tokens")) {
       wantTokens = true;
-    } else if (textEquals(argument, "--dump-ast")) {
+    } else if (equals(argument, "--dump-ast")) {
       wantAst = true;
-    } else if (textEquals(argument, "--dump-types")) {
+    } else if (equals(argument, "--dump-types")) {
       wantTypes = true;
-    } else if (textEquals(argument, "--emit-llvm")) {
+    } else if (equals(argument, "--emit-llvm")) {
       emitOnly = true;
-    } else if (textEquals(argument, "--no-intermediates")) {
+    } else if (equals(argument, "--no-intermediates")) {
       keepIntermediates = false;
-    } else if (textEquals(argument, "-o")) {
+    } else if (equals(argument, "-o")) {
       index = index + 1;
       if (index >= argc) {
         writeText(STDERR, USAGE);
@@ -341,11 +340,11 @@ fn main(argc: i32, argv: **i8): i32 {
   }
 
   let tokens: *TokenList = tokenize(source);
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
 
   if (wantTokens) {
     dumpTokens(tokens, out);
-    writeBuf(STDOUT, out);
+    writeBuilder(STDOUT, out);
     return 0;
   }
 
@@ -364,7 +363,7 @@ fn main(argc: i32, argv: **i8): i32 {
 
   if (wantAst) {
     dumpNode(ast, null, root, 0, out);
-    writeBuf(STDOUT, out);
+    writeBuilder(STDOUT, out);
     return 0;
   }
 
@@ -378,7 +377,7 @@ fn main(argc: i32, argv: **i8): i32 {
 
   if (wantTypes) {
     dumpNode(ast, an.types, root, 0, out);
-    writeBuf(STDOUT, out);
+    writeBuilder(STDOUT, out);
     return 0;
   }
 

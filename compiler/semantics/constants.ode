@@ -9,7 +9,7 @@
 // global, whose initialiser it then shares.
 // ---------------------------------------------------------------------------
 
-import { textEquals } from "../support/text";
+import { equals } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type, parseMagnitude } from "./types";
@@ -26,7 +26,7 @@ export fn globalDeclOf(an: *Analyzer, node: i32): i32 {
 
   for (index in 0..an.globals.count) {
     let decl: i32 = an.globals.at(index);
-    if (textEquals(an.linkNames[decl], an.linkNames[node])) {
+    if (equals(an.linkNames[decl], an.linkNames[node])) {
       return decl;
     }
   }
@@ -117,9 +117,9 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
     }
     let operand: i64 = an.values[an.ast.nodes[node].a];
     let op: *i8 = an.ast.nodes[node].text;
-    if (textEquals(op, "-")) {
+    if (equals(op, "-")) {
       value = -operand;
-    } else if (textEquals(op, "+")) {
+    } else if (equals(op, "+")) {
       value = operand;
     } else {
       return false;
@@ -147,44 +147,44 @@ fn foldBinary(an: *Analyzer, node: i32, type: Type): bool {
   let right: i64 = an.values[an.ast.nodes[node].b];
   let signed: bool = type.isSigned();
 
-  if ((textEquals(op, "/") || textEquals(op, "%")) && right == 0) {
+  if ((equals(op, "/") || equals(op, "%")) && right == 0) {
     analyzerFail(an, node, "division by zero in a constant");
     return false;
   }
-  if ((textEquals(op, "<<") || textEquals(op, ">>")) &&
+  if ((equals(op, "<<") || equals(op, ">>")) &&
       (right < 0 || right >= type.bitWidth() as i64)) {
     analyzerFail(an, node, "shift amount out of range in a constant");
     return false;
   }
 
   let value: i64 = 0;
-  if (textEquals(op, "+")) {
+  if (equals(op, "+")) {
     value = left + right;
-  } else if (textEquals(op, "-")) {
+  } else if (equals(op, "-")) {
     value = left - right;
-  } else if (textEquals(op, "*")) {
+  } else if (equals(op, "*")) {
     value = left * right;
-  } else if (textEquals(op, "/")) {
+  } else if (equals(op, "/")) {
     if (signed) {
       value = left / right;
     } else {
       value = (left as u64 / right as u64) as i64;
     }
-  } else if (textEquals(op, "%")) {
+  } else if (equals(op, "%")) {
     if (signed) {
       value = left % right;
     } else {
       value = (left as u64 % right as u64) as i64;
     }
-  } else if (textEquals(op, "&")) {
+  } else if (equals(op, "&")) {
     value = left & right;
-  } else if (textEquals(op, "|")) {
+  } else if (equals(op, "|")) {
     value = left | right;
-  } else if (textEquals(op, "^")) {
+  } else if (equals(op, "^")) {
     value = left ^ right;
-  } else if (textEquals(op, "<<")) {
+  } else if (equals(op, "<<")) {
     value = left << right;
-  } else if (textEquals(op, ">>")) {
+  } else if (equals(op, ">>")) {
     if (signed) {
       value = left >> right;
     } else {

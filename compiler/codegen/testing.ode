@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { strlen } from "std/c";
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";
 import { moduleDisplayPath, NameSet } from "../semantics/modules";
@@ -22,7 +22,7 @@ import { typeOfNode, emitAssign, emitCast, genExpr } from "./expressions";
 
 // `path:line:column` of `node`, as a string constant.
 fn location(e: *Emitter, node: i32): *i8 {
-  let text: *Buf = Buf.new();
+  let text: *Builder = Builder.new();
   text.add(moduleDisplayPath(e.ast.nodes[node].module));
   text.push(':');
   text.addInt(e.ast.nodes[node].line as i64);
@@ -34,10 +34,10 @@ fn location(e: *Emitter, node: i32): *i8 {
 
 // Writes `format` and the arguments in `args` (each `, type value`) to
 // stderr, and ends the process. The block is closed afterwards.
-fn emitFailure(e: *Emitter, format: *i8, args: *Buf): void {
+fn emitFailure(e: *Emitter, format: *i8, args: *Builder): void {
   e.usesChecks = true;
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("call i32 (i32, ptr, ...) @dprintf(i32 2, ptr ");
   line.add(internString(e, format, strlen(format)));
   line.add(args.data);
@@ -60,7 +60,7 @@ export fn genAssert(e: *Emitter, node: i32): *i8 {
   emitCondBranch(e, condition, passed, failed);
   emitLabel(e, failed);
 
-  let values: *Buf = Buf.new();
+  let values: *Builder = Builder.new();
   values.add(", ptr ");
   values.add(location(e, node));
 
@@ -84,7 +84,7 @@ fn isText(type: Type): bool {
 // but by the text for two strings.
 fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
              rightType: Type): *i8 {
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
 
   if (isText(leftType) && isText(rightType)) {
     e.usesChecks = true;
@@ -117,9 +117,9 @@ fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
 
 // Adds `value` to `args` in the form its printf conversion wants, and
 // returns that conversion.
-fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Buf): *i8 {
+fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Builder): *i8 {
   if (type.isBool()) {
-    let line: *Buf = Buf.new();
+    let line: *Builder = Builder.new();
     line.add("select i1 ");
     line.add(value);
     line.add(", ptr ");
@@ -177,11 +177,11 @@ export fn genAssertEq(e: *Emitter, node: i32): *i8 {
   emitCondBranch(e, equal, passed, failed);
   emitLabel(e, failed);
 
-  let values: *Buf = Buf.new();
+  let values: *Builder = Builder.new();
   values.add(", ptr ");
   values.add(location(e, node));
 
-  let format: *Buf = Buf.new();
+  let format: *Builder = Builder.new();
   format.add("%s: assertEq failed\n  actual:   ");
   format.add(formatValue(e, actual, actualType, values));
   format.add("\n  expected: ");
@@ -234,19 +234,19 @@ export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
 
 // The program's `main` under `ode test`: it hands every test, by name, to the
 // runner. The program's own `main` was renamed out of the way; see llvmName.
-export fn emitTestMain(e: *Emitter, program: i32, tests: *Buf, names: *Buf,
+export fn emitTestMain(e: *Emitter, program: i32, tests: *Builder, names: *Builder,
                        count: i32): void {
   let runner: *i8 = null;
   for (index in 0..e.ast.nodes[program].itemCount) {
     let item: i32 = e.ast.nodes[program].items[index];
     if (e.ast.nodes[item].kind == NodeKind.Fn &&
         e.ast.nodes[item].module == RUNNER_MODULE &&
-        textEquals(e.ast.nodes[item].text, "runTests")) {
+        equals(e.ast.nodes[item].text, "runTests")) {
       runner = e.an.linkNames[item];
     }
   }
 
-  let table: *Buf = Buf.new();
+  let table: *Builder = Builder.new();
   table.push('[');
   table.addInt(count as i64);
   table.add(" x ptr] ");

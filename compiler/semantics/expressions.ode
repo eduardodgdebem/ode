@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { alloc } from "std/mem";
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type, fitsIn, parseMagnitude } from "./types";
@@ -38,7 +38,7 @@ export fn isLValue(an: *Analyzer, node: i32): bool {
   }
 
   if (kind == NodeKind.Unary) {
-    return textEquals(an.ast.nodes[node].text, "*");
+    return equals(an.ast.nodes[node].text, "*");
   }
 
   return false;
@@ -157,7 +157,7 @@ export fn isLiteralTree(an: *Analyzer, node: i32): bool {
   }
   if (kind == NodeKind.Unary) {
     let op: *i8 = an.ast.nodes[node].text;
-    return (textEquals(op, "-") || textEquals(op, "+")) &&
+    return (equals(op, "-") || equals(op, "+")) &&
            isLiteralTree(an, an.ast.nodes[node].a);
   }
   if (kind == NodeKind.Binary) {
@@ -170,10 +170,10 @@ export fn isLiteralTree(an: *Analyzer, node: i32): bool {
 
 // The operators whose result has their operands' type.
 fn isArithmetic(op: *i8): bool {
-  return textEquals(op, "+") || textEquals(op, "-") || textEquals(op, "*") ||
-         textEquals(op, "/") || textEquals(op, "%") || textEquals(op, "&") ||
-         textEquals(op, "|") || textEquals(op, "^") || textEquals(op, "<<") ||
-         textEquals(op, ">>");
+  return equals(op, "+") || equals(op, "-") || equals(op, "*") ||
+         equals(op, "/") || equals(op, "%") || equals(op, "&") ||
+         equals(op, "|") || equals(op, "^") || equals(op, "<<") ||
+         equals(op, ">>");
 }
 
 // `at` is the assignment being checked. The failure is reported there rather
@@ -247,7 +247,7 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   }
 
   if (argCount != paramCount) {
-    let detail: *Buf = Buf.new();
+    let detail: *Builder = Builder.new();
     detail.add("expected ");
     detail.addInt(paramCount as i64);
     detail.add(" but got ");
@@ -272,7 +272,7 @@ fn checkArgumentTypes(an: *Analyzer, node: i32, name: *i8, args: i32,
     let argType: Type = checkExprAs(an, argument, paramType);
 
     if (!paramType.accepts(argType)) {
-      let context: *Buf = Buf.new();
+      let context: *Builder = Builder.new();
       context.add("argument ");
       context.addInt((index + 1) as i64);
       context.add(" of '");
@@ -296,7 +296,7 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   }
 
   if (argCount < paramCount) {
-    let detail: *Buf = Buf.new();
+    let detail: *Builder = Builder.new();
     detail.add("expected at least ");
     detail.addInt(paramCount as i64);
     detail.add(" but got ");
@@ -316,7 +316,7 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
       return;
     }
     if (type.isVoid() || type.isStruct()) {
-      let context: *Buf = Buf.new();
+      let context: *Builder = Builder.new();
       context.add("argument ");
       context.addInt((index + 1) as i64);
       context.add(" of '");
@@ -337,7 +337,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   let operand: i32 = an.ast.nodes[node].a;
 
   // Address-of inspects the operand as storage rather than as a value.
-  if (textEquals(op, "&")) {
+  if (equals(op, "&")) {
     if (!isLValue(an, operand)) {
       analyzerFail(an, node, "cannot take the address of a temporary value");
     }
@@ -354,12 +354,12 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   }
 
   let operandExpected: Type = Type.make(TypeKind.None, 0);
-  if (textEquals(op, "-") || textEquals(op, "+")) {
+  if (equals(op, "-") || equals(op, "+")) {
     operandExpected = expected;
   }
   let operandType: Type = checkExprAs(an, operand, operandExpected);
 
-  if (textEquals(op, "-")) {
+  if (equals(op, "-")) {
     if (!operandType.isNumeric()) {
       analyzerFail2(an, node, "unary minus requires a numeric operand",
                     gotType(operandType));
@@ -367,7 +367,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return operandType;
   }
 
-  if (textEquals(op, "+")) {
+  if (equals(op, "+")) {
     if (!operandType.isNumeric()) {
       analyzerFail2(an, node, "unary plus requires a numeric operand",
                     gotType(operandType));
@@ -375,7 +375,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return operandType;
   }
 
-  if (textEquals(op, "!")) {
+  if (equals(op, "!")) {
     if (!operandType.isBool()) {
       analyzerFail2(an, node, "logical NOT requires boolean operand",
                     gotType(operandType));
@@ -383,7 +383,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.Bool, 0);
   }
 
-  if (textEquals(op, "*")) {
+  if (equals(op, "*")) {
     if (!operandType.isPointer()) {
       analyzerFail2(an, node, "cannot dereference a non-pointer value",
                     gotType(operandType));
@@ -422,7 +422,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     right = checkExprAs(an, rightNode, operandHint(left, wanted));
   }
 
-  if (textEquals(op, "||") || textEquals(op, "&&")) {
+  if (equals(op, "||") || equals(op, "&&")) {
     if (!left.isBool() || !right.isBool()) {
       analyzerFail2(an, node, "logical operators require boolean operands",
                     gotTwoTypes(left, right));
@@ -430,7 +430,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.Bool, 0);
   }
 
-  if (textEquals(op, "==") || textEquals(op, "!=")) {
+  if (equals(op, "==") || equals(op, "!=")) {
     // `null` compares with any pointer, from either side.
     if (!left.accepts(right) && !right.accepts(left)) {
       analyzerFail2(an, node, "equality operators require same type operands",
@@ -451,8 +451,8 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.Bool, 0);
   }
 
-  if (textEquals(op, ">") || textEquals(op, ">=") || textEquals(op, "<") ||
-      textEquals(op, "<=")) {
+  if (equals(op, ">") || equals(op, ">=") || equals(op, "<") ||
+      equals(op, "<=")) {
     if (!left.equals(right)) {
       analyzerFail2(an, node,
                     "comparison operators require same type operands",
@@ -477,8 +477,8 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.Bool, 0);
   }
 
-  let isAdd: bool = textEquals(op, "+");
-  let isSub: bool = textEquals(op, "-");
+  let isAdd: bool = equals(op, "+");
+  let isSub: bool = equals(op, "-");
 
   // Pointer arithmetic: p + i, i + p, p - i, and p - q.
   if (isAdd || isSub) {
@@ -521,7 +521,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     }
   }
 
-  if (isAdd || isSub || textEquals(op, "*") || textEquals(op, "/")) {
+  if (isAdd || isSub || equals(op, "*") || equals(op, "/")) {
     if (left.isPointer() || right.isPointer()) {
       analyzerFail(an, node, "pointers do not support this operator");
     }
@@ -539,8 +539,8 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   // Remainder, the bitwise operators and the shifts all lower to an LLVM
   // instruction that wants two integers of one width, which is also what the
   // absence of implicit conversions would demand anyway.
-  if (textEquals(op, "%") || textEquals(op, "&") || textEquals(op, "|") ||
-      textEquals(op, "^") || textEquals(op, "<<") || textEquals(op, ">>")) {
+  if (equals(op, "%") || equals(op, "&") || equals(op, "|") ||
+      equals(op, "^") || equals(op, "<<") || equals(op, ">>")) {
     if (!left.equals(right)) {
       analyzerFail2(an, node, quoted("", op, " requires same type operands"),
                     gotTwoTypes(left, right));
@@ -567,7 +567,7 @@ fn operandHint(other: Type, wanted: Type): Type {
 
 fn castRejection(an: *Analyzer, node: i32, from: Type, to: Type,
                  why: *i8): void {
-  let context: *Buf = Buf.new();
+  let context: *Builder = Builder.new();
   context.add("cannot cast '");
   context.add(from.toText());
   context.add("' to '");
@@ -627,7 +627,7 @@ fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
   // `-3000000000 as i64` is a negated literal; its literal is the one that
   // has to be wide.
   if (an.ast.nodes[node].kind == NodeKind.Unary &&
-      textEquals(an.ast.nodes[node].text, "-") &&
+      equals(an.ast.nodes[node].text, "-") &&
       an.ast.nodes[an.ast.nodes[node].a].kind == NodeKind.Number) {
     let inner: Type = checkCastOperand(an, an.ast.nodes[node].a, target);
     an.types[node] = inner;
@@ -750,7 +750,7 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
 
   let fieldIndex: i32 = an.structs.fieldIndex(structIndex, field);
   if (fieldIndex < 0) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("struct '");
     message.add(structType.structName);
     message.add("' has no field '");
@@ -807,7 +807,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
     let fieldIndex: i32 = an.structs.fieldIndex(structIndex, fieldName);
 
     if (fieldIndex < 0) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("struct '");
       message.add(name);
       message.add("' has no field '");
@@ -827,7 +827,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
     let valueType: Type = checkExprAs(an, an.ast.nodes[init].a, fieldType);
 
     if (!fieldType.accepts(valueType)) {
-      let context: *Buf = Buf.new();
+      let context: *Builder = Builder.new();
       context.add("field '");
       context.add(fieldName);
       context.add("' of '");
@@ -844,7 +844,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 
   for (index in 0..fieldCount) {
     if (initialised[index] == 0) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("field '");
       message.add(an.structs.items[structIndex].fields[index].name);
       message.add("' of '");
@@ -882,7 +882,7 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
     return isConstantExpr(an, an.ast.nodes[node].a);
   }
   if (kind == NodeKind.Unary) {
-    if (!textEquals(an.ast.nodes[node].text, "-")) {
+    if (!equals(an.ast.nodes[node].text, "-")) {
       return false;
     }
     return isConstantExpr(an, an.ast.nodes[node].a);
@@ -895,7 +895,7 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
 export fn isNumberLiteral(an: *Analyzer, node: i32): bool {
   let literal: i32 = node;
   if (an.ast.nodes[node].kind == NodeKind.Unary &&
-      textEquals(an.ast.nodes[node].text, "-")) {
+      equals(an.ast.nodes[node].text, "-")) {
     literal = an.ast.nodes[node].a;
   }
 

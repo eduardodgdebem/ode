@@ -13,7 +13,7 @@
 import { free } from "std/c";
 import { alloc, grow } from "std/mem";
 import { List } from "std/list";
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
@@ -162,7 +162,7 @@ export fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
 
 export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
                         detail: *i8): void {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add(context);
   message.add(": ");
   message.add(detail);
@@ -172,7 +172,7 @@ export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
 
 // "expected 'a' but got 'b'"-shaped detail, which several checks want.
 export fn expectedButGot(expected: *i8, got: *i8): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("expected '");
   message.add(expected);
   message.add("' but got '");
@@ -183,7 +183,7 @@ export fn expectedButGot(expected: *i8, got: *i8): *i8 {
 }
 
 export fn gotType(type: Type): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("got '");
   message.add(type.toText());
   message.push('\'');
@@ -192,7 +192,7 @@ export fn gotType(type: Type): *i8 {
 }
 
 export fn gotTwoTypes(left: Type, right: Type): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("got '");
   message.add(left.toText());
   message.add("' and '");
@@ -203,7 +203,7 @@ export fn gotTwoTypes(left: Type, right: Type): *i8 {
 }
 
 export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add(prefix);
   message.push('\'');
   message.add(name);
@@ -332,7 +332,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     }
 
     if (an.structs.fieldIndex(structIndex, fieldName) >= 0) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("struct '");
       message.add(name);
       message.add("' declares field '");
@@ -343,7 +343,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
 
     let type: Type = analyzerParseType(an, an.ast.nodes[field].a);
 
-    let context: *Buf = Buf.new();
+    let context: *Builder = Builder.new();
     context.add("field '");
     context.add(fieldName);
     context.add("' of struct '");
@@ -352,7 +352,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     analyzerValidateType(an, node, type, context.data);
 
     if (type.isVoid()) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("field '");
       message.add(fieldName);
       message.add("' of struct '");
@@ -392,7 +392,7 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
         let type: Type = an.structs.items[current].fields[field].type;
 
         if (type.isStruct()) {
-          if (textEquals(type.structName, an.structs.items[start].name)) {
+          if (equals(type.structName, an.structs.items[start].name)) {
             analyzerFail2(an, program,
                           quoted("struct ", an.structs.items[start].name,
                                  " contains itself"),
@@ -465,7 +465,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     what = "return type of extern '";
   }
 
-  let context: *Buf = Buf.new();
+  let context: *Builder = Builder.new();
   context.add(what);
   context.add(name);
   context.push('\'');
@@ -473,7 +473,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
 
   let index: i32 = 0;
   for (index in 0..paramCount) {
-    let paramContext: *Buf = Buf.new();
+    let paramContext: *Builder = Builder.new();
     if (kind == NodeKind.Extern) {
       paramContext.add("parameter of extern '");
     } else {

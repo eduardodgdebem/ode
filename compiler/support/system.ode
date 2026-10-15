@@ -11,8 +11,8 @@
 import { free, memcmp, strlen, fopen, fclose, fread, fwrite, read, getenv } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
+import { Builder, slice } from "std/text";
 import { fseek, ftell, SEEK_SET, SEEK_END } from "./libc";
-import { Buf, textSlice } from "./text";
 import { realpath } from "../semantics/modules";
 
 extern fn fork(): i32;
@@ -92,7 +92,7 @@ export enum StderrMode {
 // `dir`, when not null, is the directory it runs in. When `out` is not null
 // the child's stdout is collected into it instead of going to ours, and so is
 // its stderr under STDERR_MERGE.
-export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
+export fn runCommand(command: *TextList, dir: *i8, out: *Builder,
                      stderrMode: StderrMode): i32 {
   let capturing: bool = out != null;
   let fds: *i32 = alloc<i32>(2);
@@ -201,7 +201,7 @@ export fn isTerminal(fd: i32): bool {
 // ---------------------------------------------------------------------------
 
 export fn joinPath(directory: *i8, name: *i8): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add(directory);
   if (strlen(directory) > 0 &&
       directory[strlen(directory) - 1] != '/') {
@@ -232,11 +232,11 @@ export fn stemOf(path: *i8): *i8 {
     end = length;
   }
 
-  return textSlice(path, start, end - start);
+  return slice(path, start, end - start);
 }
 
 export fn withSuffix(base: *i8, suffix: *i8): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add(base);
   out.add(suffix);
 
@@ -263,7 +263,7 @@ export fn parentDirectory(path: *i8): *i8 {
     return "/";
   }
 
-  return textSlice(path, 0, last);
+  return slice(path, 0, last);
 }
 
 export fn fileExists(path: *i8): bool {
@@ -278,14 +278,14 @@ export fn absolutePath(path: *i8): *i8 {
   return realpath(path, null);
 }
 
-// A file's bytes, NULs included, or a null Buf if it cannot be read.
-export fn readBytes(path: *i8): *Buf {
+// A file's bytes, NULs included, or a null Builder if it cannot be read.
+export fn readBytes(path: *i8): *Builder {
   let stream: *i8 = fopen(path, "rb");
   if (stream == null) {
     return null;
   }
 
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   let chunk: *i8 = alloc<i8>(65536);
   while (true) {
     let count: i64 = fread(chunk, 1, 65536, stream);
@@ -300,7 +300,7 @@ export fn readBytes(path: *i8): *Buf {
   return out;
 }
 
-export fn writeBytes(path: *i8, data: *Buf): bool {
+export fn writeBytes(path: *i8, data: *Builder): bool {
   let stream: *i8 = fopen(path, "wb");
   if (stream == null) {
     return false;
@@ -312,7 +312,7 @@ export fn writeBytes(path: *i8, data: *Buf): bool {
   return written == data.length;
 }
 
-export fn sameBytes(a: *Buf, b: *Buf): bool {
+export fn sameBytes(a: *Builder, b: *Builder): bool {
   if (a.length != b.length) {
     return false;
   }
@@ -327,7 +327,7 @@ export fn makeDirectories(path: *i8): bool {
 
   while (index <= length) {
     if (index == length || path[index] == '/') {
-      mkdir(textSlice(path, 0, index), 493);
+      mkdir(slice(path, 0, index), 493);
     }
     index = index + 1;
   }
@@ -353,27 +353,27 @@ export fn moveFile(from: *i8, to: *i8): bool {
 
 // The names in a directory, sorted, without `.` and `..`.
 export fn listDirectory(path: *i8): *TextList {
-  let output: *Buf = Buf.new();
+  let output: *Builder = Builder.new();
   runCommand(TextList.new().add("ls").add("-1").add(path), null, output,
              StderrMode.Discard);
 
   return splitLines(output);
 }
 
-export fn splitLines(text: *Buf): *TextList {
+export fn splitLines(text: *Builder): *TextList {
   let lines: *TextList = TextList.new();
   let start: i64 = 0;
   let index: i64 = 0;
 
   while (index < text.length) {
     if (text.data[index] == '\n') {
-      lines.add(textSlice(text.data, start, index - start));
+      lines.add(slice(text.data, start, index - start));
       start = index + 1;
     }
     index = index + 1;
   }
   if (start < text.length) {
-    lines.add(textSlice(text.data, start, text.length - start));
+    lines.add(slice(text.data, start, text.length - start));
   }
 
   return lines;
@@ -386,7 +386,7 @@ export fn makeTempDirectory(prefix: *i8): *i8 {
     base = "/tmp";
   }
 
-  let template: *Buf = Buf.new();
+  let template: *Builder = Builder.new();
   template.add(joinPath(base, prefix));
   template.add(".XXXXXX");
 

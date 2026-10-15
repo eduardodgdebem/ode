@@ -11,7 +11,7 @@
 // built in everywhere, unless the program declares a function of that name.
 // ---------------------------------------------------------------------------
 
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
 import { isLibraryModule } from "./modules";
@@ -27,7 +27,7 @@ export let TEST_MODE: bool = false;
 // program declared.
 fn isBuiltin(an: *Analyzer, node: i32, name: *i8): bool {
   return an.ast.nodes[node].kind == NodeKind.Call &&
-         textEquals(an.ast.nodes[node].text, name) &&
+         equals(an.ast.nodes[node].text, name) &&
          an.symbols.find(name) < 0;
 }
 
@@ -128,7 +128,7 @@ export let RUNNER_MODULE: i32 = -1;
 // -- or a crash ends that test alone. Only tests whose name contains the
 // first argument, if one is given, run.
 export fn runnerSource(): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add("extern fn fork(): i32;\n");
   out.add("extern fn waitpid(pid: i32, status: *i32, options: i32): i32;\n");
   out.add("extern fn exit(code: i32): void;\n");

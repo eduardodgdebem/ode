@@ -6,14 +6,14 @@
 // compiler.
 // ---------------------------------------------------------------------------
 
-import { Buf } from "../support/text";
+import { Builder } from "std/text";
 import { TokenKind, Token, TokenList, kindName } from "./token";
 import { NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText } from "./ast";
 import { TypeKind, Type } from "../semantics/types";
 
 // Text is escaped rather than written raw so that a literal newline or NUL
 // inside a string cannot break the line-per-node format.
-fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
+fn dumpEscaped(out: *Builder, text: *i8, length: i64): void {
   for (index in 0..length) {
     let character: i8 = text[index];
 
@@ -35,7 +35,7 @@ fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
   }
 }
 
-export fn dumpTokens(list: *TokenList, out: *Buf): void {
+export fn dumpTokens(list: *TokenList, out: *Builder): void {
   let index: i32 = 0;
 
   while (index < list.count) {
@@ -73,7 +73,7 @@ export fn dumpTokens(list: *TokenList, out: *Buf): void {
 // `types` is the analyzer's resolved-type table, or null to dump the tree on
 // its own. A node the analyzer never typed prints without an annotation.
 export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
-                   out: *Buf): void {
+                   out: *Builder): void {
   if (index == NO_NODE) {
     return;
   }

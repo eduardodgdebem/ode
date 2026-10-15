@@ -9,7 +9,7 @@
 
 import { alloc, grow } from "std/mem";
 import { List } from "std/list";
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { report } from "../support/diagnostics";
 import { Type } from "./types";
 
@@ -80,7 +80,7 @@ export struct SymbolTable {
     let index: i32 = self.count - 1;
 
     while (index >= 0) {
-      if (textEquals(self.items[index].name, name)) {
+      if (equals(self.items[index].name, name)) {
         return index;
       }
       index = index - 1;
@@ -96,7 +96,7 @@ export struct SymbolTable {
     let index: i32 = self.count - 1;
 
     while (index >= start) {
-      if (textEquals(self.items[index].name, name)) {
+      if (equals(self.items[index].name, name)) {
         return index;
       }
       index = index - 1;
@@ -109,7 +109,7 @@ export struct SymbolTable {
              params: *Type, paramCount: i32, line: i32,
              column: i32): void {
     if (self.findInScope(name) >= 0) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("symbol '");
       message.add(name);
       message.add("' already declared in this scope");

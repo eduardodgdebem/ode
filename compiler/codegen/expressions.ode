@@ -9,7 +9,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
-import { Buf, textEquals, intToText } from "../support/text";
+import { Builder, equals, fromInt } from "std/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";
@@ -32,7 +32,7 @@ export fn typeOfNode(e: *Emitter, node: i32): Type {
 // Emits `%t = <op>` and returns the temporary.
 export fn emitAssign(e: *Emitter, instruction: *i8): *i8 {
   let temp: *i8 = freshTemp(e);
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add(temp);
   line.add(" = ");
   line.add(instruction);
@@ -42,7 +42,7 @@ export fn emitAssign(e: *Emitter, instruction: *i8): *i8 {
 }
 
 export fn emitLoad(e: *Emitter, type: Type, address: *i8): *i8 {
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("load ");
   line.add(llvmTypeName(type));
   line.add(", ptr ");
@@ -52,7 +52,7 @@ export fn emitLoad(e: *Emitter, type: Type, address: *i8): *i8 {
 }
 
 export fn emitStore(e: *Emitter, type: Type, value: *i8, address: *i8): void {
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("store ");
   line.add(llvmTypeName(type));
   line.push(' ');
@@ -94,7 +94,7 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
     // An i1 always widens without sign extension.
     opcode = "zext";
   } else if (to.isBool()) {
-    let line: *Buf = Buf.new();
+    let line: *Builder = Builder.new();
     line.add("icmp ne ");
     line.add(source);
     line.push(' ');
@@ -136,7 +136,7 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
     failAt(0, 0, "cannot cast in codegen");
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add(opcode);
   line.push(' ');
   line.add(source);
@@ -155,7 +155,7 @@ fn isAddressable(e: *Emitter, node: i32): bool {
     return true;
   }
   if (kind == NodeKind.Unary) {
-    return textEquals(e.ast.nodes[node].text, "*");
+    return equals(e.ast.nodes[node].text, "*");
   }
 
   return false;
@@ -203,7 +203,7 @@ fn genFieldAddress(e: *Emitter, object: i32, field: *i8): *i8 {
   let structIndex: i32 = e.an.structs.indexOf(structType.structName);
   let fieldIndex: i32 = e.an.structs.fieldIndex(structIndex, field);
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("getelementptr inbounds ");
   line.add(llvmTypeName(structType));
   line.add(", ptr ");
@@ -238,7 +238,7 @@ fn genFieldValue(e: *Emitter, object: i32, field: *i8): *i8 {
   // A struct with no storage -- a call result, say -- cannot be GEPed into,
   // so the field is read straight out of the aggregate value.
   if (!objectType.isPointer() && !isAddressable(e, object)) {
-    let line: *Buf = Buf.new();
+    let line: *Builder = Builder.new();
     line.add("extractvalue ");
     line.add(llvmTypeName(objectType));
     line.push(' ');
@@ -262,7 +262,7 @@ fn genIndexAddress(e: *Emitter, node: i32): *i8 {
   let offset: *i8 = emitCast(e, genExpr(e, indexNode), typeOfNode(e, indexNode),
                              Type.make(TypeKind.I64, 0));
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("getelementptr inbounds ");
   line.add(llvmTypeName(baseType.pointee()));
   line.add(", ptr ");
@@ -277,7 +277,7 @@ fn genIndexAddress(e: *Emitter, node: i32): *i8 {
 // already decide the result, so they branch rather than emitting a bitwise
 // instruction.
 fn genShortCircuit(e: *Emitter, node: i32): *i8 {
-  let isAnd: bool = textEquals(e.ast.nodes[node].text, "&&");
+  let isAnd: bool = equals(e.ast.nodes[node].text, "&&");
 
   let slot: *i8 = emitAlloca(e, "i1");
   let left: *i8 = genExpr(e, e.ast.nodes[node].a);
@@ -311,7 +311,7 @@ fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
     let leftInt: *i8 = emitCast(e, left, leftType, i64Type);
     let rightInt: *i8 = emitCast(e, right, rightType, i64Type);
 
-    let subtraction: *Buf = Buf.new();
+    let subtraction: *Builder = Builder.new();
     subtraction.add("sub i64 ");
     subtraction.add(leftInt);
     subtraction.add(", ");
@@ -323,7 +323,7 @@ fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
       return difference;
     }
 
-    let division: *Buf = Buf.new();
+    let division: *Builder = Builder.new();
     division.add("sdiv i64 ");
     division.add(difference);
     division.add(", ");
@@ -348,14 +348,14 @@ fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
   offset = emitCast(e, offset, offsetType, i64Type);
 
   // `p - i` is `p + (-i)`.
-  if (textEquals(e.ast.nodes[node].text, "-")) {
-    let negation: *Buf = Buf.new();
+  if (equals(e.ast.nodes[node].text, "-")) {
+    let negation: *Builder = Builder.new();
     negation.add("sub i64 0, ");
     negation.add(offset);
     offset = emitAssign(e, negation.data);
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("getelementptr inbounds ");
   line.add(llvmTypeName(pointerType.pointee()));
   line.add(", ptr ");
@@ -373,47 +373,47 @@ fn binaryOpcode(op: *i8, type: Type): *i8 {
   let float: bool = type.isFloat();
   let signed: bool = type.isSigned();
 
-  if (textEquals(op, "+")) { if (float) { return "fadd"; } return "add"; }
-  if (textEquals(op, "-")) { if (float) { return "fsub"; } return "sub"; }
-  if (textEquals(op, "*")) { if (float) { return "fmul"; } return "mul"; }
-  if (textEquals(op, "/")) {
+  if (equals(op, "+")) { if (float) { return "fadd"; } return "add"; }
+  if (equals(op, "-")) { if (float) { return "fsub"; } return "sub"; }
+  if (equals(op, "*")) { if (float) { return "fmul"; } return "mul"; }
+  if (equals(op, "/")) {
     if (float) { return "fdiv"; }
     if (signed) { return "sdiv"; }
     return "udiv";
   }
-  if (textEquals(op, "%")) {
+  if (equals(op, "%")) {
     if (signed) { return "srem"; }
     return "urem";
   }
-  if (textEquals(op, "&")) { return "and"; }
-  if (textEquals(op, "|")) { return "or"; }
-  if (textEquals(op, "^")) { return "xor"; }
-  if (textEquals(op, "<<")) { return "shl"; }
-  if (textEquals(op, ">>")) {
+  if (equals(op, "&")) { return "and"; }
+  if (equals(op, "|")) { return "or"; }
+  if (equals(op, "^")) { return "xor"; }
+  if (equals(op, "<<")) { return "shl"; }
+  if (equals(op, ">>")) {
     if (signed) { return "ashr"; }
     return "lshr";
   }
 
   // The comparisons. A pointer compares as an unsigned integer.
-  if (textEquals(op, "==")) { if (float) { return "fcmp oeq"; } return "icmp eq"; }
-  if (textEquals(op, "!=")) { if (float) { return "fcmp one"; } return "icmp ne"; }
+  if (equals(op, "==")) { if (float) { return "fcmp oeq"; } return "icmp eq"; }
+  if (equals(op, "!=")) { if (float) { return "fcmp one"; } return "icmp ne"; }
 
-  if (textEquals(op, "<")) {
+  if (equals(op, "<")) {
     if (float) { return "fcmp olt"; }
     if (signed) { return "icmp slt"; }
     return "icmp ult";
   }
-  if (textEquals(op, "<=")) {
+  if (equals(op, "<=")) {
     if (float) { return "fcmp ole"; }
     if (signed) { return "icmp sle"; }
     return "icmp ule";
   }
-  if (textEquals(op, ">")) {
+  if (equals(op, ">")) {
     if (float) { return "fcmp ogt"; }
     if (signed) { return "icmp sgt"; }
     return "icmp ugt";
   }
-  if (textEquals(op, ">=")) {
+  if (equals(op, ">=")) {
     if (float) { return "fcmp oge"; }
     if (signed) { return "icmp sge"; }
     return "icmp uge";
@@ -425,7 +425,7 @@ fn binaryOpcode(op: *i8, type: Type): *i8 {
 fn genBinary(e: *Emitter, node: i32): *i8 {
   let op: *i8 = e.ast.nodes[node].text;
 
-  if (textEquals(op, "&&") || textEquals(op, "||")) {
+  if (equals(op, "&&") || equals(op, "||")) {
     return genShortCircuit(e, node);
   }
 
@@ -440,14 +440,14 @@ fn genBinary(e: *Emitter, node: i32): *i8 {
   if (leftType.isPointer() || rightType.isPointer()) {
     // A comparison of two pointers is an ordinary icmp; everything else is
     // pointer arithmetic.
-    if (!textEquals(op, "==") && !textEquals(op, "!=") &&
-        !textEquals(op, "<") && !textEquals(op, "<=") &&
-        !textEquals(op, ">") && !textEquals(op, ">=")) {
+    if (!equals(op, "==") && !equals(op, "!=") &&
+        !equals(op, "<") && !equals(op, "<=") &&
+        !equals(op, ">") && !equals(op, ">=")) {
       return genPointerArithmetic(e, node, left, right, leftType, rightType);
     }
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add(binaryOpcode(op, leftType));
   line.push(' ');
   line.add(llvmTypeName(leftType));
@@ -463,23 +463,23 @@ fn genUnary(e: *Emitter, node: i32): *i8 {
   let op: *i8 = e.ast.nodes[node].text;
   let operand: i32 = e.ast.nodes[node].a;
 
-  if (textEquals(op, "&")) {
+  if (equals(op, "&")) {
     return genAddress(e, operand);
   }
 
-  if (textEquals(op, "*")) {
+  if (equals(op, "*")) {
     return emitLoad(e, typeOfNode(e, node), genExpr(e, operand));
   }
 
   let operandType: Type = typeOfNode(e, operand);
   let value: *i8 = genExpr(e, operand);
 
-  if (textEquals(op, "+")) {
+  if (equals(op, "+")) {
     return value;
   }
 
-  if (textEquals(op, "-")) {
-    let line: *Buf = Buf.new();
+  if (equals(op, "-")) {
+    let line: *Builder = Builder.new();
     if (operandType.isFloat()) {
       line.add("fneg ");
       line.add(llvmTypeName(operandType));
@@ -495,7 +495,7 @@ fn genUnary(e: *Emitter, node: i32): *i8 {
   }
 
   // Logical NOT on an i1 is a flip against true.
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("xor i1 ");
   line.add(value);
   line.add(", true");
@@ -620,7 +620,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
     }
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("call ");
   line.add(llvmTypeName(returnType));
   line.push(' ');
@@ -686,7 +686,7 @@ fn genStructLiteral(e: *Emitter, node: i32): *i8 {
         e.an.structs.items[structIndex].fields[fieldIndex].type;
     let value: *i8 = genExpr(e, e.ast.nodes[init].a);
 
-    let line: *Buf = Buf.new();
+    let line: *Builder = Builder.new();
     line.add("insertvalue ");
     line.add(typeName);
     line.push(' ');
@@ -714,7 +714,7 @@ export fn genNumberLiteral(e: *Emitter, node: i32): *i8 {
   if (type.isFloat()) {
     // LLVM wants a decimal point in a floating literal.
     if (!textHasDot(text, strlen(text))) {
-      let out: *Buf = Buf.new();
+      let out: *Builder = Builder.new();
       out.add(text);
       out.add(".0");
       return out.take();
@@ -735,7 +735,7 @@ export fn genCharLiteral(e: *Emitter, node: i32): *i8 {
   if (value > 127 && typeOfNode(e, node).kind == TypeKind.I8) {
     value = value - 256;
   }
-  return intToText(value as i64);
+  return fromInt(value as i64);
 }
 
 export fn genExpr(e: *Emitter, node: i32): *i8 {
@@ -744,7 +744,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   if (kind == NodeKind.Number) { return genNumberLiteral(e, node); }
 
   if (kind == NodeKind.Bool) {
-    if (textEquals(e.ast.nodes[node].text, "true")) {
+    if (equals(e.ast.nodes[node].text, "true")) {
       return "true";
     }
     return "false";
@@ -791,12 +791,12 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
 
   if (kind == NodeKind.Sizeof) {
     let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
-    return intToText(sizeOf(e.an.structs, type) as i64);
+    return fromInt(sizeOf(e.an.structs, type) as i64);
   }
 
   // `Color.Red` is a constant the analyzer already worked out.
   if (kind == NodeKind.FieldAccess && e.an.isConstant[node] != 0) {
-    return intToText(e.an.values[node]);
+    return fromInt(e.an.values[node]);
   }
 
   if (kind == NodeKind.FieldAccess) {

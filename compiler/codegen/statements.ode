@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { alloc } from "std/mem";
-import { Buf, intToText } from "../support/text";
+import { Builder, fromInt } from "std/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "../semantics/types";
@@ -81,7 +81,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
       let type: Type = typeOfNode(e, e.ast.nodes[node].a);
       let value: *i8 = genExpr(e, e.ast.nodes[node].a);
 
-      let line: *Buf = Buf.new();
+      let line: *Builder = Builder.new();
       line.add("ret ");
       line.add(llvmTypeName(type));
       line.push(' ');
@@ -164,7 +164,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
 // signed range, so that `255` matched against a u8 is written as -1.
 fn switchConstant(value: i64, bits: i32): *i8 {
   if (bits >= 64) {
-    return intToText(value);
+    return fromInt(value);
   }
 
   let span: i64 = 1 << bits as i64;
@@ -176,7 +176,7 @@ fn switchConstant(value: i64, bits: i32): *i8 {
     wrapped = wrapped - span;
   }
 
-  return intToText(wrapped);
+  return fromInt(wrapped);
 }
 
 // A match is LLVM's `switch`: one comparison table, a block per arm, and the
@@ -201,7 +201,7 @@ fn genMatch(e: *Emitter, node: i32): void {
     }
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("switch ");
   line.add(typeName);
   line.push(' ');
@@ -276,7 +276,7 @@ fn genFor(e: *Emitter, node: i32): void {
   emitLabel(e, condLabel);
   let current: *i8 = emitLoad(e, type, counter);
 
-  let compare: *Buf = Buf.new();
+  let compare: *Builder = Builder.new();
   if (type.isSigned()) {
     compare.add("icmp slt ");
   } else {
@@ -301,7 +301,7 @@ fn genFor(e: *Emitter, node: i32): void {
 
   emitLabel(e, stepLabel);
   let before: *i8 = emitLoad(e, type, counter);
-  let increment: *Buf = Buf.new();
+  let increment: *Builder = Builder.new();
   increment.add("add ");
   increment.add(typeName);
   increment.push(' ');

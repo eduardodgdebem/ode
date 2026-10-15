@@ -7,7 +7,7 @@
 // one run reports every error rather than the first.
 // ---------------------------------------------------------------------------
 
-import { Buf } from "../support/text";
+import { Builder } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
@@ -135,12 +135,12 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
   let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, declaredType);
 
   if (!FAILED && !declaredType.accepts(exprType)) {
-    let context: *Buf = Buf.new();
+    let context: *Builder = Builder.new();
     context.add("type mismatch in declaration of '");
     context.add(name);
     context.push('\'');
 
-    let detail: *Buf = Buf.new();
+    let detail: *Builder = Builder.new();
     detail.add("declared as '");
     detail.add(declaredType.toText());
     detail.add("' but assigned '");

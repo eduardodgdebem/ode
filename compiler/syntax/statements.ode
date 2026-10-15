@@ -2,7 +2,7 @@
 // Statements and declarations.
 // ---------------------------------------------------------------------------
 
-import { Buf, textEquals, textSlice } from "../support/text";
+import { Builder, equals, copy, slice } from "std/text";
 import { FAILED, report } from "../support/diagnostics";
 import { TokenKind, Token } from "./token";
 import { NO_NODE, NodeKind } from "./ast";
@@ -127,7 +127,7 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
 fn requireTopLevel(parser: *Parser, at: *Token, construct: *i8,
                    declaration: i32): i32 {
   if (!parser.atTopLevel) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.push('\'');
     message.add(construct);
     message.add("' declarations are only allowed at the top level of the ");
@@ -185,7 +185,7 @@ fn parseExprStmt(parser: *Parser): i32 {
     let opLine: i32 = op.line;
     let opColumn: i32 = op.column;
     // The operator's spelling is the compound token without its `=`.
-    let opText: *i8 = textSlice(op.text, 0, op.length - 1);
+    let opText: *i8 = slice(op.text, 0, op.length - 1);
     parser.advance();
 
     let value: i32 = parseExpr(parser);
@@ -279,7 +279,7 @@ fn parseForStmt(parser: *Parser): i32 {
   parser.ast.setText(node, name);
 
   let word: *Token = parser.current();
-  if (word.kind != TokenKind.Ident || !textEquals(word.text, "in")) {
+  if (word.kind != TokenKind.Ident || !equals(word.text, "in")) {
     // Recovery skips the rest of the loop, body and all, from here.
     parser.fail("in");
     return node;
@@ -408,7 +408,7 @@ fn parseFuncDecl(parser: *Parser): i32 {
 // so it stays free for a variable or a function of that name.
 fn startsTest(parser: *Parser): bool {
   let name: *Token = parser.current();
-  return name.kind == TokenKind.Ident && textEquals(name.text, "test") &&
+  return name.kind == TokenKind.Ident && equals(name.text, "test") &&
          parser.peek().kind == TokenKind.String;
 }
 
@@ -574,7 +574,7 @@ fn parseImportDecl(parser: *Parser): i32 {
   }
 
   let from: *Token = parser.current();
-  if (from.kind == TokenKind.Ident && textEquals(from.text, "from")) {
+  if (from.kind == TokenKind.Ident && equals(from.text, "from")) {
     parser.advance();
   } else {
     parser.fail("from");

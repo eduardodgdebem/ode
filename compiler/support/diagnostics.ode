@@ -10,8 +10,9 @@
 
 import { exit } from "std/c";
 import { alloc } from "std/mem";
+import { Builder } from "std/text";
 import { STDERR } from "./libc";
-import { writeText, writeBuf, Buf } from "./text";
+import { writeText, writeBuilder } from "./text";
 
 // The file being worked on, which every diagnostic is reported against.
 export let SOURCE_PATH: *i8 = "<none>";
@@ -77,7 +78,7 @@ export fn hasErrors(): bool {
 // Prints everything recorded as `file:line:column: error: message`, which
 // most editors can jump to.
 export fn printDiagnostics(): void {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   let index: i32 = 0;
 
   while (index < DIAGS.count) {
@@ -110,7 +111,7 @@ export fn printDiagnostics(): void {
     out.add(" errors generated.\n");
   }
 
-  writeBuf(STDERR, out);
+  writeBuilder(STDERR, out);
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +127,7 @@ export fn failAt(line: i32, column: i32, message: *i8): void {
     return;
   }
 
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add(SOURCE_PATH);
   out.push(':');
   out.addInt(line as i64);
@@ -141,7 +142,7 @@ export fn failAt(line: i32, column: i32, message: *i8): void {
 }
 
 export fn fail(message: *i8): void {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add(SOURCE_PATH);
   out.add(": error: ");
   out.add(message);

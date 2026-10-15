@@ -7,7 +7,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
-import { Buf, textEquals, textCopy, textSlice } from "../support/text";
+import { Builder, equals, copy, slice } from "std/text";
 import { failAt } from "../support/diagnostics";
 import { TokenKind, TokenList, kindName } from "./token";
 
@@ -94,7 +94,7 @@ struct Lexer {
     }
 
     let count: i64 = self.pos - start;
-    let text: *i8 = textSlice(self.source, start, count);
+    let text: *i8 = slice(self.source, start, count);
     list.add(keywordKind(text), text, count, line, column);
   }
 
@@ -119,7 +119,7 @@ struct Lexer {
     }
 
     let count: i64 = self.pos - start;
-    let text: *i8 = textSlice(self.source, start, count);
+    let text: *i8 = slice(self.source, start, count);
     list.add(TokenKind.Number, text, count, line, column);
   }
 
@@ -128,7 +128,7 @@ struct Lexer {
     let column: i32 = self.column;
     self.advance();
 
-    let text: *Buf = Buf.new();
+    let text: *Builder = Builder.new();
 
     while (true) {
       if (self.atEnd()) {
@@ -163,7 +163,7 @@ struct Lexer {
     let column: i32 = self.column;
     self.advance();
 
-    let text: *Buf = Buf.new();
+    let text: *Builder = Builder.new();
     let character: i8 = self.advance();
 
     if (character == '\\') {
@@ -197,7 +197,7 @@ struct Lexer {
       for (step in 0..3) {
         self.advance();
       }
-      list.add(TokenKind.Ellipsis, textCopy("..."), 3, line, column);
+      list.add(TokenKind.Ellipsis, copy("..."), 3, line, column);
       return;
     }
 
@@ -220,7 +220,7 @@ struct Lexer {
     if (kind != TokenKind.None) {
       self.advance();
       self.advance();
-      list.add(kind, textCopy(kindName(kind)),
+      list.add(kind, copy(kindName(kind)),
                strlen(kindName(kind)), line, column);
       return;
     }
@@ -252,7 +252,7 @@ struct Lexer {
     }
 
     self.advance();
-    list.add(kind, textCopy(kindName(kind)), strlen(kindName(kind)),
+    list.add(kind, copy(kindName(kind)), strlen(kindName(kind)),
              line, column);
   }
 }
@@ -282,44 +282,44 @@ export fn isSpace(character: i8): bool {
 }
 
 fn keywordKind(text: *i8): TokenKind {
-  if (textEquals(text, "let")) { return TokenKind.Let; }
-  if (textEquals(text, "if")) { return TokenKind.If; }
-  if (textEquals(text, "else")) { return TokenKind.Else; }
-  if (textEquals(text, "fn")) { return TokenKind.Fn; }
-  if (textEquals(text, "extern")) { return TokenKind.Extern; }
-  if (textEquals(text, "struct")) { return TokenKind.Struct; }
-  if (textEquals(text, "sizeof")) { return TokenKind.Sizeof; }
-  if (textEquals(text, "return")) { return TokenKind.Return; }
-  if (textEquals(text, "while")) { return TokenKind.While; }
-  if (textEquals(text, "break")) { return TokenKind.Break; }
-  if (textEquals(text, "continue")) { return TokenKind.Continue; }
-  if (textEquals(text, "as")) { return TokenKind.As; }
-  if (textEquals(text, "import")) { return TokenKind.Import; }
-  if (textEquals(text, "export")) { return TokenKind.Export; }
-  if (textEquals(text, "null")) { return TokenKind.Null; }
-  if (textEquals(text, "enum")) { return TokenKind.Enum; }
-  if (textEquals(text, "match")) { return TokenKind.Match; }
-  if (textEquals(text, "for")) { return TokenKind.For; }
+  if (equals(text, "let")) { return TokenKind.Let; }
+  if (equals(text, "if")) { return TokenKind.If; }
+  if (equals(text, "else")) { return TokenKind.Else; }
+  if (equals(text, "fn")) { return TokenKind.Fn; }
+  if (equals(text, "extern")) { return TokenKind.Extern; }
+  if (equals(text, "struct")) { return TokenKind.Struct; }
+  if (equals(text, "sizeof")) { return TokenKind.Sizeof; }
+  if (equals(text, "return")) { return TokenKind.Return; }
+  if (equals(text, "while")) { return TokenKind.While; }
+  if (equals(text, "break")) { return TokenKind.Break; }
+  if (equals(text, "continue")) { return TokenKind.Continue; }
+  if (equals(text, "as")) { return TokenKind.As; }
+  if (equals(text, "import")) { return TokenKind.Import; }
+  if (equals(text, "export")) { return TokenKind.Export; }
+  if (equals(text, "null")) { return TokenKind.Null; }
+  if (equals(text, "enum")) { return TokenKind.Enum; }
+  if (equals(text, "match")) { return TokenKind.Match; }
+  if (equals(text, "for")) { return TokenKind.For; }
   // `from` is not a keyword: it only means anything after an import list, and
   // it is too useful a name to take away everywhere else.
-  if (textEquals(text, "true")) { return TokenKind.Bool; }
-  if (textEquals(text, "false")) { return TokenKind.Bool; }
+  if (equals(text, "true")) { return TokenKind.Bool; }
+  if (equals(text, "false")) { return TokenKind.Bool; }
 
   // Type names are their own kind rather than identifiers, which is what the
   // parser reads to tell `let x: i32` from `let x: Point`.
-  if (textEquals(text, "i8")) { return TokenKind.Type; }
-  if (textEquals(text, "u8")) { return TokenKind.Type; }
-  if (textEquals(text, "i16")) { return TokenKind.Type; }
-  if (textEquals(text, "u16")) { return TokenKind.Type; }
-  if (textEquals(text, "i32")) { return TokenKind.Type; }
-  if (textEquals(text, "u32")) { return TokenKind.Type; }
-  if (textEquals(text, "i64")) { return TokenKind.Type; }
-  if (textEquals(text, "u64")) { return TokenKind.Type; }
-  if (textEquals(text, "usize")) { return TokenKind.Type; }
-  if (textEquals(text, "f32")) { return TokenKind.Type; }
-  if (textEquals(text, "f64")) { return TokenKind.Type; }
-  if (textEquals(text, "bool")) { return TokenKind.Type; }
-  if (textEquals(text, "void")) { return TokenKind.Type; }
+  if (equals(text, "i8")) { return TokenKind.Type; }
+  if (equals(text, "u8")) { return TokenKind.Type; }
+  if (equals(text, "i16")) { return TokenKind.Type; }
+  if (equals(text, "u16")) { return TokenKind.Type; }
+  if (equals(text, "i32")) { return TokenKind.Type; }
+  if (equals(text, "u32")) { return TokenKind.Type; }
+  if (equals(text, "i64")) { return TokenKind.Type; }
+  if (equals(text, "u64")) { return TokenKind.Type; }
+  if (equals(text, "usize")) { return TokenKind.Type; }
+  if (equals(text, "f32")) { return TokenKind.Type; }
+  if (equals(text, "f64")) { return TokenKind.Type; }
+  if (equals(text, "bool")) { return TokenKind.Type; }
+  if (equals(text, "void")) { return TokenKind.Type; }
 
   return TokenKind.Ident;
 }
@@ -397,7 +397,7 @@ export fn tokenize(source: *i8): *TokenList {
 
   // The end token carries no position, so a diagnostic about running out of
   // input names the file rather than pointing past its last line.
-  list.add(TokenKind.End, textCopy(""), 0, 0, 0);
+  list.add(TokenKind.End, copy(""), 0, 0, 0);
 
   return list;
 }

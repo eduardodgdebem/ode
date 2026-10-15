@@ -11,7 +11,7 @@
 // `Point.new(1, 2)`, or `Point.length(&p)`.
 // ---------------------------------------------------------------------------
 
-import { Buf, textEquals } from "../support/text";
+import { Builder, equals } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
@@ -52,7 +52,7 @@ export fn structDeclOf(an: *Analyzer, name: *i8): i32 {
   for (index in 0..an.ast.nodes[an.program].itemCount) {
     let item: i32 = an.ast.nodes[an.program].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Struct &&
-        textEquals(an.ast.nodes[item].text, name)) {
+        equals(an.ast.nodes[item].text, name)) {
       return item;
     }
   }
@@ -66,7 +66,7 @@ fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
   for (index in 0..an.ast.nodes[structNode].itemCount) {
     let item: i32 = an.ast.nodes[structNode].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Fn &&
-        textEquals(an.ast.nodes[item].text, name)) {
+        equals(an.ast.nodes[item].text, name)) {
       return item;
     }
   }
@@ -76,7 +76,7 @@ fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
 
 // `Point.length`, which is how diagnostics name a method.
 fn methodName(an: *Analyzer, structNode: i32, method: i32): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add(an.ast.nodes[structNode].text);
   out.push('.');
   out.add(an.ast.nodes[method].text);
@@ -91,13 +91,13 @@ fn methodSelf(an: *Analyzer, structNode: i32, method: i32): SelfKind {
   }
 
   let first: i32 = an.ast.nodes[params].items[0];
-  if (!textEquals(an.ast.nodes[first].text, "self")) {
+  if (!equals(an.ast.nodes[first].text, "self")) {
     return SelfKind.None;
   }
 
   let type: Type = analyzerParseType(an, an.ast.nodes[first].a);
   if (type.kind != TypeKind.Struct ||
-      !textEquals(type.structName, an.ast.nodes[structNode].text)) {
+      !equals(type.structName, an.ast.nodes[structNode].text)) {
     return SelfKind.Invalid;
   }
   if (type.pointerDepth == 0) {
@@ -146,7 +146,7 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
       }
 
       if (methodSelf(an, node, method) == SelfKind.Invalid) {
-        let detail: *Buf = Buf.new();
+        let detail: *Builder = Builder.new();
         detail.add("it must be '");
         detail.add(an.ast.nodes[node].text);
         detail.add("' or '*");
@@ -246,7 +246,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   }
 
   if (method == NO_NODE) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("struct '");
     message.add(structType.structName);
     message.add("' has no method '");
@@ -264,7 +264,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   }
 
   if (self == SelfKind.None) {
-    let detail: *Buf = Buf.new();
+    let detail: *Builder = Builder.new();
     detail.add("call it on the struct instead: '");
     detail.add(fullName);
     detail.add("(...)'");
@@ -309,7 +309,7 @@ fn checkStaticCall(an: *Analyzer, node: i32, structNode: i32): Type {
   let method: i32 = findMethod(an, structNode, name);
 
   if (method == NO_NODE) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("struct '");
     message.add(an.ast.nodes[structNode].text);
     message.add("' has no method '");
