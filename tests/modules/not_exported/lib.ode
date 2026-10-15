@@ -1,0 +1,7 @@
+fn secret(): i32 {
+  return 42;
+}
+
+struct Hidden {
+  value: i32,
+}

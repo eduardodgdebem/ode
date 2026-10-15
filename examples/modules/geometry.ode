@@ -1,0 +1,26 @@
+// Imported by examples/modules.ode. Its own import is resolved from this
+// file's directory, not from the importer's.
+
+import { square } from "./math";
+
+export struct Vec2 {
+  x: i32,
+  y: i32,
+}
+
+// Private, and the entry file has a `helper` of its own.
+fn helper(): i32 {
+  return 100;
+}
+
+export fn vecAdd(a: Vec2, b: Vec2): Vec2 {
+  return Vec2 { x: a.x + b.x, y: a.y + b.y };
+}
+
+export fn vecScale(v: Vec2, by: i32): Vec2 {
+  return Vec2 { x: v.x * by, y: v.y * by };
+}
+
+export fn lengthSquared(v: Vec2): i32 {
+  return square(v.x) + square(v.y) + helper() - 100;
+}

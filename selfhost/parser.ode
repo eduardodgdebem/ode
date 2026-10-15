@@ -8,7 +8,25 @@
 // trees rather than trusting that they match.
 // ---------------------------------------------------------------------------
 
-struct Parser {
+import {
+  malloc, Buf, bufNew, bufPush, bufAddBytes, bufAdd, FAILED, report,
+} from "./prelude";
+import {
+  TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE, TK_LET,
+  TK_IF, TK_FN, TK_EXTERN, TK_STRUCT, TK_SIZEOF, TK_RETURN, TK_WHILE, TK_BREAK,
+  TK_CONTINUE, TK_PRINT, TK_AS, TK_IMPORT, TK_EXPORT, TK_PLUS, TK_MINUS,
+  TK_STAR, TK_SLASH, TK_PERCENT, TK_NOT, TK_AMP, TK_PIPE, TK_CARET, TK_SHL,
+  TK_SHR, TK_ANDAND, TK_OROR, TK_EQ, TK_NE, TK_LT, TK_LE, TK_GT, TK_GE,
+  TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_LBRACKET, TK_RBRACKET, TK_DOT,
+  TK_SEMICOLON, TK_COMMA, TK_COLON, Token, TokenList, tokenAt,
+} from "./token";
+import {
+  NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
+  NK_STRUCTLIT, NK_FINIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL,
+  NK_IDENT, NK_TYPE, NK_ARGS, NK_ERROR, Ast, astAdd, astSetText, astAddItem,
+} from "./ast";
+
+export struct Parser {
   tokens: *TokenList,
   ast: *Ast,
   pos: i32,
@@ -17,7 +35,7 @@ struct Parser {
   atTopLevel: bool,
 }
 
-fn parserNew(tokens: *TokenList, ast: *Ast): *Parser {
+export fn parserNew(tokens: *TokenList, ast: *Ast): *Parser {
   let parser: *Parser = malloc(sizeof(Parser) as i64) as *Parser;
   parser.tokens = tokens;
   parser.ast = ast;
@@ -27,7 +45,7 @@ fn parserNew(tokens: *TokenList, ast: *Ast): *Parser {
   return parser;
 }
 
-fn parserCurrent(parser: *Parser): *Token {
+export fn parserCurrent(parser: *Parser): *Token {
   return tokenAt(parser.tokens, parser.pos);
 }
 
@@ -35,17 +53,17 @@ fn parserPeek(parser: *Parser): *Token {
   return tokenAt(parser.tokens, parser.pos + 1);
 }
 
-fn parserKind(parser: *Parser): i32 {
+export fn parserKind(parser: *Parser): i32 {
   return parserCurrent(parser).kind;
 }
 
-fn parserAdvance(parser: *Parser): void {
+export fn parserAdvance(parser: *Parser): void {
   if (parser.pos < parser.tokens.count - 1) {
     parser.pos = parser.pos + 1;
   }
 }
 
-fn parserFail(parser: *Parser, expected: *i8): void {
+export fn parserFail(parser: *Parser, expected: *i8): void {
   let token: *Token = parserCurrent(parser);
   let message: *Buf = bufNew();
   bufAdd(message, "expected '");
@@ -62,15 +80,18 @@ fn parserFail(parser: *Parser, expected: *i8): void {
   report(token.line, token.column, message.data);
 }
 
-fn parserErrorNode(parser: *Parser): i32 {
+export fn parserErrorNode(parser: *Parser): i32 {
   let token: *Token = parserCurrent(parser);
   return astAdd(parser.ast, NK_ERROR, token.line, token.column);
 }
 
 // True for a token that can only begin a statement, which is where a
 // recovering parser can pick the file back up.
-fn startsStatement(kind: i32): bool {
+export fn startsStatement(kind: i32): bool {
   if (kind == TK_FN || kind == TK_EXTERN || kind == TK_STRUCT) {
+    return true;
+  }
+  if (kind == TK_IMPORT || kind == TK_EXPORT) {
     return true;
   }
   if (kind == TK_LET || kind == TK_IF || kind == TK_WHILE) {
@@ -87,7 +108,7 @@ fn startsStatement(kind: i32): bool {
 // the next statement is discarded. A `{` is skipped whole, so a malformed
 // function header costs its body rather than turning it into a second round
 // of errors.
-fn parserSynchronize(parser: *Parser): void {
+export fn parserSynchronize(parser: *Parser): void {
   let depth: i32 = 0;
 
   while (parserKind(parser) != TK_END) {
@@ -127,7 +148,7 @@ fn parserSynchronize(parser: *Parser): void {
   }
 }
 
-fn parserExpect(parser: *Parser, kind: i32, name: *i8): *Token {
+export fn parserExpect(parser: *Parser, kind: i32, name: *i8): *Token {
   // The offending token is left where it is. Consuming it would throw away
   // the very thing recovery needs to see -- a `}` swallowed here would leave
   // the parser inside a block that has already ended.
@@ -147,7 +168,7 @@ fn parserExpect(parser: *Parser, kind: i32, name: *i8): *Token {
 // ---------------------------------------------------------------------------
 
 // Type -> '*'* BaseType
-fn parseType(parser: *Parser): i32 {
+export fn parseType(parser: *Parser): i32 {
   let start: *Token = parserCurrent(parser);
   let startLine: i32 = start.line;
   let startColumn: i32 = start.column;
@@ -178,7 +199,7 @@ fn parseType(parser: *Parser): i32 {
 // Expressions.
 // ---------------------------------------------------------------------------
 
-fn parseExpr(parser: *Parser): i32 {
+export fn parseExpr(parser: *Parser): i32 {
   return parseLogicOr(parser);
 }
 

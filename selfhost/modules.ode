@@ -1,0 +1,575 @@
+// ---------------------------------------------------------------------------
+// Modules.
+//
+// Every file is a module. Its top-level names are its own unless it marks
+// them `export`, and another file sees them only by naming them in an
+// `import { ... } from "./path";`.
+//
+// All files parse into the one arena and the one program node, and every node
+// remembers which file it came from. What keeps them apart is done here,
+// before the analyzer proper runs:
+//
+//   - Each top-level declaration gets the name it will carry in the IR. The
+//     entry file claims names first and keeps them unchanged, so a program of
+//     one file compiles to exactly the IR it always did. A later file whose
+//     name is already taken gets `<stem>.<name>`, which no source can spell.
+//   - Struct references are rewritten to the struct's IR name. A struct name
+//     cannot be shadowed by a local, so this is safe to do on the tree before
+//     any scope exists.
+//   - Each import is checked against what its module exports.
+//
+// Values, unlike structs, can be shadowed, so the analyzer resolves those
+// itself: each module's bodies are checked in a scope holding the module's
+// own declarations and its imports, and nothing else.
+// ---------------------------------------------------------------------------
+
+import {
+  malloc, realloc, memcpy, strlen, nullText, isNullText, Buf, bufNew, bufPush,
+  bufAdd, bufAddInt, bufTake, textEquals, textSlice, FAILED, report,
+} from "./prelude";
+import {
+  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_STRUCTLIT, NK_TYPE,
+  NK_IMPORT,
+} from "./ast";
+import { TY_NONE, typeKindFromName } from "./type";
+import { Symbol, SymbolTable, symbolDeclare } from "./symbols";
+import { Analyzer } from "./analyzer";
+import { SOURCE_PATH, stemOf } from "./main";
+
+export extern fn realpath(path: *i8, resolved: *i8): *i8;
+
+struct Module {
+  // As diagnostics show it: the path given on the command line for the entry
+  // file, and that file's directory joined with the import for the rest.
+  path: *i8,
+  // What identifies the file, so two spellings of one path load it once.
+  real: *i8,
+}
+
+let MODULES: *Module = 0 as i64 as *Module;
+export let MODULE_COUNT: i32 = 0;
+let MODULE_CAPACITY: i32 = 0;
+
+export fn moduleAdd(path: *i8, real: *i8): i32 {
+  if (MODULE_COUNT == MODULE_CAPACITY) {
+    if (MODULE_CAPACITY == 0) {
+      MODULE_CAPACITY = 8;
+      MODULES = malloc(sizeof(Module) as i64 * 8 as i64) as *Module;
+    } else {
+      MODULE_CAPACITY = MODULE_CAPACITY * 2;
+      MODULES = realloc(MODULES as *i8,
+                        sizeof(Module) as i64 * MODULE_CAPACITY as i64) as
+          *Module;
+    }
+  }
+
+  let index: i32 = MODULE_COUNT;
+  MODULES[index].path = path;
+  MODULES[index].real = real;
+  MODULE_COUNT = index + 1;
+
+  return index;
+}
+
+export fn moduleFind(real: *i8): i32 {
+  let index: i32 = 0;
+
+  while (index < MODULE_COUNT) {
+    if (textEquals(MODULES[index].real, real)) {
+      return index;
+    }
+    index = index + 1;
+  }
+
+  return -1;
+}
+
+export fn modulePath(module: i32): *i8 {
+  return MODULES[module].path;
+}
+
+fn textEndsWith(text: *i8, suffix: *i8): bool {
+  let length: i64 = strlen(text);
+  let suffixLength: i64 = strlen(suffix);
+
+  if (suffixLength > length) {
+    return false;
+  }
+
+  return textEquals(text + (length - suffixLength), suffix);
+}
+
+// Everything up to and including the last `/`, or nothing for a bare name.
+fn directoryOf(path: *i8): *i8 {
+  let length: i64 = strlen(path);
+  let end: i64 = 0 as i64;
+
+  let index: i64 = 0 as i64;
+  while (index < length) {
+    if (path[index] == '/') {
+      end = index + 1 as i64;
+    }
+    index = index + 1 as i64;
+  }
+
+  return textSlice(path, 0 as i64, end);
+}
+
+// Where `import ... from "<spec>"` written in `importer` points. A relative
+// spec is taken from the importing file's directory, the way TypeScript reads
+// one, and the `.ode` may be left off.
+export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
+  let out: *Buf = bufNew();
+
+  if (spec[0] != '/') {
+    bufAdd(out, directoryOf(importer));
+  }
+
+  // A leading `./` says nothing the directory does not already say, and
+  // dropping it keeps the path in a diagnostic short.
+  let rest: *i8 = spec;
+  while (rest[0] == '.' && rest[1] == '/') {
+    rest = rest + 2;
+  }
+  bufAdd(out, rest);
+
+  if (!textEndsWith(rest, ".ode")) {
+    bufAdd(out, ".ode");
+  }
+
+  return bufTake(out);
+}
+
+// ---------------------------------------------------------------------------
+// IR names.
+// ---------------------------------------------------------------------------
+
+export struct NameSet {
+  items: **i8,
+  count: i32,
+  capacity: i32,
+}
+
+export fn nameSetNew(): *NameSet {
+  let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
+  set.capacity = 64;
+  set.count = 0;
+  set.items = malloc(sizeof(*i8) as i64 * set.capacity as i64) as **i8;
+
+  return set;
+}
+
+export fn nameSetHas(set: *NameSet, name: *i8): bool {
+  let index: i32 = 0;
+
+  while (index < set.count) {
+    if (textEquals(set.items[index], name)) {
+      return true;
+    }
+    index = index + 1;
+  }
+
+  return false;
+}
+
+export fn nameSetAdd(set: *NameSet, name: *i8): void {
+  if (set.count == set.capacity) {
+    set.capacity = set.capacity * 2;
+    set.items = realloc(set.items as *i8,
+                        sizeof(*i8) as i64 * set.capacity as i64) as **i8;
+  }
+
+  set.items[set.count] = name;
+  set.count = set.count + 1;
+}
+
+// `name` if nobody has it yet, and otherwise a name qualified by the module.
+// The qualified form contains a `.`, which no identifier can, so it cannot
+// collide with anything written in a source file.
+fn claimName(set: *NameSet, module: i32, name: *i8): *i8 {
+  let chosen: *i8 = name;
+
+  if (nameSetHas(set, chosen)) {
+    let qualified: *Buf = bufNew();
+    bufAdd(qualified, stemOf(modulePath(module)));
+    bufPush(qualified, '.');
+    bufAdd(qualified, name);
+    chosen = bufTake(qualified);
+  }
+
+  // Two files with one stem, `a/util.ode` and `b/util.ode`, need the module
+  // number to tell them apart.
+  if (nameSetHas(set, chosen)) {
+    let numbered: *Buf = bufNew();
+    bufAdd(numbered, stemOf(modulePath(module)));
+    bufAddInt(numbered, module as i64);
+    bufPush(numbered, '.');
+    bufAdd(numbered, name);
+    chosen = bufTake(numbered);
+  }
+
+  nameSetAdd(set, chosen);
+
+  return chosen;
+}
+
+fn isValueDecl(kind: i32): bool {
+  return kind == NK_FN || kind == NK_EXTERN || kind == NK_VARDECL;
+}
+
+// The first top-level declaration in `module` named `name`, of a struct when
+// `wantStruct` and of a value otherwise, or NO_NODE.
+fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
+                wantStruct: bool): i32 {
+  let index: i32 = 0;
+
+  while (index < an.ast.nodes[program].itemCount) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    let kind: i32 = an.ast.nodes[item].kind;
+
+    if (an.ast.nodes[item].module == module &&
+        textEquals(an.ast.nodes[item].text, name)) {
+      if (wantStruct && kind == NK_STRUCT) {
+        return item;
+      }
+      if (!wantStruct && isValueDecl(kind)) {
+        return item;
+      }
+    }
+
+    index = index + 1;
+  }
+
+  return NO_NODE;
+}
+
+fn assignLinkNames(an: *Analyzer, program: i32): void {
+  let count: i32 = an.ast.nodes[program].itemCount;
+  let values: *NameSet = nameSetNew();
+  let structs: *NameSet = nameSetNew();
+
+  // An extern is a symbol some other object file defines, so its name is not
+  // this compiler's to change. Several files may declare the same one.
+  let index: i32 = 0;
+  while (index < count) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    if (an.ast.nodes[item].kind == NK_EXTERN) {
+      let name: *i8 = an.ast.nodes[item].text;
+      an.linkNames[item] = name;
+      if (!nameSetHas(values, name)) {
+        nameSetAdd(values, name);
+      }
+    }
+    index = index + 1;
+  }
+
+  // Module by module, so the entry file, which is module 0, claims first.
+  let module: i32 = 0;
+  while (module < MODULE_COUNT) {
+    index = 0;
+    while (index < count) {
+      let item: i32 = an.ast.nodes[program].items[index];
+      let kind: i32 = an.ast.nodes[item].kind;
+      let name: *i8 = an.ast.nodes[item].text;
+
+      if (an.ast.nodes[item].module == module) {
+        if (kind == NK_FN || kind == NK_VARDECL) {
+          an.linkNames[item] = claimName(values, module, name);
+        }
+
+        // A struct declared twice in one file has to keep one name, or the
+        // analyzer would see two structs and miss the duplicate.
+        if (kind == NK_STRUCT) {
+          let first: i32 = findTopLevel(an, program, module, name, true);
+          if (first != item) {
+            an.linkNames[item] = an.linkNames[first];
+          } else {
+            an.linkNames[item] = claimName(structs, module, name);
+          }
+        }
+      }
+
+      index = index + 1;
+    }
+
+    module = module + 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Imports.
+// ---------------------------------------------------------------------------
+
+// The name an imported binding goes by in the importing file.
+fn importLocalName(an: *Analyzer, importName: i32): *i8 {
+  let alias: i32 = an.ast.nodes[importName].a;
+  if (alias != NO_NODE) {
+    return an.ast.nodes[alias].text;
+  }
+
+  return an.ast.nodes[importName].text;
+}
+
+fn importFail(an: *Analyzer, at: i32, message: *i8): void {
+  SOURCE_PATH = modulePath(an.ast.nodes[at].module);
+  report(an.ast.nodes[at].line, an.ast.nodes[at].column, message);
+  FAILED = false;
+}
+
+// Every imported name has to be something its module exports.
+fn checkImports(an: *Analyzer, program: i32): void {
+  let index: i32 = 0;
+
+  while (index < an.ast.nodes[program].itemCount) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    let target: i32 = an.ast.nodes[item].extra;
+
+    if (an.ast.nodes[item].kind == NK_IMPORT && target >= 0) {
+      let name: i32 = 0;
+      while (name < an.ast.nodes[item].itemCount) {
+        let importName: i32 = an.ast.nodes[item].items[name];
+        let text: *i8 = an.ast.nodes[importName].text;
+
+        let asStruct: i32 = findTopLevel(an, program, target, text, true);
+        let asValue: i32 = findTopLevel(an, program, target, text, false);
+        let exported: bool = false;
+        if (asStruct != NO_NODE && an.ast.nodes[asStruct].exported) {
+          exported = true;
+        }
+        if (asValue != NO_NODE && an.ast.nodes[asValue].exported) {
+          exported = true;
+        }
+
+        if (asStruct == NO_NODE && asValue == NO_NODE) {
+          let message: *Buf = bufNew();
+          bufAdd(message, "module '");
+          bufAdd(message, an.ast.nodes[item].text);
+          bufAdd(message, "' has no export named '");
+          bufAdd(message, text);
+          bufPush(message, '\'');
+          importFail(an, importName, message.data);
+        } else if (!exported) {
+          let message: *Buf = bufNew();
+          bufPush(message, '\'');
+          bufAdd(message, text);
+          bufAdd(message, "' is not exported from '");
+          bufAdd(message, an.ast.nodes[item].text);
+          bufPush(message, '\'');
+          importFail(an, importName, message.data);
+        }
+
+        name = name + 1;
+      }
+    }
+
+    index = index + 1;
+  }
+}
+
+// The IR name of the struct that `name` means in `module`, or null when the
+// module neither declares nor imports one by that name.
+fn resolveStructName(an: *Analyzer, program: i32, module: i32,
+                     name: *i8): *i8 {
+  let own: i32 = findTopLevel(an, program, module, name, true);
+  if (own != NO_NODE) {
+    return an.linkNames[own];
+  }
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[program].itemCount) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    let target: i32 = an.ast.nodes[item].extra;
+
+    if (an.ast.nodes[item].kind == NK_IMPORT &&
+        an.ast.nodes[item].module == module && target >= 0) {
+      let entry: i32 = 0;
+      while (entry < an.ast.nodes[item].itemCount) {
+        let importName: i32 = an.ast.nodes[item].items[entry];
+
+        if (textEquals(importLocalName(an, importName), name)) {
+          // A private struct has been reported at the import already; it
+          // still resolves, so that the import is the only error it causes.
+          let declared: i32 = findTopLevel(an, program, target,
+                                           an.ast.nodes[importName].text, true);
+          if (declared != NO_NODE) {
+            return an.linkNames[declared];
+          }
+        }
+
+        entry = entry + 1;
+      }
+    }
+
+    index = index + 1;
+  }
+
+  return nullText();
+}
+
+// The first struct declared anywhere under `name`, for the diagnostic that
+// says where a type the file forgot to import lives.
+fn findStructAnywhere(an: *Analyzer, program: i32, name: *i8): i32 {
+  let index: i32 = 0;
+
+  while (index < an.ast.nodes[program].itemCount) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    if (an.ast.nodes[item].kind == NK_STRUCT &&
+        textEquals(an.ast.nodes[item].text, name)) {
+      return item;
+    }
+    index = index + 1;
+  }
+
+  return NO_NODE;
+}
+
+fn setNodeText(an: *Analyzer, node: i32, text: *i8): void {
+  if (textEquals(an.ast.nodes[node].text, text)) {
+    return;
+  }
+
+  an.ast.nodes[node].text = text;
+  an.ast.nodes[node].textLength = strlen(text);
+}
+
+// Points every struct reference at the struct its own file can see, then
+// renames the declarations to match. The declarations go last because finding
+// a reference's struct reads them by the name they were written with.
+fn rewriteStructNames(an: *Analyzer, program: i32): void {
+  let node: i32 = 0;
+
+  while (node < an.ast.count) {
+    let kind: i32 = an.ast.nodes[node].kind;
+    let names: bool = kind == NK_STRUCTLIT;
+    if (kind == NK_TYPE) {
+      names = typeKindFromName(an.ast.nodes[node].text) == TY_NONE;
+    }
+
+    if (names) {
+      let name: *i8 = an.ast.nodes[node].text;
+      let module: i32 = an.ast.nodes[node].module;
+      let resolved: *i8 = resolveStructName(an, program, module, name);
+
+      if (!isNullText(resolved)) {
+        setNodeText(an, node, resolved);
+      } else {
+        // Left alone, the name would quietly mean whichever file happened to
+        // claim it -- the very leak modules exist to prevent. A name no file
+        // declares is left for the analyzer's own "unknown type".
+        let elsewhere: i32 = findStructAnywhere(an, program, name);
+        if (elsewhere != NO_NODE) {
+          let message: *Buf = bufNew();
+          bufAdd(message, "type '");
+          bufAdd(message, name);
+          bufAdd(message, "' is declared in '");
+          bufAdd(message, modulePath(an.ast.nodes[elsewhere].module));
+          bufAdd(message, "' but not imported here");
+          importFail(an, node, message.data);
+          // Pointed at the real struct anyway, so the error above is the
+          // only one this mistake produces.
+          setNodeText(an, node, an.linkNames[elsewhere]);
+        }
+      }
+    }
+
+    node = node + 1;
+  }
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[program].itemCount) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    if (an.ast.nodes[item].kind == NK_STRUCT) {
+      setNodeText(an, item, an.linkNames[item]);
+    }
+    index = index + 1;
+  }
+}
+
+export fn linkModules(an: *Analyzer, program: i32): void {
+  assignLinkNames(an, program);
+  checkImports(an, program);
+  rewriteStructNames(an, program);
+}
+
+// ---------------------------------------------------------------------------
+// Per-module scopes.
+// ---------------------------------------------------------------------------
+
+export struct SymbolList {
+  items: *Symbol,
+  count: i32,
+}
+
+// The symbols declared since `start`, copied out before their scope closes.
+export fn symbolListCopy(table: *SymbolTable, start: i32): SymbolList {
+  let count: i32 = table.count - start;
+  let items: *Symbol = 0 as i64 as *Symbol;
+
+  if (count > 0) {
+    items = malloc(sizeof(Symbol) as i64 * count as i64) as *Symbol;
+    memcpy(items as *i8, (table.items + start) as *i8,
+           sizeof(Symbol) as i64 * count as i64);
+  }
+
+  return SymbolList { items: items, count: count };
+}
+
+export fn symbolListFind(list: SymbolList, name: *i8): i32 {
+  let index: i32 = 0;
+
+  while (index < list.count) {
+    if (textEquals(list.items[index].name, name)) {
+      return index;
+    }
+    index = index + 1;
+  }
+
+  return -1;
+}
+
+// Binds a module's imported values in the scope its bodies are checked in.
+export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
+  let index: i32 = 0;
+
+  while (index < an.ast.nodes[program].itemCount) {
+    let item: i32 = an.ast.nodes[program].items[index];
+    let target: i32 = an.ast.nodes[item].extra;
+
+    if (an.ast.nodes[item].kind == NK_IMPORT &&
+        an.ast.nodes[item].module == module && target >= 0) {
+      let entry: i32 = 0;
+      while (entry < an.ast.nodes[item].itemCount) {
+        let importName: i32 = an.ast.nodes[item].items[entry];
+        let declared: i32 = findTopLevel(an, program, target,
+                                         an.ast.nodes[importName].text, false);
+
+        // A struct import was dealt with on the tree, and a missing one has
+        // already been reported. A private one has too, but is bound anyway,
+        // so that its uses do not each report it again as undefined.
+        if (declared != NO_NODE) {
+          let symbols: SymbolList = an.moduleSymbols[target];
+          let found: i32 = symbolListFind(symbols,
+                                          an.ast.nodes[importName].text);
+
+          if (found >= 0) {
+            let before: i32 = an.symbols.count;
+            symbolDeclare(an.symbols, importLocalName(an, importName),
+                          symbols.items[found].kind, symbols.items[found].type,
+                          symbols.items[found].params,
+                          symbols.items[found].paramCount,
+                          an.ast.nodes[importName].line,
+                          an.ast.nodes[importName].column);
+            if (an.symbols.count > before) {
+              an.symbols.items[before].linkName = symbols.items[found].linkName;
+            }
+            FAILED = false;
+          }
+        }
+
+        entry = entry + 1;
+      }
+    }
+
+    index = index + 1;
+  }
+}

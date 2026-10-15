@@ -3,13 +3,35 @@
 ## Program Structure
 
 - **Program** → TopLevel*
-- **TopLevel** → FuncDecl | ExternDecl | StructDecl | Statement
+- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | Statement
 - **Statement** → VarDecl | Assign | IfStmt | WhileStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
 
-`fn`, `extern` and `struct` are top-level only. Writing one inside a block is
-an error; there are no nested functions or block-local types.
+`fn`, `extern`, `struct`, `import` and `export` are top-level only. Writing
+one inside a block is an error; there are no nested functions or block-local
+types.
+
+---
+
+## Modules
+
+- **ImportDecl** → `import` `{` (ImportName (`,` ImportName)* `,`?)? `}` `from` STRING `;`
+- **ImportName** → IDENT (`as` IDENT)?
+- **ExportDecl** → `export` (FuncDecl | ExternDecl | StructDecl | VarDecl)
+
+Every file is a module. Its top-level names are private to it unless they are
+declared with `export`, and another file sees them only by importing them by
+name. `as` renames an import within the importing file.
+
+The STRING is a path. One that does not start with `/` is taken from the
+importing file's directory, not from where the compiler was run, and `.ode` is
+appended when it is left off: `"./lib"` and `"./lib.ode"` name the same file.
+Each file is loaded once however many files import it, so imports may form
+cycles.
+
+`from` is not a keyword; it is recognised only in this position. `import` and
+`export` are.
 
 ---
 
@@ -170,8 +192,8 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
 - A struct literal must initialise every field exactly once, in any order.
 - `sizeof(T)` is a `usize` and is what sizes an allocation for a struct.
 - Globals may only be initialised from constants — literals, `sizeof`, and
-  casts or negations of those. Every global is visible to every function
-  regardless of declaration order.
+  casts or negations of those. Every global is visible to every function in
+  its file regardless of declaration order.
 - Structs may be passed and returned by value between Ode functions, but not
   across `extern`, where the C ABI would need target-specific lowering.
 - `*i8` is Ode's string type: `print` renders it as text, while every other

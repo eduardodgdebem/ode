@@ -7,19 +7,27 @@
 // shadows an outer one for free.
 // ---------------------------------------------------------------------------
 
-let SYM_VAR: i32 = 1;
-let SYM_FN: i32 = 2;
+import {
+  malloc, realloc, nullText, Buf, bufNew, bufAdd, textEquals, report,
+} from "./prelude";
+import { Type } from "./type";
 
-struct Symbol {
+export let SYM_VAR: i32 = 1;
+export let SYM_FN: i32 = 2;
+
+export struct Symbol {
   name: *i8,
   kind: i32,
   // For a function this is the return type.
   type: Type,
   params: *Type,
   paramCount: i32,
+  // What the IR calls a top-level declaration, which differs from `name` when
+  // two files use one name or when an import renames it. Null for a local.
+  linkName: *i8,
 }
 
-struct SymbolTable {
+export struct SymbolTable {
   items: *Symbol,
   count: i32,
   capacity: i32,
@@ -28,7 +36,7 @@ struct SymbolTable {
   scopeCapacity: i32,
 }
 
-fn symbolTableNew(): *SymbolTable {
+export fn symbolTableNew(): *SymbolTable {
   let table: *SymbolTable = malloc(sizeof(SymbolTable) as i64) as *SymbolTable;
   table.capacity = 64;
   table.count = 0;
@@ -43,7 +51,7 @@ fn symbolTableNew(): *SymbolTable {
   return table;
 }
 
-fn symbolEnterScope(table: *SymbolTable): void {
+export fn symbolEnterScope(table: *SymbolTable): void {
   if (table.scopeCount == table.scopeCapacity) {
     table.scopeCapacity = table.scopeCapacity * 2;
     table.scopeStarts =
@@ -55,7 +63,7 @@ fn symbolEnterScope(table: *SymbolTable): void {
   table.scopeCount = table.scopeCount + 1;
 }
 
-fn symbolExitScope(table: *SymbolTable): void {
+export fn symbolExitScope(table: *SymbolTable): void {
   if (table.scopeCount == 0) {
     return;
   }
@@ -66,13 +74,13 @@ fn symbolExitScope(table: *SymbolTable): void {
 
 // Innermost first, so a shadowing declaration wins.
 // Undoes the scopes an abandoned statement left open.
-fn symbolTruncateScopes(table: *SymbolTable, depth: i32): void {
+export fn symbolTruncateScopes(table: *SymbolTable, depth: i32): void {
   while (table.scopeCount > depth) {
     symbolExitScope(table);
   }
 }
 
-fn symbolFind(table: *SymbolTable, name: *i8): i32 {
+export fn symbolFind(table: *SymbolTable, name: *i8): i32 {
   let index: i32 = table.count - 1;
 
   while (index >= 0) {
@@ -101,7 +109,7 @@ fn symbolFindInScope(table: *SymbolTable, name: *i8): i32 {
   return -1;
 }
 
-fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
+export fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
                  params: *Type, paramCount: i32, line: i32,
                  column: i32): void {
   if (symbolFindInScope(table, name) >= 0) {
@@ -126,5 +134,19 @@ fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
   table.items[index].type = type;
   table.items[index].params = params;
   table.items[index].paramCount = paramCount;
+  table.items[index].linkName = nullText();
   table.count = index + 1;
+}
+
+// Pushes a symbol already checked for conflicts, as it was declared.
+export fn declareSymbolCopy(table: *SymbolTable, symbol: Symbol): void {
+  if (table.count == table.capacity) {
+    table.capacity = table.capacity * 2;
+    table.items = realloc(table.items as *i8,
+                          sizeof(Symbol) as i64 * table.capacity as i64) as
+        *Symbol;
+  }
+
+  table.items[table.count] = symbol;
+  table.count = table.count + 1;
 }

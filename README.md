@@ -92,7 +92,10 @@ codegen misbehaves; `--no-intermediates` deletes them once linking succeeds.
 `tests/run_tests.sh` is the regression suite. It compiles, links and runs every
 `examples/*.ode` and diffs its stdout against `tests/valid/<name>.out`, then
 compiles every `tests/invalid/*.ode` and diffs the diagnostic it must produce
-against `tests/invalid/<name>.expected`. It exits non-zero if anything differs,
+against `tests/invalid/<name>.expected`. Programs of several files live in
+`tests/modules/<name>/`, entered at `main.ode`, and are diffed against
+`tests/modules/<name>.expected` -- their diagnostics if they fail to compile,
+their output if they run. It exits non-zero if anything differs,
 and works in a temporary directory so the repository stays clean.
 
 ```bash
@@ -118,8 +121,9 @@ changed. An invalid case that has started compiling is still reported as a
 failure rather than being silently dropped.
 
 Adding a case is dropping a file in: an `examples/*.ode` for a program that
-should run, or a `tests/invalid/*.ode` for one that must be rejected, then
-`--update` to record what it does.
+should run, a `tests/invalid/*.ode` for one that must be rejected, or a
+`tests/modules/<name>/` directory for one that spans files, then `--update` to
+record what it does.
 
 ## The Ode Language
 
@@ -288,12 +292,54 @@ Ode has no sum types yet, so a kind tag plus one struct holding every
 variant's fields stands in for them. `examples/expr_tree.ode` builds and
 evaluates an expression tree that way.
 
+### Modules
+
+Every file is a module. Top-level declarations are private to their file
+unless marked `export`, and other files import them by name, the way
+TypeScript does:
+
+```rust
+// geometry.ode
+export struct Vec2 {
+  x: i32,
+  y: i32,
+}
+
+export fn vecAdd(a: Vec2, b: Vec2): Vec2 {
+  return Vec2 { x: a.x + b.x, y: a.y + b.y };
+}
+
+fn helper(): i32 {      // private to geometry.ode
+  return 0;
+}
+```
+
+```rust
+// main.ode
+import { Vec2, vecAdd as add } from "./geometry";
+
+fn main(): i32 {
+  let v: Vec2 = add(Vec2 { x: 1, y: 2 }, Vec2 { x: 3, y: 4 });
+  print(v.y);
+  return 0;
+}
+```
+
+`fn`, `extern fn`, `struct` and `let` can all be exported. A path is relative
+to the file that imports it, and `.ode` may be left off. Every file is loaded
+once, so imports may be cyclic. Compile the entry file as usual (`ode
+main.ode`) and the files it imports come along. Two files may each have a
+private declaration of the same name without colliding.
+`examples/modules.ode` and the files under `examples/modules/` show all of
+it.
+
 ### Examples
 
 `examples/` holds a program per feature — `mutual_recursion.ode`,
 `pointers.ode`, `casts.ode`, `extern.ode`, `structs.ode`, `linked_list.ode`,
 `arrays.ode`, `expr_tree.ode`, `strings.ode`, `nested_control.ode`,
-`shadowing.ode`, `tokenizer.ode` and `short_circuit.ode` cover the ones above.
+`shadowing.ode`, `tokenizer.ode`, `short_circuit.ode` and `modules.ode` cover
+the ones above.
 
 ### Grammar
 

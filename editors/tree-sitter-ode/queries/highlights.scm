@@ -60,6 +60,14 @@
 "as" @keyword.operator
 
 [
+  "import"
+  "export"
+  "from"
+] @keyword.import
+
+(import_declaration source: (string_literal) @string.special.path)
+
+[
   "if"
   "else"
 ] @keyword.conditional

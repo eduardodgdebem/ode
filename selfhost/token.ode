@@ -5,70 +5,74 @@
 // tens so a new operator can be added without renumbering the delimiters.
 // ---------------------------------------------------------------------------
 
+import { malloc, realloc } from "./prelude";
+
 // Not a token: the state before the first one has been read.
-let TK_NONE: i32 = -1;
+export let TK_NONE: i32 = -1;
 
-let TK_END: i32 = 0;
-let TK_IDENT: i32 = 1;
-let TK_NUMBER: i32 = 2;
-let TK_STRING: i32 = 3;
-let TK_CHAR: i32 = 4;
-let TK_BOOL: i32 = 5;
-let TK_TYPE: i32 = 6;
+export let TK_END: i32 = 0;
+export let TK_IDENT: i32 = 1;
+export let TK_NUMBER: i32 = 2;
+export let TK_STRING: i32 = 3;
+export let TK_CHAR: i32 = 4;
+export let TK_BOOL: i32 = 5;
+export let TK_TYPE: i32 = 6;
 
-let TK_LET: i32 = 10;
-let TK_IF: i32 = 11;
-let TK_ELSE: i32 = 12;
-let TK_FN: i32 = 13;
-let TK_EXTERN: i32 = 14;
-let TK_STRUCT: i32 = 15;
-let TK_SIZEOF: i32 = 16;
-let TK_RETURN: i32 = 17;
-let TK_WHILE: i32 = 18;
-let TK_BREAK: i32 = 19;
-let TK_CONTINUE: i32 = 20;
-let TK_PRINT: i32 = 21;
-let TK_AS: i32 = 22;
+export let TK_LET: i32 = 10;
+export let TK_IF: i32 = 11;
+export let TK_ELSE: i32 = 12;
+export let TK_FN: i32 = 13;
+export let TK_EXTERN: i32 = 14;
+export let TK_STRUCT: i32 = 15;
+export let TK_SIZEOF: i32 = 16;
+export let TK_RETURN: i32 = 17;
+export let TK_WHILE: i32 = 18;
+export let TK_BREAK: i32 = 19;
+export let TK_CONTINUE: i32 = 20;
+export let TK_PRINT: i32 = 21;
+export let TK_AS: i32 = 22;
+export let TK_IMPORT: i32 = 23;
+export let TK_EXPORT: i32 = 24;
 
-let TK_ASSIGN: i32 = 30;
-let TK_PLUS: i32 = 31;
-let TK_MINUS: i32 = 32;
-let TK_STAR: i32 = 33;
-let TK_SLASH: i32 = 34;
-let TK_PERCENT: i32 = 35;
-let TK_NOT: i32 = 36;
-let TK_AMP: i32 = 37;
-let TK_PIPE: i32 = 38;
-let TK_CARET: i32 = 39;
-let TK_SHL: i32 = 40;
-let TK_SHR: i32 = 41;
-let TK_ANDAND: i32 = 42;
-let TK_OROR: i32 = 43;
-let TK_EQ: i32 = 44;
-let TK_NE: i32 = 45;
-let TK_LT: i32 = 46;
-let TK_LE: i32 = 47;
-let TK_GT: i32 = 48;
-let TK_GE: i32 = 49;
+export let TK_ASSIGN: i32 = 30;
+export let TK_PLUS: i32 = 31;
+export let TK_MINUS: i32 = 32;
+export let TK_STAR: i32 = 33;
+export let TK_SLASH: i32 = 34;
+export let TK_PERCENT: i32 = 35;
+export let TK_NOT: i32 = 36;
+export let TK_AMP: i32 = 37;
+export let TK_PIPE: i32 = 38;
+export let TK_CARET: i32 = 39;
+export let TK_SHL: i32 = 40;
+export let TK_SHR: i32 = 41;
+export let TK_ANDAND: i32 = 42;
+export let TK_OROR: i32 = 43;
+export let TK_EQ: i32 = 44;
+export let TK_NE: i32 = 45;
+export let TK_LT: i32 = 46;
+export let TK_LE: i32 = 47;
+export let TK_GT: i32 = 48;
+export let TK_GE: i32 = 49;
 
-let TK_PLUS_ASSIGN: i32 = 50;
-let TK_MINUS_ASSIGN: i32 = 51;
-let TK_STAR_ASSIGN: i32 = 52;
-let TK_SLASH_ASSIGN: i32 = 53;
-let TK_PERCENT_ASSIGN: i32 = 54;
+export let TK_PLUS_ASSIGN: i32 = 50;
+export let TK_MINUS_ASSIGN: i32 = 51;
+export let TK_STAR_ASSIGN: i32 = 52;
+export let TK_SLASH_ASSIGN: i32 = 53;
+export let TK_PERCENT_ASSIGN: i32 = 54;
 
-let TK_LPAREN: i32 = 60;
-let TK_RPAREN: i32 = 61;
-let TK_LBRACE: i32 = 62;
-let TK_RBRACE: i32 = 63;
-let TK_LBRACKET: i32 = 64;
-let TK_RBRACKET: i32 = 65;
-let TK_DOT: i32 = 66;
-let TK_SEMICOLON: i32 = 67;
-let TK_COMMA: i32 = 68;
-let TK_COLON: i32 = 69;
+export let TK_LPAREN: i32 = 60;
+export let TK_RPAREN: i32 = 61;
+export let TK_LBRACE: i32 = 62;
+export let TK_RBRACE: i32 = 63;
+export let TK_LBRACKET: i32 = 64;
+export let TK_RBRACKET: i32 = 65;
+export let TK_DOT: i32 = 66;
+export let TK_SEMICOLON: i32 = 67;
+export let TK_COMMA: i32 = 68;
+export let TK_COLON: i32 = 69;
 
-struct Token {
+export struct Token {
   kind: i32,
   // The token's own text, owned. A number keeps its digits and a string keeps
   // its decoded contents; the parser is what turns either into a value.
@@ -80,7 +84,7 @@ struct Token {
   column: i32,
 }
 
-struct TokenList {
+export struct TokenList {
   items: *Token,
   count: i32,
   capacity: i32,
@@ -90,7 +94,7 @@ fn nullTokenList(): *TokenList {
   return 0 as i64 as *TokenList;
 }
 
-fn tokenListNew(): *TokenList {
+export fn tokenListNew(): *TokenList {
   let list: *TokenList = malloc(sizeof(TokenList) as i64) as *TokenList;
   list.capacity = 256;
   list.count = 0;
@@ -99,7 +103,7 @@ fn tokenListNew(): *TokenList {
   return list;
 }
 
-fn tokenListAdd(list: *TokenList, kind: i32, text: *i8, length: i64,
+export fn tokenListAdd(list: *TokenList, kind: i32, text: *i8, length: i64,
                 line: i32, column: i32): void {
   if (list.count == list.capacity) {
     list.capacity = list.capacity * 2;
@@ -118,7 +122,7 @@ fn tokenListAdd(list: *TokenList, kind: i32, text: *i8, length: i64,
 
 // The parser walks tokens through this rather than by index, so that reading
 // past the end yields an end token instead of running off the allocation.
-fn tokenAt(list: *TokenList, index: i32): *Token {
+export fn tokenAt(list: *TokenList, index: i32): *Token {
   if (index >= list.count) {
     return list.items + (list.count - 1);
   }
@@ -126,7 +130,7 @@ fn tokenAt(list: *TokenList, index: i32): *Token {
   return list.items + index;
 }
 
-fn kindName(kind: i32): *i8 {
+export fn kindName(kind: i32): *i8 {
   if (kind == TK_END) { return "end"; }
   if (kind == TK_IDENT) { return "ident"; }
   if (kind == TK_NUMBER) { return "number"; }
@@ -148,6 +152,8 @@ fn kindName(kind: i32): *i8 {
   if (kind == TK_CONTINUE) { return "continue"; }
   if (kind == TK_PRINT) { return "print"; }
   if (kind == TK_AS) { return "as"; }
+  if (kind == TK_IMPORT) { return "import"; }
+  if (kind == TK_EXPORT) { return "export"; }
 
   if (kind == TK_ASSIGN) { return "="; }
   if (kind == TK_PLUS) { return "+"; }

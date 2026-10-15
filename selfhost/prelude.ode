@@ -1,17 +1,18 @@
 // ---------------------------------------------------------------------------
 // Prelude: libc, memory, growable text, failure.
 //
-// Ode has no modules, so the compiler is one file. These sources are kept
-// apart for reading and concatenated by selfhost/build.sh in name order.
-// Declaration order does not matter: signatures, globals and struct names are
-// all hoisted before any body is checked.
+// Every other module of the compiler imports from this one. Declaration order
+// does not matter: signatures, globals and struct names are all hoisted
+// before any body is checked.
 // ---------------------------------------------------------------------------
 
-extern fn malloc(size: i64): *i8;
-extern fn realloc(block: *i8, size: i64): *i8;
-extern fn free(block: *i8): void;
-extern fn memcpy(dest: *i8, source: *i8, count: i64): *i8;
-extern fn strlen(text: *i8): i64;
+import { SOURCE_PATH } from "./main";
+
+export extern fn malloc(size: i64): *i8;
+export extern fn realloc(block: *i8, size: i64): *i8;
+export extern fn free(block: *i8): void;
+export extern fn memcpy(dest: *i8, source: *i8, count: i64): *i8;
+export extern fn strlen(text: *i8): i64;
 extern fn strcmp(a: *i8, b: *i8): i32;
 extern fn write(fd: i32, buffer: *i8, count: i64): i64;
 extern fn exit(code: i32): void;
@@ -21,24 +22,24 @@ extern fn fread(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
 extern fn fwrite(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
 extern fn fseek(stream: *i8, offset: i64, whence: i32): i32;
 extern fn ftell(stream: *i8): i64;
-extern fn remove(path: *i8): i32;
+export extern fn remove(path: *i8): i32;
 extern fn fork(): i32;
 extern fn execvp(file: *i8, argv: **i8): i32;
 extern fn waitpid(pid: i32, status: *i32, options: i32): i32;
 extern fn _exit(code: i32): void;
 
-let STDOUT: i32 = 1;
-let STDERR: i32 = 2;
+export let STDOUT: i32 = 1;
+export let STDERR: i32 = 2;
 let SEEK_SET: i32 = 0;
 let SEEK_END: i32 = 2;
 
 // Every null is written out per type, because there is no generic null and
 // `.` will not follow an untyped pointer.
-fn nullText(): *i8 {
+export fn nullText(): *i8 {
   return 0 as i64 as *i8;
 }
 
-fn isNullText(pointer: *i8): bool {
+export fn isNullText(pointer: *i8): bool {
   return pointer == nullText();
 }
 
@@ -46,13 +47,13 @@ fn isNullText(pointer: *i8): bool {
 // Output. There is no variadic extern, so nothing here goes through printf.
 // ---------------------------------------------------------------------------
 
-fn writeText(fd: i32, text: *i8): void {
+export fn writeText(fd: i32, text: *i8): void {
   write(fd, text, strlen(text));
 }
 
 // Buffers are written by their own length, because strlen would stop at the
 // first NUL and silently truncate anything holding a `'\0'`.
-fn writeBuf(fd: i32, buffer: *Buf): void {
+export fn writeBuf(fd: i32, buffer: *Buf): void {
   write(fd, buffer.data, buffer.length);
 }
 
@@ -66,7 +67,7 @@ fn print2(a: *i8, b: *i8): void {
 // IR is built in one of these.
 // ---------------------------------------------------------------------------
 
-struct Buf {
+export struct Buf {
   data: *i8,
   length: i64,
   capacity: i64,
@@ -76,7 +77,7 @@ fn nullBuf(): *Buf {
   return 0 as i64 as *Buf;
 }
 
-fn bufNew(): *Buf {
+export fn bufNew(): *Buf {
   let buffer: *Buf = malloc(sizeof(Buf) as i64) as *Buf;
   buffer.capacity = 64 as i64;
   buffer.length = 0 as i64;
@@ -101,7 +102,7 @@ fn bufReserve(buffer: *Buf, extra: i64): void {
   buffer.data = realloc(buffer.data, buffer.capacity);
 }
 
-fn bufPush(buffer: *Buf, character: i8): void {
+export fn bufPush(buffer: *Buf, character: i8): void {
   bufReserve(buffer, 1 as i64);
   buffer.data[buffer.length] = character;
   buffer.length = buffer.length + 1 as i64;
@@ -110,19 +111,19 @@ fn bufPush(buffer: *Buf, character: i8): void {
 
 // Appends a known number of bytes, which is the only way to carry text that
 // contains a NUL -- a `'\0'` literal, or a string with one written into it.
-fn bufAddBytes(buffer: *Buf, text: *i8, count: i64): void {
+export fn bufAddBytes(buffer: *Buf, text: *i8, count: i64): void {
   bufReserve(buffer, count);
   memcpy(buffer.data + buffer.length, text, count);
   buffer.length = buffer.length + count;
   buffer.data[buffer.length] = 0 as i8;
 }
 
-fn bufAdd(buffer: *Buf, text: *i8): void {
+export fn bufAdd(buffer: *Buf, text: *i8): void {
   bufAddBytes(buffer, text, strlen(text));
 }
 
 // Decimal, written out by hand because printf cannot be declared.
-fn bufAddInt(buffer: *Buf, value: i64): void {
+export fn bufAddInt(buffer: *Buf, value: i64): void {
   if (value == 0 as i64) {
     bufPush(buffer, '0');
     return;
@@ -158,7 +159,7 @@ fn bufFree(buffer: *Buf): void {
 }
 
 // Detaches the text so it outlives the buffer.
-fn bufTake(buffer: *Buf): *i8 {
+export fn bufTake(buffer: *Buf): *i8 {
   let text: *i8 = buffer.data;
   free(buffer as *i8);
 
@@ -169,11 +170,11 @@ fn bufTake(buffer: *Buf): *i8 {
 // Text helpers.
 // ---------------------------------------------------------------------------
 
-fn textEquals(a: *i8, b: *i8): bool {
+export fn textEquals(a: *i8, b: *i8): bool {
   return strcmp(a, b) == 0;
 }
 
-fn textCopy(text: *i8): *i8 {
+export fn textCopy(text: *i8): *i8 {
   let count: i64 = strlen(text);
   let copy: *i8 = malloc(count + 1 as i64);
   memcpy(copy, text, count);
@@ -182,7 +183,7 @@ fn textCopy(text: *i8): *i8 {
   return copy;
 }
 
-fn textSlice(text: *i8, start: i64, count: i64): *i8 {
+export fn textSlice(text: *i8, start: i64, count: i64): *i8 {
   let copy: *i8 = malloc(count + 1 as i64);
   memcpy(copy, text + start, count);
   copy[count] = 0 as i8;
@@ -190,7 +191,7 @@ fn textSlice(text: *i8, start: i64, count: i64): *i8 {
   return copy;
 }
 
-fn intToText(value: i64): *i8 {
+export fn intToText(value: i64): *i8 {
   let buffer: *Buf = bufNew();
   bufAddInt(buffer, value);
 
@@ -208,6 +209,8 @@ fn intToText(value: i64): *i8 {
 // ---------------------------------------------------------------------------
 
 struct Diagnostic {
+  // The file being worked on when it was reported.
+  path: *i8,
   message: *i8,
   line: i32,
   column: i32,
@@ -224,11 +227,11 @@ struct Diagnostics {
 // Past this many the list stops being useful and starts being noise.
 let DIAG_LIMIT: i32 = 20;
 
-let DIAGS: *Diagnostics = 0 as i64 as *Diagnostics;
+export let DIAGS: *Diagnostics = 0 as i64 as *Diagnostics;
 // Raised by the construct that failed, lowered by whatever recovers from it.
-let FAILED: bool = false;
+export let FAILED: bool = false;
 
-fn diagnosticsNew(): *Diagnostics {
+export fn diagnosticsNew(): *Diagnostics {
   let bag: *Diagnostics = malloc(sizeof(Diagnostics) as i64) as *Diagnostics;
   bag.capacity = DIAG_LIMIT;
   bag.count = 0;
@@ -239,7 +242,7 @@ fn diagnosticsNew(): *Diagnostics {
   return bag;
 }
 
-fn report(line: i32, column: i32, message: *i8): void {
+export fn report(line: i32, column: i32, message: *i8): void {
   // The first message about a construct is the one worth keeping; anything
   // after it is the same mistake seen from further away.
   if (FAILED) {
@@ -252,23 +255,24 @@ fn report(line: i32, column: i32, message: *i8): void {
     return;
   }
 
+  DIAGS.items[DIAGS.count].path = SOURCE_PATH;
   DIAGS.items[DIAGS.count].message = message;
   DIAGS.items[DIAGS.count].line = line;
   DIAGS.items[DIAGS.count].column = column;
   DIAGS.count = DIAGS.count + 1;
 }
 
-fn hasErrors(): bool {
+export fn hasErrors(): bool {
   return DIAGS.total > 0;
 }
 
 // Prints everything recorded, in the same shape the C++ compiler uses.
-fn printDiagnostics(): void {
+export fn printDiagnostics(): void {
   let out: *Buf = bufNew();
   let index: i32 = 0;
 
   while (index < DIAGS.count) {
-    bufAdd(out, SOURCE_PATH);
+    bufAdd(out, DIAGS.items[index].path);
 
     // A line of 0 means the position is unknown, which whole-program checks
     // report; those name the file alone.
@@ -305,7 +309,7 @@ fn printDiagnostics(): void {
 // that has already been type-checked by the time codegen sees it.
 // ---------------------------------------------------------------------------
 
-fn failAt(line: i32, column: i32, message: *i8): void {
+export fn failAt(line: i32, column: i32, message: *i8): void {
   // A line of 0 means the position is unknown, which whole-program checks
   // report; those name the file alone rather than pointing at 0:0.
   if (line <= 0) {
@@ -327,7 +331,7 @@ fn failAt(line: i32, column: i32, message: *i8): void {
   exit(1);
 }
 
-fn fail(message: *i8): void {
+export fn fail(message: *i8): void {
   let out: *Buf = bufNew();
   bufAdd(out, SOURCE_PATH);
   bufAdd(out, ": error: ");
@@ -349,7 +353,7 @@ fn fail(message: *i8): void {
 
 // Returns the exit status, or -1 if the process could not be run or died on
 // a signal.
-fn runProgram(argv: **i8): i32 {
+export fn runProgram(argv: **i8): i32 {
   let pid: i32 = fork();
 
   if (pid == 0) {
@@ -378,7 +382,7 @@ fn runProgram(argv: **i8): i32 {
 // Files.
 // ---------------------------------------------------------------------------
 
-fn readFile(path: *i8): *i8 {
+export fn readFile(path: *i8): *i8 {
   let stream: *i8 = fopen(path, "r");
   if (isNullText(stream)) {
     return nullText();
@@ -396,7 +400,7 @@ fn readFile(path: *i8): *i8 {
   return text;
 }
 
-fn writeFile(path: *i8, text: *i8): bool {
+export fn writeFile(path: *i8, text: *i8): bool {
   let stream: *i8 = fopen(path, "w");
   if (isNullText(stream)) {
     return false;

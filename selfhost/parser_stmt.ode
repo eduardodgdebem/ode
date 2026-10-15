@@ -2,6 +2,29 @@
 // Statements and declarations.
 // ---------------------------------------------------------------------------
 
+import {
+  Buf, bufNew, bufPush, bufAdd, textEquals, textSlice, FAILED, report,
+} from "./prelude";
+import {
+  TK_NONE, TK_END, TK_IDENT, TK_STRING, TK_LET, TK_IF, TK_ELSE, TK_FN,
+  TK_EXTERN, TK_STRUCT, TK_RETURN, TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT,
+  TK_AS, TK_IMPORT, TK_EXPORT, TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH,
+  TK_PERCENT, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_STAR_ASSIGN, TK_SLASH_ASSIGN,
+  TK_PERCENT_ASSIGN, TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_SEMICOLON,
+  TK_COMMA, TK_COLON, Token,
+} from "./token";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELD, NK_RETURN, NK_PRINT,
+  NK_EXPRSTMT, NK_BINARY, NK_IDENT, NK_PARAMS, NK_PARAM, NK_IMPORT,
+  NK_IMPORTNAME, astAdd, astSetText, astAddItem,
+} from "./ast";
+import {
+  Parser, parserCurrent, parserKind, parserAdvance, parserFail,
+  parserErrorNode, startsStatement, parserSynchronize, parserExpect, parseType,
+  parseExpr,
+} from "./parser";
+
 // `a op= b` is sugar for `a = a op b`; this names the binary operator each
 // compound token stands for, or TK_NONE when the token is not one.
 fn compoundAssignOp(kind: i32): i32 {
@@ -89,6 +112,14 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
   if (kind == TK_STRUCT) {
     let node: i32 = parseStructDecl(parser);
     return requireTopLevel(parser, start, "struct", node);
+  }
+  if (kind == TK_IMPORT) {
+    let node: i32 = parseImportDecl(parser);
+    return requireTopLevel(parser, start, "import", node);
+  }
+  if (kind == TK_EXPORT) {
+    let node: i32 = parseExportDecl(parser);
+    return requireTopLevel(parser, start, "export", node);
   }
 
   return parseExprStmt(parser);
@@ -395,15 +426,110 @@ fn parseStructDecl(parser: *Parser): i32 {
   return node;
 }
 
-fn parseProgram(parser: *Parser): i32 {
-  let node: i32 = astAdd(parser.ast, NK_PROGRAM, 0, 0);
+// ImportDecl -> 'import' '{' (ImportName (',' ImportName)* ','?)? '}'
+//               'from' STRING ';'
+// ImportName -> IDENT ('as' IDENT)?
+//
+// `from` is matched by its text rather than as a keyword, so it stays free
+// for use as a name everywhere else.
+fn parseImportDecl(parser: *Parser): i32 {
+  let start: *Token = parserCurrent(parser);
+  let node: i32 = astAdd(parser.ast, NK_IMPORT, start.line, start.column);
+  // Filled in by the driver once it has found the file.
+  parser.ast.nodes[node].extra = -1;
 
-  while (parserKind(parser) != TK_END) {
-    let statement: i32 = parseStatementRecovering(parser);
-    if (statement != NO_NODE) {
-      astAddItem(parser.ast, node, statement);
+  parserExpect(parser, TK_IMPORT, "import");
+  parserExpect(parser, TK_LBRACE, "{");
+
+  while (parserKind(parser) != TK_RBRACE && parserKind(parser) != TK_END) {
+    let name: *Token = parserExpect(parser, TK_IDENT, "imported name");
+    if (FAILED) {
+      break;
     }
+
+    let item: i32 = astAdd(parser.ast, NK_IMPORTNAME, name.line, name.column);
+    astSetText(parser.ast, item, name);
+
+    if (parserKind(parser) == TK_AS) {
+      parserAdvance(parser);
+      let alias: *Token = parserExpect(parser, TK_IDENT, "alias");
+      let aliasNode: i32 = astAdd(parser.ast, NK_IDENT, alias.line,
+                                  alias.column);
+      astSetText(parser.ast, aliasNode, alias);
+      parser.ast.nodes[item].a = aliasNode;
+    }
+
+    astAddItem(parser.ast, node, item);
+
+    if (parserKind(parser) != TK_COMMA) {
+      break;
+    }
+    parserAdvance(parser);
   }
+
+  parserExpect(parser, TK_RBRACE, "}");
+
+  // General recovery stops at a `}`, which here would leave the rest of the
+  // import to be misread as a statement of its own. The import ends at its
+  // `;`, so that is where this one resumes.
+  if (FAILED) {
+    while (parserKind(parser) != TK_SEMICOLON && parserKind(parser) != TK_END &&
+           !startsStatement(parserKind(parser))) {
+      parserAdvance(parser);
+    }
+    if (parserKind(parser) == TK_SEMICOLON) {
+      parserAdvance(parser);
+    }
+    return node;
+  }
+
+  let from: *Token = parserCurrent(parser);
+  if (from.kind == TK_IDENT && textEquals(from.text, "from")) {
+    parserAdvance(parser);
+  } else {
+    parserFail(parser, "from");
+  }
+
+  let path: *Token = parserExpect(parser, TK_STRING, "module path");
+  astSetText(parser.ast, node, path);
+  parserExpect(parser, TK_SEMICOLON, ";");
 
   return node;
 }
+
+// ExportDecl -> 'export' (FuncDecl | ExternDecl | StructDecl | VarDecl)
+fn parseExportDecl(parser: *Parser): i32 {
+  parserExpect(parser, TK_EXPORT, "export");
+
+  let kind: i32 = parserKind(parser);
+  let node: i32 = NO_NODE;
+
+  if (kind == TK_FN) {
+    node = parseFuncDecl(parser);
+  } else if (kind == TK_EXTERN) {
+    node = parseExternDecl(parser);
+  } else if (kind == TK_STRUCT) {
+    node = parseStructDecl(parser);
+  } else if (kind == TK_LET) {
+    node = parseVarDecl(parser);
+  } else {
+    parserFail(parser, "declaration");
+    return parserErrorNode(parser);
+  }
+
+  parser.ast.nodes[node].exported = true;
+
+  return node;
+}
+
+// Parses one file's top level onto the end of `program`, which is shared by
+// every file in the build.
+export fn parseModuleInto(parser: *Parser, program: i32): void {
+  while (parserKind(parser) != TK_END) {
+    let statement: i32 = parseStatementRecovering(parser);
+    if (statement != NO_NODE) {
+      astAddItem(parser.ast, program, statement);
+    }
+  }
+}
+

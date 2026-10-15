@@ -1,0 +1,11 @@
+import { LIMIT, Counter as C, bump } from "./lib";
+import { LIMIT as AGAIN } from "./lib.ode";
+
+fn main(): i32 {
+  let c: C = C { hits: 0 };
+  bump(&c);
+  bump(&c);
+  print(c.hits);
+  print(LIMIT + AGAIN);
+  return 0;
+}

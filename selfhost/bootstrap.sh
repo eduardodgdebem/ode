@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$ROOT_DIR/build/bootstrap"
-SOURCE="$ROOT_DIR/build/ode.ode"
+SOURCE="$ROOT_DIR/selfhost/main.ode"
 
 rm -rf "$WORK"
 mkdir -p "$WORK"

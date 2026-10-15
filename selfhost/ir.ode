@@ -12,6 +12,26 @@
 // parameters. Naming them sidesteps the rule entirely.
 // ---------------------------------------------------------------------------
 
+import {
+  malloc, realloc, strlen, nullText, Buf, bufNew, bufPush, bufAddBytes, bufAdd,
+  bufAddInt, bufTake, textEquals, intToText, failAt,
+} from "./prelude";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_CALL, NK_RETURN, NK_PRINT,
+  NK_EXPRSTMT, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
+  NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
+  Ast,
+} from "./ast";
+import {
+  TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
+  TY_BOOL, TY_VOID, TY_STRUCT, Type, typeMake, typeStruct, typeIsPointer,
+  typeIsVoid, typeIsBool, typeIsInteger, typeIsFloat, typeIsSigned,
+  typeBitWidth, typePointee, typeEquals, structIndexOf, structFieldIndex,
+} from "./type";
+import { NameSet, nameSetNew, nameSetHas, nameSetAdd } from "./modules";
+import { Analyzer, analyzerParseType, textHasDot } from "./analyzer";
+
 struct Local {
   name: *i8,
   // The alloca holding it, as a register name.
@@ -19,7 +39,7 @@ struct Local {
   type: Type,
 }
 
-struct Emitter {
+export struct Emitter {
   ast: *Ast,
   an: *Analyzer,
   // Struct bodies, string constants, globals and declarations.
@@ -48,7 +68,7 @@ struct Emitter {
   loopCapacity: i32,
 }
 
-fn emitterNew(ast: *Ast, an: *Analyzer): *Emitter {
+export fn emitterNew(ast: *Ast, an: *Analyzer): *Emitter {
   let e: *Emitter = malloc(sizeof(Emitter) as i64) as *Emitter;
   e.ast = ast;
   e.an = an;
@@ -282,8 +302,10 @@ fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
 }
 
 // Innermost first, so a shadowed name resolves to the slot the analyzer
-// type-checked it against. A miss means the name is a module-level global.
-fn variableAddress(e: *Emitter, name: *i8): *i8 {
+// type-checked it against. A miss means the name is a top-level global, which
+// goes by the IR name the analyzer resolved it to.
+fn variableAddress(e: *Emitter, node: i32): *i8 {
+  let name: *i8 = e.ast.nodes[node].text;
   let index: i32 = e.localCount - 1;
 
   while (index >= 0) {
@@ -295,7 +317,7 @@ fn variableAddress(e: *Emitter, name: *i8): *i8 {
 
   let global: *Buf = bufNew();
   bufPush(global, '@');
-  bufAdd(global, name);
+  bufAdd(global, e.an.linkNames[node]);
 
   return bufTake(global);
 }
@@ -489,7 +511,7 @@ fn genAddress(e: *Emitter, node: i32): *i8 {
   let kind: i32 = e.ast.nodes[node].kind;
 
   if (kind == NK_IDENT) {
-    return variableAddress(e, e.ast.nodes[node].text);
+    return variableAddress(e, node);
   }
 
   if (kind == NK_FIELDACCESS) {
@@ -782,10 +804,11 @@ fn genUnary(e: *Emitter, node: i32): *i8 {
   return emitAssign(e, line.data);
 }
 
+// The callee's signature is read off the analyzer's types rather than looked
+// up again: the call's own type is the return type, and every argument was
+// required to have exactly its parameter's type.
 fn genCall(e: *Emitter, node: i32): *i8 {
-  let name: *i8 = e.ast.nodes[node].text;
-  let symbol: i32 = symbolFind(e.an.symbols, name);
-  let returnType: Type = e.an.symbols.items[symbol].type;
+  let returnType: Type = typeOfNode(e, node);
 
   let args: i32 = e.ast.nodes[node].a;
   let argCount: i32 = 0;
@@ -806,7 +829,7 @@ fn genCall(e: *Emitter, node: i32): *i8 {
   bufAdd(line, "call ");
   bufAdd(line, llvmTypeName(returnType));
   bufAdd(line, " @");
-  bufAdd(line, name);
+  bufAdd(line, e.an.linkNames[node]);
   bufPush(line, '(');
 
   index = 0;
@@ -814,7 +837,7 @@ fn genCall(e: *Emitter, node: i32): *i8 {
     if (index > 0) {
       bufAdd(line, ", ");
     }
-    bufAdd(line, llvmTypeName(e.an.symbols.items[symbol].params[index]));
+    bufAdd(line, llvmTypeName(typeOfNode(e, e.ast.nodes[args].items[index])));
     bufPush(line, ' ');
     bufAdd(line, values[index]);
     index = index + 1;
@@ -918,7 +941,7 @@ fn genExpr(e: *Emitter, node: i32): *i8 {
 
   if (kind == NK_IDENT) {
     return emitLoad(e, typeOfNode(e, node),
-                    variableAddress(e, e.ast.nodes[node].text));
+                    variableAddress(e, node));
   }
 
   if (kind == NK_BINARY) { return genBinary(e, node); }
@@ -1190,7 +1213,7 @@ fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
   bufPush(out, ' ');
   bufAdd(out, llvmTypeName(returnType));
   bufAdd(out, " @");
-  bufAdd(out, e.ast.nodes[node].text);
+  bufAdd(out, e.an.linkNames[node]);
   bufPush(out, '(');
 
   let params: i32 = e.ast.nodes[node].b;
@@ -1345,7 +1368,7 @@ fn genGlobal(e: *Emitter, node: i32): void {
   let value: *i8 = genConstant(e, e.ast.nodes[node].b, type);
 
   bufPush(e.head, '@');
-  bufAdd(e.head, e.ast.nodes[node].text);
+  bufAdd(e.head, e.an.linkNames[node]);
   bufAdd(e.head, " = global ");
   bufAdd(e.head, llvmTypeName(type));
   bufPush(e.head, ' ');
@@ -1353,7 +1376,7 @@ fn genGlobal(e: *Emitter, node: i32): void {
   bufPush(e.head, '\n');
 }
 
-fn genProgram(e: *Emitter, program: i32): *i8 {
+export fn genProgram(e: *Emitter, program: i32): *i8 {
   let count: i32 = e.ast.nodes[program].itemCount;
 
   // Named struct types come first, so a function signature can mention one.
@@ -1379,10 +1402,14 @@ fn genProgram(e: *Emitter, program: i32): *i8 {
 
   bufAdd(e.head, "declare i32 @printf(ptr, ...)\n");
 
+  // Several files may declare one extern, and LLVM takes one declaration.
+  let declared: *NameSet = nameSetNew();
   index = 0;
   while (index < count) {
     let statement: i32 = e.ast.nodes[program].items[index];
-    if (e.ast.nodes[statement].kind == NK_EXTERN) {
+    if (e.ast.nodes[statement].kind == NK_EXTERN &&
+        !nameSetHas(declared, e.an.linkNames[statement])) {
+      nameSetAdd(declared, e.an.linkNames[statement]);
       emitSignature(e, e.head, statement, "declare");
       bufPush(e.head, '\n');
     }

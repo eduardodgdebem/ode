@@ -1,0 +1,21 @@
+// Module-private state: `count` cannot be reached from outside except
+// through the functions exported here.
+
+let count: i32 = 0;
+
+struct Pair {
+  left: i32,
+  right: i32,
+}
+
+extern fn putchar(character: i32): i32;
+
+export fn counterNext(): i32 {
+  let pair: Pair = Pair { left: count, right: 1 };
+  count = pair.left + pair.right;
+  return count;
+}
+
+export fn counterValue(): i32 {
+  return count;
+}

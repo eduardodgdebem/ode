@@ -44,4 +44,5 @@ Inside Neovim, `:InspectTree` shows the parse tree for the current buffer and
 `:Inspect` reports the capture under the cursor.
 
 Every file under `examples/`, `selfhost/` and `tests/` parses with no error
-nodes; keep it that way when the language grows.
+nodes, apart from the rejection cases that are malformed on purpose; keep it
+that way when the language grows.

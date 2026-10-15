@@ -10,43 +10,48 @@
 // `items` is the variable-length child list that only some kinds use.
 // ---------------------------------------------------------------------------
 
-let NO_NODE: i32 = -1;
+import { malloc, realloc, nullText } from "./prelude";
+import { Token } from "./token";
 
-let NK_PROGRAM: i32 = 1;
-let NK_BLOCK: i32 = 2;
-let NK_VARDECL: i32 = 3;
-let NK_ASSIGN: i32 = 4;
-let NK_IF: i32 = 5;
-let NK_WHILE: i32 = 6;
-let NK_BREAK: i32 = 7;
-let NK_CONTINUE: i32 = 8;
-let NK_FN: i32 = 9;
-let NK_EXTERN: i32 = 10;
-let NK_STRUCT: i32 = 11;
-let NK_FIELD: i32 = 12;
-let NK_CALL: i32 = 13;
-let NK_RETURN: i32 = 14;
-let NK_PRINT: i32 = 15;
-let NK_EXPRSTMT: i32 = 16;
-let NK_BINARY: i32 = 17;
-let NK_UNARY: i32 = 18;
-let NK_CAST: i32 = 19;
-let NK_FIELDACCESS: i32 = 20;
-let NK_INDEX: i32 = 21;
-let NK_STRUCTLIT: i32 = 22;
-let NK_FINIT: i32 = 23;
-let NK_SIZEOF: i32 = 24;
-let NK_NUMBER: i32 = 25;
-let NK_STRING: i32 = 26;
-let NK_CHAR: i32 = 27;
-let NK_BOOL: i32 = 28;
-let NK_IDENT: i32 = 29;
-let NK_TYPE: i32 = 30;
-let NK_PARAMS: i32 = 31;
-let NK_PARAM: i32 = 32;
-let NK_ARGS: i32 = 33;
+export let NO_NODE: i32 = -1;
+
+export let NK_PROGRAM: i32 = 1;
+export let NK_BLOCK: i32 = 2;
+export let NK_VARDECL: i32 = 3;
+export let NK_ASSIGN: i32 = 4;
+export let NK_IF: i32 = 5;
+export let NK_WHILE: i32 = 6;
+export let NK_BREAK: i32 = 7;
+export let NK_CONTINUE: i32 = 8;
+export let NK_FN: i32 = 9;
+export let NK_EXTERN: i32 = 10;
+export let NK_STRUCT: i32 = 11;
+export let NK_FIELD: i32 = 12;
+export let NK_CALL: i32 = 13;
+export let NK_RETURN: i32 = 14;
+export let NK_PRINT: i32 = 15;
+export let NK_EXPRSTMT: i32 = 16;
+export let NK_BINARY: i32 = 17;
+export let NK_UNARY: i32 = 18;
+export let NK_CAST: i32 = 19;
+export let NK_FIELDACCESS: i32 = 20;
+export let NK_INDEX: i32 = 21;
+export let NK_STRUCTLIT: i32 = 22;
+export let NK_FINIT: i32 = 23;
+export let NK_SIZEOF: i32 = 24;
+export let NK_NUMBER: i32 = 25;
+export let NK_STRING: i32 = 26;
+export let NK_CHAR: i32 = 27;
+export let NK_BOOL: i32 = 28;
+export let NK_IDENT: i32 = 29;
+export let NK_TYPE: i32 = 30;
+export let NK_PARAMS: i32 = 31;
+export let NK_PARAM: i32 = 32;
+export let NK_ARGS: i32 = 33;
 // Stands in for a construct that did not parse.
-let NK_ERROR: i32 = 34;
+export let NK_ERROR: i32 = 34;
+export let NK_IMPORT: i32 = 35;
+export let NK_IMPORTNAME: i32 = 36;
 
 struct Node {
   kind: i32,
@@ -75,33 +80,44 @@ struct Node {
   //   field access a=object
   //   index    a=base   b=index
   //   sizeof   a=type
+  //   importname a=alias, an ident, when the name is renamed with `as`
   a: i32,
   b: i32,
   c: i32,
-  // Pointer depth, for a type node.
+  // Pointer depth, for a type node. For an import, the module it loads, once
+  // the driver has found it.
   extra: i32,
-  // Child indices, for program, block, struct, structlit, params and args.
+  // Child indices, for program, block, struct, structlit, params, args and
+  // import.
   items: *i32,
   itemCount: i32,
   itemCapacity: i32,
+  // The source file this node was parsed from, as an index into MODULES.
+  module: i32,
+  // Set on a top-level declaration written with `export`.
+  exported: bool,
 }
 
-struct Ast {
+export struct Ast {
   nodes: *Node,
   count: i32,
   capacity: i32,
+  // Every file is parsed into the one arena, so nodes are stamped with the
+  // file being parsed as they are made.
+  currentModule: i32,
 }
 
-fn astNew(): *Ast {
+export fn astNew(): *Ast {
   let ast: *Ast = malloc(sizeof(Ast) as i64) as *Ast;
   ast.capacity = 256;
   ast.count = 0;
+  ast.currentModule = 0;
   ast.nodes = malloc(sizeof(Node) as i64 * ast.capacity as i64) as *Node;
 
   return ast;
 }
 
-fn astAdd(ast: *Ast, kind: i32, line: i32, column: i32): i32 {
+export fn astAdd(ast: *Ast, kind: i32, line: i32, column: i32): i32 {
   if (ast.count == ast.capacity) {
     ast.capacity = ast.capacity * 2;
     ast.nodes = realloc(ast.nodes as *i8,
@@ -121,18 +137,20 @@ fn astAdd(ast: *Ast, kind: i32, line: i32, column: i32): i32 {
   ast.nodes[index].items = 0 as i64 as *i32;
   ast.nodes[index].itemCount = 0;
   ast.nodes[index].itemCapacity = 0;
+  ast.nodes[index].module = ast.currentModule;
+  ast.nodes[index].exported = false;
   ast.count = ast.count + 1;
 
   return index;
 }
 
 // Copies a token's text onto a node, length included so a `'\0'` survives.
-fn astSetText(ast: *Ast, index: i32, token: *Token): void {
+export fn astSetText(ast: *Ast, index: i32, token: *Token): void {
   ast.nodes[index].text = token.text;
   ast.nodes[index].textLength = token.length;
 }
 
-fn astAddItem(ast: *Ast, parent: i32, child: i32): void {
+export fn astAddItem(ast: *Ast, parent: i32, child: i32): void {
   if (ast.nodes[parent].itemCount == ast.nodes[parent].itemCapacity) {
     if (ast.nodes[parent].itemCapacity == 0) {
       ast.nodes[parent].itemCapacity = 4;
@@ -152,7 +170,7 @@ fn astAddItem(ast: *Ast, parent: i32, child: i32): void {
   ast.nodes[parent].itemCount = count + 1;
 }
 
-fn nodeKindName(kind: i32): *i8 {
+export fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_PROGRAM) { return "program"; }
   if (kind == NK_BLOCK) { return "block"; }
   if (kind == NK_VARDECL) { return "vardecl"; }
@@ -187,12 +205,14 @@ fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_PARAM) { return "param"; }
   if (kind == NK_ARGS) { return "args"; }
   if (kind == NK_ERROR) { return "error"; }
+  if (kind == NK_IMPORT) { return "import"; }
+  if (kind == NK_IMPORTNAME) { return "importname"; }
 
   return "?";
 }
 
 // True for the kinds whose text is worth printing in a dump.
-fn nodeCarriesText(kind: i32): bool {
+export fn nodeCarriesText(kind: i32): bool {
   if (kind == NK_VARDECL || kind == NK_FN || kind == NK_EXTERN) {
     return true;
   }
@@ -206,6 +226,9 @@ fn nodeCarriesText(kind: i32): bool {
     return true;
   }
   if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
+    return true;
+  }
+  if (kind == NK_IMPORT || kind == NK_IMPORTNAME) {
     return true;
   }
 
