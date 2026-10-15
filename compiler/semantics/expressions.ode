@@ -136,20 +136,22 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
   return Type.make(TypeKind.Void, 0);
 }
 
-// A character is a byte, signed unless a `u8` is wanted.
+// A character is a byte's value, so it is a number of whatever integer type
+// is wanted, and an i8 otherwise.
 fn charType(expected: Type): Type {
-  if (expected.kind == TypeKind.U8 && expected.pointerDepth == 0) {
+  if (expected.isInteger()) {
     return expected;
   }
   return Type.make(TypeKind.I8, 0);
 }
 
-// Whether an expression is built from number literals and sizes alone --
-// `1`, `-2`, `sizeof(T) * 4` -- and so has no type until its context gives
-// it one.
+// Whether an expression is built from number and character literals and
+// sizes alone -- `1`, `-2`, `'a' + 1`, `sizeof(T) * 4` -- and so has no type
+// until its context gives it one.
 export fn isLiteralTree(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
-  if (kind == NodeKind.Number || kind == NodeKind.Sizeof) {
+  if (kind == NodeKind.Number || kind == NodeKind.Sizeof ||
+      kind == NodeKind.Char) {
     return true;
   }
   if (kind == NodeKind.Unary) {

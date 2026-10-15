@@ -19,7 +19,7 @@ import {
 } from "./emitter";
 import { llvmTypeName, zeroValue } from "./layout";
 import { sizeOf } from "../semantics/layout";
-import { emitStore, genNumberLiteral } from "./expressions";
+import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { genStatement } from "./statements";
 
 fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
@@ -169,14 +169,7 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     return "false";
   }
   if (kind == NodeKind.Char) {
-    let value: i32 = e.ast.nodes[node].text[0] as i32;
-    if (value < 0) {
-      value = value + 256;
-    }
-    if (value > 127) {
-      value = value - 256;
-    }
-    return intToText(value as i64);
+    return genCharLiteral(e, node);
   }
 
   // A pointer-typed global cannot be initialised from a bare integer: LLVM

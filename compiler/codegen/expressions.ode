@@ -678,6 +678,19 @@ export fn genNumberLiteral(e: *Emitter, node: i32): *i8 {
   return text;
 }
 
+// A character is its byte's value, 0 to 255 -- except in an i8, which is
+// signed, where a byte above 127 is written as its negative form.
+export fn genCharLiteral(e: *Emitter, node: i32): *i8 {
+  let value: i32 = e.ast.nodes[node].text[0] as i32;
+  if (value < 0) {
+    value = value + 256;
+  }
+  if (value > 127 && typeOfNode(e, node).kind == TypeKind.I8) {
+    value = value - 256;
+  }
+  return intToText(value as i64);
+}
+
 export fn genExpr(e: *Emitter, node: i32): *i8 {
   let kind: NodeKind = e.ast.nodes[node].kind;
 
@@ -691,15 +704,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   }
 
   if (kind == NodeKind.Char) {
-    let value: i32 = e.ast.nodes[node].text[0] as i32;
-    if (value < 0) {
-      value = value + 256;
-    }
-    // An i8 is signed, so a byte above 127 is written as its negative form.
-    if (value > 127) {
-      value = value - 256;
-    }
-    return intToText(value as i64);
+    return genCharLiteral(e, node);
   }
 
   if (kind == NodeKind.Null) {

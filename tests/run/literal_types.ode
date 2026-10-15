@@ -44,6 +44,14 @@ fn main(): i32 {
   big = 1 << 40;
   print(big);
 
+  // A character is a number too.
+  let code: i32 = 'A';
+  let digit: i32 = 7;
+  print(code);
+  print('0' + digit);
+  let tab: u8 = '\t';
+  print(tab);
+
   // With nothing to go by, a literal is still an i32: this wraps.
   let wrapped: i64 = (2147483647 + 1) as i64;
   print(wrapped);

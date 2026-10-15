@@ -89,7 +89,11 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
       value = -value;
     }
   } else if (kind == NodeKind.Char) {
+    // The byte's value, which wrap() makes negative again in an i8.
     value = an.ast.nodes[node].text[0] as i64;
+    if (value < 0 as i64) {
+      value = value + 256 as i64;
+    }
   } else if (kind == NodeKind.Sizeof) {
     value = sizeOf(an.structs,
                    analyzerParseType(an, an.ast.nodes[node].a)) as i64;
