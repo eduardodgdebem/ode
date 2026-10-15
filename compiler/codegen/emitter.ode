@@ -31,6 +31,10 @@ export struct Emitter {
   head: *Buf,
   // Function definitions.
   body: *Buf,
+  // The current function's stack slots, which all go in its entry block: an
+  // alloca where a local is declared would run again on every pass through
+  // a loop, and take more stack each time.
+  allocas: *Buf,
   nextTemp: i32,
   nextLabel: i32,
   nextString: i32,
@@ -58,6 +62,7 @@ export struct Emitter {
     e.an = an;
     e.head = Buf.new();
     e.body = Buf.new();
+    e.allocas = Buf.new();
     e.nextTemp = 0;
     e.nextLabel = 0;
     e.nextString = 0;
@@ -99,6 +104,19 @@ export fn freshLabel(e: *Emitter): *i8 {
   e.nextLabel = e.nextLabel + 1;
 
   return name.take();
+}
+
+// A stack slot for a value of LLVM type `typeName`, made once when the
+// function is entered.
+export fn emitAlloca(e: *Emitter, typeName: *i8): *i8 {
+  let slot: *i8 = freshTemp(e);
+  e.allocas.add("  ");
+  e.allocas.add(slot);
+  e.allocas.add(" = alloca ");
+  e.allocas.add(typeName);
+  e.allocas.push('\n');
+
+  return slot;
 }
 
 export fn emitLine(e: *Emitter, text: *i8): void {

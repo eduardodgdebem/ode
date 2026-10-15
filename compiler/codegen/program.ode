@@ -12,11 +12,11 @@ import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
 import { analyzerParseType } from "../semantics/analyzer";
 import {
-  Emitter, emitLine, emitterEnterScope, emitterExitScope, declareLocal,
-  internString,
+  Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
+  declareLocal, internString,
 } from "./emitter";
 import { llvmTypeName, sizeOfType, zeroValue } from "./layout";
-import { emitAssign, emitStore, genNumberLiteral } from "./expressions";
+import { emitStore, genNumberLiteral } from "./expressions";
 import { genStatement } from "./statements";
 
 fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
@@ -66,6 +66,11 @@ fn genFunction(e: *Emitter, node: i32): void {
   emitSignature(e, e.body, node, "define");
   e.body.add(" {\nentry:\n");
 
+  // The body is written after the entry label, and the slots it asks for are
+  // collected apart and put in front of it once the function is done.
+  let entry: i64 = e.body.length;
+  e.allocas = Buf.new();
+
   emitterEnterScope(e);
 
   // Each parameter gets a slot of its own, so it can be assigned like any
@@ -77,10 +82,7 @@ fn genFunction(e: *Emitter, node: i32): void {
       let param: i32 = e.ast.nodes[params].items[index];
       let type: Type = analyzerParseType(e.an, e.ast.nodes[param].a);
 
-      let allocation: *Buf = Buf.new();
-      allocation.add("alloca ");
-      allocation.add(llvmTypeName(type));
-      let slot: *i8 = emitAssign(e, allocation.data);
+      let slot: *i8 = emitAlloca(e, llvmTypeName(type));
 
       let incoming: *Buf = Buf.new();
       incoming.add("%p");
@@ -110,6 +112,12 @@ fn genFunction(e: *Emitter, node: i32): void {
 
   emitterExitScope(e);
   e.body.add("}\n\n");
+
+  let spliced: *Buf = Buf.new();
+  spliced.addBytes(e.body.data, entry);
+  spliced.addBytes(e.allocas.data, e.allocas.length);
+  spliced.addBytes(e.body.data + entry, e.body.length - entry);
+  e.body = spliced;
 }
 
 // A global's initialiser becomes an LLVM constant initialiser, so it is

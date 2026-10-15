@@ -14,8 +14,9 @@ import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import {
-  Emitter, freshLabel, emitLine, emitLabel, emitBranch, emitCondBranch,
-  emitterEnterScope, emitterExitScope, declareLocal, internString,
+  Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
+  emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
+  internString,
 } from "./emitter";
 import { llvmTypeName } from "./layout";
 import {
@@ -121,10 +122,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
     let value: *i8 = genExpr(e, e.ast.nodes[node].b);
 
-    let allocation: *Buf = Buf.new();
-    allocation.add("alloca ");
-    allocation.add(llvmTypeName(type));
-    let slot: *i8 = emitAssign(e, allocation.data);
+    let slot: *i8 = emitAlloca(e, llvmTypeName(type));
 
     emitStore(e, type, value, slot);
     // Bound after the initialiser, so `let x = x + 1;` reads the outer x.
