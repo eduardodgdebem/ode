@@ -56,6 +56,7 @@ struct Suite {
   exampleCount: i32,
   invalidCount: i32,
   moduleCount: i32,
+  unitCount: i32,
   failures: *TextList,
 
   // Terminal colours, or empty text when the output is not a terminal.
@@ -307,6 +308,31 @@ fn runModule(suite: *Suite, caseDir: *i8, name: *i8): void {
               "result differs");
 }
 
+// A file of tests, run by `ode test`: what the runner printed and the status
+// it ended with are what is checked.
+fn runUnit(suite: *Suite, source: *i8, name: *i8): void {
+  suite.unitCount = suite.unitCount + 1;
+
+  // Run by its bare name, so that a failure's location carries no absolute
+  // path.
+  let copyName: *Buf = Buf.new();
+  copyName.add(name);
+  copyName.add(".ode");
+  writeBytes(joinPath(suite.work, copyName.data), readBytes(source));
+
+  let actual: *Buf = Buf.new();
+  let run: *TextList = TextList.new().add(suite.compiler).add("test");
+  run.add(copyName.data);
+  let status: i32 = runCommand(run, suite.work, actual, StderrMode.Merge);
+  actual.add("exit ");
+  actual.addInt(status as i64);
+  actual.push('\n');
+
+  suite.check("unit", name, withSuffix(withoutExtension(source), ".out"),
+              actual, "no expected output recorded (run with --update)",
+              "output differs");
+}
+
 // ---------------------------------------------------------------------------
 // The driver flags have no expected-output file to record; they are checked
 // against the files they are supposed to produce.
@@ -421,6 +447,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   suite.exampleCount = 0;
   suite.invalidCount = 0;
   suite.moduleCount = 0;
+  suite.unitCount = 0;
   suite.failures = TextList.new();
   suite.dim = "";
   suite.green = "";
@@ -477,6 +504,15 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     }
   }
 
+  let units: *i8 = joinPath(ws.root, "tests/unit");
+  names = listDirectory(units);
+  for (index in 0..names.size()) {
+    let file: *i8 = names.at(index);
+    if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
+      runUnit(suite, joinPath(units, file), withoutExtension(file));
+    }
+  }
+
   if (suite.selected("output-flag")) {
     runCli(suite, "output-flag", checkOutputFlag(suite));
   }
@@ -502,7 +538,9 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     summary.addInt(suite.invalidCount as i64);
     summary.add(" invalid, ");
     summary.addInt(suite.moduleCount as i64);
-    summary.add(" module: ");
+    summary.add(" module, ");
+    summary.addInt(suite.unitCount as i64);
+    summary.add(" unit: ");
     summary.addInt(suite.updated as i64);
     summary.add(" expectation(s) rewritten\n");
   }
@@ -521,7 +559,9 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     summary.addInt(suite.invalidCount as i64);
     summary.add(" invalid, ");
     summary.addInt(suite.moduleCount as i64);
-    summary.add(" module)\n");
+    summary.add(" module, ");
+    summary.addInt(suite.unitCount as i64);
+    summary.add(" unit)\n");
     writeBuf(STDOUT, summary);
     return 0;
   }

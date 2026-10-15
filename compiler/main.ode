@@ -16,7 +16,8 @@ import {
   fail,
 } from "./support/diagnostics";
 import {
-  TextList, StderrMode, runCommand, stemOf, withSuffix, readFile, writeFile,
+  TextList, StderrMode, runCommand, joinPath, stemOf, withSuffix, removeTree,
+  makeTempDirectory, readFile, writeFile,
 } from "./support/system";
 import { TokenList } from "./syntax/token";
 import { NodeKind, Ast } from "./syntax/ast";
@@ -28,13 +29,14 @@ import {
   realpath, moduleAdd, moduleFind, modulePath, resolveImportPath,
 } from "./semantics/modules";
 import { Analyzer, analyze } from "./semantics/analyzer";
+import { TEST_MODE, RUNNER_MODULE, runnerSource } from "./semantics/testing";
 import { Emitter } from "./codegen/emitter";
 import { genProgram } from "./codegen/program";
 import { ccCommand } from "./codegen/toolchain";
 import { buildMain } from "./tool/build";
 
 // Ode has no adjacent string literal concatenation, so this is one line.
-let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
+let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode test <input.ode> [filter]   runs the tests in a program\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
 
 // Reads, lexes and parses one file onto the end of `program`. The lexer stops
 // the compile at its first error, so a file that cannot be lexed ends the run
@@ -105,9 +107,104 @@ export fn loadProgram(ast: *Ast, root: i32, path: *i8, tokens: *TokenList): void
   SOURCE_PATH = path;
 }
 
+// Writes `module` beside `output` and turns it into the executable `output`.
+// Assembling and linking are two runs of the C compiler, which is what leaves
+// a `.o` beside the `.ll` -- the two things worth looking at when codegen
+// misbehaves.
+fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): void {
+  let irPath: *i8 = withSuffix(output, ".ll");
+  if (!writeFile(irPath, module)) {
+    fail("cannot write the LLVM IR");
+  }
+
+  let objectPath: *i8 = withSuffix(output, ".o");
+
+  let assemble: *TextList = ccCommand();
+  assemble.add("-c").add(irPath).add("-o").add(objectPath);
+  assemble.add("-Wno-override-module");
+
+  if (runCommand(assemble, null, null, StderrMode.Inherit) != 0) {
+    fail("assembling failed");
+  }
+
+  let link: *TextList = ccCommand();
+  link.add(objectPath).add("-o").add(output);
+
+  if (runCommand(link, null, null, StderrMode.Inherit) != 0) {
+    fail("linking failed");
+  }
+
+  if (!keepIntermediates) {
+    remove(irPath);
+    remove(objectPath);
+  }
+}
+
+// `ode test <input.ode> [filter]`: builds the program with its tests and a
+// runner for its `main`, in a scratch directory, and runs it. The exit status
+// is the runner's: 0 when every test that ran passed.
+fn testMain(argc: i32, argv: **i8): i32 {
+  if (argc < 3 || argc > 4 || argv[2][0] == '-') {
+    writeText(STDERR, USAGE);
+    return 2;
+  }
+  let path: *i8 = argv[2];
+
+  TEST_MODE = true;
+  SOURCE_PATH = path;
+  DIAGS = Diagnostics.new();
+
+  let source: *i8 = readFile(path);
+  if (source == null) {
+    fail("cannot open input file");
+  }
+
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  loadProgram(ast, root, path, tokenize(source));
+  RUNNER_MODULE = loadModule(ast, root, "ode:testing", "ode:testing",
+                             runnerSource());
+  SOURCE_PATH = path;
+
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  let an: *Analyzer = Analyzer.new(ast);
+  analyze(an, root);
+
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  let module: *i8 = genProgram(Emitter.new(ast, an), root);
+
+  let directory: *i8 = makeTempDirectory("ode-test");
+  if (directory == null) {
+    fail("cannot make a scratch directory");
+  }
+  let program: *i8 = joinPath(directory, stemOf(path));
+  buildExecutable(module, program, false);
+
+  let run: *TextList = TextList.new();
+  run.add(program);
+  if (argc == 4) {
+    run.add(argv[3]);
+  }
+  let status: i32 = runCommand(run, null, null, StderrMode.Inherit);
+
+  removeTree(directory);
+  return status;
+}
+
 fn main(argc: i32, argv: **i8): i32 {
   if (argc >= 2 && textEquals(argv[1], "build")) {
     return buildMain(argc, argv);
+  }
+  if (argc >= 2 && textEquals(argv[1], "test")) {
+    return testMain(argc, argv);
   }
 
   let wantTokens: bool = false;
@@ -218,35 +315,7 @@ fn main(argc: i32, argv: **i8): i32 {
 
   // The intermediates hang off the executable rather than the input, so that
   // -o keeps a whole build in one directory.
-  let irPath: *i8 = withSuffix(output, ".ll");
-  if (!writeFile(irPath, module)) {
-    fail("cannot write the LLVM IR");
-  }
-
-  let objectPath: *i8 = withSuffix(output, ".o");
-
-  // Assembling and linking are two runs of the C compiler, which is what
-  // leaves a `.o` beside the `.ll` -- the two things worth looking at when
-  // codegen misbehaves.
-  let assemble: *TextList = ccCommand();
-  assemble.add("-c").add(irPath).add("-o").add(objectPath);
-  assemble.add("-Wno-override-module");
-
-  if (runCommand(assemble, null, null, StderrMode.Inherit) != 0) {
-    fail("assembling failed");
-  }
-
-  let link: *TextList = ccCommand();
-  link.add(objectPath).add("-o").add(output);
-
-  if (runCommand(link, null, null, StderrMode.Inherit) != 0) {
-    fail("linking failed");
-  }
-
-  if (!keepIntermediates) {
-    remove(irPath);
-    remove(objectPath);
-  }
+  buildExecutable(module, output, keepIntermediates);
 
   return 0;
 }

@@ -1,0 +1,42 @@
+// Tests live beside the code they test, and only `ode test` builds them.
+
+extern fn printf(format: *i8, ...): i32;
+
+fn add(a: i32, b: i32): i32 {
+  return a + b;
+}
+
+fn greet(name: *i8): *i8 {
+  return name;
+}
+
+fn main(): i32 {
+  printf("%d\n", add(1, 2));
+  return 0;
+}
+
+test "add sums two numbers" {
+  assertEq(add(2, 2), 4);
+  assertEq(add(-1, 1), 0);
+  assert(add(0, 0) == 0);
+}
+
+test "strings compare by their text" {
+  let built: *i8 = greet("ode");
+  assertEq(built, "ode");
+}
+
+test "a failing assertEq shows both values" {
+  assertEq(add(2, 2), 5);
+}
+
+test "a failing assert shows its message" {
+  assert(add(1, 1) == 3, "one and one make two");
+}
+
+test "the test after a failure still runs" {
+  let wide: i64 = 3000000000;
+  assertEq(wide * 2, 6000000000);
+  assertEq(1.5 + 1.0, 2.5);
+  assertEq(true, add(1, 1) == 2);
+}

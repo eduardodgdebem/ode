@@ -24,6 +24,7 @@ import { analyzeMethodBodies } from "./methods";
 import { analyzeMatch } from "./enums";
 import { isTemplate } from "./generics";
 import { foldInteger, laterGlobalIn } from "./constants";
+import { TEST_MODE } from "./testing";
 
 // Runs one checking step, then puts back anything a failure skipped past so
 // the next statement is checked as though the failed one were not there.
@@ -64,6 +65,7 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     NodeKind.For => { analyzeFor(an, node); return; }
     NodeKind.Fn => { analyzeFuncDecl(an, node); return; }
     NodeKind.Extern => { analyzeExternDecl(an, node); return; }
+    NodeKind.Test => { analyzeTest(an, node); return; }
     NodeKind.Return => { analyzeReturn(an, node); return; }
     NodeKind.ExprStmt => { checkExpr(an, an.ast.nodes[node].a); return; }
     else => {}
@@ -303,6 +305,13 @@ fn analyzeReturn(an: *Analyzer, node: i32): void {
     analyzerFail2(an, node, "wrong return type",
                   expectedButGot(an.currentReturnType.toText(),
                                  returned.toText()));
+  }
+}
+
+// A test is checked like a void function's body, and only by `ode test`.
+fn analyzeTest(an: *Analyzer, node: i32): void {
+  if (TEST_MODE) {
+    analyzeFunctionBody(an, node);
   }
 }
 

@@ -1,0 +1,183 @@
+// ---------------------------------------------------------------------------
+// Tests, kept in the file they test, as in Zig and Rust:
+//
+//   test "adds two numbers" {
+//     assertEq(add(2, 2), 4);
+//     assert(add(0, 0) == 0, "zero is neutral");
+//   }
+//
+// A test is only checked and compiled by `ode test`; any other build leaves
+// it out, the way Rust leaves out #[cfg(test)]. `assert` and `assertEq` are
+// built in everywhere, unless the program declares a function of that name.
+// ---------------------------------------------------------------------------
+
+import { Buf, textEquals } from "../support/text";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type } from "./types";
+import { Analyzer, analyzerFail2, gotType, gotTwoTypes } from "./analyzer";
+import { checkExpr, checkExprAs, isLiteralTree } from "./expressions";
+import { CallTarget } from "./functions";
+
+// Set by `ode test`: tests are checked and compiled, and the program gets a
+// runner for a `main`.
+export let TEST_MODE: bool = false;
+
+// Whether the call `node` is the built-in `name` rather than a function the
+// program declared.
+fn isBuiltin(an: *Analyzer, node: i32, name: *i8): bool {
+  return an.ast.nodes[node].kind == NodeKind.Call &&
+         textEquals(an.ast.nodes[node].text, name) &&
+         an.symbols.find(name) < 0;
+}
+
+fn argumentCount(an: *Analyzer, args: i32): i32 {
+  if (args == NO_NODE) {
+    return 0;
+  }
+  return an.ast.nodes[args].itemCount;
+}
+
+export fn isAssert(an: *Analyzer, node: i32): bool {
+  return isBuiltin(an, node, "assert");
+}
+
+// `assert(cond)` or `assert(cond, message)`: stops the program, or fails the
+// test, when `cond` is false.
+export fn checkAssert(an: *Analyzer, node: i32): Type {
+  let args: i32 = an.ast.nodes[node].a;
+  let count: i32 = argumentCount(an, args);
+  an.callTargets[node] = CallTarget.Assert;
+
+  if (count != 1 && count != 2) {
+    analyzerFail2(an, node, "wrong number of arguments to 'assert'",
+                  "expected a condition and, optionally, a message");
+    return Type.make(TypeKind.Void, 0);
+  }
+
+  let condition: Type = checkExpr(an, an.ast.nodes[args].items[0]);
+  if (!condition.isBool()) {
+    analyzerFail2(an, node, "assert needs a boolean condition",
+                  gotType(condition));
+  }
+
+  if (count == 2) {
+    let message: Type = checkExpr(an, an.ast.nodes[args].items[1]);
+    if (!message.equals(Type.make(TypeKind.I8, 1))) {
+      analyzerFail2(an, node, "assert's message must be a string",
+                    gotType(message));
+    }
+  }
+
+  return Type.make(TypeKind.Void, 0);
+}
+
+export fn isAssertEq(an: *Analyzer, node: i32): bool {
+  return isBuiltin(an, node, "assertEq");
+}
+
+// `assertEq(actual, expected)`: like `assert(actual == expected)`, but a
+// failure shows both values -- and two strings compare by their text.
+export fn checkAssertEq(an: *Analyzer, node: i32): Type {
+  let args: i32 = an.ast.nodes[node].a;
+  an.callTargets[node] = CallTarget.AssertEq;
+
+  if (argumentCount(an, args) != 2) {
+    analyzerFail2(an, node, "wrong number of arguments to 'assertEq'",
+                  "expected the actual value and the expected one");
+    return Type.make(TypeKind.Void, 0);
+  }
+
+  // Either side may be a bare literal, which takes the other side's type.
+  let actualNode: i32 = an.ast.nodes[args].items[0];
+  let expectedNode: i32 = an.ast.nodes[args].items[1];
+  let actual: Type = Type.make(TypeKind.None, 0);
+  let expected: Type = Type.make(TypeKind.None, 0);
+  if (isLiteralTree(an, actualNode) && !isLiteralTree(an, expectedNode)) {
+    expected = checkExpr(an, expectedNode);
+    actual = checkExprAs(an, actualNode, expected);
+  } else {
+    actual = checkExpr(an, actualNode);
+    expected = checkExprAs(an, expectedNode, actual);
+  }
+
+  if (!actual.accepts(expected) && !expected.accepts(actual)) {
+    analyzerFail2(an, node, "assertEq compares values of the same type",
+                  gotTwoTypes(actual, expected));
+  } else if (actual.isVoid() || actual.isStruct()) {
+    analyzerFail2(an, node, "assertEq cannot compare this type",
+                  gotType(actual));
+  }
+
+  return Type.make(TypeKind.Void, 0);
+}
+
+// The module `ode test` adds to the program, once it has been loaded.
+export let RUNNER_MODULE: i32 = -1;
+
+// The runner, in Ode: `ode test` compiles it in as a module of its own, and
+// the generated `main` calls its `runTests` with every test in the program.
+// Each test runs in a child process, so that a failed check -- which exits
+// -- or a crash ends that test alone. Only tests whose name contains the
+// first argument, if one is given, run.
+export fn runnerSource(): *i8 {
+  let out: *Buf = Buf.new();
+  out.add("extern fn fork(): i32;\n");
+  out.add("extern fn waitpid(pid: i32, status: *i32, options: i32): i32;\n");
+  out.add("extern fn exit(code: i32): void;\n");
+  out.add("extern fn fflush(stream: *i8): i32;\n");
+  out.add("extern fn printf(format: *i8, ...): i32;\n");
+  out.add("extern fn strstr(text: *i8, part: *i8): *i8;\n");
+  out.add("\n");
+  out.add("export fn runTests(count: i32, names: **i8, tests: *fn(): void,\n");
+  out.add("                   argc: i32, argv: **i8): i32 {\n");
+  out.add("  let filter: *i8 = null;\n");
+  out.add("  if (argc > 1) {\n");
+  out.add("    filter = argv[1];\n");
+  out.add("  }\n");
+  out.add("  let passed: i32 = 0;\n");
+  out.add("  let failed: i32 = 0;\n");
+  out.add("  let skipped: i32 = 0;\n");
+  out.add("\n");
+  out.add("  for (index in 0..count) {\n");
+  out.add("    if (filter != null && strstr(names[index], filter) == null) {\n");
+  out.add("      skipped += 1;\n");
+  out.add("      continue;\n");
+  out.add("    }\n");
+  out.add("\n");
+  out.add("    fflush(null);\n");
+  out.add("    let child: i32 = fork();\n");
+  out.add("    if (child == 0) {\n");
+  out.add("      let test: fn(): void = tests[index];\n");
+  out.add("      test();\n");
+  out.add("      exit(0);\n");
+  out.add("    }\n");
+  out.add("\n");
+  out.add("    let status: i32 = 0;\n");
+  out.add("    waitpid(child, &status, 0);\n");
+  out.add("    let signal: i32 = status & 127;\n");
+  out.add("    if (status == 0) {\n");
+  out.add("      printf(\"test %s ... ok\\n\", names[index]);\n");
+  out.add("      passed += 1;\n");
+  out.add("    } else if (signal != 0) {\n");
+  out.add("      printf(\"test %s ... CRASHED (signal %d)\\n\", names[index], signal);\n");
+  out.add("      failed += 1;\n");
+  out.add("    } else {\n");
+  out.add("      printf(\"test %s ... FAILED\\n\", names[index]);\n");
+  out.add("      failed += 1;\n");
+  out.add("    }\n");
+  out.add("  }\n");
+  out.add("\n");
+  out.add("  printf(\"\\n%d passed; %d failed\", passed, failed);\n");
+  out.add("  if (skipped > 0) {\n");
+  out.add("    printf(\"; %d filtered out\", skipped);\n");
+  out.add("  }\n");
+  out.add("  printf(\"\\n\");\n");
+  out.add("\n");
+  out.add("  if (failed > 0) {\n");
+  out.add("    return 1;\n");
+  out.add("  }\n");
+  out.add("  return 0;\n");
+  out.add("}\n");
+
+  return out.take();
+}

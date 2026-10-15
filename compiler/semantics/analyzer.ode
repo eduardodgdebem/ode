@@ -27,6 +27,7 @@ import {
   Signature, CallTarget, signatureIndex, parseFunctionType,
 } from "./functions";
 import { isTemplate, structTemplateNamed, declareInstances } from "./generics";
+import { TEST_MODE } from "./testing";
 
 export struct Analyzer {
   ast: *Ast,
@@ -627,7 +628,8 @@ export fn analyze(an: *Analyzer, program: i32): void {
   }
 
   SOURCE_PATH = modulePath(0);
-  if (an.moduleSymbols[0].find("main") < 0) {
+  // `ode test` brings its own main.
+  if (!TEST_MODE && an.moduleSymbols[0].find("main") < 0) {
     report(0, 0, "No main function found");
   }
 }

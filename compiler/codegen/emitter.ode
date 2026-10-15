@@ -17,6 +17,7 @@ import { Buf, textEquals } from "../support/text";
 import { Ast } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { Analyzer } from "../semantics/analyzer";
+import { TEST_MODE } from "../semantics/testing";
 
 struct Local {
   name: *i8,
@@ -43,6 +44,9 @@ export struct Emitter {
   // anything after a `return` opens a new block instead of emitting into a
   // closed one.
   terminated: bool,
+  // Whether a check -- `assert`, `assertEq` -- was emitted, which needs the
+  // declarations emitCheckSupport adds.
+  usesChecks: bool,
 
   locals: *List<Local>,
   // Where each open scope's locals start, innermost last.
@@ -63,6 +67,7 @@ export struct Emitter {
     e.nextLabel = 0;
     e.nextString = 0;
     e.terminated = false;
+    e.usesChecks = false;
 
     e.locals = List<Local>.new();
     e.scopeStarts = List<i32>.new();
@@ -185,6 +190,12 @@ export fn variableAddress(e: *Emitter, node: i32): *i8 {
 // `%name` or `@name`, quoted when the name holds anything LLVM does not allow
 // bare -- which a generic's instances do: `%"List<i32>"`.
 export fn llvmName(sigil: i8, name: *i8): *i8 {
+  // Under `ode test` the runner is the program's `main`, so the program's own
+  // goes by another name.
+  if (sigil == '@' && TEST_MODE && textEquals(name, "main")) {
+    name = "ode.main";
+  }
+
   let out: *Buf = Buf.new();
   out.push(sigil);
 

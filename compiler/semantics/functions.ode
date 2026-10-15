@@ -44,6 +44,10 @@ export enum CallTarget {
   Value,
   // A field of function type, written like a method call: `ops.apply(x)`.
   Field,
+  // The built-in checks, `assert(cond)` and `assertEq(actual, expected)`. See
+  // testing.ode.
+  Assert,
+  AssertEq,
 }
 
 fn signatureText(params: *Type, count: i32, result: Type): *i8 {

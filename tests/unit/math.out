@@ -1,0 +1,12 @@
+test add sums two numbers ... ok
+test strings compare by their text ... ok
+math.ode:30:3: assertEq failed
+  actual:   4
+  expected: 5
+test a failing assertEq shows both values ... FAILED
+math.ode:34:3: assertion failed: one and one make two
+test a failing assert shows its message ... FAILED
+test the test after a failure still runs ... ok
+
+3 passed; 2 failed
+exit 1

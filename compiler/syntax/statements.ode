@@ -116,6 +116,10 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
     let node: i32 = parseExportDecl(parser);
     return requireTopLevel(parser, start, "export", node);
   }
+  if (startsTest(parser)) {
+    let node: i32 = parseTestDecl(parser);
+    return requireTopLevel(parser, start, "test", node);
+  }
 
   return parseExprStmt(parser);
 }
@@ -387,6 +391,42 @@ fn parseFuncDecl(parser: *Parser): i32 {
   let node: i32 = parser.ast.add(NodeKind.Fn, line, column);
   parser.ast.setText(node, name);
   parser.ast.nodes[node].extra = typeParams;
+  parser.ast.nodes[node].a = returnType;
+  parser.ast.nodes[node].b = params;
+  parser.ast.nodes[node].c = body;
+
+  return node;
+}
+
+// `test` is not a keyword: it starts a test only when a string follows it,
+// so it stays free for a variable or a function of that name.
+fn startsTest(parser: *Parser): bool {
+  let name: *Token = parser.current();
+  return name.kind == TokenKind.Ident && textEquals(name.text, "test") &&
+         parser.peek().kind == TokenKind.String;
+}
+
+// TestDecl -> 'test' STRING Block
+//
+// A test is kept as a function of its own -- no parameters, returning void --
+// so that it is checked and emitted like one, but only when the program is
+// built with `ode test`.
+fn parseTestDecl(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let line: i32 = start.line;
+  let column: i32 = start.column;
+
+  parser.advance();
+  let name: *Token = parser.expect(TokenKind.String, "test name");
+  let params: i32 = parser.ast.add(NodeKind.Params, line, column);
+  let body: i32 = parseBlock(parser);
+
+  let returnType: i32 = parser.ast.add(NodeKind.Type, line, column);
+  parser.ast.nodes[returnType].text = "void";
+  parser.ast.nodes[returnType].textLength = 4;
+
+  let node: i32 = parser.ast.add(NodeKind.Test, line, column);
+  parser.ast.setText(node, name);
   parser.ast.nodes[node].a = returnType;
   parser.ast.nodes[node].b = params;
   parser.ast.nodes[node].c = body;

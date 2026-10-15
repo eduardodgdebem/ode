@@ -26,6 +26,7 @@ import {
 } from "./functions";
 import { functionTemplateIn } from "./generics";
 import { isReadyGlobal } from "./constants";
+import { isAssert, checkAssert, isAssertEq, checkAssertEq } from "./testing";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -148,7 +149,7 @@ fn charType(expected: Type): Type {
 // Whether an expression is built from number and character literals and
 // sizes alone -- `1`, `-2`, `'a' + 1`, `sizeof(T) * 4` -- and so has no type
 // until its context gives it one.
-fn isLiteralTree(an: *Analyzer, node: i32): bool {
+export fn isLiteralTree(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
   if (kind == NodeKind.Number || kind == NodeKind.Sizeof ||
       kind == NodeKind.Char) {
@@ -198,6 +199,12 @@ fn checkCall(an: *Analyzer, node: i32): Type {
   let name: *i8 = an.ast.nodes[node].text;
   let symbol: i32 = an.symbols.find(name);
 
+  if (symbol < 0 && isAssert(an, node)) {
+    return checkAssert(an, node);
+  }
+  if (symbol < 0 && isAssertEq(an, node)) {
+    return checkAssertEq(an, node);
+  }
   if (symbol < 0) {
     // A generic called without arguments was reported as that already.
     if (functionTemplateIn(an, an.program, an.ast.nodes[node].module,

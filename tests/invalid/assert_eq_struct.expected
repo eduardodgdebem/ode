@@ -1,0 +1,1 @@
+assert_eq_struct.ode:7:3: error: assertEq cannot compare this type: got 'Point'
