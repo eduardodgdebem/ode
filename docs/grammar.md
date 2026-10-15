@@ -44,9 +44,11 @@ cycles.
 - **ForStmt** → `for` `(` IDENT `in` Expr `..` Expr `)` Block
 - **BreakStmt** → `break` `;`
 - **ContinueStmt** → `continue` `;`
-- **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
+- **FuncDecl** → `fn` IDENT TypeParams? `(` ParamList? `)` `:` Type Block
+- **TypeParams** → `<` IDENT (`,` IDENT)* `>`
+- **TypeArgs** → `<` Type (`,` Type)* `>`
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
-- **StructDecl** → `struct` IDENT `{` (FieldDecl | FuncDecl)* `}`
+- **StructDecl** → `struct` IDENT TypeParams? `{` (FieldDecl | FuncDecl)* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
 - **EnumDecl** → `enum` IDENT `{` (EnumMember (`,` EnumMember)* `,`?)? `}`
 - **EnumMember** → IDENT (`=` `-`? NUMBER)?
@@ -65,7 +67,7 @@ cycles.
 
 - **ParamList** → Param (`,` Param)*
 - **Param** → IDENT `:` Type
-- **FuncCall** → IDENT `(` ArgList? `)`
+- **FuncCall** → IDENT TypeArgs? `(` ArgList? `)`
 - **ArgList** → Expr (`,` Expr)*
 
 ---
@@ -87,7 +89,7 @@ cycles.
 - **Unary** → (`-` | `+` | `!` | `*` | `&`) Unary | Postfix
 - **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]` | `(` ArgList? `)`)*
 - **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
-- **StructLiteral** → IDENT `{` FieldInit* `}`
+- **StructLiteral** → IDENT TypeArgs? `{` FieldInit* `}`
 - **FieldInit** → IDENT `:` Expr `,`?
 - **SizeOf** → `sizeof` `(` Type `)`
 
@@ -95,7 +97,7 @@ cycles.
 
 ## Types
 
-- **Type** → `*`* (BaseType | IDENT | FnType)
+- **Type** → `*`* (BaseType | IDENT TypeArgs? | FnType)
 - **FnType** → `fn` `(` (Type (`,` Type)*)? `)` `:` Type
 - **BaseType** → IntType | FloatType | `bool` | `void`
 - **IntType** → `i8` | `u8` | `i16` | `u16` | `i32` | `u32` | `i64` | `u64` | `usize`
@@ -201,6 +203,16 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   method of that name), or any expression (`table[i](x)`) -- compares with
   `==` and `!=`, accepts `null`, and converts to and from pointers with `as`.
   It is a pointer to code, so it passes to C as a function pointer.
+- A struct or function declared with type parameters is generic, and is used
+  with type arguments written out: `List<i32>`, `max<i64>(a, b)`,
+  `List<i32>.new()`, `Pair<i32, bool> { ... }`. Each distinct set of
+  arguments makes an instance -- a copy of the declaration with the arguments
+  in place of the parameters -- which is checked and compiled on its own, so
+  an error in a generic's body is reported for each instance it appears in.
+  A generic's names mean what they mean in the file that declares it. In an
+  expression, `Name<` starts type arguments when what follows looks like a
+  type list closed by `>` and followed by `(`, `{` or `.`; a comparison in
+  that position, `f(a < b, c > (d))`, is written with parentheses.
 - `null` is the pointer that points at nothing. It has a type of its own that
   every pointer type accepts -- in a declaration, an assignment, an argument,
   a `return` or a struct field -- and compares with `==` and `!=` against any

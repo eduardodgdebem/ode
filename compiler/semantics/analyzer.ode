@@ -10,14 +10,15 @@
 // generator can look the answer up instead of deriving it a second time.
 // ---------------------------------------------------------------------------
 
-import { malloc, free } from "../support/libc";
+import { malloc, realloc, free } from "../support/libc";
+import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
 import { SymbolKind, SymbolTable } from "./symbols";
 import {
-  MODULE_COUNT, modulePath, NameSet, linkModules, SymbolList, declareImports,
+  moduleCount, modulePath, NameSet, linkModules, SymbolList, declareImports,
 } from "./modules";
 import { analyzeRecovering } from "./statements";
 import { ReceiverMode, registerMethods } from "./methods";
@@ -25,6 +26,7 @@ import { registerEnum } from "./enums";
 import {
   Signature, CallTarget, signatureIndex, parseFunctionType,
 } from "./functions";
+import { isTemplate, structTemplateNamed, declareInstances } from "./generics";
 
 export struct Analyzer {
   ast: *Ast,
@@ -52,13 +54,16 @@ export struct Analyzer {
   // enum's rather than a struct's.
   enumNames: *NameSet,
   // Every function type seen, so that a type's signature can be read back.
-  signatures: *Signature,
-  signatureCount: i32,
-  signatureCapacity: i32,
+  signatures: *List<Signature>,
   // Per node: 1 for a function's name used as a value.
   functionRefs: *i8,
   // Per call: what it calls, one of the CallTarget kinds.
   callTargets: *CallTarget,
+  // How many nodes the per-node tables above have room for.
+  nodeCapacity: i32,
+  // Set when making a generic's instances never finished, which leaves the
+  // tree with nothing worth checking further.
+  instancesFailed: bool,
   program: i32,
   loopDepth: i32,
   inFunction: bool,
@@ -69,42 +74,75 @@ export struct Analyzer {
     an.ast = ast;
     an.symbols = SymbolTable.new();
     an.structs = StructTable.new();
-    an.types = malloc(sizeof(Type) as i64 * ast.count as i64) as *Type;
-    an.isGlobal = malloc(ast.count as i64);
-    an.linkNames = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
-    an.receivers = malloc(sizeof(ReceiverMode) as i64 * ast.count as i64) as
-        *ReceiverMode;
-    an.structRefs = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
-    an.isConstant = malloc(ast.count as i64);
-    an.values = malloc(sizeof(i64) as i64 * ast.count as i64) as *i64;
+    an.nodeCapacity = 0;
+    an.instancesFailed = false;
+    an.growNodeArrays();
     an.enumNames = NameSet.new();
-    an.signatureCapacity = 16;
-    an.signatureCount = 0;
-    an.signatures = malloc(sizeof(Signature) as i64 *
-                           an.signatureCapacity as i64) as *Signature;
-    an.functionRefs = malloc(ast.count as i64);
-    an.callTargets = malloc(sizeof(CallTarget) as i64 * ast.count as i64) as
-        *CallTarget;
+    an.signatures = List<Signature>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
-        malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
+        malloc(sizeof(SymbolList) as i64 * moduleCount() as i64) as *SymbolList;
     an.loopDepth = 0;
     an.inFunction = false;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
 
-    for (index in 0..ast.count) {
-      an.types[index] = Type.make(TypeKind.None, 0);
-      an.isGlobal[index] = 0 as i8;
-      an.linkNames[index] = null;
-      an.receivers[index] = ReceiverMode.None;
-      an.structRefs[index] = null;
-      an.isConstant[index] = 0 as i8;
-      an.functionRefs[index] = 0 as i8;
-      an.callTargets[index] = CallTarget.Direct;
-      an.values[index] = 0 as i64;
+    return an;
+  }
+
+  // Sizes every per-node table to the arena, which grows after the analyzer
+  // is made when generics are instantiated. New entries start empty.
+  fn growNodeArrays(self: *Analyzer): void {
+    let count: i32 = self.ast.count;
+    if (count <= self.nodeCapacity) {
+      return;
     }
 
-    return an;
+    let old: i32 = self.nodeCapacity;
+    let size: i64 = count as i64;
+    if (old == 0) {
+      self.types = malloc(sizeof(Type) as i64 * size) as *Type;
+      self.isGlobal = malloc(size);
+      self.linkNames = malloc(sizeof(*i8) as i64 * size) as **i8;
+      self.receivers = malloc(sizeof(ReceiverMode) as i64 * size) as
+          *ReceiverMode;
+      self.structRefs = malloc(sizeof(*i8) as i64 * size) as **i8;
+      self.isConstant = malloc(size);
+      self.values = malloc(sizeof(i64) as i64 * size) as *i64;
+      self.functionRefs = malloc(size);
+      self.callTargets = malloc(sizeof(CallTarget) as i64 * size) as *CallTarget;
+    } else {
+      self.types = realloc(self.types as *i8, sizeof(Type) as i64 * size) as
+          *Type;
+      self.isGlobal = realloc(self.isGlobal, size);
+      self.linkNames = realloc(self.linkNames as *i8,
+                               sizeof(*i8) as i64 * size) as **i8;
+      self.receivers = realloc(self.receivers as *i8,
+                               sizeof(ReceiverMode) as i64 * size) as
+          *ReceiverMode;
+      self.structRefs = realloc(self.structRefs as *i8,
+                                sizeof(*i8) as i64 * size) as **i8;
+      self.isConstant = realloc(self.isConstant, size);
+      self.values = realloc(self.values as *i8, sizeof(i64) as i64 * size) as
+          *i64;
+      self.functionRefs = realloc(self.functionRefs, size);
+      self.callTargets = realloc(self.callTargets as *i8,
+                                 sizeof(CallTarget) as i64 * size) as
+          *CallTarget;
+    }
+
+    for (index in old..count) {
+      self.types[index] = Type.make(TypeKind.None, 0);
+      self.isGlobal[index] = 0 as i8;
+      self.linkNames[index] = null;
+      self.receivers[index] = ReceiverMode.None;
+      self.structRefs[index] = null;
+      self.isConstant[index] = 0 as i8;
+      self.functionRefs[index] = 0 as i8;
+      self.callTargets[index] = CallTarget.Direct;
+      self.values[index] = 0 as i64;
+    }
+
+    self.nodeCapacity = count;
   }
 }
 
@@ -204,15 +242,22 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
   // A function type is valid when everything in its signature is.
   if (type.kind == TypeKind.Function) {
     let signature: i32 = signatureIndex(an, type);
-    for (index in 0..an.signatures[signature].count) {
-      analyzerValidateType(an, node, an.signatures[signature].params[index],
+    for (index in 0..an.signatures.at(signature).count) {
+      analyzerValidateType(an, node, an.signatures.at(signature).params[index],
                            context);
     }
-    analyzerValidateType(an, node, an.signatures[signature].result, context);
+    analyzerValidateType(an, node, an.signatures.at(signature).result, context);
     return;
   }
 
   if (type.kind != TypeKind.Struct) {
+    return;
+  }
+
+  // A generic named without arguments was reported as that already; the
+  // statement stops here without saying so again.
+  if (structTemplateNamed(an, an.program, type.structName) != NO_NODE) {
+    FAILED = true;
     return;
   }
 
@@ -250,7 +295,7 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
 // ---------------------------------------------------------------------------
 
 fn registerStructName(an: *Analyzer, node: i32): void {
-  if (an.ast.nodes[node].kind != NodeKind.Struct) {
+  if (an.ast.nodes[node].kind != NodeKind.Struct || isTemplate(an, node)) {
     return;
   }
 
@@ -264,7 +309,7 @@ fn registerStructName(an: *Analyzer, node: i32): void {
 }
 
 fn registerStructFields(an: *Analyzer, node: i32): void {
-  if (an.ast.nodes[node].kind != NodeKind.Struct) {
+  if (an.ast.nodes[node].kind != NodeKind.Struct || isTemplate(an, node)) {
     return;
   }
 
@@ -400,6 +445,10 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
   if (kind != NodeKind.Fn && kind != NodeKind.Extern) {
     return;
   }
+  // A generic has no signature until it has arguments; its instances do.
+  if (isTemplate(an, node)) {
+    return;
+  }
 
   let name: *i8 = an.ast.nodes[node].text;
   let returnType: Type = analyzerParseType(an, an.ast.nodes[node].a);
@@ -457,10 +506,15 @@ fn itemInModule(an: *Analyzer, program: i32, index: i32, module: i32): bool {
 }
 
 export fn analyze(an: *Analyzer, program: i32): void {
-  let count: i32 = an.ast.nodes[program].itemCount;
   an.program = program;
-
   linkModules(an, program);
+  if (an.instancesFailed) {
+    return;
+  }
+
+  // Linking may have added the instances of generics, so the program is
+  // counted after it.
+  let count: i32 = an.ast.nodes[program].itemCount;
 
   // Enums first: a struct field, a global or a signature may have one as its
   // type, and parsing a type name needs to know whether it is one.
@@ -495,7 +549,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
   // that one file's names are not another's. What each file declares is kept
   // for the files that import from it.
   let module: i32 = 0;
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     SOURCE_PATH = modulePath(module);
     an.symbols.enterScope();
     let start: i32 = an.symbols.count;
@@ -520,7 +574,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
   // Each file's bodies see its own top level and what it imports, and
   // nothing else.
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     SOURCE_PATH = modulePath(module);
     an.symbols.enterScope();
 
@@ -532,6 +586,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
     }
 
     declareImports(an, program, module);
+    declareInstances(an, program, module);
 
     for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {

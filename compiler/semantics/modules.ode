@@ -23,7 +23,8 @@
 // own declarations and its imports, and nothing else.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc, memcpy, strlen } from "../support/libc";
+import { malloc, memcpy, strlen } from "../support/libc";
+import { List } from "../support/list";
 import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
@@ -31,6 +32,7 @@ import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, typeKindFromName } from "./types";
 import { Symbol, SymbolTable } from "./symbols";
 import { Analyzer } from "./analyzer";
+import { markTemplates, instantiateGenerics } from "./generics";
 
 export extern fn realpath(path: *i8, resolved: *i8): *i8;
 
@@ -42,34 +44,28 @@ struct Module {
   real: *i8,
 }
 
-let MODULES: *Module = null;
-export let MODULE_COUNT: i32 = 0;
-let MODULE_CAPACITY: i32 = 0;
+let MODULES: *List<Module> = null;
 
 export fn moduleAdd(path: *i8, real: *i8): i32 {
-  if (MODULE_COUNT == MODULE_CAPACITY) {
-    if (MODULE_CAPACITY == 0) {
-      MODULE_CAPACITY = 8;
-      MODULES = malloc(sizeof(Module) as i64 * 8 as i64) as *Module;
-    } else {
-      MODULE_CAPACITY = MODULE_CAPACITY * 2;
-      MODULES = realloc(MODULES as *i8,
-                        sizeof(Module) as i64 * MODULE_CAPACITY as i64) as
-          *Module;
-    }
+  if (MODULES == null) {
+    MODULES = List<Module>.new();
   }
 
-  let index: i32 = MODULE_COUNT;
-  MODULES[index].path = path;
-  MODULES[index].real = real;
-  MODULE_COUNT = index + 1;
+  MODULES.push(Module { path: path, real: real });
+  return MODULES.count - 1;
+}
 
-  return index;
+// How many files the program is made of so far.
+export fn moduleCount(): i32 {
+  if (MODULES == null) {
+    return 0;
+  }
+  return MODULES.count;
 }
 
 export fn moduleFind(real: *i8): i32 {
-  for (index in 0..MODULE_COUNT) {
-    if (textEquals(MODULES[index].real, real)) {
+  for (index in 0..moduleCount()) {
+    if (textEquals(MODULES.at(index).real, real)) {
       return index;
     }
   }
@@ -78,7 +74,7 @@ export fn moduleFind(real: *i8): i32 {
 }
 
 export fn modulePath(module: i32): *i8 {
-  return MODULES[module].path;
+  return MODULES.at(module).path;
 }
 
 export fn textEndsWith(text: *i8, suffix: *i8): bool {
@@ -136,22 +132,18 @@ export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
 // ---------------------------------------------------------------------------
 
 export struct NameSet {
-  items: **i8,
-  count: i32,
-  capacity: i32,
+  names: *List<*i8>,
 
   fn new(): *NameSet {
     let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
-    set.capacity = 64;
-    set.count = 0;
-    set.items = malloc(sizeof(*i8) as i64 * set.capacity as i64) as **i8;
+    set.names = List<*i8>.new();
 
     return set;
   }
 
   fn has(self: *NameSet, name: *i8): bool {
-    for (index in 0..self.count) {
-      if (textEquals(self.items[index], name)) {
+    for (index in 0..self.names.count) {
+      if (textEquals(self.names.at(index), name)) {
         return true;
       }
     }
@@ -160,14 +152,7 @@ export struct NameSet {
   }
 
   fn add(self: *NameSet, name: *i8): void {
-    if (self.count == self.capacity) {
-      self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(*i8) as i64 * self.capacity as i64) as **i8;
-    }
-
-    self.items[self.count] = name;
-    self.count = self.count + 1;
+    self.names.push(name);
   }
 
   // `name` if nobody has it yet, and otherwise a name qualified by the module.
@@ -212,7 +197,7 @@ fn isValueDecl(kind: NodeKind): bool {
 
 // The first top-level declaration in `module` named `name`, of a struct when
 // `wantStruct` and of a value otherwise, or NO_NODE.
-fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
+export fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
                 wantStruct: bool): i32 {
   for (index in 0..an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
@@ -252,7 +237,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   }
 
   // Module by module, so the entry file, which is module 0, claims first.
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     for (index in 0..count) {
       let item: i32 = an.ast.nodes[program].items[index];
       let kind: NodeKind = an.ast.nodes[item].kind;
@@ -308,7 +293,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
 // ---------------------------------------------------------------------------
 
 // The name an imported binding goes by in the importing file.
-fn importLocalName(an: *Analyzer, importName: i32): *i8 {
+export fn importLocalName(an: *Analyzer, importName: i32): *i8 {
   let alias: i32 = an.ast.nodes[importName].a;
   if (alias != NO_NODE) {
     return an.ast.nodes[alias].text;
@@ -434,59 +419,23 @@ fn setNodeText(an: *Analyzer, node: i32, text: *i8): void {
 // renames the declarations to match. The declarations go last because finding
 // a reference's struct reads them by the name they were written with.
 fn rewriteStructNames(an: *Analyzer, program: i32): void {
-  let node: i32 = 0;
+  // A generic's own body is not checked or compiled -- its instances are,
+  // each with its names resolved when it is made -- so it is left alone.
+  let inTemplate: *i8 = markTemplates(an, program);
+  let count: i32 = an.ast.count;
 
-  while (node < an.ast.count) {
-    let kind: NodeKind = an.ast.nodes[node].kind;
-    let names: bool = kind == NodeKind.StructLit;
-    if (kind == NodeKind.Type) {
-      names = typeKindFromName(an.ast.nodes[node].text) == TypeKind.None;
+  for (node in 0..count) {
+    if (inTemplate[node] == 0 as i8) {
+      rewriteNodeNames(an, program, node, null);
     }
-
-    // `Point.new()` names a struct where a value usually goes. Whether it
-    // does depends on what is in scope, which the analyzer decides, so this
-    // only records the struct the name would mean.
-    //
-    // `Color.Red` names an enum the same way, and is resolved the same way.
-    if (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) {
-      let receiver: i32 = an.ast.nodes[node].a;
-      if (an.ast.nodes[receiver].kind == NodeKind.Ident) {
-        an.structRefs[node] =
-            resolveStructName(an, program, an.ast.nodes[node].module,
-                              an.ast.nodes[receiver].text);
-      }
-    }
-
-    if (names) {
-      let name: *i8 = an.ast.nodes[node].text;
-      let module: i32 = an.ast.nodes[node].module;
-      let resolved: *i8 = resolveStructName(an, program, module, name);
-
-      if (resolved != null) {
-        setNodeText(an, node, resolved);
-      } else {
-        // Left alone, the name would quietly mean whichever file happened to
-        // claim it -- the very leak modules exist to prevent. A name no file
-        // declares is left for the analyzer's own "unknown type".
-        let elsewhere: i32 = findStructAnywhere(an, program, name);
-        if (elsewhere != NO_NODE) {
-          let message: *Buf = Buf.new();
-          message.add("type '");
-          message.add(name);
-          message.add("' is declared in '");
-          message.add(modulePath(an.ast.nodes[elsewhere].module));
-          message.add("' but not imported here");
-          importFail(an, node, message.data);
-          // Pointed at the real struct anyway, so the error above is the
-          // only one this mistake produces.
-          setNodeText(an, node, an.linkNames[elsewhere]);
-        }
-      }
-    }
-
-    node = node + 1;
   }
+}
 
+// Renames each type declaration to its IR name, which every reference to it
+// now uses. This comes last: until then, a declaration is found by the name
+// it was written with -- which is how a generic's instance, made after the
+// references, finds the structs its own file declared.
+fn renameTypeDecls(an: *Analyzer, program: i32): void {
   for (index in 0..an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
     if (isTypeDecl(an.ast.nodes[item].kind)) {
@@ -495,10 +444,70 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
   }
 }
 
+// Points the struct names at `node` at the structs its own file can see.
+// Names in `skip` -- a generic's type parameters -- are left as they are.
+export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
+                    skip: *NameSet): void {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  let names: bool = kind == NodeKind.StructLit;
+  if (kind == NodeKind.Type) {
+    names = typeKindFromName(an.ast.nodes[node].text) == TypeKind.None;
+  }
+  if (names && skip != null && skip.has(an.ast.nodes[node].text)) {
+    names = false;
+  }
+
+  // `Point.new()` names a struct where a value usually goes. Whether it
+  // does depends on what is in scope, which the analyzer decides, so this
+  // only records the struct the name would mean.
+  //
+  // `Color.Red` names an enum the same way, and is resolved the same way.
+  if (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) {
+    let receiver: i32 = an.ast.nodes[node].a;
+    if (an.ast.nodes[receiver].kind == NodeKind.Ident) {
+      an.structRefs[node] =
+          resolveStructName(an, program, an.ast.nodes[node].module,
+                            an.ast.nodes[receiver].text);
+    }
+  }
+
+  if (!names) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let module: i32 = an.ast.nodes[node].module;
+  let resolved: *i8 = resolveStructName(an, program, module, name);
+
+  if (resolved != null) {
+    setNodeText(an, node, resolved);
+    return;
+  }
+
+  // Left alone, the name would quietly mean whichever file happened to claim
+  // it -- the very leak modules exist to prevent. A name no file declares is
+  // left for the analyzer's own "unknown type".
+  let elsewhere: i32 = findStructAnywhere(an, program, name);
+  if (elsewhere != NO_NODE) {
+    let message: *Buf = Buf.new();
+    message.add("type '");
+    message.add(name);
+    message.add("' is declared in '");
+    message.add(modulePath(an.ast.nodes[elsewhere].module));
+    message.add("' but not imported here");
+    importFail(an, node, message.data);
+    // Pointed at the real struct anyway, so the error above is the only one
+    // this mistake produces.
+    setNodeText(an, node, an.linkNames[elsewhere]);
+  }
+}
+
 export fn linkModules(an: *Analyzer, program: i32): void {
   assignLinkNames(an, program);
   checkImports(an, program);
   rewriteStructNames(an, program);
+  instantiateGenerics(an, program);
+  renameTypeDecls(an, program);
 }
 
 // ---------------------------------------------------------------------------

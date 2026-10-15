@@ -32,6 +32,10 @@
           "named": true
         },
         {
+          "type": "generic_expression",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
@@ -104,6 +108,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -207,6 +215,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -280,6 +292,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -431,6 +447,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -566,6 +586,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -621,6 +645,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -756,6 +784,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -861,6 +893,10 @@
         },
         {
           "type": "field_expression",
+          "named": true
+        },
+        {
+          "type": "generic_expression",
           "named": true
         },
         {
@@ -1030,6 +1066,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -1113,6 +1153,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -1217,6 +1261,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -1284,6 +1332,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -1383,6 +1435,16 @@
             "named": true
           }
         ]
+      },
+      "type_parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameters",
+            "named": true
+          }
+        ]
       }
     }
   },
@@ -1410,6 +1472,58 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "generic_expression",
+    "named": true,
+    "fields": {
+      "arguments": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_arguments",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "generic_type",
+    "named": true,
+    "fields": {
+      "arguments": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_arguments",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1456,6 +1570,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -1597,6 +1715,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -1664,6 +1786,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -1764,6 +1890,10 @@
           "named": true
         },
         {
+          "type": "generic_expression",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
@@ -1836,6 +1966,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -1942,6 +2076,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -2062,6 +2200,10 @@
           "named": true
         },
         {
+          "type": "generic_expression",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
@@ -2157,6 +2299,10 @@
           "named": true
         },
         {
+          "type": "generic_expression",
+          "named": true
+        },
+        {
           "type": "identifier",
           "named": true
         },
@@ -2229,6 +2375,10 @@
         },
         {
           "type": "field_expression",
+          "named": true
+        },
+        {
+          "type": "generic_expression",
           "named": true
         },
         {
@@ -2412,6 +2562,16 @@
             "named": true
           }
         ]
+      },
+      "type_parameters": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "type_parameters",
+            "named": true
+          }
+        ]
       }
     }
   },
@@ -2434,6 +2594,10 @@
         "required": true,
         "types": [
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           }
@@ -2454,6 +2618,10 @@
           "named": true
         },
         {
+          "type": "generic_type",
+          "named": true
+        },
+        {
           "type": "pointer_type",
           "named": true
         },
@@ -2463,6 +2631,36 @@
         },
         {
           "type": "type_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_arguments",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_parameters",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
           "named": true
         }
       ]
@@ -2498,6 +2696,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {
@@ -2623,6 +2825,10 @@
             "named": true
           },
           {
+            "type": "generic_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
             "named": true
           },
@@ -2706,6 +2912,10 @@
           },
           {
             "type": "field_expression",
+            "named": true
+          },
+          {
+            "type": "generic_expression",
             "named": true
           },
           {

@@ -34,6 +34,7 @@ guesses.
 |---|---|
 | `main.ode` | the driver: arguments, loading the program, running the phases |
 | `support/libc.ode` | the C library functions the compiler uses, declared by hand |
+| `support/list.ode` | `List<T>`, the growable array most of the compiler's lists are |
 | `support/text.ode` | `Buf`, the growable buffer, and helpers on C strings |
 | `support/diagnostics.ode` | collecting and printing errors; fatal failure |
 | `support/system.ode` | running programs, pipes, files, paths, directories |
@@ -51,6 +52,9 @@ guesses.
 | `semantics/expressions.ode` | checking expressions |
 | `semantics/statements.ode` | checking statements and function bodies |
 | `semantics/methods.ode` | methods: registration, calls, bodies |
+| `semantics/enums.ode` | enums and `match` |
+| `semantics/functions.ode` | function types and calls through function values |
+| `semantics/generics.ode` | generics: making each instance, before checking |
 | `codegen/emitter.ode` | the emitter's state, lines, labels, locals, constants |
 | `codegen/layout.ode` | LLVM type names, sizes and alignment |
 | `codegen/expressions.ode` | emitting expressions |
@@ -68,7 +72,9 @@ each other in cycles freely.
 The compiler's data structures are structs with methods -- `Buf`, `TokenList`,
 `Ast`, `Lexer`, `Parser`, `Type`, `StructTable`, `SymbolTable`, `Analyzer`,
 `Emitter` -- so text is built with `out.add(...)` and tokens consumed with
-`parser.expect(...)`. The passes themselves, `parseX`, `checkX` and `genX`,
+`parser.expect(...)`. Their growable parts are one generic `List<T>`:
+locals, scopes and loop labels in the emitter, the symbol table's scope
+stack, names, argument lists, modules and function signatures. The passes themselves, `parseX`, `checkX` and `genX`,
 are free functions taking the parser, analyzer or emitter: they span several
 files, and a method has to be written inside its struct.
 

@@ -1,0 +1,12 @@
+struct Nest<T> {
+  value: T,
+
+  fn deeper(self: Nest<T>): Nest<Nest<T>> {
+    return Nest<Nest<T>> { value: self };
+  }
+}
+
+fn main(): i32 {
+  let n: Nest<i32> = Nest<i32> { value: 1 };
+  return 0;
+}

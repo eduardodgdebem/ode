@@ -1,0 +1,12 @@
+struct Box<T> {
+  value: T,
+}
+
+fn identity<T>(x: T): T {
+  return x;
+}
+
+fn main(): i32 {
+  let b: Box<i32, bool> = Box<i32> { value: 1 };
+  return identity<i32, i32>(1);
+}

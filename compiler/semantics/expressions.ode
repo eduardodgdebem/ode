@@ -23,6 +23,7 @@ import { checkEnumMember } from "./enums";
 import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
 } from "./functions";
+import { functionTemplateIn } from "./generics";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -135,6 +136,12 @@ fn checkCall(an: *Analyzer, node: i32): Type {
   let symbol: i32 = an.symbols.find(name);
 
   if (symbol < 0) {
+    // A generic called without arguments was reported as that already.
+    if (functionTemplateIn(an, an.program, an.ast.nodes[node].module,
+                           name) != NO_NODE) {
+      FAILED = true;
+      return Type.make(TypeKind.None, 0);
+    }
     analyzerFail(an, node, quoted("undefined function ", name, ""));
     return Type.make(TypeKind.None, 0);
   }

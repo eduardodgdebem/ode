@@ -35,7 +35,7 @@ import {
 } from "../support/system";
 import { NodeKind, Ast } from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
-import { MODULE_COUNT, modulePath } from "../semantics/modules";
+import { moduleCount, modulePath } from "../semantics/modules";
 import { quoted } from "../semantics/analyzer";
 import { hexDigit } from "../codegen/emitter";
 import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
@@ -124,7 +124,7 @@ fn hashInputs(ws: *Workspace): Inputs {
   FAILED = false;
 
   let lines: i32 = 0;
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     let bytes: *Buf = readBytes(modulePath(module));
     hasher.addText(modulePath(module));
     if (bytes != null) {
@@ -138,7 +138,7 @@ fn hashInputs(ws: *Workspace): Inputs {
     }
   }
 
-  return Inputs { hash: hasher.hex(), lines: lines, modules: MODULE_COUNT };
+  return Inputs { hash: hasher.hex(), lines: lines, modules: moduleCount() };
 }
 
 // ---------------------------------------------------------------------------

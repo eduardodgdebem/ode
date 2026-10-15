@@ -9,9 +9,10 @@
 // ---------------------------------------------------------------------------
 
 import {
-  malloc, realloc, free, strlen, fopen, fclose, fread, fwrite, fseek, ftell,
-  SEEK_SET, SEEK_END,
+  malloc, free, strlen, fopen, fclose, fread, fwrite, fseek, ftell, SEEK_SET,
+  SEEK_END,
 } from "./libc";
+import { List } from "./list";
 import { Buf, textSlice } from "./text";
 import { realpath } from "../semantics/modules";
 
@@ -44,42 +45,35 @@ let EXECUTABLE: i32 = 1;
 // ---------------------------------------------------------------------------
 
 export struct TextList {
-  items: **i8,
-  count: i32,
-  capacity: i32,
+  texts: *List<*i8>,
 
   fn new(): *TextList {
     let list: *TextList = malloc(sizeof(TextList) as i64) as *TextList;
-    list.capacity = 8;
-    list.count = 0;
-    list.items = malloc(sizeof(*i8) as i64 * list.capacity as i64) as **i8;
+    list.texts = List<*i8>.new();
 
     return list;
   }
 
   // Returns the list, so that a command line can be written as one chain.
   fn add(self: *TextList, text: *i8): *TextList {
-    // One slot is always kept spare for the terminator `argv` needs.
-    if (self.count + 1 == self.capacity) {
-      self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(*i8) as i64 * self.capacity as i64) as **i8;
-    }
-
-    self.items[self.count] = text;
-    self.count = self.count + 1;
-
+    self.texts.push(text);
     return self;
   }
 
   fn at(self: *TextList, index: i32): *i8 {
-    return self.items[index];
+    return self.texts.at(index);
   }
 
-  // The list as execvp wants it, ending in a null.
+  fn size(self: *TextList): i32 {
+    return self.texts.count;
+  }
+
+  // The list as execvp wants it, ending in a null that is not one of its
+  // texts.
   fn argv(self: *TextList): **i8 {
-    self.items[self.count] = null;
-    return self.items;
+    self.texts.push(null);
+    self.texts.count = self.texts.count - 1;
+    return self.texts.items;
   }
 }
 

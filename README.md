@@ -21,9 +21,9 @@ fn main(): i32 {
 ```
 
 The language has integers of every width, floats, pointers, structs with
-methods, enums and `match`, functions as values, modules with `import` and `export`, and direct calls into C through
-`extern`. It has no garbage collector, no implicit conversions and no
-generics: what it compiles to is close to what is written.
+methods, generics, enums and `match`, functions as values, modules with `import` and `export`, and direct calls into C through
+`extern`. It has no garbage collector and no implicit conversions: what it compiles
+to is close to what is written.
 
 ## Quick start
 
