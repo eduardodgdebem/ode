@@ -1,0 +1,8 @@
+enum Color { Red, Green, Blue }
+
+enum Size { Small, Large }
+
+fn main(): i32 {
+  let c: Color = Size.Small;
+  return 0;
+}

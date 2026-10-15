@@ -1,0 +1,8 @@
+enum Color { Red, Green, Blue }
+
+fn main(): i32 {
+  if (Color.Red < Color.Blue) {
+    return 1;
+  }
+  return 0;
+}

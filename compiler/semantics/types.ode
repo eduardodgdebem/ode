@@ -29,6 +29,8 @@ export let TY_VOID: i32 = 12;
 export let TY_STRUCT: i32 = 13;
 // The type of `null`, which every pointer type accepts and nothing else does.
 export let TY_NULL: i32 = 14;
+// An enum, named like a struct. Its values are i32 underneath.
+export let TY_ENUM: i32 = 15;
 
 let MAX_U64: u64 = 18446744073709551615 as u64;
 
@@ -47,9 +49,17 @@ export struct Type {
     return Type { kind: TY_STRUCT, pointerDepth: pointerDepth,
                   structName: name };
   }
+  fn ofEnum(name: *i8, pointerDepth: i32): Type {
+    return Type { kind: TY_ENUM, pointerDepth: pointerDepth,
+                  structName: name };
+  }
 
   fn isPointer(self: Type): bool {
     return self.pointerDepth > 0;
+  }
+
+  fn isEnum(self: Type): bool {
+    return self.kind == TY_ENUM && self.pointerDepth == 0;
   }
 
   fn isNull(self: Type): bool {
@@ -118,6 +128,7 @@ export struct Type {
     if (self.kind == TY_I8 || self.kind == TY_U8) { return 8; }
     if (self.kind == TY_I16 || self.kind == TY_U16) { return 16; }
     if (self.kind == TY_I32 || self.kind == TY_U32) { return 32; }
+    if (self.kind == TY_ENUM) { return 32; }
     if (self.kind == TY_F32) { return 32; }
     if (self.kind == TY_I64 || self.kind == TY_U64) { return 64; }
     if (self.kind == TY_F64) { return 64; }
@@ -140,9 +151,9 @@ export struct Type {
       return false;
     }
 
-    // Only a struct has a name, and two structs are the same type only when
-    // they are the same declaration.
-    if (self.kind != TY_STRUCT) {
+    // Only a struct or an enum has a name, and two of them are the same type
+    // only when they are the same declaration.
+    if (self.kind != TY_STRUCT && self.kind != TY_ENUM) {
       return true;
     }
 
@@ -164,6 +175,7 @@ export struct Type {
     if (self.kind == TY_VOID) { return "void"; }
     if (self.kind == TY_STRUCT) { return self.structName; }
     if (self.kind == TY_NULL) { return "null"; }
+    if (self.kind == TY_ENUM) { return self.structName; }
 
     return "unknown";
   }

@@ -28,8 +28,8 @@ import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
 import {
-  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_STRUCTLIT, NK_IDENT,
-  NK_TYPE, NK_IMPORT, NK_METHODCALL,
+  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELDACCESS,
+  NK_STRUCTLIT, NK_IDENT, NK_TYPE, NK_IMPORT, NK_METHODCALL, NK_ENUM,
 } from "../syntax/ast";
 import { TY_NONE, typeKindFromName } from "./types";
 import { Symbol, SymbolTable } from "./symbols";
@@ -212,6 +212,11 @@ export struct NameSet {
   }
 }
 
+// Structs and enums share one namespace: a type name means one or the other.
+fn isTypeDecl(kind: i32): bool {
+  return kind == NK_STRUCT || kind == NK_ENUM;
+}
+
 fn isValueDecl(kind: i32): bool {
   return kind == NK_FN || kind == NK_EXTERN || kind == NK_VARDECL;
 }
@@ -228,7 +233,7 @@ fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
 
     if (an.ast.nodes[item].module == module &&
         textEquals(an.ast.nodes[item].text, name)) {
-      if (wantStruct && kind == NK_STRUCT) {
+      if (wantStruct && isTypeDecl(kind)) {
         return item;
       }
       if (!wantStruct && isValueDecl(kind)) {
@@ -276,9 +281,9 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
           an.linkNames[item] = values.claim(module, name);
         }
 
-        // A struct declared twice in one file has to keep one name, or the
-        // analyzer would see two structs and miss the duplicate.
-        if (kind == NK_STRUCT) {
+        // A type declared twice in one file has to keep one name, or the
+        // analyzer would see two types and miss the duplicate.
+        if (isTypeDecl(kind)) {
           let first: i32 = findTopLevel(an, program, module, name, true);
           if (first != item) {
             an.linkNames[item] = an.linkNames[first];
@@ -440,7 +445,7 @@ fn findStructAnywhere(an: *Analyzer, program: i32, name: *i8): i32 {
 
   while (index < an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
-    if (an.ast.nodes[item].kind == NK_STRUCT &&
+    if (isTypeDecl(an.ast.nodes[item].kind) &&
         textEquals(an.ast.nodes[item].text, name)) {
       return item;
     }
@@ -475,7 +480,9 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
     // `Point.new()` names a struct where a value usually goes. Whether it
     // does depends on what is in scope, which the analyzer decides, so this
     // only records the struct the name would mean.
-    if (kind == NK_METHODCALL) {
+    //
+    // `Color.Red` names an enum the same way, and is resolved the same way.
+    if (kind == NK_METHODCALL || kind == NK_FIELDACCESS) {
       let receiver: i32 = an.ast.nodes[node].a;
       if (an.ast.nodes[receiver].kind == NK_IDENT) {
         an.structRefs[node] =
@@ -517,7 +524,7 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
   let index: i32 = 0;
   while (index < an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
-    if (an.ast.nodes[item].kind == NK_STRUCT) {
+    if (isTypeDecl(an.ast.nodes[item].kind)) {
       setNodeText(an, item, an.linkNames[item]);
     }
     index = index + 1;

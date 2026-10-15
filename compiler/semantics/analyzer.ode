@@ -22,10 +22,11 @@ import {
 } from "./types";
 import { SYM_VAR, SYM_FN, SymbolTable } from "./symbols";
 import {
-  MODULE_COUNT, modulePath, linkModules, SymbolList, declareImports,
+  MODULE_COUNT, modulePath, NameSet, linkModules, SymbolList, declareImports,
 } from "./modules";
 import { analyzeRecovering } from "./statements";
 import { RECV_NONE, registerMethods } from "./methods";
+import { registerEnum } from "./enums";
 
 export struct Analyzer {
   ast: *Ast,
@@ -45,6 +46,13 @@ export struct Analyzer {
   // Per method call written on a name, `Point.new()`: the IR name of the
   // struct that name means in the call's file, or null if it means none.
   structRefs: **i8,
+  // Per node: 1 when it is a constant the analyzer worked out -- an enum
+  // member, or a match pattern -- whose value is then in `values`.
+  isConstant: *i8,
+  values: *i64,
+  // The IR names of every enum, which is how a type name is told to be an
+  // enum's rather than a struct's.
+  enumNames: *NameSet,
   program: i32,
   loopDepth: i32,
   inFunction: bool,
@@ -60,6 +68,9 @@ export struct Analyzer {
     an.linkNames = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
     an.receivers = malloc(ast.count as i64);
     an.structRefs = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
+    an.isConstant = malloc(ast.count as i64);
+    an.values = malloc(sizeof(i64) as i64 * ast.count as i64) as *i64;
+    an.enumNames = NameSet.new();
     an.program = NO_NODE;
     an.moduleSymbols =
         malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
@@ -74,6 +85,8 @@ export struct Analyzer {
       an.linkNames[index] = null;
       an.receivers[index] = RECV_NONE;
       an.structRefs[index] = null;
+      an.isConstant[index] = 0 as i8;
+      an.values[index] = 0 as i64;
       index = index + 1;
     }
 
@@ -158,8 +171,11 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
   let kind: i32 = typeKindFromName(name);
 
   // A built-in type lexes as its own token kind; anything else is a struct
-  // name, which lexes as an identifier.
+  // or enum name, which lexes as an identifier.
   if (kind == TY_NONE) {
+    if (an.enumNames.has(name)) {
+      return Type.ofEnum(name, depth);
+    }
     return Type.ofStruct(name, depth);
   }
 
@@ -213,7 +229,7 @@ fn registerStructName(an: *Analyzer, node: i32): void {
   }
 
   let name: *i8 = an.ast.nodes[node].text;
-  if (an.structs.indexOf(name) >= 0) {
+  if (an.structs.indexOf(name) >= 0 || an.enumNames.has(name)) {
     analyzerFail(an, node,
                  quoted("struct ", name, " is declared more than once"));
   }
@@ -430,11 +446,20 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
   linkModules(an, program);
 
+  // Enums first: a struct field, a global or a signature may have one as its
+  // type, and parsing a type name needs to know whether it is one.
+  let index: i32 = 0;
+  while (index < count) {
+    registerEnum(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
+    index = index + 1;
+  }
+
   // Struct names come first so that two structs may point at each other, then
   // fields, then globals and function signatures, which may both refer to any
   // struct. Structs go into one table for every file: by now each reference
   // names the struct its own file can see.
-  let index: i32 = 0;
+  index = 0;
   while (index < count) {
     registerStructName(an, an.ast.nodes[program].items[index]);
     FAILED = false;

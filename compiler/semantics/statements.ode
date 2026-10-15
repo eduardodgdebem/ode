@@ -12,7 +12,7 @@ import { FAILED } from "../support/diagnostics";
 import {
   NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
   NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT,
-  NK_IMPORT,
+  NK_IMPORT, NK_ENUM, NK_MATCH,
 } from "../syntax/ast";
 import { Type } from "./types";
 import { SYM_VAR, SYM_FN } from "./symbols";
@@ -22,6 +22,7 @@ import {
 } from "./analyzer";
 import { checkExpr, checkAssignTarget, isConstantExpr } from "./expressions";
 import { analyzeMethodBodies } from "./methods";
+import { analyzeMatch } from "./enums";
 
 // Runs one checking step, then puts back anything a failure skipped past so
 // the next statement is checked as though the failed one were not there.
@@ -45,7 +46,7 @@ export fn analyzeRecovering(an: *Analyzer, node: i32): void {
   FAILED = false;
 }
 
-fn analyzeStatement(an: *Analyzer, node: i32): void {
+export fn analyzeStatement(an: *Analyzer, node: i32): void {
   if (FAILED) {
     return;
   }
@@ -81,6 +82,16 @@ fn analyzeStatement(an: *Analyzer, node: i32): void {
   // left is the bodies of its methods.
   if (kind == NK_STRUCT) {
     analyzeMethodBodies(an, node);
+    return;
+  }
+
+  // An enum was registered before anything else was checked.
+  if (kind == NK_ENUM) {
+    return;
+  }
+
+  if (kind == NK_MATCH) {
+    analyzeMatch(an, node);
     return;
   }
 

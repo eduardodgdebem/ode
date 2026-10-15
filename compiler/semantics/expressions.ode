@@ -26,6 +26,7 @@ import {
   quoted, analyzerParseType, analyzerValidateType,
 } from "./analyzer";
 import { checkMethodCall } from "./methods";
+import { checkEnumMember } from "./enums";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -114,7 +115,15 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
     analyzerFail(an, at, "left-hand side of assignment is not assignable");
   }
 
-  return checkExpr(an, target);
+  let type: Type = checkExpr(an, target);
+
+  // `Color.Red` reads like a field but is a constant, with nowhere to store
+  // to; that is only known once it has been checked.
+  if (!FAILED && an.isConstant[target] != 0 as i8) {
+    analyzerFail(an, at, "left-hand side of assignment is not assignable");
+  }
+
+  return type;
 }
 
 fn checkCall(an: *Analyzer, node: i32): Type {
@@ -191,6 +200,9 @@ fn checkUnaryOp(an: *Analyzer, node: i32): Type {
     }
 
     let addressed: Type = checkExpr(an, operand);
+    if (!FAILED && an.isConstant[operand] != 0 as i8) {
+      analyzerFail(an, node, "cannot take the address of a temporary value");
+    }
     if (addressed.isVoid()) {
       analyzerFail(an, node, "cannot take the address of a void value");
     }
@@ -283,6 +295,11 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
     }
     if (left.isBool() || left.isVoid()) {
       analyzerFail(an, node, "cannot compare boolean or void values");
+    }
+    if (left.isEnum()) {
+      analyzerFail2(an, node,
+                    quoted("cannot order enum ", left.structName, " values"),
+                    "compare them with == and !=, or match on them");
     }
     if (left.isStruct()) {
       analyzerFail2(an, node,
@@ -393,6 +410,10 @@ fn checkCast(an: *Analyzer, node: i32): Type {
 
   if (from.equals(to)) { return to; }
   if (from.isNull() && to.isPointer()) { return to; }
+  // An enum is an i32 underneath, and converts to and from any integer, but
+  // only when asked to.
+  if (from.isEnum() && to.isInteger()) { return to; }
+  if (from.isInteger() && to.isEnum()) { return to; }
   if (from.isNumeric() && to.isNumeric()) { return to; }
   if (from.isBool() && to.isInteger()) { return to; }
   if (from.isInteger() && to.isBool()) { return to; }
@@ -499,6 +520,18 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
 }
 
 fn checkFieldAccess(an: *Analyzer, node: i32): Type {
+  // `Color.Red`: the object is an enum's name rather than a value. A variable
+  // of the same name wins, as it would anywhere else a name is read.
+  let object: i32 = an.ast.nodes[node].a;
+  let typeName: *i8 = an.structRefs[node];
+  if (an.ast.nodes[object].kind == NK_IDENT && typeName != null &&
+      an.enumNames.has(typeName)) {
+    let symbol: i32 = an.symbols.find(an.ast.nodes[object].text);
+    if (symbol < 0 || an.symbols.items[symbol].kind != SYM_VAR) {
+      return checkEnumMember(an, node, typeName);
+    }
+  }
+
   let field: *i8 = an.ast.nodes[node].text;
   let objectType: Type = checkExpr(an, an.ast.nodes[node].a);
 
@@ -643,6 +676,9 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   }
   if (kind == NK_NULL) {
     return true;
+  }
+  if (kind == NK_FIELDACCESS) {
+    return an.isConstant[node] != 0 as i8;
   }
   if (kind == NK_CHAR || kind == NK_SIZEOF) {
     return true;

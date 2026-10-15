@@ -54,6 +54,10 @@ export let NK_IMPORT: i32 = 35;
 export let NK_IMPORTNAME: i32 = 36;
 export let NK_METHODCALL: i32 = 37;
 export let NK_NULL: i32 = 38;
+export let NK_ENUM: i32 = 39;
+export let NK_ENUMMEMBER: i32 = 40;
+export let NK_MATCH: i32 = 41;
+export let NK_ARM: i32 = 42;
 
 struct Node {
   kind: i32,
@@ -84,11 +88,14 @@ struct Node {
   //   sizeof   a=type
   //   importname a=alias, an ident, when the name is renamed with `as`
   //   methodcall a=receiver, or the struct's name b=args
+  //   enummember a=value, when one is written
+  //   match    a=subject, items=arms
+  //   arm      a=body,    items=patterns, none for the `else` arm
   a: i32,
   b: i32,
   c: i32,
   // Pointer depth, for a type node. For an import, the module it loads, once
-  // the driver has found it.
+  // the driver has found it. For a match arm, 1 when it is the `else` arm.
   extra: i32,
   // Child indices, for program, block, struct, structlit, params, args and
   // import. A struct's items are its fields and then, mixed in, its methods.
@@ -212,6 +219,10 @@ export fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_IMPORTNAME) { return "importname"; }
   if (kind == NK_METHODCALL) { return "methodcall"; }
   if (kind == NK_NULL) { return "null"; }
+  if (kind == NK_ENUM) { return "enum"; }
+  if (kind == NK_ENUMMEMBER) { return "enummember"; }
+  if (kind == NK_MATCH) { return "match"; }
+  if (kind == NK_ARM) { return "arm"; }
 
   return "?";
 }
@@ -234,6 +245,9 @@ export fn nodeCarriesText(kind: i32): bool {
     return true;
   }
   if (kind == NK_IMPORT || kind == NK_IMPORTNAME || kind == NK_METHODCALL) {
+    return true;
+  }
+  if (kind == NK_ENUM || kind == NK_ENUMMEMBER) {
     return true;
   }
 

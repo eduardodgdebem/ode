@@ -7,16 +7,17 @@
 // code still forms valid IR.
 // ---------------------------------------------------------------------------
 
-import { realloc, strlen } from "../support/libc";
-import { Buf } from "../support/text";
+import { malloc, realloc, strlen } from "../support/libc";
+import { Buf, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import {
   NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
-  NK_CONTINUE, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT,
+  NK_CONTINUE, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT, NK_ENUM,
+  NK_MATCH,
 } from "../syntax/ast";
 import {
   TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
-  TY_BOOL, Type,
+  TY_BOOL, TY_ENUM, Type,
 } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import {
@@ -44,7 +45,7 @@ fn printFormat(type: Type): *i8 {
   }
 
   if (type.kind == TY_BOOL || type.kind == TY_I8 || type.kind == TY_I16 ||
-      type.kind == TY_I32) {
+      type.kind == TY_I32 || type.kind == TY_ENUM) {
     return "%d\n";
   }
   if (type.kind == TY_U8 || type.kind == TY_U16 || type.kind == TY_U32) {
@@ -97,6 +98,15 @@ export fn genStatement(e: *Emitter, node: i32): void {
   // A struct declaration produced its type up front, and a nested function
   // declaration is not reachable here.
   if (kind == NK_STRUCT || kind == NK_EXTERN) {
+    return;
+  }
+
+  if (kind == NK_ENUM) {
+    return;
+  }
+
+  if (kind == NK_MATCH) {
+    genMatch(e, node);
     return;
   }
 
@@ -233,4 +243,89 @@ export fn genStatement(e: *Emitter, node: i32): void {
 
   failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
          "unsupported statement in code generation");
+}
+
+// A pattern's value as LLVM spells it for an integer of `bits` bits: in the
+// signed range, so that `255` matched against a u8 is written as -1.
+fn switchConstant(value: i64, bits: i32): *i8 {
+  if (bits >= 64) {
+    return intToText(value);
+  }
+
+  let span: i64 = 1 as i64 << bits as i64;
+  let wrapped: i64 = value % span;
+  if (wrapped < 0 as i64) {
+    wrapped = wrapped + span;
+  }
+  if (wrapped >= span / 2 as i64) {
+    wrapped = wrapped - span;
+  }
+
+  return intToText(wrapped);
+}
+
+// A match is LLVM's `switch`: one comparison table, a block per arm, and the
+// `else` arm -- or, for an enum match that handles every member, the end --
+// as the default.
+fn genMatch(e: *Emitter, node: i32): void {
+  let subject: i32 = e.ast.nodes[node].a;
+  let type: Type = typeOfNode(e, subject);
+  let typeName: *i8 = llvmTypeName(type);
+  let value: *i8 = genExpr(e, subject);
+
+  let done: *i8 = freshLabel(e);
+  let fallback: *i8 = done;
+  let armCount: i32 = e.ast.nodes[node].itemCount;
+  let labels: **i8 = malloc(sizeof(*i8) as i64 * (armCount + 1) as i64) as **i8;
+
+  let arm: i32 = 0;
+  while (arm < armCount) {
+    labels[arm] = freshLabel(e);
+    if (e.ast.nodes[e.ast.nodes[node].items[arm]].extra == 1) {
+      fallback = labels[arm];
+    }
+    arm = arm + 1;
+  }
+
+  let line: *Buf = Buf.new();
+  line.add("switch ");
+  line.add(typeName);
+  line.push(' ');
+  line.add(value);
+  line.add(", label %");
+  line.add(fallback);
+  line.add(" [");
+
+  arm = 0;
+  while (arm < armCount) {
+    let armNode: i32 = e.ast.nodes[node].items[arm];
+    let pattern: i32 = 0;
+    while (pattern < e.ast.nodes[armNode].itemCount) {
+      let patternNode: i32 = e.ast.nodes[armNode].items[pattern];
+      line.push(' ');
+      line.add(typeName);
+      line.push(' ');
+      line.add(switchConstant(e.an.values[patternNode], type.bitWidth()));
+      line.add(", label %");
+      line.add(labels[arm]);
+      pattern = pattern + 1;
+    }
+    arm = arm + 1;
+  }
+  line.add(" ]");
+
+  if (!e.terminated) {
+    emitLine(e, line.data);
+    e.terminated = true;
+  }
+
+  arm = 0;
+  while (arm < armCount) {
+    emitLabel(e, labels[arm]);
+    genStatement(e, e.ast.nodes[e.ast.nodes[node].items[arm]].a);
+    emitBranch(e, done);
+    arm = arm + 1;
+  }
+
+  emitLabel(e, done);
 }

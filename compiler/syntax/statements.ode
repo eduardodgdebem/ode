@@ -7,16 +7,16 @@ import { FAILED, report } from "../support/diagnostics";
 import {
   TK_NONE, TK_END, TK_IDENT, TK_STRING, TK_LET, TK_IF, TK_ELSE, TK_FN,
   TK_EXTERN, TK_STRUCT, TK_RETURN, TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT,
-  TK_AS, TK_IMPORT, TK_EXPORT, TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH,
-  TK_PERCENT, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_STAR_ASSIGN, TK_SLASH_ASSIGN,
-  TK_PERCENT_ASSIGN, TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_SEMICOLON,
-  TK_COMMA, TK_COLON, Token,
+  TK_AS, TK_IMPORT, TK_EXPORT, TK_ENUM, TK_MATCH, TK_ASSIGN, TK_PLUS, TK_MINUS,
+  TK_STAR, TK_SLASH, TK_PERCENT, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN,
+  TK_STAR_ASSIGN, TK_SLASH_ASSIGN, TK_PERCENT_ASSIGN, TK_LPAREN, TK_RPAREN,
+  TK_LBRACE, TK_RBRACE, TK_SEMICOLON, TK_COMMA, TK_COLON, TK_ARROW, Token,
 } from "./token";
 import {
   NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
   NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELD, NK_RETURN, NK_PRINT,
   NK_EXPRSTMT, NK_BINARY, NK_IDENT, NK_PARAMS, NK_PARAM, NK_IMPORT,
-  NK_IMPORTNAME,
+  NK_IMPORTNAME, NK_ENUM, NK_ENUMMEMBER, NK_MATCH, NK_ARM,
 } from "./ast";
 import { Parser, startsStatement, parseType } from "./parser";
 import { parseExpr } from "./expressions";
@@ -108,6 +108,11 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
   if (kind == TK_STRUCT) {
     let node: i32 = parseStructDecl(parser);
     return requireTopLevel(parser, start, "struct", node);
+  }
+  if (kind == TK_MATCH) { return parseMatchStmt(parser); }
+  if (kind == TK_ENUM) {
+    let node: i32 = parseEnumDecl(parser);
+    return requireTopLevel(parser, start, "enum", node);
   }
   if (kind == TK_IMPORT) {
     let node: i32 = parseImportDecl(parser);
@@ -505,7 +510,8 @@ fn parseImportDecl(parser: *Parser): i32 {
   return node;
 }
 
-// ExportDecl -> 'export' (FuncDecl | ExternDecl | StructDecl | VarDecl)
+// ExportDecl -> 'export' (FuncDecl | ExternDecl | StructDecl | EnumDecl |
+//                         VarDecl)
 fn parseExportDecl(parser: *Parser): i32 {
   parser.expect(TK_EXPORT, "export");
 
@@ -520,12 +526,101 @@ fn parseExportDecl(parser: *Parser): i32 {
     node = parseStructDecl(parser);
   } else if (kind == TK_LET) {
     node = parseVarDecl(parser);
+  } else if (kind == TK_ENUM) {
+    node = parseEnumDecl(parser);
   } else {
     parser.fail("declaration");
     return parser.errorNode();
   }
 
   parser.ast.nodes[node].exported = true;
+
+  return node;
+}
+
+// EnumDecl -> 'enum' IDENT '{' (IDENT ('=' Expr)? (',' IDENT ('=' Expr)?)*
+//             ','?)? '}'
+//
+// A member without a value takes the one after the member before it, and the
+// first takes 0. A written value has to be an integer literal, which the
+// analyzer checks.
+fn parseEnumDecl(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let line: i32 = start.line;
+  let column: i32 = start.column;
+
+  parser.expect(TK_ENUM, "enum");
+  let name: *Token = parser.expect(TK_IDENT, "enum name");
+  parser.expect(TK_LBRACE, "{");
+
+  let node: i32 = parser.ast.add(NK_ENUM, line, column);
+  parser.ast.setText(node, name);
+
+  while (parser.kind() != TK_RBRACE && parser.kind() != TK_END) {
+    let memberName: *Token = parser.expect(TK_IDENT, "enum member");
+    if (FAILED) {
+      break;
+    }
+
+    let member: i32 = parser.ast.add(NK_ENUMMEMBER, memberName.line,
+                                     memberName.column);
+    parser.ast.setText(member, memberName);
+    if (parser.kind() == TK_ASSIGN) {
+      parser.advance();
+      parser.ast.nodes[member].a = parseExpr(parser);
+    }
+    parser.ast.addItem(node, member);
+
+    if (parser.kind() != TK_COMMA) {
+      break;
+    }
+    parser.advance();
+  }
+
+  parser.expect(TK_RBRACE, "}");
+
+  return node;
+}
+
+// MatchStmt -> 'match' '(' Expr ')' '{' MatchArm* '}'
+// MatchArm  -> (Expr (',' Expr)* | 'else') '=>' Block
+fn parseMatchStmt(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let node: i32 = parser.ast.add(NK_MATCH, start.line, start.column);
+
+  parser.expect(TK_MATCH, "match");
+  parser.expect(TK_LPAREN, "(");
+  parser.ast.nodes[node].a = parseExpr(parser);
+  parser.expect(TK_RPAREN, ")");
+  parser.expect(TK_LBRACE, "{");
+
+  while (parser.kind() != TK_RBRACE && parser.kind() != TK_END) {
+    let armStart: *Token = parser.current();
+    let arm: i32 = parser.ast.add(NK_ARM, armStart.line, armStart.column);
+
+    if (parser.kind() == TK_ELSE) {
+      parser.advance();
+      parser.ast.nodes[arm].extra = 1;
+    } else {
+      while (true) {
+        parser.ast.addItem(arm, parseExpr(parser));
+        if (parser.kind() != TK_COMMA) {
+          break;
+        }
+        parser.advance();
+      }
+    }
+
+    parser.expect(TK_ARROW, "=>");
+    parser.ast.nodes[arm].a = parseBlock(parser);
+    parser.ast.addItem(node, arm);
+
+    if (FAILED) {
+      break;
+    }
+  }
+
+  parser.expect(TK_RBRACE, "}");
 
   return node;
 }

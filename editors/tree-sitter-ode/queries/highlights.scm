@@ -55,8 +55,14 @@
   "fn"
   "extern"
   "struct"
+  "enum"
   "let"
 ] @keyword
+
+"match" @keyword.conditional
+"=>" @punctuation.delimiter
+
+(enum_member name: (identifier) @constant)
 
 "as" @keyword.operator
 

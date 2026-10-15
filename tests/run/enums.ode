@@ -1,0 +1,62 @@
+// Enums: named integer constants with a type of their own.
+
+enum Color { Red, Green, Blue }
+
+// Values count up from the one before, or from a value written out.
+enum Status {
+  Ok,
+  NotFound = 404,
+  Gone,
+  Negative = -3,
+  AfterNegative,
+}
+
+struct Pixel {
+  x: i32,
+  color: Color,
+}
+
+let DEFAULT: Color = Color.Green;
+
+fn next(color: Color): Color {
+  if (color == Color.Red) {
+    return Color.Green;
+  }
+  if (color == Color.Green) {
+    return Color.Blue;
+  }
+  return Color.Red;
+}
+
+fn main(): i32 {
+  let c: Color = Color.Red;
+  print(c == Color.Red);
+  print(c != Color.Blue);
+
+  c = next(next(c));
+  print(c == Color.Blue);
+  print(c as i32);
+
+  print(Status.Ok as i32);
+  print(Status.NotFound as i32);
+  print(Status.Gone as i32);
+  print(Status.Negative as i32);
+  print(Status.AfterNegative as i32);
+
+  // An integer converts to an enum only when asked.
+  let fromNumber: Color = 1 as Color;
+  print(fromNumber == Color.Green);
+
+  // In a struct, a global, and as a sizeof.
+  let pixel: Pixel = Pixel { x: 3, color: DEFAULT };
+  print(pixel.color == Color.Green);
+  print(sizeof(Color));
+  print(sizeof(Pixel));
+
+  // Through a pointer.
+  let p: *Pixel = &pixel;
+  p.color = Color.Blue;
+  print(pixel.color == Color.Blue);
+
+  return 0;
+}

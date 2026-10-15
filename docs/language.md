@@ -191,6 +191,45 @@ ordinary, explicitly typed parameter, as in Zig, so `Vec2.scale(&v, 2)` is the
 same call written out. Methods come with their struct, so importing the
 struct is enough to call them. [`examples/methods.ode`](../examples/methods.ode) shows the rest.
 
+## Enums and match
+
+An enum is a type whose values are a fixed set of names:
+
+```rust
+enum Shape { Circle, Square, Triangle }
+
+enum Status { Ok, NotFound = 404, Gone }   // Gone is 405
+```
+
+Members are written `Shape.Circle`. An enum is not an integer: it compares
+with `==` and `!=`, and becomes one only through `as` (`Status.Gone as i32`).
+
+`match` runs the arm whose pattern equals the value. On an enum it has to
+handle every member, so adding one is a compile error everywhere it was
+forgotten -- unless the match has an `else` arm:
+
+```rust
+fn sides(shape: Shape): i32 {
+  match (shape) {
+    Shape.Circle => { return 0; }
+    Shape.Square => { return 4; }
+    Shape.Triangle => { return 3; }
+  }
+  return -1;
+}
+```
+
+It works on integers and characters too, with literal patterns and a
+required `else`:
+
+```rust
+match (c) {
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => { return "digit"; }
+  ' ', '\t', '\n' => { return "space"; }
+  else => { return "other"; }
+}
+```
+
 ## Strings
 
 A string literal has type `*i8` and points at a NUL-terminated constant; a

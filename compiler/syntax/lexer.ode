@@ -12,12 +12,12 @@ import {
   TK_NONE, TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE,
   TK_LET, TK_IF, TK_ELSE, TK_FN, TK_EXTERN, TK_STRUCT, TK_SIZEOF, TK_RETURN,
   TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT, TK_AS, TK_IMPORT, TK_EXPORT,
-  TK_NULL, TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_PERCENT, TK_NOT,
-  TK_AMP, TK_PIPE, TK_CARET, TK_SHL, TK_SHR, TK_ANDAND, TK_OROR, TK_EQ, TK_NE,
-  TK_LT, TK_LE, TK_GT, TK_GE, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_STAR_ASSIGN,
-  TK_SLASH_ASSIGN, TK_PERCENT_ASSIGN, TK_LPAREN, TK_RPAREN, TK_LBRACE,
-  TK_RBRACE, TK_LBRACKET, TK_RBRACKET, TK_DOT, TK_SEMICOLON, TK_COMMA,
-  TK_COLON, TokenList, kindName,
+  TK_NULL, TK_ENUM, TK_MATCH, TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH,
+  TK_PERCENT, TK_NOT, TK_AMP, TK_PIPE, TK_CARET, TK_SHL, TK_SHR, TK_ANDAND,
+  TK_OROR, TK_EQ, TK_NE, TK_LT, TK_LE, TK_GT, TK_GE, TK_PLUS_ASSIGN,
+  TK_MINUS_ASSIGN, TK_STAR_ASSIGN, TK_SLASH_ASSIGN, TK_PERCENT_ASSIGN,
+  TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_LBRACKET, TK_RBRACKET, TK_DOT,
+  TK_SEMICOLON, TK_COMMA, TK_COLON, TK_ARROW, TokenList, kindName,
 } from "./token";
 
 struct Lexer {
@@ -197,6 +197,7 @@ struct Lexer {
     let kind: i32 = 0 - 1;
 
     if (first == '=' && second == '=') { kind = TK_EQ; }
+    else if (first == '=' && second == '>') { kind = TK_ARROW; }
     else if (first == '!' && second == '=') { kind = TK_NE; }
     else if (first == '<' && second == '=') { kind = TK_LE; }
     else if (first == '>' && second == '=') { kind = TK_GE; }
@@ -291,6 +292,8 @@ fn keywordKind(text: *i8): i32 {
   if (textEquals(text, "import")) { return TK_IMPORT; }
   if (textEquals(text, "export")) { return TK_EXPORT; }
   if (textEquals(text, "null")) { return TK_NULL; }
+  if (textEquals(text, "enum")) { return TK_ENUM; }
+  if (textEquals(text, "match")) { return TK_MATCH; }
   // `from` is not a keyword: it only means anything after an import list, and
   // it is too useful a name to take away everywhere else.
   if (textEquals(text, "true")) { return TK_BOOL; }

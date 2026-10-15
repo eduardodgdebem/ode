@@ -3,8 +3,8 @@
 ## Program Structure
 
 - **Program** → TopLevel*
-- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | Statement
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
+- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | Statement
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
 
@@ -18,7 +18,7 @@ types.
 
 - **ImportDecl** → `import` `{` (ImportName (`,` ImportName)* `,`?)? `}` `from` STRING `;`
 - **ImportName** → IDENT (`as` IDENT)?
-- **ExportDecl** → `export` (FuncDecl | ExternDecl | StructDecl | VarDecl)
+- **ExportDecl** → `export` (FuncDecl | ExternDecl | StructDecl | EnumDecl | VarDecl)
 
 Every file is a module. Its top-level names are private to it unless they are
 declared with `export`, and another file sees them only by importing them by
@@ -47,6 +47,11 @@ cycles.
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
 - **StructDecl** → `struct` IDENT `{` (FieldDecl | FuncDecl)* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
+- **EnumDecl** → `enum` IDENT `{` (EnumMember (`,` EnumMember)* `,`?)? `}`
+- **EnumMember** → IDENT (`=` `-`? NUMBER)?
+- **MatchStmt** → `match` `(` Expr `)` `{` MatchArm* `}`
+- **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` Block
+- **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR
 - **ReturnStmt** → `return` Expr? `;`
 - **PrintStmt** → `print` `(` Expr `)` `;`
 - **ExprStmt** → Expr `;`
@@ -196,6 +201,18 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
 - `.` follows one level of pointer automatically, so `node.next` works whether
   `node` is a `Node` or a `*Node`.
 - A struct literal must initialise every field exactly once, in any order.
+- An enum is a type of its own whose values are written `Name.Member`. A
+  member without a value takes the one after the member before it, and the
+  first takes 0. Enums compare with `==` and `!=` but cannot be ordered or
+  used in arithmetic, and convert to and from integers only through `as`.
+  Underneath, an enum is an `i32`. Struct and enum names share one
+  namespace, and an enum is imported and exported like a struct.
+- `match` runs the arm whose pattern equals its value. On an enum the
+  patterns are members, and every member has to be handled or there has to
+  be an `else` arm. On an integer or a character the patterns are literals,
+  which take the matched value's type when they fit it, and an `else` arm is
+  required. A value may appear in only one pattern, and `else` comes last.
+  `break` and `continue` inside an arm act on the enclosing loop.
 - A `fn` inside a struct is a method. If its first parameter is `self`, typed
   as the struct or a pointer to it, it is called on a value: `v.len()`. The
   receiver is adapted to `self` -- a struct is passed by address to a `*T`

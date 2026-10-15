@@ -1,0 +1,1 @@
+match_pattern_wrong_type.ode:4:5: error: pattern does not have the type of the value matched: expected 'i32' but got 'i8'

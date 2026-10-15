@@ -10,7 +10,7 @@
 import { Buf } from "../support/text";
 import {
   TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
-  TY_BOOL, TY_VOID, TY_STRUCT, Type,
+  TY_BOOL, TY_VOID, TY_STRUCT, TY_ENUM, Type,
 } from "../semantics/types";
 import { Emitter } from "./emitter";
 
@@ -18,6 +18,9 @@ export fn llvmTypeName(type: Type): *i8 {
   // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.
   if (type.isPointer() || type.isNull()) {
     return "ptr";
+  }
+  if (type.kind == TY_ENUM) {
+    return "i32";
   }
 
   if (type.kind == TY_STRUCT) {

@@ -1,0 +1,1 @@
+match_integer_without_else.ode:3:3: error: match on 'i32' needs an 'else' arm: no list of arms can cover every value of an integer

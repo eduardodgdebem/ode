@@ -34,6 +34,8 @@ export let TK_AS: i32 = 22;
 export let TK_IMPORT: i32 = 23;
 export let TK_EXPORT: i32 = 24;
 export let TK_NULL: i32 = 25;
+export let TK_ENUM: i32 = 26;
+export let TK_MATCH: i32 = 27;
 
 export let TK_ASSIGN: i32 = 30;
 export let TK_PLUS: i32 = 31;
@@ -72,6 +74,9 @@ export let TK_DOT: i32 = 66;
 export let TK_SEMICOLON: i32 = 67;
 export let TK_COMMA: i32 = 68;
 export let TK_COLON: i32 = 69;
+
+// `=>`, between a match arm's patterns and its body.
+export let TK_ARROW: i32 = 70;
 
 export struct Token {
   kind: i32,
@@ -152,6 +157,8 @@ export fn kindName(kind: i32): *i8 {
   if (kind == TK_IMPORT) { return "import"; }
   if (kind == TK_EXPORT) { return "export"; }
   if (kind == TK_NULL) { return "null"; }
+  if (kind == TK_ENUM) { return "enum"; }
+  if (kind == TK_MATCH) { return "match"; }
 
   if (kind == TK_ASSIGN) { return "="; }
   if (kind == TK_PLUS) { return "+"; }
@@ -190,6 +197,7 @@ export fn kindName(kind: i32): *i8 {
   if (kind == TK_SEMICOLON) { return ";"; }
   if (kind == TK_COMMA) { return ","; }
   if (kind == TK_COLON) { return ":"; }
+  if (kind == TK_ARROW) { return "=>"; }
 
   return "?";
 }

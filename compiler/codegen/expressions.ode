@@ -15,7 +15,7 @@ import {
   NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
   NK_METHODCALL, NK_NULL,
 } from "../syntax/ast";
-import { TY_I64, TY_BOOL, Type } from "../semantics/types";
+import { TY_I32, TY_I64, TY_BOOL, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import { textHasDot } from "../semantics/expressions";
 import { RECV_NONE, RECV_ADDRESS, RECV_LOAD } from "../semantics/methods";
@@ -65,6 +65,14 @@ export fn emitStore(e: *Emitter, type: Type, value: *i8, address: *i8): void {
 export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
   if (from.equals(to)) {
     return value;
+  }
+
+  // An enum is an i32 underneath, so it converts as one.
+  if (from.isEnum()) {
+    return emitCast(e, value, Type.make(TY_I32, 0), to);
+  }
+  if (to.isEnum()) {
+    return emitCast(e, value, from, Type.make(TY_I32, 0));
   }
 
   let target: *i8 = llvmTypeName(to);
@@ -648,6 +656,11 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   if (kind == NK_SIZEOF) {
     let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
     return intToText(sizeOfType(e, type) as i64);
+  }
+
+  // `Color.Red` is a constant the analyzer already worked out.
+  if (kind == NK_FIELDACCESS && e.an.isConstant[node] != 0 as i8) {
+    return intToText(e.an.values[node]);
   }
 
   if (kind == NK_FIELDACCESS) {

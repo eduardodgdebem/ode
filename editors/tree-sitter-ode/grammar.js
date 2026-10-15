@@ -38,6 +38,7 @@ module.exports = grammar({
       $.function_declaration,
       $.extern_declaration,
       $.struct_declaration,
+      $.enum_declaration,
       $._statement,
     ),
 
@@ -71,6 +72,7 @@ module.exports = grammar({
         $.function_declaration,
         $.extern_declaration,
         $.struct_declaration,
+        $.enum_declaration,
         $.variable_declaration,
       )),
     ),
@@ -104,6 +106,23 @@ module.exports = grammar({
       field('name', $.identifier),
       ':',
       field('type', $.type),
+    ),
+
+    enum_declaration: $ => seq(
+      'enum',
+      field('name', $._type_identifier),
+      '{',
+      optional(seq(
+        $.enum_member,
+        repeat(seq(',', $.enum_member)),
+        optional(','),
+      )),
+      '}',
+    ),
+
+    enum_member: $ => seq(
+      field('name', $.identifier),
+      optional(seq('=', field('value', $._expression))),
     ),
 
     struct_declaration: $ => seq(
@@ -152,6 +171,7 @@ module.exports = grammar({
       $.assignment_statement,
       $.if_statement,
       $.while_statement,
+      $.match_statement,
       $.break_statement,
       $.continue_statement,
       $.return_statement,
@@ -161,6 +181,25 @@ module.exports = grammar({
     ),
 
     block: $ => seq('{', repeat($._statement), '}'),
+
+    match_statement: $ => seq(
+      'match',
+      '(',
+      field('value', $._expression),
+      ')',
+      '{',
+      repeat($.match_arm),
+      '}',
+    ),
+
+    match_arm: $ => seq(
+      choice(
+        field('else', 'else'),
+        seq($._expression, repeat(seq(',', $._expression))),
+      ),
+      '=>',
+      field('body', $.block),
+    ),
 
     variable_declaration: $ => seq(
       'let',
