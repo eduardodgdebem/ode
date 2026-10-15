@@ -270,7 +270,7 @@ fn isAlphaNumeric(character: i8): bool {
   return isAlpha(character) || isDigit(character);
 }
 
-fn isSpace(character: i8): bool {
+export fn isSpace(character: i8): bool {
   return character == ' ' || character == '\t' || character == '\n' ||
          character == '\r';
 }

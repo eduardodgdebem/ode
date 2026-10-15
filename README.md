@@ -17,25 +17,38 @@ This writes the `ode` executable into `build/`.
 The compiler is written in the language it compiles, so something has to
 compile it first. With no compiler present, `build.sh` seeds one from
 `bootstrap/ode.ll` -- a checked-in copy of the compiler's own output that
-`clang` can turn into a working binary -- and uses that to build the real one
-from `selfhost/*.ode`. Once `build/ode` exists it builds itself from then on.
+`clang` can turn into a working binary -- and uses that to build the real one.
+That is all the script does. Building, testing and bootstrapping are `ode
+build`, which is part of the compiler and written in Ode:
 
 ```bash
-./selfhost/bootstrap.sh
+./build/ode build              # rebuild build/ode, if anything changed
+./build/ode build test         # the regression suite
+./build/ode build bootstrap    # run the bootstrap to its fixed point
+./build/ode build seed         # refresh the checked-in seed
 ```
 
-runs the bootstrap to its fixed point: the compiler compiles its own sources,
+`selfhost/build.sh <command>` does the same, seeding first on a fresh
+checkout. `ode build` works from anywhere inside the repository.
+
+A build is skipped when nothing it depends on has changed: the compiler's
+sources, found by following its imports, and the C compiler and SDK it links
+with. `--force` builds anyway.
+
+`bootstrap` runs the compiler to its fixed point: it compiles its own sources,
 the result compiles them again, and the last two binaries must be
 byte-identical.
 
 After a change that makes the compiler depend on a language feature the seed
-predates, refresh the seed and commit it:
+predates, refresh the seed with `seed` and commit it. A stale seed breaks the
+build for anyone starting from a fresh checkout.
 
-```bash
-./selfhost/update-bootstrap.sh
-```
+### Choosing the C compiler
 
-A stale seed breaks the build for anyone starting from a fresh checkout.
+The compiler assembles and links through `clang`, or whatever `ODE_CC`
+names. On macOS it also passes `-isysroot` with the SDK to link against,
+taken from `SDKROOT` or else from `xcrun --show-sdk-path`. That is what lets a
+Homebrew clang link on an OS newer than the SDKs its configuration names.
 
 ## Diagnostics
 
@@ -89,7 +102,7 @@ codegen misbehaves; `--no-intermediates` deletes them once linking succeeds.
 
 ## Testing
 
-`tests/run_tests.sh` is the regression suite. It compiles, links and runs every
+`ode build test` is the regression suite. It compiles, links and runs every
 `examples/*.ode` and diffs its stdout against `tests/valid/<name>.out`, then
 compiles every `tests/invalid/*.ode` and diffs the diagnostic it must produce
 against `tests/invalid/<name>.expected`. Programs of several files live in
@@ -99,12 +112,11 @@ their output if they run. It exits non-zero if anything differs,
 and works in a temporary directory so the repository stays clean.
 
 ```bash
-./selfhost/build.sh            # the suite runs the compiler you just built
-./tests/run_tests.sh
+./build/ode build test         # builds first, then tests what it built
 ```
 
 `--filter <substring>` narrows a run to the cases whose name matches, and
-`--ode <path>` points at a compiler somewhere other than `build/ode`.
+`--ode <path>` tests a compiler somewhere else instead of building one.
 
 ### Re-baselining
 
@@ -112,10 +124,11 @@ After a deliberate change to the language, regenerate every expectation in one
 command and read the diff before committing it:
 
 ```bash
-./tests/run_tests.sh --update
+./build/ode build test --update
 ```
 
-`--update` rewrites `tests/valid/*.out` and `tests/invalid/*.expected` from what
+`--update` rewrites `tests/valid/*.out`, `tests/invalid/*.expected` and
+`tests/modules/*.expected` from what
 the compiler does now, so `git diff tests/` is the exact list of behaviour that
 changed. An invalid case that has started compiling is still reported as a
 failure rather than being silently dropped.

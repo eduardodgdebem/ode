@@ -289,7 +289,7 @@ no multi-line string literals — a string may not cross a newline.
 
 ### 8.1 Testing is end-to-end only
 
-`tests/run_tests.sh` compiles, links and runs every `examples/*.ode` against a
+`ode build test` compiles, links and runs every `examples/*.ode` against a
 recorded stdout, and checks every `tests/invalid/*.ode` against the diagnostic
 it must produce, and `--update` re-records every expectation in one pass.
 
@@ -297,15 +297,15 @@ What it does not do is test any component in isolation. There are no unit
 tests for the lexer, the parser, the analyzer or codegen, so a fault is
 located by bisecting a failing program rather than by a failing assertion.
 
-The compiler is self-hosting, so `selfhost/bootstrap.sh` is the other half of
+The compiler is self-hosting, so `ode build bootstrap` is the other half of
 the check: a compiler that miscompiles itself stops reproducing itself, and
 the fixed-point comparison catches that even when every test still passes.
 
 ### 8.2 Assembling and linking shell out to `clang`
 
 The compiler emits textual LLVM IR and then runs `clang` twice -- once to
-assemble the `.ll` into a `.o`, once to link it -- so `clang` must be on
-`PATH`. Both runs go through `fork` and `execvp` rather than a shell, so a
+assemble the `.ll` into a `.o`, once to link it -- so `clang`, or the compiler
+`ODE_CC` names, must be on `PATH`. Both runs go through `fork` and `execvp` rather than a shell, so a
 path holding a space or a metacharacter needs no quoting and cannot be
 re-split or executed. What is left is that the compiler has no backend of its
 own: it depends on `clang` to turn IR into a binary.
