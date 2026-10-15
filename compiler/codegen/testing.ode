@@ -7,7 +7,7 @@
 // the one test rather than the run -- and a crash ends it the same way.
 // ---------------------------------------------------------------------------
 
-import { strlen } from "../support/libc";
+import { strlen } from "std/c";
 import { Buf, textEquals } from "../support/text";
 import { NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";

@@ -5,7 +5,8 @@
 // and column, so every token can be pointed at in a diagnostic.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
 import { Buf, textEquals, textCopy, textSlice } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import { TokenKind, TokenList, kindName } from "./token";
@@ -18,7 +19,7 @@ struct Lexer {
   column: i32,
 
   fn new(source: *i8): *Lexer {
-    let lexer: *Lexer = malloc(sizeof(Lexer)) as *Lexer;
+    let lexer: *Lexer = alloc<Lexer>(1);
     lexer.source = source;
     lexer.pos = 0;
     lexer.length = strlen(source);

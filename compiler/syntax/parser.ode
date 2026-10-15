@@ -6,7 +6,7 @@
 // declarations in statements.ode.
 // ---------------------------------------------------------------------------
 
-import { malloc } from "../support/libc";
+import { alloc } from "std/mem";
 import { Buf } from "../support/text";
 import { FAILED, report, fail } from "../support/diagnostics";
 import { TokenKind, Token, TokenList } from "./token";
@@ -21,7 +21,7 @@ export struct Parser {
   atTopLevel: bool,
 
   fn new(tokens: *TokenList, ast: *Ast): *Parser {
-    let parser: *Parser = malloc(sizeof(Parser)) as *Parser;
+    let parser: *Parser = alloc<Parser>(1);
     parser.tokens = tokens;
     parser.ast = ast;
     parser.pos = 0;

@@ -8,10 +8,9 @@
 // to a standard tool instead (`ls`, `cp`, `rm`), still without a shell.
 // ---------------------------------------------------------------------------
 
-import {
-  malloc, free, strlen, fopen, fclose, fread, fwrite, fseek, ftell, SEEK_SET,
-  SEEK_END,
-} from "./libc";
+import { free, memcmp, strlen, fopen, fclose, fread, fwrite, read, getenv } from "std/c";
+import { alloc } from "std/mem";
+import { fseek, ftell, SEEK_SET, SEEK_END } from "./libc";
 import { List } from "./list";
 import { Buf, textSlice } from "./text";
 import { realpath } from "../semantics/modules";
@@ -20,7 +19,6 @@ extern fn fork(): i32;
 extern fn execvp(file: *i8, argv: **i8): i32;
 extern fn waitpid(pid: i32, status: *i32, options: i32): i32;
 extern fn _exit(code: i32): void;
-extern fn getenv(name: *i8): *i8;
 extern fn setenv(name: *i8, value: *i8, overwrite: i32): i32;
 extern fn access(path: *i8, mode: i32): i32;
 extern fn chdir(path: *i8): i32;
@@ -28,13 +26,11 @@ extern fn getcwd(buffer: *i8, size: i64): *i8;
 extern fn pipe(fds: *i32): i32;
 extern fn dup2(from: i32, to: i32): i32;
 extern fn close(fd: i32): i32;
-extern fn read(fd: i32, buffer: *i8, count: i64): i64;
 extern fn mkdir(path: *i8, mode: i32): i32;
 extern fn mkdtemp(template: *i8): *i8;
 extern fn rename(from: *i8, to: *i8): i32;
 extern fn isatty(fd: i32): i32;
 extern fn fileno(stream: *i8): i32;
-export extern fn memcmp(a: *i8, b: *i8, count: i64): i32;
 
 // `access` modes.
 let EXISTS: i32 = 0;
@@ -48,7 +44,7 @@ export struct TextList {
   texts: *List<*i8>,
 
   fn new(): *TextList {
-    let list: *TextList = malloc(sizeof(TextList)) as *TextList;
+    let list: *TextList = alloc<TextList>(1);
     list.texts = List<*i8>.new();
 
     return list;
@@ -99,7 +95,7 @@ export enum StderrMode {
 export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
                      stderrMode: StderrMode): i32 {
   let capturing: bool = out != null;
-  let fds: *i32 = malloc(sizeof(i32) * 2) as *i32;
+  let fds: *i32 = alloc<i32>(2);
   if (capturing) {
     pipe(fds);
   }
@@ -138,7 +134,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
   // would otherwise block forever on a parent that is waiting for it.
   if (capturing) {
     close(fds[1]);
-    let chunk: *i8 = malloc(4096);
+    let chunk: *i8 = alloc<i8>(4096);
     while (pid > 0) {
       let count: i64 = read(fds[0], chunk, 4096);
       if (count <= 0) {
@@ -158,7 +154,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
     return -1;
   }
 
-  let status: *i32 = malloc(sizeof(i32)) as *i32;
+  let status: *i32 = alloc<i32>(1);
   waitpid(pid, status, 0);
 
   // WIFEXITED and WEXITSTATUS are macros in C, so they are written out here.
@@ -188,7 +184,7 @@ export fn setEnvironment(name: *i8, value: *i8): void {
 }
 
 export fn currentDirectory(): *i8 {
-  let buffer: *i8 = malloc(4096);
+  let buffer: *i8 = alloc<i8>(4096);
   if (getcwd(buffer, 4096) == null) {
     return null;
   }
@@ -290,7 +286,7 @@ export fn readBytes(path: *i8): *Buf {
   }
 
   let out: *Buf = Buf.new();
-  let chunk: *i8 = malloc(65536);
+  let chunk: *i8 = alloc<i8>(65536);
   while (true) {
     let count: i64 = fread(chunk, 1, 65536, stream);
     if (count <= 0) {
@@ -411,7 +407,7 @@ export fn readFile(path: *i8): *i8 {
   let size: i64 = ftell(stream);
   fseek(stream, 0, SEEK_SET);
 
-  let text: *i8 = malloc(size + 1);
+  let text: *i8 = alloc<i8>(size + 1);
   let count: i64 = fread(text, 1, size, stream);
   fclose(stream);
   text[count] = 0;

@@ -7,7 +7,8 @@
 // nothing here infers one.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
 import { Buf, textEquals, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
@@ -602,8 +603,8 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
 
   // Every argument is evaluated before the call is written, because each one
   // may emit instructions of its own.
-  let values: **i8 = malloc(sizeof(*i8) * (argCount + 1) as i64) as **i8;
-  let types: *Type = malloc(sizeof(Type) * (argCount + 1) as i64) as *Type;
+  let values: **i8 = alloc<*i8>((argCount + 1) as i64);
+  let types: *Type = alloc<Type>((argCount + 1) as i64);
   let named: i32 = e.an.variadicAfter[node] - 1;
   for (index in 0..argCount) {
     let argument: i32 = e.ast.nodes[args].items[index];

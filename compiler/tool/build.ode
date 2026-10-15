@@ -20,7 +20,9 @@
 // fraction of a second anyway, so finer-grained tracking would buy nothing.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen, STDOUT, STDERR } from "../support/libc";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
+import { STDOUT, STDERR } from "../support/libc";
 import {
   writeText, Buf, textEquals, textSlice, intToText,
 } from "../support/text";
@@ -459,7 +461,7 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
     return 2;
   }
 
-  let ws: *Workspace = malloc(sizeof(Workspace)) as *Workspace;
+  let ws: *Workspace = alloc<Workspace>(1);
   ws.root = root;
   ws.compiler = compiler;
   ws.entry = joinPath(root, "compiler/main.ode");

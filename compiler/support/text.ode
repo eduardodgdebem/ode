@@ -6,9 +6,9 @@
 // buffer everything builds text in.
 // ---------------------------------------------------------------------------
 
-import {
-  malloc, realloc, free, memcpy, strlen, strcmp, write, STDOUT,
-} from "./libc";
+import { free, memcpy, strlen, strcmp, write } from "std/c";
+import { alloc, grow } from "std/mem";
+import { STDOUT } from "./libc";
 
 // ---------------------------------------------------------------------------
 // Output, straight to write(2) rather than through printf's format strings.
@@ -40,10 +40,10 @@ export struct Buf {
   capacity: i64,
 
   fn new(): *Buf {
-    let buffer: *Buf = malloc(sizeof(Buf)) as *Buf;
+    let buffer: *Buf = alloc<Buf>(1);
     buffer.capacity = 64;
     buffer.length = 0;
-    buffer.data = malloc(buffer.capacity);
+    buffer.data = alloc<i8>(buffer.capacity);
     buffer.data[0] = 0;
 
     return buffer;
@@ -61,7 +61,7 @@ export struct Buf {
       self.capacity = self.capacity * 2;
     }
 
-    self.data = realloc(self.data, self.capacity);
+    self.data = grow<i8>(self.data, self.capacity);
   }
 
   fn push(self: *Buf, character: i8): void {
@@ -100,7 +100,7 @@ export struct Buf {
     }
 
     // At most 20 digits fit in an i64, and they come out backwards.
-    let digits: *i8 = malloc(24);
+    let digits: *i8 = alloc<i8>(24);
     let count: i32 = 0;
 
     while (rest > 0) {
@@ -141,7 +141,7 @@ export fn textEquals(a: *i8, b: *i8): bool {
 
 export fn textCopy(text: *i8): *i8 {
   let count: i64 = strlen(text);
-  let copy: *i8 = malloc(count + 1);
+  let copy: *i8 = alloc<i8>(count + 1);
   memcpy(copy, text, count);
   copy[count] = 0;
 
@@ -149,7 +149,7 @@ export fn textCopy(text: *i8): *i8 {
 }
 
 export fn textSlice(text: *i8, start: i64, count: i64): *i8 {
-  let copy: *i8 = malloc(count + 1);
+  let copy: *i8 = alloc<i8>(count + 1);
   memcpy(copy, text + start, count);
   copy[count] = 0;
 

@@ -9,7 +9,8 @@
 // buildtool.ode.
 // ---------------------------------------------------------------------------
 
-import { strlen, remove, STDOUT, STDERR } from "./support/libc";
+import { strlen } from "std/c";
+import { remove, STDOUT, STDERR } from "./support/libc";
 import {
   writeText, writeBuf, Buf, textEquals, textSlice,
 } from "./support/text";

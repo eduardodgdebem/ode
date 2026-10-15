@@ -8,7 +8,7 @@
 // a `Type` is a small value with methods rather than a pointer to one.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
+import { alloc, grow } from "std/mem";
 import { Buf, textEquals } from "../support/text";
 
 export enum TypeKind {
@@ -336,12 +336,11 @@ export struct StructTable {
   capacity: i32,
 
   fn new(): *StructTable {
-    let table: *StructTable = malloc(sizeof(StructTable)) as *StructTable;
+    let table: *StructTable = alloc<StructTable>(1);
     table.capacity = 16;
     table.count = 0;
     table.items =
-        malloc(sizeof(StructLayout) * table.capacity as i64) as
-            *StructLayout;
+        alloc<StructLayout>(table.capacity as i64);
 
     return table;
   }
@@ -361,9 +360,7 @@ export struct StructTable {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.items =
-          realloc(self.items as *i8,
-                  sizeof(StructLayout) * self.capacity as i64) as
-              *StructLayout;
+          grow<StructLayout>(self.items, self.capacity as i64);
     }
 
     let index: i32 = self.count;
@@ -371,7 +368,7 @@ export struct StructTable {
     self.items[index].count = 0;
     self.items[index].capacity = 4;
     self.items[index].fields =
-        malloc(sizeof(FieldDef) * 4) as *FieldDef;
+        alloc<FieldDef>(4);
     self.count = self.count + 1;
 
     return index;
@@ -395,9 +392,7 @@ export struct StructTable {
       self.items[structIndex].capacity =
           self.items[structIndex].capacity * 2;
       self.items[structIndex].fields =
-          realloc(self.items[structIndex].fields as *i8,
-                  sizeof(FieldDef) *
-                      self.items[structIndex].capacity as i64) as *FieldDef;
+          grow<FieldDef>(self.items[structIndex].fields, self.items[structIndex].capacity as i64);
     }
 
     let index: i32 = self.items[structIndex].count;

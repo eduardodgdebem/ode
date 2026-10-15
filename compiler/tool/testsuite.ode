@@ -23,14 +23,16 @@
 // stays clean.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen, STDOUT } from "../support/libc";
+import { memcmp, strlen } from "std/c";
+import { alloc } from "std/mem";
+import { STDOUT } from "../support/libc";
 import { writeBuf, Buf, textEquals, textSlice } from "../support/text";
 import { fail } from "../support/diagnostics";
 import {
-  memcmp, TextList, StderrMode, runCommand, setEnvironment, isTerminal,
-  joinPath, withSuffix, parentDirectory, fileExists, isExecutable, readBytes,
-  writeBytes, sameBytes, makeDirectories, removeTree, copyTree, listDirectory,
-  splitLines, makeTempDirectory,
+  TextList, StderrMode, runCommand, setEnvironment, isTerminal, joinPath,
+  withSuffix, parentDirectory, fileExists, isExecutable, readBytes, writeBytes,
+  sameBytes, makeDirectories, removeTree, copyTree, listDirectory, splitLines,
+  makeTempDirectory,
 } from "../support/system";
 import { moduleCount, textEndsWith } from "../semantics/modules";
 import { Workspace, complain, commandBuild } from "./build";
@@ -496,7 +498,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     return 1;
   }
 
-  let suite: *Suite = malloc(sizeof(Suite)) as *Suite;
+  let suite: *Suite = alloc<Suite>(1);
   suite.ws = ws;
   suite.compiler = compiler;
   suite.work = work;

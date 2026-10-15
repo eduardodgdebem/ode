@@ -7,7 +7,7 @@
 // shadows an outer one for free.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
+import { alloc, grow } from "std/mem";
 import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { report } from "../support/diagnostics";
@@ -40,10 +40,10 @@ export struct SymbolTable {
   scopeStarts: *List<i32>,
 
   fn new(): *SymbolTable {
-    let table: *SymbolTable = malloc(sizeof(SymbolTable)) as *SymbolTable;
+    let table: *SymbolTable = alloc<SymbolTable>(1);
     table.capacity = 64;
     table.count = 0;
-    table.items = malloc(sizeof(Symbol) * table.capacity as i64) as *Symbol;
+    table.items = alloc<Symbol>(table.capacity as i64);
     table.scopeStarts = List<i32>.new();
 
     table.enterScope();
@@ -119,9 +119,7 @@ export struct SymbolTable {
 
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(Symbol) * self.capacity as i64) as
-          *Symbol;
+      self.items = grow<Symbol>(self.items, self.capacity as i64);
     }
 
     let index: i32 = self.count;
@@ -139,9 +137,7 @@ export struct SymbolTable {
   fn push(self: *SymbolTable, symbol: Symbol): void {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(Symbol) * self.capacity as i64) as
-          *Symbol;
+      self.items = grow<Symbol>(self.items, self.capacity as i64);
     }
 
     self.items[self.count] = symbol;

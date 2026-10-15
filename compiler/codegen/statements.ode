@@ -7,7 +7,7 @@
 // code still forms valid IR.
 // ---------------------------------------------------------------------------
 
-import { malloc } from "../support/libc";
+import { alloc } from "std/mem";
 import { Buf, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
@@ -191,7 +191,7 @@ fn genMatch(e: *Emitter, node: i32): void {
   let done: *i8 = freshLabel(e);
   let fallback: *i8 = done;
   let armCount: i32 = e.ast.nodes[node].itemCount;
-  let labels: **i8 = malloc(sizeof(*i8) * (armCount + 1) as i64) as **i8;
+  let labels: **i8 = alloc<*i8>((armCount + 1) as i64);
 
   let arm: i32 = 0;
   for (arm in 0..armCount) {

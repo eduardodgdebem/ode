@@ -9,7 +9,7 @@
 // need no cast. With nothing to go by it is `i32`, or `f32` with a `.`.
 // ---------------------------------------------------------------------------
 
-import { malloc } from "../support/libc";
+import { alloc } from "std/mem";
 import { Buf, textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
@@ -686,7 +686,7 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
     start = 1;
   }
 
-  let overflowed: *bool = malloc(sizeof(bool)) as *bool;
+  let overflowed: *bool = alloc<bool>(1);
   let magnitude: u64 = parseMagnitude(text, start, length, overflowed);
 
   if (*overflowed) {
@@ -793,7 +793,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   }
 
   let fieldCount: i32 = an.structs.items[structIndex].count;
-  let initialised: *i8 = malloc(fieldCount as i64);
+  let initialised: *i8 = alloc<i8>(fieldCount as i64);
 
   let index: i32 = 0;
   for (index in 0..fieldCount) {

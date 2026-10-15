@@ -27,7 +27,8 @@
 // using `List<List<T>>` -- is stopped after a fixed number of rounds.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
 import { Buf, textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
@@ -80,7 +81,7 @@ fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
 
 // One flag per node: whether it is part of a generic's declaration.
 export fn markTemplates(an: *Analyzer, program: i32): *i8 {
-  let marks: *i8 = malloc(an.ast.count as i64);
+  let marks: *i8 = alloc<i8>(an.ast.count as i64);
   for (node in 0..an.ast.count) {
     marks[node] = 0;
   }

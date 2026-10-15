@@ -19,7 +19,7 @@
 // are pointers to code, so they pass to and from C as its function pointers.
 // ---------------------------------------------------------------------------
 
-import { malloc } from "../support/libc";
+import { alloc } from "std/mem";
 import { Buf, textEquals } from "../support/text";
 import { FAILED, failAt } from "../support/diagnostics";
 import { TypeKind, Type } from "./types";
@@ -104,7 +104,7 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
   let count: i32 = an.ast.nodes[node].itemCount;
   let params: *Type = null as *Type;
   if (count > 0) {
-    params = malloc(sizeof(Type) * count as i64) as *Type;
+    params = alloc<Type>(count as i64);
   }
 
   for (index in 0..count) {

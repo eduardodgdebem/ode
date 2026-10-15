@@ -8,7 +8,9 @@
 // is recorded, so one mistake produces one message.
 // ---------------------------------------------------------------------------
 
-import { malloc, exit, STDERR } from "./libc";
+import { exit } from "std/c";
+import { alloc } from "std/mem";
+import { STDERR } from "./libc";
 import { writeText, writeBuf, Buf } from "./text";
 
 // The file being worked on, which every diagnostic is reported against.
@@ -30,12 +32,12 @@ export struct Diagnostics {
   total: i32,
 
   fn new(): *Diagnostics {
-    let bag: *Diagnostics = malloc(sizeof(Diagnostics)) as *Diagnostics;
+    let bag: *Diagnostics = alloc<Diagnostics>(1);
     bag.capacity = DIAG_LIMIT;
     bag.count = 0;
     bag.total = 0;
     bag.items =
-        malloc(sizeof(Diagnostic) * bag.capacity as i64) as *Diagnostic;
+        alloc<Diagnostic>(bag.capacity as i64);
 
     return bag;
   }

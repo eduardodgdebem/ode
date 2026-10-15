@@ -1,25 +1,8 @@
 // ---------------------------------------------------------------------------
-// The C library, as far as the compiler uses it.
-//
-// Ode reaches libc through `extern`, with no headers: each function is
-// declared here by hand, with the types the C ABI gives it. Anything taking
-// or returning a struct is out of reach, since structs cannot cross `extern`
-// by value.
+// The C library functions the compiler uses that std/c does not declare,
+// and the constants that go with them. Everything else comes from std.
 // ---------------------------------------------------------------------------
 
-export extern fn malloc(size: i64): *i8;
-export extern fn realloc(block: *i8, size: i64): *i8;
-export extern fn free(block: *i8): void;
-export extern fn memcpy(dest: *i8, source: *i8, count: i64): *i8;
-export extern fn strlen(text: *i8): i64;
-export extern fn strcmp(a: *i8, b: *i8): i32;
-export extern fn strncmp(a: *i8, b: *i8, count: i64): i32;
-export extern fn write(fd: i32, buffer: *i8, count: i64): i64;
-export extern fn exit(code: i32): void;
-export extern fn fopen(path: *i8, mode: *i8): *i8;
-export extern fn fclose(stream: *i8): i32;
-export extern fn fread(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
-export extern fn fwrite(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
 export extern fn fseek(stream: *i8, offset: i64, whence: i32): i32;
 export extern fn ftell(stream: *i8): i64;
 export extern fn remove(path: *i8): i32;

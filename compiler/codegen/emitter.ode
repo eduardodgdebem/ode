@@ -11,7 +11,8 @@
 // parameters. Naming them sidesteps the rule entirely.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
 import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { Ast } from "../syntax/ast";
@@ -57,7 +58,7 @@ export struct Emitter {
   loopBreak: *List<*i8>,
 
   fn new(ast: *Ast, an: *Analyzer): *Emitter {
-    let e: *Emitter = malloc(sizeof(Emitter)) as *Emitter;
+    let e: *Emitter = alloc<Emitter>(1);
     e.ast = ast;
     e.an = an;
     e.head = Buf.new();

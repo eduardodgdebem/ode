@@ -23,7 +23,8 @@
 // own declarations and its imports, and nothing else.
 // ---------------------------------------------------------------------------
 
-import { malloc, memcpy, strlen, strncmp } from "../support/libc";
+import { memcpy, strlen, strncmp } from "std/c";
+import { alloc } from "std/mem";
 import { List } from "../support/list";
 import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
@@ -196,7 +197,7 @@ export struct NameSet {
   names: *List<*i8>,
 
   fn new(): *NameSet {
-    let set: *NameSet = malloc(sizeof(NameSet)) as *NameSet;
+    let set: *NameSet = alloc<NameSet>(1);
     set.names = List<*i8>.new();
 
     return set;
@@ -585,7 +586,7 @@ export struct SymbolList {
     let items: *Symbol = null;
 
     if (count > 0) {
-      items = malloc(sizeof(Symbol) * count as i64) as *Symbol;
+      items = alloc<Symbol>(count as i64);
       memcpy(items as *i8, (table.items + start) as *i8,
              sizeof(Symbol) * count as i64);
     }

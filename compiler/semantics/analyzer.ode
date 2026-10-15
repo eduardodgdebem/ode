@@ -10,7 +10,8 @@
 // generator can look the answer up instead of deriving it a second time.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc, free } from "../support/libc";
+import { free } from "std/c";
+import { alloc, grow } from "std/mem";
 import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
@@ -78,7 +79,7 @@ export struct Analyzer {
   currentReturnType: Type,
 
   fn new(ast: *Ast): *Analyzer {
-    let an: *Analyzer = malloc(sizeof(Analyzer)) as *Analyzer;
+    let an: *Analyzer = alloc<Analyzer>(1);
     an.ast = ast;
     an.symbols = SymbolTable.new();
     an.structs = StructTable.new();
@@ -90,7 +91,7 @@ export struct Analyzer {
     an.globals = List<i32>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
-        malloc(sizeof(SymbolList) * moduleCount() as i64) as *SymbolList;
+        alloc<SymbolList>(moduleCount() as i64);
     an.loopDepth = 0;
     an.inFunction = false;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
@@ -109,37 +110,27 @@ export struct Analyzer {
     let old: i32 = self.nodeCapacity;
     let size: i64 = count as i64;
     if (old == 0) {
-      self.types = malloc(sizeof(Type) * size) as *Type;
-      self.isGlobal = malloc(size);
-      self.linkNames = malloc(sizeof(*i8) * size) as **i8;
-      self.receivers = malloc(sizeof(ReceiverMode) * size) as
-          *ReceiverMode;
-      self.structRefs = malloc(sizeof(*i8) * size) as **i8;
-      self.isConstant = malloc(size);
-      self.values = malloc(sizeof(i64) * size) as *i64;
-      self.functionRefs = malloc(size);
-      self.callTargets = malloc(sizeof(CallTarget) * size) as *CallTarget;
-      self.variadicAfter = malloc(sizeof(i32) * size) as *i32;
+      self.types = alloc<Type>(size);
+      self.isGlobal = alloc<i8>(size);
+      self.linkNames = alloc<*i8>(size);
+      self.receivers = alloc<ReceiverMode>(size);
+      self.structRefs = alloc<*i8>(size);
+      self.isConstant = alloc<i8>(size);
+      self.values = alloc<i64>(size);
+      self.functionRefs = alloc<i8>(size);
+      self.callTargets = alloc<CallTarget>(size);
+      self.variadicAfter = alloc<i32>(size);
     } else {
-      self.types = realloc(self.types as *i8, sizeof(Type) * size) as
-          *Type;
-      self.isGlobal = realloc(self.isGlobal, size);
-      self.linkNames = realloc(self.linkNames as *i8,
-                               sizeof(*i8) * size) as **i8;
-      self.receivers = realloc(self.receivers as *i8,
-                               sizeof(ReceiverMode) * size) as
-          *ReceiverMode;
-      self.structRefs = realloc(self.structRefs as *i8,
-                                sizeof(*i8) * size) as **i8;
-      self.isConstant = realloc(self.isConstant, size);
-      self.values = realloc(self.values as *i8, sizeof(i64) * size) as
-          *i64;
-      self.functionRefs = realloc(self.functionRefs, size);
-      self.callTargets = realloc(self.callTargets as *i8,
-                                 sizeof(CallTarget) * size) as
-          *CallTarget;
-      self.variadicAfter = realloc(self.variadicAfter as *i8,
-                                   sizeof(i32) * size) as *i32;
+      self.types = grow<Type>(self.types, size);
+      self.isGlobal = grow<i8>(self.isGlobal, size);
+      self.linkNames = grow<*i8>(self.linkNames, size);
+      self.receivers = grow<ReceiverMode>(self.receivers, size);
+      self.structRefs = grow<*i8>(self.structRefs, size);
+      self.isConstant = grow<i8>(self.isConstant, size);
+      self.values = grow<i64>(self.values, size);
+      self.functionRefs = grow<i8>(self.functionRefs, size);
+      self.callTargets = grow<CallTarget>(self.callTargets, size);
+      self.variadicAfter = grow<i32>(self.variadicAfter, size);
     }
 
     for (index in old..count) {
@@ -293,7 +284,7 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
     return null;
   }
 
-  let types: *Type = malloc(sizeof(Type) * count as i64) as *Type;
+  let types: *Type = alloc<Type>(count as i64);
 
   for (index in 0..count) {
     let param: i32 = an.ast.nodes[params].items[index];
@@ -381,8 +372,8 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
   let count: i32 = an.structs.count;
 
   for (start in 0..count) {
-    let seen: *i8 = malloc(count as i64);
-    let stack: *i32 = malloc(sizeof(i32) * count as i64) as *i32;
+    let seen: *i8 = alloc<i8>(count as i64);
+    let stack: *i32 = alloc<i32>(count as i64);
     let stackCount: i32 = 0;
 
     for (index in 0..count) {

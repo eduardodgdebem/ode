@@ -10,7 +10,7 @@
 // `items` is the variable-length child list that only some kinds use.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
+import { alloc, grow } from "std/mem";
 import { Token } from "./token";
 import { Type } from "../semantics/types";
 
@@ -140,11 +140,11 @@ export struct Ast {
   currentModule: i32,
 
   fn new(): *Ast {
-    let ast: *Ast = malloc(sizeof(Ast)) as *Ast;
+    let ast: *Ast = alloc<Ast>(1);
     ast.capacity = 256;
     ast.count = 0;
     ast.currentModule = 0;
-    ast.nodes = malloc(sizeof(Node) * ast.capacity as i64) as *Node;
+    ast.nodes = alloc<Node>(ast.capacity as i64);
 
     return ast;
   }
@@ -152,8 +152,7 @@ export struct Ast {
   fn add(self: *Ast, kind: NodeKind, line: i32, column: i32): i32 {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
-      self.nodes = realloc(self.nodes as *i8,
-                           sizeof(Node) * self.capacity as i64) as *Node;
+      self.nodes = grow<Node>(self.nodes, self.capacity as i64);
     }
 
     let index: i32 = self.count;
@@ -187,13 +186,11 @@ export struct Ast {
       if (self.nodes[parent].itemCapacity == 0) {
         self.nodes[parent].itemCapacity = 4;
         self.nodes[parent].items =
-            malloc(sizeof(i32) * 4) as *i32;
+            alloc<i32>(4);
       } else {
         self.nodes[parent].itemCapacity = self.nodes[parent].itemCapacity * 2;
         self.nodes[parent].items =
-            realloc(self.nodes[parent].items as *i8,
-                    sizeof(i32) *
-                        self.nodes[parent].itemCapacity as i64) as *i32;
+            grow<i32>(self.nodes[parent].items, self.nodes[parent].itemCapacity as i64);
       }
     }
 
