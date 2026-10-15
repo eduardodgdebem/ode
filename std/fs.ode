@@ -1,0 +1,101 @@
+// ---------------------------------------------------------------------------
+// Files, whole: read one into a string, or write a string out as one.
+//
+//   let source: *i8 = readFile("main.ode");
+//   if (source == null) {
+//     eprintln("cannot read main.ode");
+//   }
+//
+// Paths are relative to the directory the program runs in.
+// ---------------------------------------------------------------------------
+
+import { fopen, fclose, fread, fwrite, strlen } from "./c";
+import { Builder } from "./text";
+import { alloc, release } from "./mem";
+
+extern fn access(path: *i8, mode: i32): i32;
+extern fn unlink(path: *i8): i32;
+
+// The whole of the file at `path`, or null when it cannot be read. A file
+// holding a NUL byte reads as text that ends there.
+export fn readFile(path: *i8): *i8 {
+  let stream: *i8 = fopen(path, "rb");
+  if (stream == null) {
+    return null;
+  }
+
+  let out: *Builder = Builder.new();
+  let chunk: *i8 = alloc<i8>(4096);
+  let count: i64 = fread(chunk, 1, 4096, stream);
+  while (count > 0) {
+    out.addBytes(chunk, count);
+    count = fread(chunk, 1, 4096, stream);
+  }
+
+  release<i8>(chunk);
+  fclose(stream);
+  return out.take();
+}
+
+// Replaces the file at `path` with `text`, making it if need be. False when
+// it cannot be written.
+export fn writeFile(path: *i8, text: *i8): bool {
+  return put(path, text, "wb");
+}
+
+// Adds `text` to the end of the file at `path`, making it if need be.
+export fn appendFile(path: *i8, text: *i8): bool {
+  return put(path, text, "ab");
+}
+
+fn put(path: *i8, text: *i8, mode: *i8): bool {
+  let stream: *i8 = fopen(path, mode);
+  if (stream == null) {
+    return false;
+  }
+  let length: i64 = strlen(text);
+  let written: i64 = fwrite(text, 1, length, stream);
+  return fclose(stream) == 0 && written == length;
+}
+
+export fn exists(path: *i8): bool {
+  return access(path, 0) == 0;
+}
+
+export fn removeFile(path: *i8): bool {
+  return unlink(path) == 0;
+}
+
+test "a file written is read back whole" {
+  let path: *i8 = "ode-std-fs-test.txt";
+  let line: *Builder = Builder.new();
+  for (index in 0..2000) {
+    line.add("0123456789");
+  }
+  let text: *i8 = line.take();
+
+  assert(writeFile(path, text));
+  assert(exists(path));
+  assertEq(strlen(readFile(path)), 20000);
+
+  assert(appendFile(path, "end"));
+  assertEq(strlen(readFile(path)), 20003);
+
+  assert(removeFile(path));
+  assert(!exists(path));
+}
+
+test "what cannot be read or written says so" {
+  assertEq(readFile("no-such-file.txt"), null);
+  assert(!writeFile("no-such-directory/file.txt", "text"));
+  assert(!appendFile("no-such-directory/file.txt", "text"));
+  assert(!removeFile("no-such-file.txt"));
+  assert(!exists("no-such-file.txt"));
+}
+
+test "an empty file reads as an empty string" {
+  let path: *i8 = "ode-std-fs-empty.txt";
+  assert(writeFile(path, ""));
+  assertEq(readFile(path), "");
+  removeFile(path);
+}

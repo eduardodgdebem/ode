@@ -23,7 +23,7 @@
 // own declarations and its imports, and nothing else.
 // ---------------------------------------------------------------------------
 
-import { malloc, memcpy, strlen } from "../support/libc";
+import { malloc, memcpy, strlen, strncmp } from "../support/libc";
 import { List } from "../support/list";
 import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
@@ -53,6 +53,37 @@ export fn moduleAdd(path: *i8, real: *i8): i32 {
 
   MODULES.push(Module { path: path, real: real });
   return MODULES.count - 1;
+}
+
+// Whether the file `module` is part of the standard library.
+export fn isLibraryModule(module: i32): bool {
+  if (STD_DIRECTORY == null) {
+    return false;
+  }
+  let library: *i8 = realpath(STD_DIRECTORY, null);
+  if (library == null) {
+    return false;
+  }
+
+  let real: *i8 = MODULES.at(module).real;
+  let length: i64 = strlen(library);
+  return strncmp(real, library, length) == 0 && real[length] == '/';
+}
+
+// The path a diagnostic shows for `module`: the one it was loaded by, except
+// that a library file is `std/<name>.ode` rather than wherever the library
+// happens to be installed.
+export fn moduleDisplayPath(module: i32): *i8 {
+  if (!isLibraryModule(module)) {
+    return modulePath(module);
+  }
+
+  let real: *i8 = MODULES.at(module).real;
+  let library: *i8 = realpath(STD_DIRECTORY, null);
+  let out: *Buf = Buf.new();
+  out.add("std");
+  out.add(real + strlen(library));
+  return out.take();
 }
 
 // How many files the program is made of so far.
@@ -105,8 +136,38 @@ fn directoryOf(path: *i8): *i8 {
 // Where `import ... from "<spec>"` written in `importer` points. A relative
 // spec is taken from the importing file's directory, the way TypeScript reads
 // one, and the `.ode` may be left off.
+// Where the standard library's files are -- the directory `std/...` imports
+// are found in -- or null when it could not be found. Set by the driver.
+export let STD_DIRECTORY: *i8 = null;
+
+// Whether an import names a file by its path: `./x`, `../x` or `/x`. Any
+// other import names a library, of which there is one: `std/...`.
+export fn isPathImport(spec: *i8): bool {
+  return spec[0] == '/' || (spec[0] == '.' && spec[1] == '/') ||
+         (spec[0] == '.' && spec[1] == '.' && spec[2] == '/');
+}
+
+export fn isStdImport(spec: *i8): bool {
+  return spec[0] == 's' && spec[1] == 't' && spec[2] == 'd' && spec[3] == '/';
+}
+
 export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
   let out: *Buf = Buf.new();
+
+  // `std/list` is the standard library's list.ode. Anything else that is not
+  // a path resolves to nothing, which the import then reports.
+  if (!isPathImport(spec)) {
+    if (!isStdImport(spec) || STD_DIRECTORY == null) {
+      return null;
+    }
+    out.add(STD_DIRECTORY);
+    out.push('/');
+    out.add(spec + 4);
+    if (!textEndsWith(spec, ".ode")) {
+      out.add(".ode");
+    }
+    return out.take();
+  }
 
   if (spec[0] != '/') {
     out.add(directoryOf(importer));
@@ -303,7 +364,7 @@ export fn importLocalName(an: *Analyzer, importName: i32): *i8 {
 }
 
 fn importFail(an: *Analyzer, at: i32, message: *i8): void {
-  SOURCE_PATH = modulePath(an.ast.nodes[at].module);
+  SOURCE_PATH = moduleDisplayPath(an.ast.nodes[at].module);
   report(an.ast.nodes[at].line, an.ast.nodes[at].column, message);
   FAILED = false;
 }
@@ -493,7 +554,7 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
     message.add("type '");
     message.add(name);
     message.add("' is declared in '");
-    message.add(modulePath(an.ast.nodes[elsewhere].module));
+    message.add(moduleDisplayPath(an.ast.nodes[elsewhere].module));
     message.add("' but not imported here");
     importFail(an, node, message.data);
     // Pointed at the real struct anyway, so the error above is the only one

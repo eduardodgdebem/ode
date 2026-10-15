@@ -13,6 +13,7 @@ export extern fn free(block: *i8): void;
 export extern fn memcpy(dest: *i8, source: *i8, count: i64): *i8;
 export extern fn strlen(text: *i8): i64;
 export extern fn strcmp(a: *i8, b: *i8): i32;
+export extern fn strncmp(a: *i8, b: *i8, count: i64): i32;
 export extern fn write(fd: i32, buffer: *i8, count: i64): i64;
 export extern fn exit(code: i32): void;
 export extern fn fopen(path: *i8, mode: *i8): *i8;

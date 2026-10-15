@@ -1,0 +1,15 @@
+std/list.ode:47:5: assertion failed: list index out of range
+test reading past the end of a list stops ... FAILED
+std/list.ode:52:5: assertion failed: list index out of range
+test a negative index stops ... FAILED
+std/list.ode:63:5: assertion failed: pop from an empty list
+test pop from an empty list stops ... FAILED
+std/list.ode:57:5: assertion failed: last of an empty list
+test last of an emptied list stops ... FAILED
+std/text.ode:53:3: assertion failed: slice out of range
+test a slice past the end of its text stops ... FAILED
+out of memory allocating 9223372036854775800 bytes
+test an allocation too large to make stops ... CRASHED (signal 6)
+
+0 passed; 6 failed
+exit 1

@@ -18,7 +18,8 @@ import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
 import { SymbolKind, SymbolTable } from "./symbols";
 import {
-  moduleCount, modulePath, NameSet, linkModules, SymbolList, declareImports,
+  moduleDisplayPath, moduleCount, NameSet, linkModules, SymbolList,
+  declareImports,
 } from "./modules";
 import { analyzeRecovering } from "./statements";
 import { ReceiverMode, registerMethods } from "./methods";
@@ -164,7 +165,7 @@ export struct Analyzer {
 // ---------------------------------------------------------------------------
 
 export fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
-  SOURCE_PATH = modulePath(an.ast.nodes[node].module);
+  SOURCE_PATH = moduleDisplayPath(an.ast.nodes[node].module);
   report(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
 }
 
@@ -580,7 +581,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
   // for the files that import from it.
   let module: i32 = 0;
   for (module in 0..moduleCount()) {
-    SOURCE_PATH = modulePath(module);
+    SOURCE_PATH = moduleDisplayPath(module);
     an.symbols.enterScope();
     let start: i32 = an.symbols.count;
 
@@ -605,7 +606,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
   // Each file's bodies see its own top level and what it imports, and
   // nothing else.
   for (module in 0..moduleCount()) {
-    SOURCE_PATH = modulePath(module);
+    SOURCE_PATH = moduleDisplayPath(module);
     an.symbols.enterScope();
 
     let own: SymbolList = an.moduleSymbols[module];
@@ -627,7 +628,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
     an.symbols.exitScope();
   }
 
-  SOURCE_PATH = modulePath(0);
+  SOURCE_PATH = moduleDisplayPath(0);
   // `ode test` brings its own main.
   if (!TEST_MODE && an.moduleSymbols[0].find("main") < 0) {
     report(0, 0, "No main function found");

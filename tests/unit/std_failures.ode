@@ -1,0 +1,39 @@
+// The standard library's unhappy paths. Each test here is meant to fail:
+// what is checked is that it stops the program, and with the message it
+// should, rather than reading memory it does not own.
+
+import { List } from "std/list";
+import { alloc } from "std/mem";
+import { slice } from "std/text";
+
+test "reading past the end of a list stops" {
+  let numbers: *List<i32> = List<i32>.new();
+  numbers.push(1);
+  numbers.at(1);
+}
+
+test "a negative index stops" {
+  let numbers: *List<i32> = List<i32>.new();
+  numbers.push(1);
+  numbers.set(-1, 5);
+}
+
+test "pop from an empty list stops" {
+  let numbers: *List<i32> = List<i32>.new();
+  numbers.pop();
+}
+
+test "last of an emptied list stops" {
+  let numbers: *List<i32> = List<i32>.new();
+  numbers.push(1);
+  numbers.clear();
+  numbers.last();
+}
+
+test "a slice past the end of its text stops" {
+  slice("abc", 2, 5);
+}
+
+test "an allocation too large to make stops" {
+  alloc<i64>(9223372036854775807 / 8);
+}

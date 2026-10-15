@@ -14,7 +14,7 @@ import { analyzerParseType } from "../semantics/analyzer";
 import { isTemplate } from "../semantics/generics";
 import { sizeOf } from "../semantics/layout";
 import { globalDeclOf } from "../semantics/constants";
-import { TEST_MODE } from "../semantics/testing";
+import { TEST_MODE, runsTestsOf } from "../semantics/testing";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
   declareLocal, llvmName, internString,
@@ -271,7 +271,8 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
       continue;
     }
 
-    if (e.ast.nodes[statement].kind == NodeKind.Test && TEST_MODE) {
+    if (e.ast.nodes[statement].kind == NodeKind.Test && TEST_MODE &&
+        runsTestsOf(e.ast.nodes[statement].module)) {
       let name: *Buf = Buf.new();
       name.add("ode.test.");
       name.addInt(testCount as i64);

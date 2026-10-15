@@ -215,7 +215,13 @@ fn parseExprStmt(parser: *Parser): i32 {
 fn parseBlock(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let node: i32 = parser.ast.add(NodeKind.Block, start.line, start.column);
-  parser.expect(TokenKind.LBrace, "{");
+  // With no `{` there is no block: what follows belongs to whatever comes
+  // next, which recovery finds, rather than to a body that never opened.
+  if (parser.kind() != TokenKind.LBrace) {
+    parser.expect(TokenKind.LBrace, "{");
+    return node;
+  }
+  parser.advance();
 
   let wasTopLevel: bool = parser.atTopLevel;
   parser.atTopLevel = false;

@@ -9,14 +9,17 @@
 // buildtool.ode.
 // ---------------------------------------------------------------------------
 
-import { remove, STDOUT, STDERR } from "./support/libc";
-import { writeText, writeBuf, Buf, textEquals } from "./support/text";
+import { strlen, remove, STDOUT, STDERR } from "./support/libc";
+import {
+  writeText, writeBuf, Buf, textEquals, textSlice,
+} from "./support/text";
 import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED, report, hasErrors, printDiagnostics,
   fail,
 } from "./support/diagnostics";
 import {
-  TextList, StderrMode, runCommand, joinPath, stemOf, withSuffix, removeTree,
+  TextList, StderrMode, runCommand, environment, joinPath, stemOf, withSuffix,
+  parentDirectory, fileExists, isExecutable, absolutePath, removeTree,
   makeTempDirectory, readFile, writeFile,
 } from "./support/system";
 import { TokenList } from "./syntax/token";
@@ -26,7 +29,8 @@ import { Parser } from "./syntax/parser";
 import { parseModuleInto } from "./syntax/statements";
 import { dumpTokens, dumpNode } from "./syntax/dump";
 import {
-  realpath, moduleAdd, moduleFind, modulePath, resolveImportPath,
+  realpath, moduleAdd, moduleDisplayPath, moduleFind, modulePath,
+  STD_DIRECTORY, isPathImport, isStdImport, resolveImportPath,
 } from "./semantics/modules";
 import { Analyzer, analyze } from "./semantics/analyzer";
 import { TEST_MODE, RUNNER_MODULE, runnerSource } from "./semantics/testing";
@@ -44,7 +48,7 @@ let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--d
 fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
               source: *i8): i32 {
   let module: i32 = moduleAdd(path, real);
-  SOURCE_PATH = path;
+  SOURCE_PATH = moduleDisplayPath(module);
 
   let tokens: *TokenList = tokenize(source);
   ast.currentModule = module;
@@ -56,8 +60,12 @@ fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
 // Finds the file an import names, loading it the first time any file asks.
 fn loadImport(ast: *Ast, program: i32, item: i32): void {
   let importer: *i8 = modulePath(ast.nodes[item].module);
-  let path: *i8 = resolveImportPath(importer, ast.nodes[item].text);
-  let real: *i8 = realpath(path, null);
+  let spec: *i8 = ast.nodes[item].text;
+  let path: *i8 = resolveImportPath(importer, spec);
+  let real: *i8 = null;
+  if (path != null) {
+    real = realpath(path, null);
+  }
   let source: *i8 = null;
 
   if (real != null) {
@@ -72,9 +80,17 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
   if (source == null) {
     let message: *Buf = Buf.new();
     message.add("cannot find module '");
-    message.add(ast.nodes[item].text);
+    message.add(spec);
     message.push('\'');
-    SOURCE_PATH = importer;
+    // Why, when it is not just a missing file.
+    if (!isPathImport(spec) && !isStdImport(spec)) {
+      message.add(": a file is imported by its path, such as './");
+      message.add(spec);
+      message.add("', and a library module as 'std/...'");
+    } else if (!isPathImport(spec) && STD_DIRECTORY == null) {
+      message.add(": the standard library was not found; set ODE_STD to its directory");
+    }
+    SOURCE_PATH = moduleDisplayPath(ast.nodes[item].module);
     report(ast.nodes[item].line, ast.nodes[item].column, message.data);
     FAILED = false;
     return;
@@ -199,7 +215,71 @@ fn testMain(argc: i32, argv: **i8): i32 {
   return status;
 }
 
+// The path this program was run as: argv[0] itself when it holds a `/`,
+// otherwise the first match on PATH, which is how a shell found it.
+fn executablePath(argv0: *i8): *i8 {
+  for (index in 0..strlen(argv0)) {
+    if (argv0[index] == '/') {
+      return absolutePath(argv0);
+    }
+  }
+
+  let search: *i8 = environment("PATH");
+  if (search == null) {
+    return null;
+  }
+
+  let start: i64 = 0;
+  let index: i64 = 0;
+  while (true) {
+    if (search[index] == ':' || search[index] == '\0') {
+      let candidate: *i8 = joinPath(textSlice(search, start, index - start),
+                                    argv0);
+      if (isExecutable(candidate)) {
+        return absolutePath(candidate);
+      }
+      if (search[index] == '\0') {
+        return null;
+      }
+      start = index + 1;
+    }
+    index = index + 1;
+  }
+
+  return null;
+}
+
+// The standard library: ODE_STD if set, otherwise `std` beside the
+// directory the compiler was run from -- build/ode finds the repository's
+// std/ -- or `lib/ode/std` there, where an install would put it.
+fn findStdDirectory(argv0: *i8): *i8 {
+  let configured: *i8 = environment("ODE_STD");
+  if (configured != null) {
+    return configured;
+  }
+
+  let executable: *i8 = executablePath(argv0);
+  if (executable == null) {
+    return null;
+  }
+  let bin: *i8 = parentDirectory(executable);
+  let candidates: *TextList = TextList.new();
+  candidates.add(joinPath(bin, "../std"));
+  candidates.add(joinPath(bin, "../lib/ode/std"));
+  candidates.add(joinPath(bin, "std"));
+
+  for (index in 0..candidates.size()) {
+    if (fileExists(joinPath(candidates.at(index), "list.ode"))) {
+      return absolutePath(candidates.at(index));
+    }
+  }
+
+  return null;
+}
+
 fn main(argc: i32, argv: **i8): i32 {
+  STD_DIRECTORY = findStdDirectory(argv[0]);
+
   if (argc >= 2 && textEquals(argv[1], "build")) {
     return buildMain(argc, argv);
   }

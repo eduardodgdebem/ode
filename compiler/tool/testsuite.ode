@@ -27,10 +27,10 @@ import { malloc, strlen, STDOUT } from "../support/libc";
 import { writeBuf, Buf, textEquals, textSlice } from "../support/text";
 import { fail } from "../support/diagnostics";
 import {
-  memcmp, TextList, StderrMode, runCommand, isTerminal, joinPath, withSuffix,
-  parentDirectory, fileExists, isExecutable, readBytes, writeBytes, sameBytes,
-  makeDirectories, removeTree, copyTree, listDirectory, splitLines,
-  makeTempDirectory,
+  memcmp, TextList, StderrMode, runCommand, setEnvironment, isTerminal,
+  joinPath, withSuffix, parentDirectory, fileExists, isExecutable, readBytes,
+  writeBytes, sameBytes, makeDirectories, removeTree, copyTree, listDirectory,
+  splitLines, makeTempDirectory,
 } from "../support/system";
 import { moduleCount, textEndsWith } from "../semantics/modules";
 import { Workspace, complain, commandBuild } from "./build";
@@ -424,6 +424,47 @@ fn runCompilerTests(suite: *Suite): void {
   writeIndented(output);
 }
 
+// The standard library's tests, a file at a time.
+fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
+  suite.unitCount = suite.unitCount + 1;
+
+  let output: *Buf = Buf.new();
+  let run: *TextList = TextList.new().add(suite.compiler).add("test");
+  run.add(source);
+  if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
+    suite.pass("std", name);
+    return;
+  }
+
+  suite.fail("std", name, "a test failed");
+  writeIndented(output);
+}
+
+// `ode test` with no file, or one that is not there, says so and fails.
+fn checkTestWithoutInput(suite: *Suite): bool {
+  let output: *Buf = Buf.new();
+  let bare: *TextList = TextList.new().add(suite.compiler).add("test");
+  if (runCommand(bare, suite.work, output, StderrMode.Merge) != 2 ||
+      !textContains(output.data, "usage:")) {
+    return false;
+  }
+
+  output = Buf.new();
+  let missing: *TextList = TextList.new().add(suite.compiler).add("test");
+  missing.add("no-such-file.ode");
+  return runCommand(missing, suite.work, output, StderrMode.Merge) == 1 &&
+         textContains(output.data, "cannot open input file");
+}
+
+// A filter no test matches runs none, which is not a failure.
+fn checkTestFilterMatchingNothing(suite: *Suite): bool {
+  let output: *Buf = Buf.new();
+  let run: *TextList = TextList.new().add(suite.compiler).add("test");
+  run.add(joinPath(suite.ws.root, "tests/unit/math.ode")).add("no test is named this");
+  return runCommand(run, suite.work, output, StderrMode.Merge) == 0 &&
+         textContains(output.data, "0 passed; 0 failed; 5 filtered out");
+}
+
 fn runCli(suite: *Suite, name: *i8, passed: bool): void {
   if (passed) {
     suite.pass("cli", name);
@@ -444,6 +485,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     }
     compiler = ws.output;
   }
+
+  // The compiler under test may live anywhere, where it would not find the
+  // repository's standard library on its own.
+  setEnvironment("ODE_STD", joinPath(ws.root, "std"));
 
   let work: *i8 = makeTempDirectory("ode-tests");
   if (work == null) {
@@ -534,6 +579,15 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     runCompilerTests(suite);
   }
 
+  let library: *i8 = joinPath(ws.root, "std");
+  names = listDirectory(library);
+  for (index in 0..names.size()) {
+    let file: *i8 = names.at(index);
+    if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
+      runLibraryTests(suite, joinPath(library, file), withoutExtension(file));
+    }
+  }
+
   if (suite.selected("output-flag")) {
     runCli(suite, "output-flag", checkOutputFlag(suite));
   }
@@ -545,6 +599,13 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
   if (suite.selected("no-input-file")) {
     runCli(suite, "no-input-file", checkNoInputFile(suite));
+  }
+  if (suite.selected("test-without-input")) {
+    runCli(suite, "test-without-input", checkTestWithoutInput(suite));
+  }
+  if (suite.selected("test-filter-matching-nothing")) {
+    runCli(suite, "test-filter-matching-nothing",
+           checkTestFilterMatchingNothing(suite));
   }
 
   removeTree(work);

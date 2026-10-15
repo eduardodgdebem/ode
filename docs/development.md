@@ -63,7 +63,12 @@ flags: `-o`, `--no-intermediates`, an output path holding shell
 metacharacters, and running with no input.
 
 The suite also runs the compiler's own tests -- the `test` blocks in
-`compiler/` -- with `ode test compiler/main.ode`, and fails if any does. To
+`compiler/` -- with `ode test compiler/main.ode`, and each standard library
+file's with `ode test std/<name>.ode`, and fails if any does. It points
+`ODE_STD` at the repository's `std/`, so whichever compiler is under test
+uses it. Failures a library function must stop on -- reading past the end
+of a list, say -- are tests in `tests/unit/std_failures.ode` that are meant
+to fail, so their recorded output is the check. To
 run them alone, or only some:
 
 ```bash

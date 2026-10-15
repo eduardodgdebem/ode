@@ -11,7 +11,7 @@ import { strlen } from "../support/libc";
 import { Buf, textEquals } from "../support/text";
 import { NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";
-import { modulePath, NameSet } from "../semantics/modules";
+import { moduleDisplayPath, NameSet } from "../semantics/modules";
 import { RUNNER_MODULE } from "../semantics/testing";
 import {
   Emitter, freshLabel, emitLine, emitLabel, emitCondBranch, llvmName,
@@ -23,7 +23,7 @@ import { typeOfNode, emitAssign, emitCast, genExpr } from "./expressions";
 // `path:line:column` of `node`, as a string constant.
 fn location(e: *Emitter, node: i32): *i8 {
   let text: *Buf = Buf.new();
-  text.add(modulePath(e.ast.nodes[node].module));
+  text.add(moduleDisplayPath(e.ast.nodes[node].module));
   text.push(':');
   text.addInt(e.ast.nodes[node].line as i64);
   text.push(':');
