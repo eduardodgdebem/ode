@@ -1,0 +1,150 @@
+// ---------------------------------------------------------------------------
+// Diagnostics.
+//
+// Ode has no exceptions, so a phase cannot unwind out of a failed construct
+// the way it could with exceptions. Instead `FAILED` is raised, every function
+// on the way out returns promptly, and the phase's statement loop clears it
+// and moves to the next statement. While it is raised no further diagnostic
+// is recorded, so one mistake produces one message.
+// ---------------------------------------------------------------------------
+
+import { malloc, exit, STDERR } from "./libc";
+import { writeText, writeBuf, Buf } from "./text";
+
+// The file being worked on, which every diagnostic is reported against.
+export let SOURCE_PATH: *i8 = "<none>";
+
+struct Diagnostic {
+  // The file being worked on when it was reported.
+  path: *i8,
+  message: *i8,
+  line: i32,
+  column: i32,
+}
+
+export struct Diagnostics {
+  items: *Diagnostic,
+  count: i32,
+  capacity: i32,
+  // Everything reported, including any past the limit that was not kept.
+  total: i32,
+
+  fn new(): *Diagnostics {
+    let bag: *Diagnostics = malloc(sizeof(Diagnostics) as i64) as *Diagnostics;
+    bag.capacity = DIAG_LIMIT;
+    bag.count = 0;
+    bag.total = 0;
+    bag.items =
+        malloc(sizeof(Diagnostic) as i64 * bag.capacity as i64) as *Diagnostic;
+
+    return bag;
+  }
+}
+
+// Past this many the list stops being useful and starts being noise.
+let DIAG_LIMIT: i32 = 20;
+
+export let DIAGS: *Diagnostics = 0 as i64 as *Diagnostics;
+// Raised by the construct that failed, lowered by whatever recovers from it.
+export let FAILED: bool = false;
+
+export fn report(line: i32, column: i32, message: *i8): void {
+  // The first message about a construct is the one worth keeping; anything
+  // after it is the same mistake seen from further away.
+  if (FAILED) {
+    return;
+  }
+  FAILED = true;
+
+  DIAGS.total = DIAGS.total + 1;
+  if (DIAGS.count >= DIAGS.capacity) {
+    return;
+  }
+
+  DIAGS.items[DIAGS.count].path = SOURCE_PATH;
+  DIAGS.items[DIAGS.count].message = message;
+  DIAGS.items[DIAGS.count].line = line;
+  DIAGS.items[DIAGS.count].column = column;
+  DIAGS.count = DIAGS.count + 1;
+}
+
+export fn hasErrors(): bool {
+  return DIAGS.total > 0;
+}
+
+// Prints everything recorded as `file:line:column: error: message`, which
+// most editors can jump to.
+export fn printDiagnostics(): void {
+  let out: *Buf = Buf.new();
+  let index: i32 = 0;
+
+  while (index < DIAGS.count) {
+    out.add(DIAGS.items[index].path);
+
+    // A line of 0 means the position is unknown, which whole-program checks
+    // report; those name the file alone.
+    if (DIAGS.items[index].line > 0) {
+      out.push(':');
+      out.addInt(DIAGS.items[index].line as i64);
+      out.push(':');
+      out.addInt(DIAGS.items[index].column as i64);
+    }
+
+    out.add(": error: ");
+    out.add(DIAGS.items[index].message);
+    out.push('\n');
+    index = index + 1;
+  }
+
+  // A single error reads better on its own; a count is only worth printing
+  // once there is more than one thing to count.
+  if (DIAGS.total > DIAGS.count) {
+    out.addInt(DIAGS.total as i64);
+    out.add(" errors generated, showing the first ");
+    out.addInt(DIAGS.count as i64);
+    out.add(".\n");
+  } else if (DIAGS.total > 1) {
+    out.addInt(DIAGS.total as i64);
+    out.add(" errors generated.\n");
+  }
+
+  writeBuf(STDERR, out);
+}
+
+// ---------------------------------------------------------------------------
+// Fatal failure, for the phases that do not recover: the lexer, and anything
+// that has already been type-checked by the time codegen sees it.
+// ---------------------------------------------------------------------------
+
+export fn failAt(line: i32, column: i32, message: *i8): void {
+  // A line of 0 means the position is unknown, which whole-program checks
+  // report; those name the file alone rather than pointing at 0:0.
+  if (line <= 0) {
+    fail(message);
+    return;
+  }
+
+  let out: *Buf = Buf.new();
+  out.add(SOURCE_PATH);
+  out.push(':');
+  out.addInt(line as i64);
+  out.push(':');
+  out.addInt(column as i64);
+  out.add(": error: ");
+  out.add(message);
+  out.push('\n');
+
+  writeText(STDERR, out.data);
+  exit(1);
+}
+
+export fn fail(message: *i8): void {
+  let out: *Buf = Buf.new();
+  out.add(SOURCE_PATH);
+  out.add(": error: ");
+  out.add(message);
+  out.push('\n');
+
+  writeText(STDERR, out.data);
+  exit(1);
+}

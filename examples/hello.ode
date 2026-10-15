@@ -1,0 +1,7 @@
+// The smallest complete program: `main` is where it starts, and what it
+// returns is the process's exit status.
+
+fn main(): i32 {
+  print("Hello, World!");
+  return 0;
+}

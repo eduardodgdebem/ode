@@ -1,0 +1,270 @@
+// ---------------------------------------------------------------------------
+// Functions and the module.
+//
+// A module is written in two parts. The head holds the struct types, string
+// constants, extern declarations and globals; the body holds every function
+// and method. genProgram puts them together into the text handed to clang.
+// ---------------------------------------------------------------------------
+
+import { Buf, textEquals, intToText } from "../support/text";
+import {
+  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_UNARY, NK_CAST,
+  NK_SIZEOF, NK_STRING, NK_CHAR, NK_BOOL,
+} from "../syntax/ast";
+import { Type } from "../semantics/types";
+import { NameSet } from "../semantics/modules";
+import { analyzerParseType } from "../semantics/analyzer";
+import {
+  Emitter, emitLine, emitterEnterScope, emitterExitScope, declareLocal,
+  internString,
+} from "./emitter";
+import { llvmTypeName, sizeOfType, zeroValue } from "./layout";
+import { emitAssign, emitStore, genNumberLiteral } from "./expressions";
+import { genStatement } from "./statements";
+
+fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
+  let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+
+  out.add(keyword);
+  out.push(' ');
+  out.add(llvmTypeName(returnType));
+  out.add(" @");
+  out.add(e.an.linkNames[node]);
+  out.push('(');
+
+  let params: i32 = e.ast.nodes[node].b;
+  let count: i32 = 0;
+  if (params != NO_NODE) {
+    count = e.ast.nodes[params].itemCount;
+  }
+
+  let index: i32 = 0;
+  while (index < count) {
+    if (index > 0) {
+      out.add(", ");
+    }
+
+    let param: i32 = e.ast.nodes[params].items[index];
+    out.add(llvmTypeName(analyzerParseType(e.an, e.ast.nodes[param].a)));
+
+    // A declaration names no parameters; a definition needs them to store.
+    if (textEquals(keyword, "define")) {
+      out.add(" %p");
+      out.addInt(index as i64);
+    }
+
+    index = index + 1;
+  }
+
+  out.push(')');
+}
+
+fn genFunction(e: *Emitter, node: i32): void {
+  let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+
+  e.nextTemp = 0;
+  e.nextLabel = 0;
+  e.terminated = false;
+
+  emitSignature(e, e.body, node, "define");
+  e.body.add(" {\nentry:\n");
+
+  emitterEnterScope(e);
+
+  // Each parameter gets a slot of its own, so it can be assigned like any
+  // other local.
+  let params: i32 = e.ast.nodes[node].b;
+  if (params != NO_NODE) {
+    let index: i32 = 0;
+    while (index < e.ast.nodes[params].itemCount) {
+      let param: i32 = e.ast.nodes[params].items[index];
+      let type: Type = analyzerParseType(e.an, e.ast.nodes[param].a);
+
+      let allocation: *Buf = Buf.new();
+      allocation.add("alloca ");
+      allocation.add(llvmTypeName(type));
+      let slot: *i8 = emitAssign(e, allocation.data);
+
+      let incoming: *Buf = Buf.new();
+      incoming.add("%p");
+      incoming.addInt(index as i64);
+      emitStore(e, type, incoming.data, slot);
+
+      declareLocal(e, e.ast.nodes[param].text, slot, type);
+      index = index + 1;
+    }
+  }
+
+  genStatement(e, e.ast.nodes[node].c);
+
+  // Falling off the end of a function is allowed and yields a zero value.
+  if (!e.terminated) {
+    if (returnType.isVoid()) {
+      emitLine(e, "ret void");
+    } else {
+      let line: *Buf = Buf.new();
+      line.add("ret ");
+      line.add(llvmTypeName(returnType));
+      line.push(' ');
+      line.add(zeroValue(returnType));
+      emitLine(e, line.data);
+    }
+  }
+
+  emitterExitScope(e);
+  e.body.add("}\n\n");
+}
+
+// A global's initialiser becomes an LLVM constant initialiser, so it is
+// folded here rather than being computed at run time.
+fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  if (kind == NK_STRING) {
+    return internString(e, e.ast.nodes[node].text,
+                        e.ast.nodes[node].textLength);
+  }
+  if (kind == NK_CAST) {
+    return genConstant(e, e.ast.nodes[node].a, type);
+  }
+  if (kind == NK_UNARY) {
+    let inner: *i8 = genConstant(e, e.ast.nodes[node].a, type);
+    let out: *Buf = Buf.new();
+    out.push('-');
+    out.add(inner);
+    return out.take();
+  }
+  if (kind == NK_SIZEOF) {
+    return intToText(sizeOfType(e, analyzerParseType(e.an,
+                                                     e.ast.nodes[node].a)) as i64);
+  }
+  if (kind == NK_BOOL) {
+    if (textEquals(e.ast.nodes[node].text, "true")) {
+      return "true";
+    }
+    return "false";
+  }
+  if (kind == NK_CHAR) {
+    let value: i32 = e.ast.nodes[node].text[0] as i32;
+    if (value < 0) {
+      value = value + 256;
+    }
+    if (value > 127) {
+      value = value - 256;
+    }
+    return intToText(value as i64);
+  }
+
+  // A pointer-typed global cannot be initialised from a bare integer: LLVM
+  // wants `null` for zero, and an inttoptr for anything else. This is the one
+  // place a constant's spelling depends on the type it is being stored into.
+  if (type.isPointer()) {
+    let text: *i8 = genNumberLiteral(e, node);
+
+    if (textEquals(text, "0")) {
+      return "null";
+    }
+
+    let out: *Buf = Buf.new();
+    out.add("inttoptr (i64 ");
+    out.add(text);
+    out.add(" to ptr)");
+
+    return out.take();
+  }
+
+  return genNumberLiteral(e, node);
+}
+
+fn genGlobal(e: *Emitter, node: i32): void {
+  let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+
+  // The string constant, if any, has to be emitted before the global that
+  // points at it.
+  let value: *i8 = genConstant(e, e.ast.nodes[node].b, type);
+
+  e.head.push('@');
+  e.head.add(e.an.linkNames[node]);
+  e.head.add(" = global ");
+  e.head.add(llvmTypeName(type));
+  e.head.push(' ');
+  e.head.add(value);
+  e.head.push('\n');
+}
+
+export fn genProgram(e: *Emitter, program: i32): *i8 {
+  let count: i32 = e.ast.nodes[program].itemCount;
+
+  // Named struct types come first, so a function signature can mention one.
+  let index: i32 = 0;
+  while (index < e.an.structs.count) {
+    e.head.push('%');
+    e.head.add(e.an.structs.items[index].name);
+    e.head.add(" = type { ");
+
+    let field: i32 = 0;
+    while (field < e.an.structs.items[index].count) {
+      if (field > 0) {
+        e.head.add(", ");
+      }
+      e.head.add(llvmTypeName(e.an.structs.items[index].fields[field].type));
+      field = field + 1;
+    }
+
+    e.head.add(" }\n");
+    index = index + 1;
+  }
+
+  e.head.add("declare i32 @printf(ptr, ...)\n");
+
+  // Several files may declare one extern, and LLVM takes one declaration.
+  let declared: *NameSet = NameSet.new();
+  index = 0;
+  while (index < count) {
+    let statement: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[statement].kind == NK_EXTERN &&
+        !declared.has(e.an.linkNames[statement])) {
+      declared.add(e.an.linkNames[statement]);
+      emitSignature(e, e.head, statement, "declare");
+      e.head.push('\n');
+    }
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    let statement: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[statement].kind == NK_VARDECL) {
+      genGlobal(e, statement);
+    }
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    let statement: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[statement].kind == NK_FN) {
+      genFunction(e, statement);
+    }
+
+    // A struct's methods are functions like any other once named.
+    if (e.ast.nodes[statement].kind == NK_STRUCT) {
+      let member: i32 = 0;
+      while (member < e.ast.nodes[statement].itemCount) {
+        let method: i32 = e.ast.nodes[statement].items[member];
+        if (e.ast.nodes[method].kind == NK_FN) {
+          genFunction(e, method);
+        }
+        member = member + 1;
+      }
+    }
+    index = index + 1;
+  }
+
+  let module: *Buf = Buf.new();
+  module.addBytes(e.head.data, e.head.length);
+  module.push('\n');
+  module.addBytes(e.body.data, e.body.length);
+
+  return module.take();
+}

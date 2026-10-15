@@ -1,0 +1,524 @@
+// ---------------------------------------------------------------------------
+// The semantic analyzer.
+//
+// Two passes over the top level: struct names, then struct fields, then
+// globals and function signatures, then the bodies. Without the hoisting a
+// function could only call functions declared above it, which rules out
+// mutual recursion.
+//
+// Every expression it proves well-typed is recorded in `types`, so the IR
+// generator can look the answer up instead of deriving it a second time.
+// ---------------------------------------------------------------------------
+
+import { malloc, free } from "../support/libc";
+import { nullText, Buf, textEquals } from "../support/text";
+import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
+import {
+  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELD, NK_TYPE,
+  NK_PARAMS, Ast,
+} from "../syntax/ast";
+import {
+  TY_NONE, TY_VOID, TY_STRUCT, Type, typeKindFromName, StructTable,
+} from "./types";
+import { SYM_VAR, SYM_FN, SymbolTable } from "./symbols";
+import {
+  MODULE_COUNT, modulePath, linkModules, SymbolList, declareImports,
+} from "./modules";
+import { analyzeRecovering } from "./statements";
+import { RECV_NONE, registerMethods } from "./methods";
+
+export struct Analyzer {
+  ast: *Ast,
+  symbols: *SymbolTable,
+  structs: *StructTable,
+  // One entry per node, TY_NONE for anything that is not an expression.
+  types: *Type,
+  // Per node: whether this `let` is a program-level global.
+  isGlobal: *i8,
+  // Per node: the IR name of the top-level declaration it is or refers to,
+  // null for anything else. See modules.ode.
+  linkNames: **i8,
+  // Per module: the top-level values it declares.
+  moduleSymbols: *SymbolList,
+  // Per method call: how its receiver is passed, one of the RECV_ kinds.
+  receivers: *i8,
+  // Per method call written on a name, `Point.new()`: the IR name of the
+  // struct that name means in the call's file, or null if it means none.
+  structRefs: **i8,
+  program: i32,
+  loopDepth: i32,
+  inFunction: bool,
+  currentReturnType: Type,
+
+  fn new(ast: *Ast): *Analyzer {
+    let an: *Analyzer = malloc(sizeof(Analyzer) as i64) as *Analyzer;
+    an.ast = ast;
+    an.symbols = SymbolTable.new();
+    an.structs = StructTable.new();
+    an.types = malloc(sizeof(Type) as i64 * ast.count as i64) as *Type;
+    an.isGlobal = malloc(ast.count as i64);
+    an.linkNames = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
+    an.receivers = malloc(ast.count as i64);
+    an.structRefs = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
+    an.program = NO_NODE;
+    an.moduleSymbols =
+        malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
+    an.loopDepth = 0;
+    an.inFunction = false;
+    an.currentReturnType = Type.make(TY_VOID, 0);
+
+    let index: i32 = 0;
+    while (index < ast.count) {
+      an.types[index] = Type.make(TY_NONE, 0);
+      an.isGlobal[index] = 0 as i8;
+      an.linkNames[index] = nullText();
+      an.receivers[index] = RECV_NONE;
+      an.structRefs[index] = nullText();
+      index = index + 1;
+    }
+
+    return an;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reporting. A failure is recorded against the file the node came from, and
+// raises FAILED; see support/diagnostics.ode for how checking recovers.
+// ---------------------------------------------------------------------------
+
+export fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
+  SOURCE_PATH = modulePath(an.ast.nodes[node].module);
+  report(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
+}
+
+export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
+                        detail: *i8): void {
+  let message: *Buf = Buf.new();
+  message.add(context);
+  message.add(": ");
+  message.add(detail);
+
+  analyzerFail(an, node, message.data);
+}
+
+// "expected 'a' but got 'b'"-shaped detail, which several checks want.
+export fn expectedButGot(expected: *i8, got: *i8): *i8 {
+  let message: *Buf = Buf.new();
+  message.add("expected '");
+  message.add(expected);
+  message.add("' but got '");
+  message.add(got);
+  message.push('\'');
+
+  return message.take();
+}
+
+export fn gotType(type: Type): *i8 {
+  let message: *Buf = Buf.new();
+  message.add("got '");
+  message.add(type.toText());
+  message.push('\'');
+
+  return message.take();
+}
+
+export fn gotTwoTypes(left: Type, right: Type): *i8 {
+  let message: *Buf = Buf.new();
+  message.add("got '");
+  message.add(left.toText());
+  message.add("' and '");
+  message.add(right.toText());
+  message.push('\'');
+
+  return message.take();
+}
+
+export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
+  let message: *Buf = Buf.new();
+  message.add(prefix);
+  message.push('\'');
+  message.add(name);
+  message.push('\'');
+  message.add(suffix);
+
+  return message.take();
+}
+
+// ---------------------------------------------------------------------------
+// Types out of the tree.
+// ---------------------------------------------------------------------------
+
+export fn analyzerParseType(an: *Analyzer, node: i32): Type {
+  if (node == NO_NODE || an.ast.nodes[node].kind != NK_TYPE) {
+    failAt(0, 0, "expected type annotation");
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let depth: i32 = an.ast.nodes[node].extra;
+  let kind: i32 = typeKindFromName(name);
+
+  // A built-in type lexes as its own token kind; anything else is a struct
+  // name, which lexes as an identifier.
+  if (kind == TY_NONE) {
+    return Type.ofStruct(name, depth);
+  }
+
+  return Type.make(kind, depth);
+}
+
+export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
+                               context: *i8): void {
+  if (type.kind != TY_STRUCT) {
+    return;
+  }
+
+  if (an.structs.indexOf(type.structName) < 0) {
+    analyzerFail2(an, node, context, quoted("unknown type ",
+                                            type.toText(), ""));
+  }
+}
+
+export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type {
+  if (params == NO_NODE || an.ast.nodes[params].kind != NK_PARAMS) {
+    *countOut = 0;
+    return 0 as i64 as *Type;
+  }
+
+  let count: i32 = an.ast.nodes[params].itemCount;
+  *countOut = count;
+
+  if (count == 0) {
+    return 0 as i64 as *Type;
+  }
+
+  let types: *Type = malloc(sizeof(Type) as i64 * count as i64) as *Type;
+  let index: i32 = 0;
+
+  while (index < count) {
+    let param: i32 = an.ast.nodes[params].items[index];
+    types[index] = analyzerParseType(an, an.ast.nodes[param].a);
+    index = index + 1;
+  }
+
+  return types;
+}
+
+// ---------------------------------------------------------------------------
+// The top level, in the order the passes have to run.
+// ---------------------------------------------------------------------------
+
+fn registerStructName(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NK_STRUCT) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  if (an.structs.indexOf(name) >= 0) {
+    analyzerFail(an, node,
+                 quoted("struct ", name, " is declared more than once"));
+  }
+
+  an.structs.add(name);
+}
+
+fn registerStructFields(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NK_STRUCT) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let structIndex: i32 = an.structs.indexOf(name);
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[node].itemCount) {
+    let field: i32 = an.ast.nodes[node].items[index];
+    let fieldName: *i8 = an.ast.nodes[field].text;
+
+    // Methods are mixed in with the fields, and are registered after them.
+    if (an.ast.nodes[field].kind != NK_FIELD) {
+      index = index + 1;
+      continue;
+    }
+
+    if (an.structs.fieldIndex(structIndex, fieldName) >= 0) {
+      let message: *Buf = Buf.new();
+      message.add("struct '");
+      message.add(name);
+      message.add("' declares field '");
+      message.add(fieldName);
+      message.add("' twice");
+      analyzerFail(an, node, message.data);
+    }
+
+    let type: Type = analyzerParseType(an, an.ast.nodes[field].a);
+
+    let context: *Buf = Buf.new();
+    context.add("field '");
+    context.add(fieldName);
+    context.add("' of struct '");
+    context.add(name);
+    context.push('\'');
+    analyzerValidateType(an, node, type, context.data);
+
+    if (type.isVoid()) {
+      let message: *Buf = Buf.new();
+      message.add("field '");
+      message.add(fieldName);
+      message.add("' of struct '");
+      message.add(name);
+      message.add("' cannot be void");
+      analyzerFail(an, node, message.data);
+    }
+
+    an.structs.addField(structIndex, fieldName, type);
+    index = index + 1;
+  }
+}
+
+// A struct that contains itself by value has no finite size. Going through a
+// pointer is fine, and is how linked structures are built.
+fn rejectStructCycles(an: *Analyzer, program: i32): void {
+  let count: i32 = an.structs.count;
+  let start: i32 = 0;
+
+  while (start < count) {
+    let seen: *i8 = malloc(count as i64);
+    let stack: *i32 = malloc(sizeof(i32) as i64 * count as i64) as *i32;
+    let stackCount: i32 = 0;
+
+    let index: i32 = 0;
+    while (index < count) {
+      seen[index] = 0 as i8;
+      index = index + 1;
+    }
+
+    seen[start] = 1 as i8;
+    stack[stackCount] = start;
+    stackCount = stackCount + 1;
+
+    while (stackCount > 0) {
+      stackCount = stackCount - 1;
+      let current: i32 = stack[stackCount];
+
+      let field: i32 = 0;
+      while (field < an.structs.items[current].count) {
+        let type: Type = an.structs.items[current].fields[field].type;
+
+        if (type.isStruct()) {
+          if (textEquals(type.structName, an.structs.items[start].name)) {
+            analyzerFail2(an, program,
+                          quoted("struct ", an.structs.items[start].name,
+                                 " contains itself"),
+                          "use a pointer to break the cycle");
+          }
+
+          let target: i32 = an.structs.indexOf(type.structName);
+          if (target >= 0 && seen[target] == 0 as i8) {
+            seen[target] = 1 as i8;
+            stack[stackCount] = target;
+            stackCount = stackCount + 1;
+          }
+        }
+
+        field = field + 1;
+      }
+    }
+
+    free(seen);
+    free(stack as *i8);
+    start = start + 1;
+  }
+}
+
+fn hoistGlobal(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NK_VARDECL) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
+
+  analyzerValidateType(an, node, type, quoted("in declaration of ", name, ""));
+  if (type.isVoid()) {
+    analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
+  }
+
+  an.isGlobal[node] = 1 as i8;
+  declareTopLevel(an, node, name, SYM_VAR, type, 0 as i64 as *Type, 0);
+}
+
+// SymbolTable.declare for a top-level declaration, which also carries its IR
+// name.
+fn declareTopLevel(an: *Analyzer, node: i32, name: *i8, kind: i32, type: Type,
+                   params: *Type, paramCount: i32): void {
+  let before: i32 = an.symbols.count;
+  an.symbols.declare(name, kind, type, params, paramCount,
+                     an.ast.nodes[node].line, an.ast.nodes[node].column);
+
+  if (an.symbols.count > before) {
+    an.symbols.items[before].linkName = an.linkNames[node];
+  }
+}
+
+fn hoistSignature(an: *Analyzer, node: i32): void {
+  let kind: i32 = an.ast.nodes[node].kind;
+  if (kind != NK_FN && kind != NK_EXTERN) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  let returnType: Type = analyzerParseType(an, an.ast.nodes[node].a);
+  let paramCount: i32 = 0;
+  let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
+
+  let what: *i8 = "return type of '";
+  if (kind == NK_EXTERN) {
+    what = "return type of extern '";
+  }
+
+  let context: *Buf = Buf.new();
+  context.add(what);
+  context.add(name);
+  context.push('\'');
+  analyzerValidateType(an, node, returnType, context.data);
+
+  let index: i32 = 0;
+  while (index < paramCount) {
+    let paramContext: *Buf = Buf.new();
+    if (kind == NK_EXTERN) {
+      paramContext.add("parameter of extern '");
+    } else {
+      paramContext.add("parameter of '");
+    }
+    paramContext.add(name);
+    paramContext.push('\'');
+    analyzerValidateType(an, node, params[index], paramContext.data);
+    index = index + 1;
+  }
+
+  // Passing a struct by value across the C ABI needs target-specific lowering
+  // that this compiler does not do, so require a pointer.
+  if (kind == NK_EXTERN) {
+    if (returnType.isStruct()) {
+      analyzerFail2(an, node,
+                    quoted("extern ", name, " returns a struct by value"),
+                    "return a pointer instead");
+    }
+
+    index = 0;
+    while (index < paramCount) {
+      if (params[index].isStruct()) {
+        analyzerFail2(an, node,
+                      quoted("extern ", name, " takes a struct by value"),
+                      "take a pointer instead");
+      }
+      index = index + 1;
+    }
+  }
+
+  declareTopLevel(an, node, name, SYM_FN, returnType, params, paramCount);
+}
+
+// Whether the program item at `index` belongs to `module`.
+fn itemInModule(an: *Analyzer, program: i32, index: i32, module: i32): bool {
+  return an.ast.nodes[an.ast.nodes[program].items[index]].module == module;
+}
+
+export fn analyze(an: *Analyzer, program: i32): void {
+  let count: i32 = an.ast.nodes[program].itemCount;
+  an.program = program;
+
+  linkModules(an, program);
+
+  // Struct names come first so that two structs may point at each other, then
+  // fields, then globals and function signatures, which may both refer to any
+  // struct. Structs go into one table for every file: by now each reference
+  // names the struct its own file can see.
+  let index: i32 = 0;
+  while (index < count) {
+    registerStructName(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
+    index = index + 1;
+  }
+
+  index = 0;
+  while (index < count) {
+    registerStructFields(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
+    index = index + 1;
+  }
+
+  rejectStructCycles(an, program);
+  FAILED = false;
+
+  index = 0;
+  while (index < count) {
+    registerMethods(an, an.ast.nodes[program].items[index]);
+    index = index + 1;
+  }
+
+  // Values are hoisted a file at a time, each into a scope of its own, so
+  // that one file's names are not another's. What each file declares is kept
+  // for the files that import from it.
+  let module: i32 = 0;
+  while (module < MODULE_COUNT) {
+    SOURCE_PATH = modulePath(module);
+    an.symbols.enterScope();
+    let start: i32 = an.symbols.count;
+
+    index = 0;
+    while (index < count) {
+      if (itemInModule(an, program, index, module)) {
+        hoistGlobal(an, an.ast.nodes[program].items[index]);
+        FAILED = false;
+      }
+      index = index + 1;
+    }
+
+    index = 0;
+    while (index < count) {
+      if (itemInModule(an, program, index, module)) {
+        hoistSignature(an, an.ast.nodes[program].items[index]);
+        FAILED = false;
+      }
+      index = index + 1;
+    }
+
+    an.moduleSymbols[module] = SymbolList.copyFrom(an.symbols, start);
+    an.symbols.exitScope();
+    module = module + 1;
+  }
+
+  // Each file's bodies see its own top level and what it imports, and
+  // nothing else.
+  module = 0;
+  while (module < MODULE_COUNT) {
+    SOURCE_PATH = modulePath(module);
+    an.symbols.enterScope();
+
+    let own: SymbolList = an.moduleSymbols[module];
+    let symbol: i32 = 0;
+    while (symbol < own.count) {
+      an.symbols.push(own.items[symbol]);
+      symbol = symbol + 1;
+    }
+
+    declareImports(an, program, module);
+
+    index = 0;
+    while (index < count) {
+      if (itemInModule(an, program, index, module)) {
+        analyzeRecovering(an, an.ast.nodes[program].items[index]);
+      }
+      index = index + 1;
+    }
+
+    an.symbols.exitScope();
+    module = module + 1;
+  }
+
+  SOURCE_PATH = modulePath(0);
+  if (an.moduleSymbols[0].find("main") < 0) {
+    report(0, 0, "No main function found");
+  }
+}

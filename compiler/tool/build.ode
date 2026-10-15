@@ -1,0 +1,494 @@
+// ---------------------------------------------------------------------------
+// `ode build`: builds, tests and bootstraps the compiler.
+//
+//   ode build [build]     build build/ode from compiler/main.ode
+//   ode build test        build, then run the regression suite
+//   ode build bootstrap   build, then rebuild twice and require a fixed point
+//   ode build seed        build, then refresh bootstrap/ode.ll from it
+//
+// It is written for this repository and knows its layout; it finds the root
+// by walking up from the current directory to the one holding
+// compiler/main.ode. The compiler doing the building is this very binary, so
+// a fresh checkout needs only one compiler -- the seed, which build.sh turns
+// into one with clang -- to get started.
+//
+// A build is skipped when nothing it depends on has changed: every file the
+// compiler is made of, found by following its imports, plus the C compiler
+// and SDK it links with. Those are hashed, and the hash is kept beside the
+// output in build/ode.stamp. Comparing contents rather than timestamps needs
+// no `stat`, whose layout differs per platform, and a whole build takes a
+// fraction of a second anyway, so finer-grained tracking would buy nothing.
+// ---------------------------------------------------------------------------
+
+import { malloc, strlen, STDOUT, STDERR } from "../support/libc";
+import {
+  nullText, isNullText, writeText, Buf, nullBuf, textEquals, textSlice,
+  intToText,
+} from "../support/text";
+import {
+  SOURCE_PATH, Diagnostics, DIAGS, FAILED,
+} from "../support/diagnostics";
+import {
+  TextList, STDERR_INHERIT, runCommand, environment, currentDirectory,
+  joinPath, withSuffix, parentDirectory, fileExists, isExecutable,
+  absolutePath, readBytes, writeBytes, sameBytes, makeDirectories, removeTree,
+  moveFile, readFile,
+} from "../support/system";
+import { NK_PROGRAM, Ast } from "../syntax/ast";
+import { tokenize } from "../syntax/lexer";
+import { MODULE_COUNT, modulePath } from "../semantics/modules";
+import { quoted } from "../semantics/analyzer";
+import { hexDigit } from "../codegen/emitter";
+import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
+import { TestOptions, commandTest } from "./testsuite";
+import { loadProgram } from "../main";
+
+let BUILD_USAGE: *i8 = "usage: ode build [build | test | bootstrap | seed] [--force] [--filter <text>] [--update] [--ode <compiler>]\n\n  build       build build/ode from compiler/main.ode (the default)\n  test        build, then run the regression suite\n  bootstrap   build, then rebuild twice and require a fixed point\n  seed        build, then refresh bootstrap/ode.ll\n\n  --force           build even when nothing has changed\n  --filter <text>   test: run only the cases whose name contains <text>\n  --update          test: rewrite the expectations from what happens now\n  --ode <compiler>  test: test this compiler instead of building one\n";
+
+export struct Workspace {
+  root: *i8,
+  // This binary, which does the building.
+  compiler: *i8,
+  entry: *i8,
+  output: *i8,
+}
+
+// ---------------------------------------------------------------------------
+// Hashing.
+// ---------------------------------------------------------------------------
+
+let FNV_OFFSET: u64 = 14695981039346656037 as u64;
+let FNV_PRIME: u64 = 1099511628211 as u64;
+
+// 64-bit FNV-1a, which is plenty to notice that a file changed.
+struct Hasher {
+  value: u64,
+
+  fn new(): Hasher {
+    return Hasher { value: FNV_OFFSET };
+  }
+
+  fn addBytes(self: *Hasher, data: *i8, count: i64): void {
+    let index: i64 = 0 as i64;
+    while (index < count) {
+      self.value = (self.value ^ data[index] as u8 as u64) * FNV_PRIME;
+      index = index + 1 as i64;
+    }
+  }
+
+  // The terminator goes in too, so that "ab" then "c" and "a" then "bc"
+  // hash differently.
+  fn addText(self: *Hasher, text: *i8): void {
+    self.addBytes(text, strlen(text) + 1 as i64);
+  }
+
+  fn hex(self: Hasher): *i8 {
+    let out: *Buf = Buf.new();
+    let shift: i32 = 60;
+    while (shift >= 0) {
+      let digit: u64 = (self.value >> shift as u64) & 15 as u64;
+      out.push(hexDigit(digit as i32));
+      shift = shift - 4;
+    }
+
+    return out.take();
+  }
+}
+
+// What a build of the compiler depends on, and how big it is, for the line
+// that reports it.
+struct Inputs {
+  hash: *i8,
+  lines: i32,
+  modules: i32,
+}
+
+// Loads the compiler's sources the way compiling them would, to learn which
+// files they are, and hashes them. A file that does not parse still hashes:
+// the build that follows is what reports the error.
+fn hashInputs(ws: *Workspace): Inputs {
+  let hasher: Hasher = Hasher.new();
+  hasher.addText(ccProgram());
+  let sdk: *i8 = sysroot();
+  if (!isNullText(sdk)) {
+    hasher.addText(sdk);
+  }
+
+  DIAGS = Diagnostics.new();
+  SOURCE_PATH = ws.entry;
+  let source: *i8 = readFile(ws.entry);
+  if (isNullText(source)) {
+    return Inputs { hash: "", lines: 0, modules: 0 };
+  }
+
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NK_PROGRAM, 0, 0);
+  loadProgram(ast, root, ws.entry, tokenize(source));
+  FAILED = false;
+
+  let lines: i32 = 0;
+  let module: i32 = 0;
+  while (module < MODULE_COUNT) {
+    let bytes: *Buf = readBytes(modulePath(module));
+    hasher.addText(modulePath(module));
+    if (bytes != nullBuf()) {
+      hasher.addBytes(bytes.data, bytes.length);
+
+      let index: i64 = 0 as i64;
+      while (index < bytes.length) {
+        if (bytes.data[index] == '\n') {
+          lines = lines + 1;
+        }
+        index = index + 1 as i64;
+      }
+    }
+    module = module + 1;
+  }
+
+  return Inputs { hash: hasher.hex(), lines: lines, modules: MODULE_COUNT };
+}
+
+// ---------------------------------------------------------------------------
+// Output.
+// ---------------------------------------------------------------------------
+
+fn say(text: *i8): void {
+  writeText(STDOUT, text);
+  writeText(STDOUT, "\n");
+}
+
+export fn complain(text: *i8): void {
+  writeText(STDERR, "ode build: ");
+  writeText(STDERR, text);
+  writeText(STDERR, "\n");
+}
+
+// `path` relative to the repository, which is how messages name things.
+fn shown(ws: *Workspace, path: *i8): *i8 {
+  let length: i64 = strlen(ws.root);
+  if (strlen(path) > length && path[length] == '/' &&
+      textEquals(textSlice(path, 0 as i64, length), ws.root)) {
+    return path + (length + 1 as i64);
+  }
+
+  return path;
+}
+
+// ---------------------------------------------------------------------------
+// Finding things.
+// ---------------------------------------------------------------------------
+
+// The nearest directory at or above the current one that holds the compiler's
+// sources and seed, or null.
+fn findRoot(): *i8 {
+  let directory: *i8 = currentDirectory();
+
+  while (!isNullText(directory)) {
+    if (fileExists(joinPath(directory, "compiler/main.ode")) &&
+        fileExists(joinPath(directory, "bootstrap/ode.ll"))) {
+      return directory;
+    }
+    if (textEquals(directory, "/")) {
+      return nullText();
+    }
+    directory = parentDirectory(directory);
+  }
+
+  return nullText();
+}
+
+// The absolute path of the program running now, from how it was invoked: a
+// path when argv[0] holds a `/`, and a search of PATH when it does not.
+fn findSelf(invokedAs: *i8): *i8 {
+  let index: i64 = 0 as i64;
+  while (invokedAs[index] != 0 as i8) {
+    if (invokedAs[index] == '/') {
+      return absolutePath(invokedAs);
+    }
+    index = index + 1 as i64;
+  }
+
+  let searchPath: *i8 = environment("PATH");
+  if (isNullText(searchPath)) {
+    return nullText();
+  }
+
+  let start: i64 = 0 as i64;
+  index = 0 as i64;
+  while (true) {
+    let character: i8 = searchPath[index];
+    if (character == ':' || character == 0 as i8) {
+      let directory: *i8 = textSlice(searchPath, start, index - start);
+      let candidate: *i8 = joinPath(directory, invokedAs);
+      if (strlen(directory) > 0 as i64 && isExecutable(candidate)) {
+        return absolutePath(candidate);
+      }
+      if (character == 0 as i8) {
+        return nullText();
+      }
+      start = index + 1 as i64;
+    }
+    index = index + 1 as i64;
+  }
+
+  return nullText();
+}
+
+// ---------------------------------------------------------------------------
+// Commands.
+// ---------------------------------------------------------------------------
+
+fn stampPath(ws: *Workspace): *i8 {
+  return withSuffix(ws.output, ".stamp");
+}
+
+export fn commandBuild(ws: *Workspace, force: bool): i32 {
+  makeDirectories(parentDirectory(ws.output));
+
+  let inputs: Inputs = hashInputs(ws);
+  let stamp: *Buf = readBytes(stampPath(ws));
+
+  if (!force && fileExists(ws.output) && stamp != nullBuf() &&
+      textEquals(stamp.data, inputs.hash)) {
+    let message: *Buf = Buf.new();
+    message.add(shown(ws, ws.output));
+    message.add(" is up to date");
+    say(message.data);
+    return 0;
+  }
+
+  // A compiler cannot write over itself while it runs, so a build that would
+  // land on the binary doing it goes to a temporary first.
+  let target: *i8 = ws.output;
+  let inPlace: bool = false;
+  let outputReal: *i8 = absolutePath(ws.output);
+  if (!isNullText(outputReal) && textEquals(outputReal, ws.compiler)) {
+    inPlace = true;
+    target = withSuffix(ws.output, ".new");
+  }
+
+  let command: *TextList = TextList.new().add(ws.compiler);
+  command.add("-o").add(target).add(ws.entry);
+  if (runCommand(command, nullText(), nullBuf(), STDERR_INHERIT) != 0) {
+    complain("the compiler did not build");
+    return 1;
+  }
+
+  if (inPlace) {
+    moveFile(target, ws.output);
+    moveFile(withSuffix(target, ".ll"), withSuffix(ws.output, ".ll"));
+    moveFile(withSuffix(target, ".o"), withSuffix(ws.output, ".o"));
+  }
+
+  let record: *Buf = Buf.new();
+  record.add(inputs.hash);
+  writeBytes(stampPath(ws), record);
+
+  let message: *Buf = Buf.new();
+  message.add("built ");
+  message.add(shown(ws, ws.output));
+  message.add(" from ");
+  message.addInt(inputs.lines as i64);
+  message.add(" lines in ");
+  message.addInt(inputs.modules as i64);
+  message.add(" modules");
+  say(message.data);
+
+  return 0;
+}
+
+// The compiler compiles its own sources, the result compiles them again, and
+// the last two binaries must be byte-identical. A compiler that miscompiles
+// itself stops reproducing itself, which this catches even when every test
+// passes. The first generation need not match: it was built by whatever
+// compiler ran this, which may predate the sources.
+fn commandBootstrap(ws: *Workspace): i32 {
+  if (commandBuild(ws, false) != 0) {
+    return 1;
+  }
+
+  let work: *i8 = joinPath(ws.root, "build/bootstrap");
+  removeTree(work);
+
+  // Each generation is written to the same name in a directory of its own,
+  // so the output path the linker embeds cannot account for a difference.
+  let from: *i8 = ws.output;
+  let stage: i32 = 1;
+  while (stage <= 2) {
+    let message: *Buf = Buf.new();
+    message.add("stage ");
+    message.addInt(stage as i64);
+    message.add(": ode");
+    message.addInt(stage as i64);
+    message.add(" -> ode");
+    message.addInt((stage + 1) as i64);
+    say(message.data);
+
+    let directory: *i8 = joinPath(work, intToText(stage as i64));
+    makeDirectories(directory);
+    let to: *i8 = joinPath(directory, "ode");
+
+    let command: *TextList = TextList.new().add(from);
+    command.add("-o").add(to).add(ws.entry);
+    if (runCommand(command, nullText(), nullBuf(), STDERR_INHERIT) != 0) {
+      complain("a bootstrap stage did not build");
+      return 1;
+    }
+
+    from = to;
+    stage = stage + 1;
+  }
+
+  let second: *Buf = readBytes(joinPath(work, "1/ode"));
+  let third: *Buf = readBytes(joinPath(work, "2/ode"));
+
+  say("");
+  if (sameBytes(second, third)) {
+    say("fixed point reached: ode2 and ode3 are byte-identical");
+    let size: *Buf = Buf.new();
+    size.add("  ");
+    size.addInt(second.length);
+    size.add(" bytes");
+    say(size.data);
+    return 0;
+  }
+
+  let offset: i64 = 0 as i64;
+  while (offset < second.length && offset < third.length &&
+         second.data[offset] == third.data[offset]) {
+    offset = offset + 1 as i64;
+  }
+
+  let message: *Buf = Buf.new();
+  message.add("NOT a fixed point: ode2 and ode3 differ, first at byte ");
+  message.addInt(offset);
+  complain(message.data);
+
+  return 1;
+}
+
+// The seed is what a machine with no Ode compiler starts from, so it has to
+// be able to compile the current sources. Run this whenever the compiler
+// starts using a language feature the committed seed predates.
+fn commandSeed(ws: *Workspace): i32 {
+  if (commandBuild(ws, false) != 0) {
+    return 1;
+  }
+
+  let ir: *Buf = Buf.new();
+  let command: *TextList = TextList.new().add(ws.output);
+  command.add("--emit-llvm").add(ws.entry);
+  if (runCommand(command, nullText(), ir, STDERR_INHERIT) != 0) {
+    complain("the compiler could not emit its own IR");
+    return 1;
+  }
+
+  let seed: *i8 = joinPath(ws.root, "bootstrap/ode.ll");
+  if (!writeBytes(seed, ir)) {
+    complain("cannot write bootstrap/ode.ll");
+    return 1;
+  }
+
+  let message: *Buf = Buf.new();
+  message.add("wrote ");
+  message.add(shown(ws, seed));
+  message.add(" (");
+  message.addInt(ir.length);
+  message.add(" bytes)");
+  say(message.data);
+  say("commit it: a fresh checkout has nothing else to start from.");
+
+  return 0;
+}
+
+fn buildUsage(): i32 {
+  writeText(STDERR, BUILD_USAGE);
+  return 2;
+}
+
+export fn buildMain(argc: i32, argv: **i8): i32 {
+  let command: *i8 = nullText();
+  let force: bool = false;
+  let options: TestOptions = TestOptions {
+    filter: nullText(),
+    update: false,
+    compiler: nullText(),
+  };
+
+  let index: i32 = 2;
+  while (index < argc) {
+    let argument: *i8 = argv[index];
+
+    if (textEquals(argument, "--force")) {
+      force = true;
+    } else if (textEquals(argument, "--update")) {
+      options.update = true;
+    } else if (textEquals(argument, "--filter") ||
+               textEquals(argument, "--ode")) {
+      if (index + 1 >= argc) {
+        return buildUsage();
+      }
+      index = index + 1;
+      if (textEquals(argument, "--filter")) {
+        options.filter = argv[index];
+      } else {
+        options.compiler = absolutePath(argv[index]);
+        if (isNullText(options.compiler)) {
+          complain(quoted("no compiler at ", argv[index], ""));
+          return 2;
+        }
+      }
+    } else if (textEquals(argument, "-h") || textEquals(argument, "--help")) {
+      writeText(STDOUT, BUILD_USAGE);
+      return 0;
+    } else if (argument[0] == '-' || !isNullText(command)) {
+      return buildUsage();
+    } else {
+      command = argument;
+    }
+
+    index = index + 1;
+  }
+
+  if (isNullText(command)) {
+    command = "build";
+  }
+
+  let root: *i8 = findRoot();
+  if (isNullText(root)) {
+    complain("not inside the Ode repository: no compiler/main.ode here or above");
+    return 2;
+  }
+
+  let compiler: *i8 = findSelf(argv[0]);
+  if (isNullText(compiler)) {
+    complain("cannot tell where this compiler is; run it by its path");
+    return 2;
+  }
+
+  let ws: *Workspace = malloc(sizeof(Workspace) as i64) as *Workspace;
+  ws.root = root;
+  ws.compiler = compiler;
+  ws.entry = joinPath(root, "compiler/main.ode");
+  ws.output = joinPath(root, "build/ode");
+
+  // Everything below starts compiles of its own; they share one answer to
+  // which SDK to use rather than each asking for it.
+  shareSysroot();
+
+  if (textEquals(command, "build")) {
+    return commandBuild(ws, force);
+  }
+  if (textEquals(command, "test")) {
+    return commandTest(ws, options);
+  }
+  if (textEquals(command, "bootstrap")) {
+    return commandBootstrap(ws);
+  }
+  if (textEquals(command, "seed")) {
+    return commandSeed(ws);
+  }
+
+  complain(quoted("unknown command ", command, ""));
+  return buildUsage();
+}

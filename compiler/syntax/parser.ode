@@ -1,0 +1,186 @@
+// ---------------------------------------------------------------------------
+// The parser: recursive descent, one node per construct, into the arena.
+//
+// This file holds the Parser itself -- the token cursor, `expect`, and error
+// recovery -- and types. Expressions are in expressions.ode, statements and
+// declarations in statements.ode.
+// ---------------------------------------------------------------------------
+
+import { malloc } from "../support/libc";
+import { Buf } from "../support/text";
+import { report, fail } from "../support/diagnostics";
+import {
+  TK_END, TK_IDENT, TK_TYPE, TK_LET, TK_IF, TK_FN, TK_EXTERN, TK_STRUCT,
+  TK_RETURN, TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT, TK_IMPORT, TK_EXPORT,
+  TK_STAR, TK_LBRACE, TK_RBRACE, TK_SEMICOLON, Token, TokenList,
+} from "./token";
+import { NK_TYPE, NK_ERROR, Ast } from "./ast";
+
+export struct Parser {
+  tokens: *TokenList,
+  ast: *Ast,
+  pos: i32,
+  // False as soon as a block is opened: `fn`, `extern` and `struct` are
+  // file-level constructs, and a body is not the file level.
+  atTopLevel: bool,
+
+  fn new(tokens: *TokenList, ast: *Ast): *Parser {
+    let parser: *Parser = malloc(sizeof(Parser) as i64) as *Parser;
+    parser.tokens = tokens;
+    parser.ast = ast;
+    parser.pos = 0;
+    parser.atTopLevel = true;
+
+    return parser;
+  }
+
+  fn current(self: *Parser): *Token {
+    return self.tokens.at(self.pos);
+  }
+
+  fn peek(self: *Parser): *Token {
+    return self.tokens.at(self.pos + 1);
+  }
+
+  fn kind(self: *Parser): i32 {
+    return self.current().kind;
+  }
+
+  fn advance(self: *Parser): void {
+    if (self.pos < self.tokens.count - 1) {
+      self.pos = self.pos + 1;
+    }
+  }
+
+  fn fail(self: *Parser, expected: *i8): void {
+    let token: *Token = self.current();
+    let message: *Buf = Buf.new();
+    message.add("expected '");
+    message.add(expected);
+    message.add("' but got '");
+
+    if (token.kind == TK_END) {
+      message.add("end of file");
+    } else {
+      message.addBytes(token.text, token.length);
+    }
+
+    message.push('\'');
+    report(token.line, token.column, message.data);
+  }
+
+  fn errorNode(self: *Parser): i32 {
+    let token: *Token = self.current();
+    return self.ast.add(NK_ERROR, token.line, token.column);
+  }
+
+  // Recovery is per statement: everything up to the next `;` or the start of
+  // the next statement is discarded. A `{` is skipped whole, so a malformed
+  // function header costs its body rather than turning it into a second round
+  // of errors.
+  fn synchronize(self: *Parser): void {
+    let depth: i32 = 0;
+
+    while (self.kind() != TK_END) {
+      let kind: i32 = self.kind();
+
+      if (kind == TK_LBRACE) {
+        depth = depth + 1;
+        self.advance();
+        continue;
+      }
+
+      if (kind == TK_RBRACE) {
+        // At depth zero this closes the block being parsed, which is the
+        // caller's to consume.
+        if (depth == 0) {
+          return;
+        }
+        depth = depth - 1;
+        self.advance();
+        if (depth == 0) {
+          return;
+        }
+        continue;
+      }
+
+      if (depth == 0) {
+        if (kind == TK_SEMICOLON) {
+          self.advance();
+          return;
+        }
+        if (startsStatement(kind)) {
+          return;
+        }
+      }
+
+      self.advance();
+    }
+  }
+
+  fn expect(self: *Parser, kind: i32, name: *i8): *Token {
+    // The offending token is left where it is. Consuming it would throw away
+    // the very thing recovery needs to see -- a `}` swallowed here would leave
+    // the parser inside a block that has already ended.
+    if (self.kind() != kind) {
+      self.fail(name);
+      return self.current();
+    }
+
+    let token: *Token = self.current();
+    self.advance();
+
+    return token;
+  }
+}
+
+// True for a token that can only begin a statement, which is where a
+// recovering parser can pick the file back up.
+export fn startsStatement(kind: i32): bool {
+  if (kind == TK_FN || kind == TK_EXTERN || kind == TK_STRUCT) {
+    return true;
+  }
+  if (kind == TK_IMPORT || kind == TK_EXPORT) {
+    return true;
+  }
+  if (kind == TK_LET || kind == TK_IF || kind == TK_WHILE) {
+    return true;
+  }
+  if (kind == TK_RETURN || kind == TK_PRINT) {
+    return true;
+  }
+
+  return kind == TK_BREAK || kind == TK_CONTINUE;
+}
+
+// ---------------------------------------------------------------------------
+// Types.
+// ---------------------------------------------------------------------------
+
+// Type -> '*'* BaseType
+export fn parseType(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let startLine: i32 = start.line;
+  let startColumn: i32 = start.column;
+  let depth: i32 = 0;
+
+  while (parser.kind() == TK_STAR) {
+    depth = depth + 1;
+    parser.advance();
+  }
+
+  if (parser.kind() != TK_TYPE && parser.kind() != TK_IDENT) {
+    parser.fail("type");
+    // Same reason: the token that is not a type is the one recovery reads.
+    return parser.ast.add(NK_TYPE, startLine, startColumn);
+  }
+
+  let name: *Token = parser.current();
+  parser.advance();
+
+  let node: i32 = parser.ast.add(NK_TYPE, startLine, startColumn);
+  parser.ast.setText(node, name);
+  parser.ast.nodes[node].extra = depth;
+
+  return node;
+}
