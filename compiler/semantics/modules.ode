@@ -23,7 +23,8 @@
 // own declarations and its imports, and nothing else.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc, memcpy, strlen } from "../support/libc";
+import { malloc, memcpy, strlen } from "../support/libc";
+import { List } from "../support/list";
 import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
@@ -43,34 +44,28 @@ struct Module {
   real: *i8,
 }
 
-let MODULES: *Module = null;
-export let MODULE_COUNT: i32 = 0;
-let MODULE_CAPACITY: i32 = 0;
+let MODULES: *List<Module> = null;
 
 export fn moduleAdd(path: *i8, real: *i8): i32 {
-  if (MODULE_COUNT == MODULE_CAPACITY) {
-    if (MODULE_CAPACITY == 0) {
-      MODULE_CAPACITY = 8;
-      MODULES = malloc(sizeof(Module) as i64 * 8 as i64) as *Module;
-    } else {
-      MODULE_CAPACITY = MODULE_CAPACITY * 2;
-      MODULES = realloc(MODULES as *i8,
-                        sizeof(Module) as i64 * MODULE_CAPACITY as i64) as
-          *Module;
-    }
+  if (MODULES == null) {
+    MODULES = List<Module>.new();
   }
 
-  let index: i32 = MODULE_COUNT;
-  MODULES[index].path = path;
-  MODULES[index].real = real;
-  MODULE_COUNT = index + 1;
+  MODULES.push(Module { path: path, real: real });
+  return MODULES.count - 1;
+}
 
-  return index;
+// How many files the program is made of so far.
+export fn moduleCount(): i32 {
+  if (MODULES == null) {
+    return 0;
+  }
+  return MODULES.count;
 }
 
 export fn moduleFind(real: *i8): i32 {
-  for (index in 0..MODULE_COUNT) {
-    if (textEquals(MODULES[index].real, real)) {
+  for (index in 0..moduleCount()) {
+    if (textEquals(MODULES.at(index).real, real)) {
       return index;
     }
   }
@@ -79,7 +74,7 @@ export fn moduleFind(real: *i8): i32 {
 }
 
 export fn modulePath(module: i32): *i8 {
-  return MODULES[module].path;
+  return MODULES.at(module).path;
 }
 
 export fn textEndsWith(text: *i8, suffix: *i8): bool {
@@ -137,22 +132,18 @@ export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
 // ---------------------------------------------------------------------------
 
 export struct NameSet {
-  items: **i8,
-  count: i32,
-  capacity: i32,
+  names: *List<*i8>,
 
   fn new(): *NameSet {
     let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
-    set.capacity = 64;
-    set.count = 0;
-    set.items = malloc(sizeof(*i8) as i64 * set.capacity as i64) as **i8;
+    set.names = List<*i8>.new();
 
     return set;
   }
 
   fn has(self: *NameSet, name: *i8): bool {
-    for (index in 0..self.count) {
-      if (textEquals(self.items[index], name)) {
+    for (index in 0..self.names.count) {
+      if (textEquals(self.names.at(index), name)) {
         return true;
       }
     }
@@ -161,14 +152,7 @@ export struct NameSet {
   }
 
   fn add(self: *NameSet, name: *i8): void {
-    if (self.count == self.capacity) {
-      self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(*i8) as i64 * self.capacity as i64) as **i8;
-    }
-
-    self.items[self.count] = name;
-    self.count = self.count + 1;
+    self.names.push(name);
   }
 
   // `name` if nobody has it yet, and otherwise a name qualified by the module.
@@ -253,7 +237,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   }
 
   // Module by module, so the entry file, which is module 0, claims first.
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     for (index in 0..count) {
       let item: i32 = an.ast.nodes[program].items[index];
       let kind: NodeKind = an.ast.nodes[item].kind;

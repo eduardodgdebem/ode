@@ -11,7 +11,8 @@
 // parameters. Naming them sidesteps the rule entirely.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc, strlen } from "../support/libc";
+import { malloc, strlen } from "../support/libc";
+import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { Ast } from "../syntax/ast";
 import { Type } from "../semantics/types";
@@ -43,18 +44,13 @@ export struct Emitter {
   // closed one.
   terminated: bool,
 
-  locals: *Local,
-  localCount: i32,
-  localCapacity: i32,
-  scopeStarts: *i32,
-  scopeCount: i32,
-  scopeCapacity: i32,
+  locals: *List<Local>,
+  // Where each open scope's locals start, innermost last.
+  scopeStarts: *List<i32>,
 
   // `continue` goes to the condition, `break` to the block after the loop.
-  loopContinue: **i8,
-  loopBreak: **i8,
-  loopCount: i32,
-  loopCapacity: i32,
+  loopContinue: *List<*i8>,
+  loopBreak: *List<*i8>,
 
   fn new(ast: *Ast, an: *Analyzer): *Emitter {
     let e: *Emitter = malloc(sizeof(Emitter) as i64) as *Emitter;
@@ -68,17 +64,10 @@ export struct Emitter {
     e.nextString = 0;
     e.terminated = false;
 
-    e.localCapacity = 64;
-    e.localCount = 0;
-    e.locals = malloc(sizeof(Local) as i64 * e.localCapacity as i64) as *Local;
-    e.scopeCapacity = 32;
-    e.scopeCount = 0;
-    e.scopeStarts = malloc(sizeof(i32) as i64 * e.scopeCapacity as i64) as *i32;
-
-    e.loopCapacity = 16;
-    e.loopCount = 0;
-    e.loopContinue = malloc(sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
-    e.loopBreak = malloc(sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+    e.locals = List<Local>.new();
+    e.scopeStarts = List<i32>.new();
+    e.loopContinue = List<*i8>.new();
+    e.loopBreak = List<*i8>.new();
 
     return e;
   }
@@ -165,32 +154,15 @@ export fn emitCondBranch(e: *Emitter, condition: *i8, whenTrue: *i8,
 // ---------------------------------------------------------------------------
 
 export fn emitterEnterScope(e: *Emitter): void {
-  if (e.scopeCount == e.scopeCapacity) {
-    e.scopeCapacity = e.scopeCapacity * 2;
-    e.scopeStarts = realloc(e.scopeStarts as *i8,
-                            sizeof(i32) as i64 * e.scopeCapacity as i64) as *i32;
-  }
-
-  e.scopeStarts[e.scopeCount] = e.localCount;
-  e.scopeCount = e.scopeCount + 1;
+  e.scopeStarts.push(e.locals.count);
 }
 
 export fn emitterExitScope(e: *Emitter): void {
-  e.scopeCount = e.scopeCount - 1;
-  e.localCount = e.scopeStarts[e.scopeCount];
+  e.locals.truncate(e.scopeStarts.pop());
 }
 
 export fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
-  if (e.localCount == e.localCapacity) {
-    e.localCapacity = e.localCapacity * 2;
-    e.locals = realloc(e.locals as *i8,
-                       sizeof(Local) as i64 * e.localCapacity as i64) as *Local;
-  }
-
-  e.locals[e.localCount].name = name;
-  e.locals[e.localCount].reg = reg;
-  e.locals[e.localCount].type = type;
-  e.localCount = e.localCount + 1;
+  e.locals.push(Local { name: name, reg: reg, type: type });
 }
 
 // Innermost first, so a shadowed name resolves to the slot the analyzer
@@ -198,11 +170,11 @@ export fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
 // goes by the IR name the analyzer resolved it to.
 export fn variableAddress(e: *Emitter, node: i32): *i8 {
   let name: *i8 = e.ast.nodes[node].text;
-  let index: i32 = e.localCount - 1;
+  let index: i32 = e.locals.count - 1;
 
   while (index >= 0) {
-    if (textEquals(e.locals[index].name, name)) {
-      return e.locals[index].reg;
+    if (textEquals(e.locals.at(index).name, name)) {
+      return e.locals.at(index).reg;
     }
     index = index - 1;
   }

@@ -28,7 +28,7 @@ import { isTemplate } from "./generics";
 // the next statement is checked as though the failed one were not there.
 // Returns with FAILED lowered; the diagnostic has already been recorded.
 export fn analyzeRecovering(an: *Analyzer, node: i32): void {
-  let depth: i32 = an.symbols.scopeCount;
+  let depth: i32 = an.symbols.depth();
   let loops: i32 = an.loopDepth;
   let wasInFunction: bool = an.inFunction;
   let returnType: Type = an.currentReturnType;

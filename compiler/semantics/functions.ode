@@ -19,7 +19,7 @@
 // are pointers to code, so they pass to and from C as its function pointers.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
+import { malloc } from "../support/libc";
 import { Buf, textEquals } from "../support/text";
 import { FAILED, failAt } from "../support/diagnostics";
 import { TypeKind, Type } from "./types";
@@ -69,23 +69,15 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
                 depth: i32): Type {
   let text: *i8 = signatureText(params, count, result);
 
-  for (index in 0..an.signatureCount) {
-    if (textEquals(an.signatures[index].text, text)) {
+  for (index in 0..an.signatures.count) {
+    if (textEquals(an.signatures.at(index).text, text)) {
       return Type { kind: TypeKind.Function, pointerDepth: depth,
-                    structName: an.signatures[index].text };
+                    structName: an.signatures.at(index).text };
     }
   }
 
-  if (an.signatureCount == an.signatureCapacity) {
-    an.signatureCapacity = an.signatureCapacity * 2;
-    an.signatures = realloc(an.signatures as *i8,
-                            sizeof(Signature) as i64 *
-                                an.signatureCapacity as i64) as *Signature;
-  }
-
-  an.signatures[an.signatureCount] =
-      Signature { text: text, params: params, count: count, result: result };
-  an.signatureCount = an.signatureCount + 1;
+  an.signatures.push(Signature { text: text, params: params, count: count,
+                                 result: result });
 
   return Type { kind: TypeKind.Function, pointerDepth: depth,
                 structName: text };
@@ -93,8 +85,8 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
 
 // Where the signature of a function type is in the table.
 export fn signatureIndex(an: *Analyzer, type: Type): i32 {
-  for (index in 0..an.signatureCount) {
-    if (textEquals(an.signatures[index].text, type.structName)) {
+  for (index in 0..an.signatures.count) {
+    if (textEquals(an.signatures.at(index).text, type.structName)) {
       return index;
     }
   }
@@ -140,10 +132,10 @@ export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
   }
 
   let signature: i32 = signatureIndex(an, callee);
-  checkArguments(an, node, name, args, an.signatures[signature].params,
-                 an.signatures[signature].count);
+  let found: Signature = an.signatures.at(signature);
+  checkArguments(an, node, name, args, found.params, found.count);
 
-  return an.signatures[signature].result;
+  return found.result;
 }
 
 // `table[i](x)`: a call of whatever an expression produces.

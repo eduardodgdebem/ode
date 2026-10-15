@@ -7,7 +7,7 @@
 // code still forms valid IR.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc, strlen } from "../support/libc";
+import { malloc, strlen } from "../support/libc";
 import { Buf, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
@@ -216,14 +216,14 @@ export fn genStatement(e: *Emitter, node: i32): void {
   }
 
   if (kind == NodeKind.Break) {
-    emitBranch(e, e.loopBreak[e.loopCount - 1]);
+    emitBranch(e, e.loopBreak.last());
     // Anything written after this needs a block of its own to live in.
     emitLabel(e, freshLabel(e));
     return;
   }
 
   if (kind == NodeKind.Continue) {
-    emitBranch(e, e.loopContinue[e.loopCount - 1]);
+    emitBranch(e, e.loopContinue.last());
     emitLabel(e, freshLabel(e));
     return;
   }
@@ -314,21 +314,13 @@ fn genMatch(e: *Emitter, node: i32): void {
 
 // Where `continue` and `break` go inside the loop being entered.
 fn enterLoop(e: *Emitter, continueLabel: *i8, breakLabel: *i8): void {
-  if (e.loopCount == e.loopCapacity) {
-    e.loopCapacity = e.loopCapacity * 2;
-    e.loopContinue = realloc(e.loopContinue as *i8,
-                             sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
-    e.loopBreak = realloc(e.loopBreak as *i8,
-                          sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
-  }
-
-  e.loopContinue[e.loopCount] = continueLabel;
-  e.loopBreak[e.loopCount] = breakLabel;
-  e.loopCount = e.loopCount + 1;
+  e.loopContinue.push(continueLabel);
+  e.loopBreak.push(breakLabel);
 }
 
 fn leaveLoop(e: *Emitter): void {
-  e.loopCount = e.loopCount - 1;
+  e.loopContinue.pop();
+  e.loopBreak.pop();
 }
 
 // `for (i in start..end)`. The count lives in a slot of its own and is

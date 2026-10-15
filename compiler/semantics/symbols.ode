@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, realloc } from "../support/libc";
+import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { report } from "../support/diagnostics";
 import { Type } from "./types";
@@ -33,19 +34,15 @@ export struct SymbolTable {
   items: *Symbol,
   count: i32,
   capacity: i32,
-  scopeStarts: *i32,
-  scopeCount: i32,
-  scopeCapacity: i32,
+  // Where each open scope's symbols start, innermost last.
+  scopeStarts: *List<i32>,
 
   fn new(): *SymbolTable {
     let table: *SymbolTable = malloc(sizeof(SymbolTable) as i64) as *SymbolTable;
     table.capacity = 64;
     table.count = 0;
     table.items = malloc(sizeof(Symbol) as i64 * table.capacity as i64) as *Symbol;
-    table.scopeCapacity = 16;
-    table.scopeCount = 0;
-    table.scopeStarts =
-        malloc(sizeof(i32) as i64 * table.scopeCapacity as i64) as *i32;
+    table.scopeStarts = List<i32>.new();
 
     table.enterScope();
 
@@ -53,30 +50,26 @@ export struct SymbolTable {
   }
 
   fn enterScope(self: *SymbolTable): void {
-    if (self.scopeCount == self.scopeCapacity) {
-      self.scopeCapacity = self.scopeCapacity * 2;
-      self.scopeStarts =
-          realloc(self.scopeStarts as *i8,
-                  sizeof(i32) as i64 * self.scopeCapacity as i64) as *i32;
-    }
+    self.scopeStarts.push(self.count);
+  }
 
-    self.scopeStarts[self.scopeCount] = self.count;
-    self.scopeCount = self.scopeCount + 1;
+  // How many scopes are open, for undoing the ones a failure left open.
+  fn depth(self: *SymbolTable): i32 {
+    return self.scopeStarts.count;
   }
 
   fn exitScope(self: *SymbolTable): void {
-    if (self.scopeCount == 0) {
+    if (self.scopeStarts.count == 0) {
       return;
     }
 
-    self.scopeCount = self.scopeCount - 1;
-    self.count = self.scopeStarts[self.scopeCount];
+    self.count = self.scopeStarts.pop();
   }
 
   // Innermost first, so a shadowing declaration wins.
   // Undoes the scopes an abandoned statement left open.
   fn truncateScopes(self: *SymbolTable, depth: i32): void {
-    while (self.scopeCount > depth) {
+    while (self.scopeStarts.count > depth) {
       self.exitScope();
     }
   }
@@ -97,7 +90,7 @@ export struct SymbolTable {
   // Only the innermost scope, which is what a redeclaration check needs: the
   // same name in an enclosing scope is shadowing, not a conflict.
   fn findInScope(self: *SymbolTable, name: *i8): i32 {
-    let start: i32 = self.scopeStarts[self.scopeCount - 1];
+    let start: i32 = self.scopeStarts.last();
     let index: i32 = self.count - 1;
 
     while (index >= start) {

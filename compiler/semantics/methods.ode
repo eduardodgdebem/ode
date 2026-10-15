@@ -167,7 +167,7 @@ export fn analyzeMethodBodies(an: *Analyzer, node: i32): void {
     let method: i32 = an.ast.nodes[node].items[index];
 
     if (an.ast.nodes[method].kind == NodeKind.Fn) {
-      let depth: i32 = an.symbols.scopeCount;
+      let depth: i32 = an.symbols.depth();
       analyzeFunctionBody(an, method);
       an.symbols.truncateScopes(depth);
       FAILED = false;

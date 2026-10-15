@@ -11,13 +11,14 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, realloc, free } from "../support/libc";
+import { List } from "../support/list";
 import { Buf, textEquals } from "../support/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
 import { SymbolKind, SymbolTable } from "./symbols";
 import {
-  MODULE_COUNT, modulePath, NameSet, linkModules, SymbolList, declareImports,
+  moduleCount, modulePath, NameSet, linkModules, SymbolList, declareImports,
 } from "./modules";
 import { analyzeRecovering } from "./statements";
 import { ReceiverMode, registerMethods } from "./methods";
@@ -53,9 +54,7 @@ export struct Analyzer {
   // enum's rather than a struct's.
   enumNames: *NameSet,
   // Every function type seen, so that a type's signature can be read back.
-  signatures: *Signature,
-  signatureCount: i32,
-  signatureCapacity: i32,
+  signatures: *List<Signature>,
   // Per node: 1 for a function's name used as a value.
   functionRefs: *i8,
   // Per call: what it calls, one of the CallTarget kinds.
@@ -79,13 +78,10 @@ export struct Analyzer {
     an.instancesFailed = false;
     an.growNodeArrays();
     an.enumNames = NameSet.new();
-    an.signatureCapacity = 16;
-    an.signatureCount = 0;
-    an.signatures = malloc(sizeof(Signature) as i64 *
-                           an.signatureCapacity as i64) as *Signature;
+    an.signatures = List<Signature>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
-        malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
+        malloc(sizeof(SymbolList) as i64 * moduleCount() as i64) as *SymbolList;
     an.loopDepth = 0;
     an.inFunction = false;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
@@ -246,11 +242,11 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
   // A function type is valid when everything in its signature is.
   if (type.kind == TypeKind.Function) {
     let signature: i32 = signatureIndex(an, type);
-    for (index in 0..an.signatures[signature].count) {
-      analyzerValidateType(an, node, an.signatures[signature].params[index],
+    for (index in 0..an.signatures.at(signature).count) {
+      analyzerValidateType(an, node, an.signatures.at(signature).params[index],
                            context);
     }
-    analyzerValidateType(an, node, an.signatures[signature].result, context);
+    analyzerValidateType(an, node, an.signatures.at(signature).result, context);
     return;
   }
 
@@ -553,7 +549,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
   // that one file's names are not another's. What each file declares is kept
   // for the files that import from it.
   let module: i32 = 0;
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     SOURCE_PATH = modulePath(module);
     an.symbols.enterScope();
     let start: i32 = an.symbols.count;
@@ -578,7 +574,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
   // Each file's bodies see its own top level and what it imports, and
   // nothing else.
-  for (module in 0..MODULE_COUNT) {
+  for (module in 0..moduleCount()) {
     SOURCE_PATH = modulePath(module);
     an.symbols.enterScope();
 

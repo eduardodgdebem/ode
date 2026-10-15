@@ -32,7 +32,7 @@ import {
   makeDirectories, removeTree, copyTree, listDirectory, splitLines,
   makeTempDirectory,
 } from "../support/system";
-import { textEndsWith } from "../semantics/modules";
+import { moduleCount, textEndsWith } from "../semantics/modules";
 import { Workspace, complain, commandBuild } from "./build";
 
 export struct TestOptions {
@@ -196,7 +196,7 @@ fn writeIndented(text: *Buf): void {
   let out: *Buf = Buf.new();
 
   let index: i32 = 0;
-  while (index < lines.count) {
+  while (index < lines.size()) {
     out.add("    ");
     out.add(lines.at(index));
     out.push('\n');
@@ -436,7 +436,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   let runs: *i8 = joinPath(ws.root, "tests/run");
   let names: *TextList = listDirectory(runs);
   let index: i32 = 0;
-  for (index in 0..names.count) {
+  for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       let name: *i8 = withoutExtension(file);
@@ -449,7 +449,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   let expectedExamples: *i8 = joinPath(ws.root, "tests/examples");
   makeDirectories(expectedExamples);
   names = listDirectory(examples);
-  for (index in 0..names.count) {
+  for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       let name: *i8 = withoutExtension(file);
@@ -460,7 +460,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
 
   let invalid: *i8 = joinPath(ws.root, "tests/invalid");
   names = listDirectory(invalid);
-  for (index in 0..names.count) {
+  for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       runInvalid(suite, joinPath(invalid, file), withoutExtension(file));
@@ -469,7 +469,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
 
   let modules: *i8 = joinPath(ws.root, "tests/modules");
   names = listDirectory(modules);
-  for (index in 0..names.count) {
+  for (index in 0..names.size()) {
     let name: *i8 = names.at(index);
     let caseDir: *i8 = joinPath(modules, name);
     if (isDirectory(caseDir) && suite.selected(name)) {
@@ -535,7 +535,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   summary.push('\n');
 
   index = 0;
-  while (index < suite.failures.count) {
+  while (index < suite.failures.size()) {
     summary.add("  ");
     summary.add(suite.failures.at(index));
     summary.push('\n');
