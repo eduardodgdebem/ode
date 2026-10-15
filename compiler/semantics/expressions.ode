@@ -30,6 +30,9 @@ import { isReadyGlobal } from "./constants";
 import {
   isAssert, checkAssert, isAssertEq, checkAssertEq, isNameOf, checkNameOf,
 } from "./testing";
+import {
+  valueOf, checkTry, checkCoalesce, checkCatch, checkIs,
+} from "./errors";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -61,8 +64,18 @@ export fn checkExprAs(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  let type: Type = inferExprType(an, node, expected);
+  // Where a union is expected, a literal is its value.
+  let hint: Type = expected;
+  if (expected.isUnion()) {
+    hint = valueOf(expected);
+  }
+  let type: Type = inferExprType(an, node, hint);
   an.types[node] = type;
+  // A value or an error given where a union is wanted becomes the union
+  // there; codegen wraps it.
+  if (expected.isUnion() && !type.equals(expected) && expected.accepts(type)) {
+    an.coerceTo[node] = expected;
+  }
 
   return type;
 }
@@ -74,6 +87,13 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
   if (isNumberLiteral(an, node) && expected.isInteger()) {
     checkLiteralAs(an, node, expected);
     return expected;
+  }
+
+  match (kind) {
+    NodeKind.Try => { return checkTry(an, node); }
+    NodeKind.Catch => { return checkCatch(an, node); }
+    NodeKind.Is => { return checkIs(an, node); }
+    else => {}
   }
 
   match (kind) {
@@ -381,6 +401,9 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
 
 fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   let op: *i8 = an.ast.nodes[node].text;
+  if (equals(op, "??")) {
+    return checkCoalesce(an, node);
+  }
   let leftNode: i32 = an.ast.nodes[node].a;
   let rightNode: i32 = an.ast.nodes[node].b;
 

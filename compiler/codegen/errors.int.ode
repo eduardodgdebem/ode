@@ -1,0 +1,218 @@
+// ---------------------------------------------------------------------------
+// Errors as values, at run time: what programs that pass errors around,
+// fall back from them and catch them actually do.
+// ---------------------------------------------------------------------------
+
+import { Builder } from "std/text";
+import { mentions, outputOf } from "../testkit";
+
+let PRELUDE: *i8 = `
+  import { printf } from "std/c";
+
+  error enum ParseError { Empty, NotANumber }
+  error enum RangeError { TooSmall, TooLarge }
+
+  fn parse(text: *i8): i64 | ParseError {
+    if (text[0] == '\0') {
+      return ParseError.Empty;
+    }
+    let value: i64 = 0;
+    let index: i64 = 0;
+    while (text[index] != '\0') {
+      if (text[index] < '0' || text[index] > '9') {
+        return ParseError.NotANumber;
+      }
+      value = value * 10 + (text[index] - '0') as i64;
+      index = index + 1;
+    }
+    return value;
+  }
+
+  fn percent(text: *i8): i64 | ParseError | RangeError {
+    let value: i64 = try parse(text);
+    if (value > 100) {
+      return RangeError.TooLarge;
+    }
+    return value;
+  }
+`;
+
+fn program(body: *i8): *i8 {
+  let source: *Builder = Builder.new();
+  source.add(PRELUDE);
+  source.add(body);
+  return source.take();
+}
+
+test "try passes an error up, and each error keeps its own identity" {
+  assertEq(outputOf(program(`
+    fn show(text: *i8): void {
+      let result: i64 | ParseError | RangeError = percent(text);
+      if (result is ParseError) {
+        printf("parse %s\n", nameOf(result));
+        return;
+      }
+      if (result is RangeError) {
+        printf("range %s\n", nameOf(result));
+        return;
+      }
+      printf("value %lld\n", result);
+    }
+
+    fn main(): i32 {
+      show("42");
+      show("");
+      show("4x");
+      show("250");
+      return 0;
+    }
+  `)), "value 42\nparse Empty\nparse NotANumber\nrange TooLarge\n");
+}
+
+test "?? falls back, and only works the fallback out when it must" {
+  assertEq(outputOf(program(`
+    let CALLS: i32 = 0;
+
+    fn fallback(): i64 {
+      CALLS = CALLS + 1;
+      return -1;
+    }
+
+    fn main(): i32 {
+      printf("%lld\n", parse("7") ?? fallback());
+      printf("%lld\n", parse("x") ?? fallback());
+      printf("%d\n", CALLS);
+      return 0;
+    }
+  `)), "7\n-1\n1\n");
+}
+
+test "catch runs its block with the error, and leaves" {
+  assertEq(outputOf(program(`
+    fn sum(a: *i8, b: *i8, c: *i8): i64 {
+      let total: i64 = 0;
+      for (index in 0..3) {
+        let text: *i8 = a;
+        if (index == 1) {
+          text = b;
+        }
+        if (index == 2) {
+          text = c;
+        }
+        let value: i64 = parse(text) catch (e) {
+          printf("skipping %s\n", nameOf(e));
+          continue;
+        };
+        total = total + value;
+      }
+      return total;
+    }
+
+    fn first(text: *i8): i32 {
+      let value: i64 = parse(text) catch (e) {
+        return -1;
+      };
+      return value as i32;
+    }
+
+    fn main(): i32 {
+      printf("%lld\n", sum("1", "x", "4"));
+      printf("%d %d\n", first("9"), first(""));
+      return 0;
+    }
+  `)), "skipping NotANumber\n5\n9 -1\n");
+}
+
+test "a function that only fails returns void or an error" {
+  assertEq(outputOf(program(`
+    fn check(text: *i8): void | ParseError {
+      try parse(text);
+      return;
+    }
+
+    fn main(): i32 {
+      let good: void | ParseError = check("12");
+      let bad: void | ParseError = check("");
+      printf("%d %d\n", good is ParseError, bad is ParseError);
+      return 0;
+    }
+  `)), "0 1\n");
+}
+
+test "unions hold structs and pointers, and pass as arguments and fields" {
+  assertEq(outputOf(program(`
+    struct Point {
+      x: i64,
+      y: i64,
+    }
+
+    struct Reading {
+      value: i64 | ParseError,
+    }
+
+    fn point(a: *i8, b: *i8): Point | ParseError {
+      return Point { x: try parse(a), y: try parse(b) };
+    }
+
+    fn describe(result: i64 | ParseError): i64 {
+      return result ?? 0 - 1;
+    }
+
+    fn name(found: bool): *i8 | ParseError {
+      if (found) {
+        return "ode";
+      }
+      return ParseError.Empty;
+    }
+
+    fn main(): i32 {
+      let p: Point = point("3", "4") ?? Point { x: 0, y: 0 };
+      let q: Point = point("3", "") ?? Point { x: -1, y: -1 };
+      printf("%lld %lld %lld\n", p.x + p.y, q.x, describe(5));
+      printf("%s %s\n", name(true) ?? "none", name(false) ?? "none");
+      let reading: Reading = Reading { value: parse("x") };
+      printf("%d\n", reading.value is ParseError);
+      return 0;
+    }
+  `)), "7 -1 5\node none\n1\n");
+}
+
+test "a narrowed variable is read as what it holds, and can be assigned" {
+  assertEq(outputOf(program(`
+    fn main(): i32 {
+      let result: i64 | ParseError = parse("x");
+      if (result is ParseError) {
+        printf("%s\n", nameOf(result));
+        result = 10;
+      }
+      printf("%lld\n", result ?? -1);
+      return 0;
+    }
+  `)), "NotANumber\n10\n");
+}
+
+test "assertEq compares a union with an error or a value, and shows both" {
+  let output: *i8 = outputOf(program(`
+    fn main(): i32 {
+      assertEq(parse(""), ParseError.Empty);
+      assertEq(parse("12"), 12);
+      assertEq(percent("120"), RangeError.TooLarge);
+      assertEq(parse("x"), 3);
+      return 0;
+    }
+  `));
+  // The first three hold; the fourth stops the program with both sides.
+  assert(mentions(output, "assertEq failed\n  actual:   ParseError.NotANumber\n  expected: 3\n"));
+  assert(mentions(output, "exit 1\n"));
+}
+
+test "assertEq on a union that holds its value shows the value" {
+  let output: *i8 = outputOf(program(`
+    fn main(): i32 {
+      assertEq(parse("12"), ParseError.Empty);
+      return 0;
+    }
+  `));
+  assert(mentions(output, "actual:   12\n"));
+  assert(mentions(output, "expected: ParseError.Empty"));
+}

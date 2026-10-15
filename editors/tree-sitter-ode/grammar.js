@@ -6,6 +6,8 @@
  */
 
 const PREC = {
+  catch: -1,
+  coalesce: 0,
   logic_or: 1,
   logic_and: 2,
   bit_or: 3,
@@ -94,7 +96,7 @@ module.exports = grammar({
       optional(field('type_parameters', $.type_parameters)),
       field('parameters', $.parameter_list),
       ':',
-      field('return_type', $.type),
+      field('return_type', $._declared_type),
       field('body', $.block),
     ),
 
@@ -130,10 +132,11 @@ module.exports = grammar({
     parameter: $ => seq(
       field('name', $.identifier),
       ':',
-      field('type', $.type),
+      field('type', $._declared_type),
     ),
 
     enum_declaration: $ => seq(
+      optional(alias('error', 'error')),
       'enum',
       field('name', $._type_identifier),
       '{',
@@ -167,13 +170,19 @@ module.exports = grammar({
     field_declaration: $ => seq(
       field('name', $._field_identifier),
       ':',
-      field('type', $.type),
+      field('type', $._declared_type),
       optional(','),
     ),
 
     // -----------------------------------------------------------------------
     // Types
     // -----------------------------------------------------------------------
+
+    // Where a value is declared, its type may be a union: the value, then
+    // the errors it may be instead.
+    _declared_type: $ => choice($.type, $.union_type),
+
+    union_type: $ => seq($.type, repeat1(seq('|', $.type))),
 
     type: $ => choice(
       $.pointer_type,
@@ -247,7 +256,7 @@ module.exports = grammar({
       'let',
       field('name', $.identifier),
       ':',
-      field('type', $.type),
+      field('type', $._declared_type),
       '=',
       field('value', $._expression),
       ';',
@@ -301,6 +310,9 @@ module.exports = grammar({
     _expression: $ => choice(
       $.binary_expression,
       $.unary_expression,
+      $.try_expression,
+      $.catch_expression,
+      $.is_expression,
       $.cast_expression,
       $.field_expression,
       $.index_expression,
@@ -320,6 +332,7 @@ module.exports = grammar({
 
     binary_expression: $ => {
       const table = [
+        [PREC.coalesce, '??'],
         [PREC.logic_or, '||'],
         [PREC.logic_and, '&&'],
         [PREC.bit_or, '|'],
@@ -338,6 +351,26 @@ module.exports = grammar({
         field('right', $._expression),
       ))));
     },
+
+    // `try value`: the value, or its error passed on.
+    try_expression: $ => prec.right(PREC.unary, seq('try', field('value', $._expression))),
+
+    // `value catch (e) { ... }`: the value, or the block run with its error.
+    catch_expression: $ => prec.left(PREC.catch, seq(
+      field('value', $._expression),
+      'catch',
+      '(',
+      field('error', $.identifier),
+      ')',
+      field('handler', $.block),
+    )),
+
+    // `value is SomeError`; `is` is only a keyword here.
+    is_expression: $ => prec.left(PREC.comparison, seq(
+      field('value', $._expression),
+      'is',
+      field('type', $.type),
+    )),
 
     unary_expression: $ => prec.right(PREC.unary, seq(
       field('operator', choice('-', '+', '!', '*', '&')),

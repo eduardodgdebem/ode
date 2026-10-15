@@ -327,6 +327,56 @@ match (c) {
 `nameOf(value)` gives the name of the member an enum value is, as a string:
 `nameOf(Color.Red)` is `"Red"`, and a value that is no member's is `"?"`.
 
+## Errors
+
+A function that can fail says so in its return type: its value, or one of
+the errors it may give instead. Errors are listed in an `error enum`:
+
+```rust
+error enum ParseError { Empty, NotANumber, TooLarge }
+
+fn parseInt(text: *i8): i64 | ParseError {
+  if (text[0] == '\0') {
+    return ParseError.Empty;     // fail by returning an error
+  }
+  ...
+  return value;                  // succeed by returning the value
+}
+```
+
+An error is a value like any other -- no exceptions, no unwinding -- and a
+union is not its value, so an error cannot be ignored: `let n: i64 =
+parseInt(text);` is a type mismatch. Where the call is, you say what happens
+to an error:
+
+| You want | Write |
+|---|---|
+| To pass it on | `let n: i64 = try parseInt(text);` |
+| A fallback in its place | `let n: i64 = parseInt(text) ?? 0;` |
+| To handle it, and leave | `let n: i64 = parseInt(text) catch (e) { log(e); return 1; };` |
+| To look at it | `if (result is ParseError) { ... }` |
+
+`try` returns the error from the function it is in, which must say it can
+return that error too: `fn load(path: *i8): Config | IoError | ParseError`.
+`??` only works its fallback out when it needs it, and works the same way on
+a pointer that may be `null`. A `catch` block must end in `return`, `break`
+or `continue`; `e` in it is the error.
+
+`is` narrows a variable, as a type guard does in TypeScript:
+
+```rust
+let result: i64 | ParseError = parseInt(text);
+if (result is ParseError) {
+  printf("%s\n", nameOf(result));   // here, result is a ParseError
+  return 1;
+}
+printf("%lld\n", result);           // and here, an i64
+```
+
+A function that only fails returns `void | IoError`, and succeeds with a bare
+`return;`. Errors from different error enums can share a union, and are
+always told apart: every error in the program has a number of its own.
+
 ## Strings
 
 A string literal has type `*i8` and points at a NUL-terminated constant; a

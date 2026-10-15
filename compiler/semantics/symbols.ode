@@ -31,6 +31,9 @@ export struct Symbol {
   linkName: *i8,
   // For an extern declared with `...`: it takes more arguments than `params`.
   variadic: bool,
+  // The type a variable was declared with. `type` differs from it where
+  // `is` has narrowed the variable; see semantics/errors.ode.
+  declared: Type,
 }
 
 export struct SymbolTable {
@@ -127,6 +130,7 @@ export struct SymbolTable {
     self.items[index].paramCount = paramCount;
     self.items[index].linkName = null;
     self.items[index].variadic = false;
+    self.items[index].declared = type;
     self.count = index + 1;
   }
 

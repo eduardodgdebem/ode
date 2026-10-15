@@ -240,6 +240,18 @@ must not -- an index out of range, running out of memory -- stops the
 program. A test cannot say that it expects to stop; such a test lives in
 `tests/runner/`, where its recorded failure is what is checked.
 
+### 6.9 Errors: what the first version leaves out
+
+- `catch (e)` takes a union of one error enum; with several, keep the value
+  and tell them apart with `is`.
+- `is` narrows a local variable, in the branches of the `if` it is the
+  condition of, and after that `if` when its first branch always leaves; it
+  does not narrow a field, a global, or through `&&`.
+- A function type cannot return a union yet, so a function that can fail is
+  not a value of any `fn(...)` type.
+- An error carries no data: it says what went wrong, not with what. Enums
+  with data would be the way to add it.
+
 ## 7. Codegen and runtime
 
 ### 7.1 No runtime checks

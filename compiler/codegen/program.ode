@@ -68,6 +68,7 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
 fn genFunction(e: *Emitter, node: i32): void {
   let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
 
+  e.returnType = returnType;
   e.nextTemp = 0;
   e.nextLabel = 0;
   e.terminated = false;

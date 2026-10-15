@@ -166,6 +166,22 @@ export enum Problem {
   GenericFunctionNeedsArguments,
   InstancesNeverEnd,
 
+  // Errors: error enums, unions, try, ??, catch and is.
+  ErrorValueWritten,
+  UnionMemberNotError,
+  UnionValueIsError,
+  TryNotFallible,
+  TryOutsideFunction,
+  ErrorNotReturned,
+  CoalesceNotFallible,
+  CoalesceTypes,
+  CatchNotFallible,
+  CatchSeveralErrors,
+  CatchFallsThrough,
+  IsNotFallible,
+  IsNotAnError,
+  IsNeverTrue,
+
   // Tests.
   AssertArguments,
   AssertNotBool,
@@ -768,6 +784,63 @@ export fn describe(problem: Problem, facts: Facts): Description {
       return saysMore(text3("generic ", q(name),
                             " keeps asking for bigger instances of itself"),
                       "an instance's body uses one with more type arguments around them");
+    }
+
+    Problem.ErrorValueWritten => {
+      return saysMore(text3("member ", q(name), " of an error enum has a value"),
+                      "an error's value is given to it, so that every error is told apart");
+    }
+    Problem.UnionMemberNotError => {
+      return saysMore(text2(typeText(facts.got), " is not an error enum"),
+                      "a union is a value, then the error enums it may be instead");
+    }
+    Problem.UnionValueIsError => {
+      return saysMore(text2("a union's value cannot be an error: ", typeText(facts.got)),
+                      "write the value's type first, then the errors");
+    }
+    Problem.TryNotFallible => {
+      return saysMore("try needs a value that may be an error", gotOne(facts));
+    }
+    Problem.TryOutsideFunction => {
+      return says("try passes an error on to a caller, and is only allowed in a function");
+    }
+    Problem.ErrorNotReturned => {
+      // `name` is the error enum, `got` the function's return type.
+      return saysMore(text3("this function cannot return ", q(name), ""),
+                      text4("it returns ", typeText(facts.got), "; add `| ",
+                            text2(name, "` to that, or handle the error here")));
+    }
+    Problem.CoalesceNotFallible => {
+      return saysMore("?? needs a value that may be an error or null",
+                      gotOne(facts));
+    }
+    Problem.CoalesceTypes => {
+      return saysMore("the fallback after ?? has the wrong type",
+                      expectedButGot(facts));
+    }
+    Problem.CatchNotFallible => {
+      return saysMore("catch needs a value that may be an error", gotOne(facts));
+    }
+    Problem.CatchSeveralErrors => {
+      return saysMore(text2("catch takes one kind of error, not ", typeText(facts.got)),
+                      "keep the value and tell the errors apart with `is`");
+    }
+    Problem.CatchFallsThrough => {
+      return saysMore("a catch block must leave",
+                      "end it with return, break or continue, or use ?? for a fallback value");
+    }
+    Problem.IsNotFallible => {
+      return saysMore("is asks which error a value holds, and this one holds none",
+                      gotOne(facts));
+    }
+    Problem.IsNotAnError => {
+      return saysMore(text2(typeText(facts.got), " is not an error enum"),
+                      "is tells the errors of a union apart");
+    }
+    Problem.IsNeverTrue => {
+      return saysMore(text4("a ", typeText(facts.expected), " can never be ",
+                            q(name)),
+                      text2(q(name), " is not one of its errors"));
     }
 
     Problem.AssertArguments => {

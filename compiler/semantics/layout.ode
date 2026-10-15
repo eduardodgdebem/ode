@@ -9,10 +9,19 @@
 // ---------------------------------------------------------------------------
 
 import { TypeKind, Type, StructTable } from "./types";
+import { valueOf } from "./errors";
 
 fn alignOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return 8;
+  }
+  // A union is laid out as { i32 code, value }.
+  if (type.isUnion()) {
+    let value: i32 = alignOf(structs, valueOf(type));
+    if (value > 4) {
+      return value;
+    }
+    return 4;
   }
 
   if (type.kind == TypeKind.Struct) {
@@ -52,6 +61,14 @@ fn alignUp(value: i32, alignment: i32): i32 {
 export fn sizeOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return 8;
+  }
+  if (type.isUnion()) {
+    let value: Type = valueOf(type);
+    if (value.isVoid()) {
+      return 4;
+    }
+    let offset: i32 = alignUp(4, alignOf(structs, value));
+    return alignUp(offset + sizeOf(structs, value), alignOf(structs, type));
   }
 
   if (type.kind == TypeKind.Struct) {

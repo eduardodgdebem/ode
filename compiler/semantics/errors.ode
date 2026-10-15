@@ -1,0 +1,446 @@
+// ---------------------------------------------------------------------------
+// Errors as values.
+//
+// An `error enum` lists errors; a function that can fail returns a union of
+// its value and the errors it may give instead:
+//
+//   error enum ParseError { Empty, NotANumber, TooLarge }
+//
+//   fn parseInt(text: *i8): i64 | ParseError {
+//     if (text[0] == '\0') {
+//       return ParseError.Empty;
+//     }
+//     ...
+//     return value;
+//   }
+//
+// and a caller says, where it calls, what happens to an error:
+//
+//   let n: i64 = try parseInt(s);           // passes it on to its own caller
+//   let n: i64 = parseInt(s) ?? 0;           // a fallback in its place
+//   let n: i64 = parseInt(s) catch (e) {     // handles it, and leaves
+//     return 1;
+//   };
+//   if (result is ParseError) { ... }        // asks, narrowing `result`
+//
+// A union is not its value, so an error cannot be ignored: using one as its
+// value is a type mismatch. Underneath, a union is its value and a code --
+// 0 for the value, an error's own number otherwise -- every error in the
+// program having a number of its own, so that a union of several error
+// enums can tell them apart.
+// ---------------------------------------------------------------------------
+
+import { strcmp } from "std/c";
+import { List } from "std/list";
+import { Builder, equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
+import { FAILED } from "../support/diagnostics";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type } from "./types";
+import { SymbolKind, Symbol } from "./symbols";
+import {
+  Analyzer, analyzerFail, analyzerFailAtValue, analyzerParseType,
+} from "./analyzer";
+import { checkExpr, checkExprAs } from "./expressions";
+import { analyzeStatement } from "./statements";
+import { enumDeclOf } from "./enums";
+
+// What a union type is made of. Its text, canonical -- the value, then the
+// errors by name -- is the Type's name, by which this is found.
+struct UnionInfo {
+  text: *i8,
+  value: Type,
+  errors: *List<*i8>,
+}
+
+let UNIONS: *List<UnionInfo> = null;
+
+// The union of `value` and `errors`, made the first time it is asked for.
+fn unionOf(value: Type, errors: *List<*i8>): Type {
+  let sorted: *List<*i8> = List<*i8>.new();
+  for (index in 0..errors.count) {
+    let name: *i8 = errors.at(index);
+    let at: i64 = 0;
+    let repeated: bool = false;
+    while (at < sorted.count) {
+      let order: i32 = strcmp(sorted.at(at), name);
+      if (order == 0) {
+        repeated = true;
+      }
+      if (order >= 0) {
+        break;
+      }
+      at = at + 1;
+    }
+    if (!repeated) {
+      sorted.push(name);
+      let slot: i64 = sorted.count - 1;
+      while (slot > at) {
+        sorted.set(slot, sorted.at(slot - 1));
+        slot = slot - 1;
+      }
+      sorted.set(at, name);
+    }
+  }
+
+  let text: *Builder = Builder.new();
+  text.add(value.toText());
+  for (index in 0..sorted.count) {
+    text.add(" | ");
+    text.add(sorted.at(index));
+  }
+
+  if (UNIONS == null) {
+    UNIONS = List<UnionInfo>.new();
+  }
+  for (index in 0..UNIONS.count) {
+    if (equals(UNIONS.at(index).text, text.data)) {
+      return unionType(UNIONS.at(index).text);
+    }
+  }
+  UNIONS.push(UnionInfo { text: text.data, value: value, errors: sorted });
+  return unionType(text.data);
+}
+
+export fn unionType(text: *i8): Type {
+  return Type { kind: TypeKind.Union, pointerDepth: 0, structName: text };
+}
+
+export fn unionInfo(type: Type): UnionInfo {
+  for (index in 0..UNIONS.count) {
+    if (equals(UNIONS.at(index).text, type.structName)) {
+      return UNIONS.at(index);
+    }
+  }
+  assert(false, "a union type no union was made for");
+  return UNIONS.at(0);
+}
+
+// What a union holds when it holds no error.
+export fn valueOf(type: Type): Type {
+  return unionInfo(type).value;
+}
+
+fn holdsError(type: Type, errorEnum: *i8): bool {
+  let errors: *List<*i8> = unionInfo(type).errors;
+  for (index in 0..errors.count) {
+    if (equals(errors.at(index), errorEnum)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether a union can be given `value` where it is expected: its own value,
+// one of its errors, or a union of the same value with errors it has.
+export fn unionAccepts(union: Type, value: Type): bool {
+  if (value.equals(union)) {
+    return true;
+  }
+  let info: UnionInfo = unionInfo(union);
+  if (value.isEnum() && holdsError(union, value.structName)) {
+    return true;
+  }
+  if (value.isUnion()) {
+    let other: UnionInfo = unionInfo(value);
+    if (!other.value.equals(info.value)) {
+      return false;
+    }
+    for (index in 0..other.errors.count) {
+      if (!holdsError(union, other.errors.at(index))) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return info.value.accepts(value);
+}
+
+// The union `union` is once the error enum `removed` has been ruled out: its
+// value alone when that was its only error.
+fn without(union: Type, removed: *i8): Type {
+  let info: UnionInfo = unionInfo(union);
+  let rest: *List<*i8> = List<*i8>.new();
+  for (index in 0..info.errors.count) {
+    if (!equals(info.errors.at(index), removed)) {
+      rest.push(info.errors.at(index));
+    }
+  }
+  if (rest.count == 0) {
+    return info.value;
+  }
+  return unionOf(info.value, rest);
+}
+
+// ---------------------------------------------------------------------------
+// Error enums. Every error's number is unique in the program, counting from
+// 1, so a code says which error of which enum it is.
+// ---------------------------------------------------------------------------
+
+fn isErrorEnum(an: *Analyzer, name: *i8): bool {
+  return an.errorEnums.has(name);
+}
+
+// The first and last numbers of an error enum's errors, which are given to
+// them in order.
+export fn errorCodeRange(an: *Analyzer, name: *i8, first: *i64, last: *i64): void {
+  let declaration: i32 = enumDeclOf(an, name);
+  *first = an.values[an.ast.nodes[declaration].items[0]];
+  *last = an.values[an.ast.nodes[declaration].items[an.ast.nodes[declaration].itemCount - 1]];
+}
+
+// ---------------------------------------------------------------------------
+// Checking.
+// ---------------------------------------------------------------------------
+
+// A union type as written: `i64 | ParseError | IoError`.
+export fn parseUnionType(an: *Analyzer, node: i32): Type {
+  // A type is read again wherever it is used -- a signature when it is
+  // hoisted, and again when its body is checked -- but a wrong one is
+  // reported once.
+  if (an.isConstant[node] == 2) {
+    FAILED = true;
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let value: Type = analyzerParseType(an, an.ast.nodes[node].items[0]);
+  if (value.isEnum() && isErrorEnum(an, value.structName)) {
+    analyzerFail(an, node, Problem.UnionValueIsError, Facts.aboutType(value));
+    an.isConstant[node] = 2;
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let errors: *List<*i8> = List<*i8>.new();
+  for (index in 1..an.ast.nodes[node].itemCount) {
+    let member: Type = analyzerParseType(an, an.ast.nodes[node].items[index]);
+    if (!member.isEnum() || member.pointerDepth != 0 ||
+        !isErrorEnum(an, member.structName)) {
+      analyzerFail(an, an.ast.nodes[node].items[index], Problem.UnionMemberNotError,
+                   Facts.aboutType(member));
+      an.isConstant[node] = 2;
+      return Type.make(TypeKind.None, 0);
+    }
+    errors.push(member.structName);
+  }
+  return unionOf(value, errors);
+}
+
+// `try value`.
+export fn checkTry(an: *Analyzer, node: i32): Type {
+  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+  if (!type.isUnion()) {
+    analyzerFail(an, node, Problem.TryNotFallible, Facts.aboutType(type));
+    return Type.make(TypeKind.None, 0);
+  }
+  if (!an.inFunction) {
+    analyzerFail(an, node, Problem.TryOutsideFunction, Facts.none());
+    return Type.make(TypeKind.None, 0);
+  }
+
+  // Every error it may pass on has to be one the function can return.
+  let errors: *List<*i8> = unionInfo(type).errors;
+  for (index in 0..errors.count) {
+    if (!an.currentReturnType.isUnion() ||
+        !holdsError(an.currentReturnType, errors.at(index))) {
+      analyzerFail(an, node, Problem.ErrorNotReturned,
+                   Facts.about(errors.at(index)).withType(an.currentReturnType));
+      return Type.make(TypeKind.None, 0);
+    }
+  }
+  return valueOf(type);
+}
+
+// `value ?? fallback`: a union's value, or a pointer that is not null.
+export fn checkCoalesce(an: *Analyzer, node: i32): Type {
+  let left: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let result: Type = left;
+  if (left.isUnion()) {
+    result = valueOf(left);
+  } else if (!left.isPointer()) {
+    analyzerFail(an, node, Problem.CoalesceNotFallible, Facts.aboutType(left));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let fallback: Type = checkExprAs(an, an.ast.nodes[node].b, result);
+  if (!FAILED && !result.accepts(fallback)) {
+    analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.CoalesceTypes,
+                        Facts.aboutTypes(result, fallback));
+  }
+  return result;
+}
+
+// `value catch (e) { ... }`.
+export fn checkCatch(an: *Analyzer, node: i32): Type {
+  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+  if (!type.isUnion()) {
+    analyzerFail(an, node, Problem.CatchNotFallible, Facts.aboutType(type));
+    return Type.make(TypeKind.None, 0);
+  }
+  let errors: *List<*i8> = unionInfo(type).errors;
+  if (errors.count != 1) {
+    analyzerFail(an, node, Problem.CatchSeveralErrors, Facts.aboutType(type));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let block: i32 = an.ast.nodes[node].b;
+  an.symbols.enterScope();
+  an.symbols.declare(an.ast.nodes[node].text, SymbolKind.Var,
+                     Type.ofEnum(errors.at(0), 0), null, 0,
+                     an.ast.nodes[node].line, an.ast.nodes[node].column);
+  analyzeStatement(an, block);
+  an.symbols.exitScope();
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+
+  if (!alwaysLeaves(an, block)) {
+    analyzerFail(an, node, Problem.CatchFallsThrough, Facts.none());
+    return Type.make(TypeKind.None, 0);
+  }
+  return valueOf(type);
+}
+
+// `value is SomeError`.
+export fn checkIs(an: *Analyzer, node: i32): Type {
+  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+  let asked: Type = analyzerParseType(an, an.ast.nodes[node].b);
+  if (!asked.isEnum() || asked.pointerDepth != 0 ||
+      !isErrorEnum(an, asked.structName)) {
+    analyzerFail(an, an.ast.nodes[node].b, Problem.IsNotAnError,
+                 Facts.aboutType(asked));
+    return Type.make(TypeKind.None, 0);
+  }
+  if (!type.isUnion()) {
+    analyzerFail(an, node, Problem.IsNotFallible, Facts.aboutType(type));
+    return Type.make(TypeKind.None, 0);
+  }
+  if (!holdsError(type, asked.structName)) {
+    analyzerFail(an, node, Problem.IsNeverTrue,
+                 Facts.about(asked.toText()).withTypes(type, asked));
+    return Type.make(TypeKind.None, 0);
+  }
+  return Type.make(TypeKind.Bool, 0);
+}
+
+// Whether a statement can never be followed: it returns, breaks or continues
+// on every path.
+export fn alwaysLeaves(an: *Analyzer, node: i32): bool {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  if (kind == NodeKind.Return || kind == NodeKind.Break ||
+      kind == NodeKind.Continue) {
+    return true;
+  }
+  if (kind == NodeKind.Block) {
+    for (index in 0..an.ast.nodes[node].itemCount) {
+      if (alwaysLeaves(an, an.ast.nodes[node].items[index])) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (kind == NodeKind.If) {
+    return an.ast.nodes[node].c != NO_NODE &&
+           alwaysLeaves(an, an.ast.nodes[node].b) &&
+           alwaysLeaves(an, an.ast.nodes[node].c);
+  }
+  return false;
+}
+
+// What `if (name is SomeError)` tells the branches about `name`: in the
+// first, it holds that error; in the second -- or after the `if`, when the
+// first always leaves -- it does not. The variable read there has the
+// narrower type, and its storage is untouched.
+export fn narrowedLocal(an: *Analyzer, condition: i32): i32 {
+  if (an.ast.nodes[condition].kind != NodeKind.Is) {
+    return NO_NODE;
+  }
+  let value: i32 = an.ast.nodes[condition].a;
+  if (an.ast.nodes[value].kind != NodeKind.Ident || an.types[value].kind == TypeKind.None ||
+      !an.types[value].isUnion()) {
+    return NO_NODE;
+  }
+  return value;
+}
+
+// The type `name` was declared with, before any narrowing: the outermost
+// symbol of that name that is not a narrowing of it.
+export fn declaredTypeOf(an: *Analyzer, name: *i8): Type {
+  let symbol: i32 = an.symbols.find(name);
+  if (symbol < 0) {
+    return Type.make(TypeKind.None, 0);
+  }
+  return an.symbols.items[symbol].declared;
+}
+
+// Declares `name` again, innermost, with the type `type` -- shadowing it
+// for the rest of the current scope without the rule against redeclaring.
+export fn narrow(an: *Analyzer, name: *i8, type: Type): void {
+  let symbol: i32 = an.symbols.find(name);
+  let narrowed: Symbol = an.symbols.items[symbol];
+  narrowed.type = type;
+  // `declared` is kept: it is what the storage holds.
+  an.symbols.push(narrowed);
+}
+
+// The type `name` has where `condition` -- `name is SomeError` -- held, and
+// where it did not.
+export fn narrowedTypes(an: *Analyzer, condition: i32, held: *Type,
+                        notHeld: *Type): void {
+  let union: Type = an.types[an.ast.nodes[condition].a];
+  let asked: Type = analyzerParseType(an, an.ast.nodes[condition].b);
+  *held = asked;
+  *notHeld = without(union, asked.structName);
+}
+
+fn errorsOf(names: *i8, other: *i8): *List<*i8> {
+  let list: *List<*i8> = List<*i8>.new();
+  list.push(names);
+  if (other != null) {
+    list.push(other);
+  }
+  return list;
+}
+
+test "a union is the same whatever order its errors are written in" {
+  let i64Type: Type = Type.make(TypeKind.I64, 0);
+  let one: Type = unionOf(i64Type, errorsOf("ParseError", "IoError"));
+  let other: Type = unionOf(i64Type, errorsOf("IoError", "ParseError"));
+  assert(one.equals(other));
+  assertEq(one.toText(), "i64 | IoError | ParseError");
+  assert(unionOf(i64Type, errorsOf("IoError", "IoError"))
+             .equals(unionOf(i64Type, errorsOf("IoError", null))));
+}
+
+test "a union accepts its value, its errors, and narrower unions" {
+  let i64Type: Type = Type.make(TypeKind.I64, 0);
+  let wide: Type = unionOf(i64Type, errorsOf("IoError", "ParseError"));
+  let narrow: Type = unionOf(i64Type, errorsOf("ParseError", null));
+  assert(wide.accepts(i64Type));
+  assert(wide.accepts(Type.ofEnum("ParseError", 0)));
+  assert(wide.accepts(narrow));
+  assert(!narrow.accepts(wide));
+  assert(!wide.accepts(Type.make(TypeKind.I32, 0)));
+  assert(!wide.accepts(Type.ofEnum("OtherError", 0)));
+  assert(!wide.accepts(unionOf(Type.make(TypeKind.I32, 0), errorsOf("IoError", null))));
+  assert(!i64Type.accepts(wide));
+}
+
+test "ruling an error out leaves the rest, or the value alone" {
+  let i64Type: Type = Type.make(TypeKind.I64, 0);
+  let wide: Type = unionOf(i64Type, errorsOf("IoError", "ParseError"));
+  assertEq(without(wide, "IoError").toText(), "i64 | ParseError");
+  assert(without(without(wide, "IoError"), "ParseError").equals(i64Type));
+}

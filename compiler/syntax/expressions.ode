@@ -7,13 +7,48 @@
 // table -- so `a & b == c` is `a & (b == c)`.
 // ---------------------------------------------------------------------------
 
+import { equals } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { TokenKind, Token } from "./token";
 import { NO_NODE, NodeKind } from "./ast";
 import { Parser, parseType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
+import { parseBlock } from "./statements";
 
+// Expr -> Coalesce ('catch' '(' IDENT ')' Block)?
 export fn parseExpr(parser: *Parser): i32 {
-  return parseLogicOr(parser);
+  let value: i32 = parseCoalesce(parser);
+  if (parser.kind() != TokenKind.Catch) {
+    return value;
+  }
+
+  let at: *Token = parser.current();
+  parser.advance();
+  parser.expect(TokenKind.LParen, "(");
+  let name: *Token = parser.expect(TokenKind.Ident, "the error's name");
+  parser.expect(TokenKind.RParen, ")");
+  if (FAILED) {
+    return value;
+  }
+
+  let node: i32 = parser.ast.add(NodeKind.Catch, at.line, at.column);
+  parser.ast.setText(node, name);
+  parser.ast.nodes[node].a = value;
+  parser.ast.nodes[node].b = parseBlock(parser);
+  return node;
+}
+
+// Coalesce -> LogicOr ('??' LogicOr)*
+fn parseCoalesce(parser: *Parser): i32 {
+  let left: i32 = parseLogicOr(parser);
+
+  while (parser.kind() == TokenKind.Coalesce) {
+    let op: *Token = parser.current();
+    parser.advance();
+    let right: i32 = parseLogicOr(parser);
+    left = parseBinaryNode(parser, left, right, op);
+  }
+
+  return left;
 }
 
 // Every binary level has the same shape, so they share one helper: parse the
@@ -112,6 +147,17 @@ fn parseEquality(parser: *Parser): i32 {
 fn parseComparison(parser: *Parser): i32 {
   let left: i32 = parseShift(parser);
 
+  // `value is ParseError`. `is` is not a keyword: here, after a value, it
+  // can only be this.
+  if (parser.kind() == TokenKind.Ident && equals(parser.current().text, "is")) {
+    let at: *Token = parser.current();
+    parser.advance();
+    let node: i32 = parser.ast.add(NodeKind.Is, at.line, at.column);
+    parser.ast.nodes[node].a = left;
+    parser.ast.nodes[node].b = parseType(parser);
+    return node;
+  }
+
   while (parser.kind() == TokenKind.Gt || parser.kind() == TokenKind.Ge ||
          parser.kind() == TokenKind.Lt || parser.kind() == TokenKind.Le) {
     let op: *Token = parser.current();
@@ -189,6 +235,14 @@ fn parseCast(parser: *Parser): i32 {
 // non-numeric operand.
 fn parseUnary(parser: *Parser): i32 {
   let kind: TokenKind = parser.kind();
+
+  if (kind == TokenKind.Try) {
+    let at: *Token = parser.current();
+    parser.advance();
+    let node: i32 = parser.ast.add(NodeKind.Try, at.line, at.column);
+    parser.ast.nodes[node].a = parseUnary(parser);
+    return node;
+  }
 
   if (kind == TokenKind.Minus || kind == TokenKind.Plus || kind == TokenKind.Not ||
       kind == TokenKind.Star || kind == TokenKind.Amp) {

@@ -10,6 +10,7 @@
 
 import { alloc, grow } from "std/mem";
 import { Builder, equals, indexOf } from "std/text";
+import { unionAccepts } from "./errors";
 
 export enum TypeKind {
   // Not a type: what an expression the analyzer could not type is given.
@@ -34,6 +35,9 @@ export enum TypeKind {
   // A function, `fn(i32): bool`. Its signature, written out, is its name,
   // and two function types are the same when their signatures are.
   Function,
+  // A value or one of some errors, `i64 | ParseError`. Written out
+  // canonically, that is its name; see semantics/errors.ode.
+  Union,
 }
 // Not a type: the entry for a node that is not an expression.
 
@@ -64,6 +68,10 @@ export struct Type {
     return self.pointerDepth > 0;
   }
 
+  fn isUnion(self: Type): bool {
+    return self.kind == TypeKind.Union && self.pointerDepth == 0;
+  }
+
   fn isFunction(self: Type): bool {
     return self.kind == TypeKind.Function && self.pointerDepth == 0;
   }
@@ -82,6 +90,9 @@ export struct Type {
   fn accepts(self: Type, value: Type): bool {
     if (value.isNull()) {
       return self.isPointer() || self.isNull() || self.isFunction();
+    }
+    if (self.isUnion()) {
+      return unionAccepts(self, value);
     }
 
     return self.equals(value);
@@ -182,7 +193,7 @@ export struct Type {
     // Only a struct or an enum has a name, and two of them are the same type
     // only when they are the same declaration.
     if (self.kind != TypeKind.Struct && self.kind != TypeKind.Enum &&
-        self.kind != TypeKind.Function) {
+        self.kind != TypeKind.Function && self.kind != TypeKind.Union) {
       return true;
     }
 
@@ -207,6 +218,7 @@ export struct Type {
       TypeKind.Null => { return "null"; }
       TypeKind.Enum => { return self.structName; }
       TypeKind.Function => { return self.structName; }
+      TypeKind.Union => { return self.structName; }
       else => {}
     }
 

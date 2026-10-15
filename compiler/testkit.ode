@@ -39,7 +39,7 @@ import {
 import { TokenKind, TokenList } from "./syntax/token";
 import { NO_NODE, NodeKind, Ast } from "./syntax/ast";
 import { tokenize } from "./syntax/lexer";
-import { Parser, parseType } from "./syntax/parser";
+import { Parser, parseDeclaredType } from "./syntax/parser";
 import { parseExpr } from "./syntax/expressions";
 import { parseStatementRecovering } from "./syntax/statements";
 import { TypeKind, Type } from "./semantics/types";
@@ -292,7 +292,7 @@ fn enter(scope: *Scope): Fragment {
 // A type written as in a declaration, resolved the way one would be there.
 fn typeFromText(an: *Analyzer, root: i32, text: *i8): Type {
   let parser: *Parser = Parser.new(tokenize(text), an.ast);
-  let node: i32 = parseType(parser);
+  let node: i32 = parseDeclaredType(parser);
   an.growNodeArrays();
   rewriteNodeNames(an, root, node, null);
   return analyzerParseType(an, node);

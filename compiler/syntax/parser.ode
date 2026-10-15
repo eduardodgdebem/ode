@@ -208,6 +208,28 @@ export fn parseType(parser: *Parser): i32 {
   return node;
 }
 
+// DeclaredType -> Type ('|' Type)*
+//
+// Where a value is declared -- a variable, a parameter, a field, a return --
+// its type may be a union: the value, or one of the errors after it. Not
+// after `as`, where `|` stays the bitwise or it is in an expression.
+export fn parseDeclaredType(parser: *Parser): i32 {
+  let first: i32 = parseType(parser);
+  if (parser.kind() != TokenKind.Pipe) {
+    return first;
+  }
+
+  let node: i32 = parser.ast.add(NodeKind.UnionType,
+                                 parser.ast.nodes[first].line,
+                                 parser.ast.nodes[first].column);
+  parser.ast.addItem(node, first);
+  while (parser.kind() == TokenKind.Pipe && !FAILED) {
+    parser.advance();
+    parser.ast.addItem(node, parseType(parser));
+  }
+  return node;
+}
+
 // TypeArgs -> '<' Type (',' Type)* '>'
 //
 // The arguments become the items of `node`.

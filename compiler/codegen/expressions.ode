@@ -23,7 +23,10 @@ import {
   emitCondBranch, variableAddress, llvmName, internString, codegenFault,
 } from "./emitter";
 import { llvmTypeName, zeroValue } from "./layout";
-import { genAssert, genAssertEq, genNameOf } from "./testing";
+import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
+import {
+  wrapInUnion, genVariable, genTry, genCoalesce, genCatch, genIs,
+} from "./errors";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];
@@ -620,7 +623,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
   for (index in 0..argCount) {
     let argument: i32 = e.ast.nodes[args].items[index];
     values[index] = genExpr(e, argument);
-    types[index] = typeOfNode(e, argument);
+    types[index] = resultTypeOf(e, argument);
 
     // What goes through `...` is promoted the way C promotes it: anything
     // narrower than an int widens to i32, and an f32 to a double.
@@ -749,8 +752,35 @@ export fn genCharLiteral(e: *Emitter, node: i32): *i8 {
   return fromInt(value as i64);
 }
 
+// The type of what genExpr gives for `node`: its own, or the union it is
+// turned into where it is used.
+export fn resultTypeOf(e: *Emitter, node: i32): Type {
+  if (e.an.coerceTo[node].kind != TypeKind.None) {
+    return e.an.coerceTo[node];
+  }
+  return typeOfNode(e, node);
+}
+
 export fn genExpr(e: *Emitter, node: i32): *i8 {
+  let value: *i8 = genValue(e, node);
+  if (e.an.coerceTo[node].kind != TypeKind.None) {
+    return wrapInUnion(e, value, typeOfNode(e, node), e.an.coerceTo[node]);
+  }
+  return value;
+}
+
+fn genValue(e: *Emitter, node: i32): *i8 {
   let kind: NodeKind = e.ast.nodes[node].kind;
+
+  match (kind) {
+    NodeKind.Try => { return genTry(e, node); }
+    NodeKind.Catch => { return genCatch(e, node); }
+    NodeKind.Is => { return genIs(e, node); }
+    else => {}
+  }
+  if (kind == NodeKind.Binary && equals(e.ast.nodes[node].text, "??")) {
+    return genCoalesce(e, node);
+  }
 
   if (kind == NodeKind.Number) { return genNumberLiteral(e, node); }
 
@@ -780,8 +810,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   }
 
   if (kind == NodeKind.Ident) {
-    return emitLoad(e, typeOfNode(e, node),
-                    variableAddress(e, node));
+    return genVariable(e, node);
   }
 
   match (kind) {
