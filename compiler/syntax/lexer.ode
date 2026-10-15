@@ -9,7 +9,7 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals, copy, slice } from "std/text";
-import { failAt } from "../support/diagnostics";
+import { FAILED, report } from "../support/diagnostics";
 import { TokenKind, TokenList, kindName } from "./token";
 
 struct Lexer {
@@ -133,7 +133,8 @@ struct Lexer {
 
     while (true) {
       if (self.atEnd()) {
-        failAt(line, column, "unterminated string literal");
+        lexError(line, column, "unterminated string literal");
+        break;
       }
 
       let character: i8 = self.peek();
@@ -141,8 +142,11 @@ struct Lexer {
         self.advance();
         break;
       }
+      // The string is taken to end with its line, so the next line lexes as
+      // it was written.
       if (character == '\n') {
-        failAt(line, column, "string literal may not cross a newline");
+        lexError(line, column, "string literal may not cross a newline");
+        break;
       }
 
       if (character == '\\') {
@@ -172,15 +176,18 @@ struct Lexer {
     let raw: *Builder = Builder.new();
     while (self.peek() != '`') {
       if (self.atEnd()) {
-        failAt(line, column, "unterminated string literal");
+        lexError(line, column, "unterminated string literal");
+        break;
       }
       if (self.peek() == '$' && self.peekNext() == '{') {
-        failAt(self.line, self.column,
-               "a string cannot interpolate: `${` has no meaning in Ode");
+        lexError(self.line, self.column,
+                 "a string cannot interpolate: `${` has no meaning in Ode");
       }
       raw.push(self.advance());
     }
-    self.advance();
+    if (!self.atEnd()) {
+      self.advance();
+    }
 
     let text: *i8 = raw.take();
     if (text[0] == '\n') {
@@ -206,9 +213,15 @@ struct Lexer {
     }
 
     if (self.peek() != '\'') {
-      failAt(line, column, "character literal must hold exactly one character");
+      lexError(line, column, "character literal must hold exactly one character");
+      // Skip to its closing quote, if it has one on this line.
+      while (!self.atEnd() && self.peek() != '\'' && self.peek() != '\n') {
+        self.advance();
+      }
     }
-    self.advance();
+    if (self.peek() == '\'') {
+      self.advance();
+    }
 
     let count: i64 = text.length;
     list.add(TokenKind.Char, text.take(), count, line, column);
@@ -280,7 +293,9 @@ struct Lexer {
     else if (first == ',') { kind = TokenKind.Comma; }
     else if (first == ':') { kind = TokenKind.Colon; }
     else {
-      failAt(line, column, "unexpected character");
+      lexError(line, column, "unexpected character");
+      self.advance();
+      return;
     }
 
     self.advance();
@@ -366,8 +381,15 @@ fn escapeValue(character: i8, line: i32, column: i32): i8 {
   if (character == '"') { return '"'; }
   if (character == '\'') { return '\''; }
 
-  failAt(line, column, "unknown escape sequence");
-  return 0;
+  lexError(line, column, "unknown escape sequence");
+  return character;
+}
+
+// Records a lexer error and carries on: each is a mistake of its own, so every
+// one in the file is reported, though none of the file is parsed.
+fn lexError(line: i32, column: i32, message: *i8): void {
+  report(line, column, message);
+  FAILED = false;
 }
 
 // A leading `-` belongs to the literal only where the previous token cannot

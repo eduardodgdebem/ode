@@ -7,7 +7,9 @@
 import { strlen } from "std/c";
 import { readFile, writeFile, exists, removeFile } from "std/fs";
 import { Builder, slice } from "std/text";
-import { SOURCE_PATH, FAILED, report, fail } from "./support/diagnostics";
+import {
+  SOURCE_PATH, DIAGS, FAILED, report, hasErrors, fail,
+} from "./support/diagnostics";
 import {
   TextList, StderrMode, runCommand, environment, joinPath, withSuffix,
   parentDirectory, isExecutable, absolutePath,
@@ -31,9 +33,14 @@ export fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
   let module: i32 = moduleAdd(path, real);
   SOURCE_PATH = moduleDisplayPath(module);
 
+  // A file that did not lex is not parsed: the parser would only report the
+  // holes the lexer left.
+  let before: i32 = DIAGS.total;
   let tokens: *TokenList = tokenize(source);
   ast.currentModule = module;
-  parseModuleInto(Parser.new(tokens, ast), program);
+  if (DIAGS.total == before) {
+    parseModuleInto(Parser.new(tokens, ast), program);
+  }
 
   return module;
 }
@@ -93,6 +100,11 @@ export fn loadProgram(ast: *Ast, root: i32, path: *i8, tokens: *TokenList): void
     real = path;
   }
   moduleAdd(path, real);
+  // Tokens from a file that did not lex would only parse into more errors.
+  if (hasErrors()) {
+    SOURCE_PATH = path;
+    return;
+  }
   parseModuleInto(Parser.new(tokens, ast), root);
 
   loadImports(ast, root);
