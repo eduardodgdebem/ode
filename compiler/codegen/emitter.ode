@@ -11,9 +11,10 @@
 // parameters. Naming them sidesteps the rule entirely.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
-import { List } from "../support/list";
-import { Buf, textEquals } from "../support/text";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
+import { List } from "std/list";
+import { Builder, equals } from "std/text";
 import { Ast } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { Analyzer } from "../semantics/analyzer";
@@ -30,13 +31,13 @@ export struct Emitter {
   ast: *Ast,
   an: *Analyzer,
   // Struct bodies, string constants, globals and declarations.
-  head: *Buf,
+  head: *Builder,
   // Function definitions.
-  body: *Buf,
+  body: *Builder,
   // The current function's stack slots, which all go in its entry block: an
   // alloca where a local is declared would run again on every pass through
   // a loop, and take more stack each time.
-  allocas: *Buf,
+  allocas: *Builder,
   nextTemp: i32,
   nextLabel: i32,
   nextString: i32,
@@ -50,19 +51,19 @@ export struct Emitter {
 
   locals: *List<Local>,
   // Where each open scope's locals start, innermost last.
-  scopeStarts: *List<i32>,
+  scopeStarts: *List<i64>,
 
   // `continue` goes to the condition, `break` to the block after the loop.
   loopContinue: *List<*i8>,
   loopBreak: *List<*i8>,
 
   fn new(ast: *Ast, an: *Analyzer): *Emitter {
-    let e: *Emitter = malloc(sizeof(Emitter)) as *Emitter;
+    let e: *Emitter = alloc<Emitter>(1);
     e.ast = ast;
     e.an = an;
-    e.head = Buf.new();
-    e.body = Buf.new();
-    e.allocas = Buf.new();
+    e.head = Builder.new();
+    e.body = Builder.new();
+    e.allocas = Builder.new();
     e.nextTemp = 0;
     e.nextLabel = 0;
     e.nextString = 0;
@@ -70,7 +71,7 @@ export struct Emitter {
     e.usesChecks = false;
 
     e.locals = List<Local>.new();
-    e.scopeStarts = List<i32>.new();
+    e.scopeStarts = List<i64>.new();
     e.loopContinue = List<*i8>.new();
     e.loopBreak = List<*i8>.new();
 
@@ -83,7 +84,7 @@ export struct Emitter {
 // ---------------------------------------------------------------------------
 
 export fn freshTemp(e: *Emitter): *i8 {
-  let name: *Buf = Buf.new();
+  let name: *Builder = Builder.new();
   name.add("%t");
   name.addInt(e.nextTemp as i64);
   e.nextTemp = e.nextTemp + 1;
@@ -92,7 +93,7 @@ export fn freshTemp(e: *Emitter): *i8 {
 }
 
 export fn freshLabel(e: *Emitter): *i8 {
-  let name: *Buf = Buf.new();
+  let name: *Builder = Builder.new();
   name.add("L");
   name.addInt(e.nextLabel as i64);
   e.nextLabel = e.nextLabel + 1;
@@ -130,7 +131,7 @@ export fn emitBranch(e: *Emitter, label: *i8): void {
     return;
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("br label %");
   line.add(label);
   emitLine(e, line.data);
@@ -143,7 +144,7 @@ export fn emitCondBranch(e: *Emitter, condition: *i8, whenTrue: *i8,
     return;
   }
 
-  let line: *Buf = Buf.new();
+  let line: *Builder = Builder.new();
   line.add("br i1 ");
   line.add(condition);
   line.add(", label %");
@@ -175,10 +176,10 @@ export fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
 // goes by the IR name the analyzer resolved it to.
 export fn variableAddress(e: *Emitter, node: i32): *i8 {
   let name: *i8 = e.ast.nodes[node].text;
-  let index: i32 = e.locals.count - 1;
+  let index: i64 = e.locals.count - 1;
 
   while (index >= 0) {
-    if (textEquals(e.locals.at(index).name, name)) {
+    if (equals(e.locals.at(index).name, name)) {
       return e.locals.at(index).reg;
     }
     index = index - 1;
@@ -192,11 +193,11 @@ export fn variableAddress(e: *Emitter, node: i32): *i8 {
 export fn llvmName(sigil: i8, name: *i8): *i8 {
   // Under `ode test` the runner is the program's `main`, so the program's own
   // goes by another name.
-  if (sigil == '@' && TEST_MODE && textEquals(name, "main")) {
+  if (sigil == '@' && TEST_MODE && equals(name, "main")) {
     name = "ode.main";
   }
 
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.push(sigil);
 
   let bare: bool = true;
@@ -227,7 +228,7 @@ export fn llvmName(sigil: i8, name: *i8): *i8 {
 
 // One byte of an LLVM string constant. Anything outside plain printable ASCII
 // is written as \XX, and so are the quote and the backslash.
-fn emitIRByte(out: *Buf, value: i8): void {
+fn emitIRByte(out: *Builder, value: i8): void {
   let code: i32 = value as i32;
   if (code < 0) {
     code = code + 256;
@@ -253,7 +254,7 @@ export fn hexDigit(value: i32): i8 {
 
 // Adds a private constant for a string literal and returns its name.
 export fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
-  let name: *Buf = Buf.new();
+  let name: *Builder = Builder.new();
   name.add("@.str.");
   name.addInt(e.nextString as i64);
   e.nextString = e.nextString + 1;

@@ -23,9 +23,10 @@
 // own declarations and its imports, and nothing else.
 // ---------------------------------------------------------------------------
 
-import { malloc, memcpy, strlen, strncmp } from "../support/libc";
-import { List } from "../support/list";
-import { Buf, textEquals, textSlice } from "../support/text";
+import { memcpy, strlen, strncmp } from "std/c";
+import { alloc } from "std/mem";
+import { List } from "std/list";
+import { Builder, equals, slice, endsWith } from "std/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
 import { NO_NODE, NodeKind } from "../syntax/ast";
@@ -52,7 +53,7 @@ export fn moduleAdd(path: *i8, real: *i8): i32 {
   }
 
   MODULES.push(Module { path: path, real: real });
-  return MODULES.count - 1;
+  return (MODULES.count - 1) as i32;
 }
 
 // Whether the file `module` is part of the standard library.
@@ -65,7 +66,7 @@ export fn isLibraryModule(module: i32): bool {
     return false;
   }
 
-  let real: *i8 = MODULES.at(module).real;
+  let real: *i8 = MODULES.at(module as i64).real;
   let length: i64 = strlen(library);
   return strncmp(real, library, length) == 0 && real[length] == '/';
 }
@@ -78,9 +79,9 @@ export fn moduleDisplayPath(module: i32): *i8 {
     return modulePath(module);
   }
 
-  let real: *i8 = MODULES.at(module).real;
+  let real: *i8 = MODULES.at(module as i64).real;
   let library: *i8 = realpath(STD_DIRECTORY, null);
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add("std");
   out.add(real + strlen(library));
   return out.take();
@@ -91,12 +92,12 @@ export fn moduleCount(): i32 {
   if (MODULES == null) {
     return 0;
   }
-  return MODULES.count;
+  return MODULES.count as i32;
 }
 
 export fn moduleFind(real: *i8): i32 {
   for (index in 0..moduleCount()) {
-    if (textEquals(MODULES.at(index).real, real)) {
+    if (equals(MODULES.at(index as i64).real, real)) {
       return index;
     }
   }
@@ -105,18 +106,7 @@ export fn moduleFind(real: *i8): i32 {
 }
 
 export fn modulePath(module: i32): *i8 {
-  return MODULES.at(module).path;
-}
-
-export fn textEndsWith(text: *i8, suffix: *i8): bool {
-  let length: i64 = strlen(text);
-  let suffixLength: i64 = strlen(suffix);
-
-  if (suffixLength > length) {
-    return false;
-  }
-
-  return textEquals(text + (length - suffixLength), suffix);
+  return MODULES.at(module as i64).path;
 }
 
 // Everything up to and including the last `/`, or nothing for a bare name.
@@ -130,7 +120,7 @@ fn directoryOf(path: *i8): *i8 {
     }
   }
 
-  return textSlice(path, 0, end);
+  return slice(path, 0, end);
 }
 
 // Where `import ... from "<spec>"` written in `importer` points. A relative
@@ -152,7 +142,7 @@ export fn isStdImport(spec: *i8): bool {
 }
 
 export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
 
   // `std/list` is the standard library's list.ode. Anything else that is not
   // a path resolves to nothing, which the import then reports.
@@ -163,7 +153,7 @@ export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
     out.add(STD_DIRECTORY);
     out.push('/');
     out.add(spec + 4);
-    if (!textEndsWith(spec, ".ode")) {
+    if (!endsWith(spec, ".ode")) {
       out.add(".ode");
     }
     return out.take();
@@ -181,7 +171,7 @@ export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
   }
   out.add(rest);
 
-  if (!textEndsWith(rest, ".ode")) {
+  if (!endsWith(rest, ".ode")) {
     out.add(".ode");
   }
 
@@ -196,7 +186,7 @@ export struct NameSet {
   names: *List<*i8>,
 
   fn new(): *NameSet {
-    let set: *NameSet = malloc(sizeof(NameSet)) as *NameSet;
+    let set: *NameSet = alloc<NameSet>(1);
     set.names = List<*i8>.new();
 
     return set;
@@ -204,7 +194,7 @@ export struct NameSet {
 
   fn has(self: *NameSet, name: *i8): bool {
     for (index in 0..self.names.count) {
-      if (textEquals(self.names.at(index), name)) {
+      if (equals(self.names.at(index), name)) {
         return true;
       }
     }
@@ -223,7 +213,7 @@ export struct NameSet {
     let chosen: *i8 = name;
 
     if (self.has(chosen)) {
-      let qualified: *Buf = Buf.new();
+      let qualified: *Builder = Builder.new();
       qualified.add(stemOf(modulePath(module)));
       qualified.push('.');
       qualified.add(name);
@@ -233,7 +223,7 @@ export struct NameSet {
     // Two files with one stem, `a/util.ode` and `b/util.ode`, need the module
     // number to tell them apart.
     if (self.has(chosen)) {
-      let numbered: *Buf = Buf.new();
+      let numbered: *Builder = Builder.new();
       numbered.add(stemOf(modulePath(module)));
       numbered.addInt(module as i64);
       numbered.push('.');
@@ -265,7 +255,7 @@ export fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
     let kind: NodeKind = an.ast.nodes[item].kind;
 
     if (an.ast.nodes[item].module == module &&
-        textEquals(an.ast.nodes[item].text, name)) {
+        equals(an.ast.nodes[item].text, name)) {
       if (wantStruct && isTypeDecl(kind)) {
         return item;
       }
@@ -335,7 +325,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
         let method: i32 = an.ast.nodes[item].items[member];
 
         if (an.ast.nodes[method].kind == NodeKind.Fn) {
-          let name: *Buf = Buf.new();
+          let name: *Builder = Builder.new();
           name.add(an.linkNames[item]);
           name.push('.');
           name.add(an.ast.nodes[method].text);
@@ -394,7 +384,7 @@ fn checkImports(an: *Analyzer, program: i32): void {
         }
 
         if (asStruct == NO_NODE && asValue == NO_NODE) {
-          let message: *Buf = Buf.new();
+          let message: *Builder = Builder.new();
           message.add("module '");
           message.add(an.ast.nodes[item].text);
           message.add("' has no export named '");
@@ -402,7 +392,7 @@ fn checkImports(an: *Analyzer, program: i32): void {
           message.push('\'');
           importFail(an, importName, message.data);
         } else if (!exported) {
-          let message: *Buf = Buf.new();
+          let message: *Builder = Builder.new();
           message.push('\'');
           message.add(text);
           message.add("' is not exported from '");
@@ -437,7 +427,7 @@ fn resolveStructName(an: *Analyzer, program: i32, module: i32,
       for (entry in 0..an.ast.nodes[item].itemCount) {
         let importName: i32 = an.ast.nodes[item].items[entry];
 
-        if (textEquals(importLocalName(an, importName), name)) {
+        if (equals(importLocalName(an, importName), name)) {
           // A private struct has been reported at the import already; it
           // still resolves, so that the import is the only error it causes.
           let declared: i32 = findTopLevel(an, program, target,
@@ -459,7 +449,7 @@ fn findStructAnywhere(an: *Analyzer, program: i32, name: *i8): i32 {
   for (index in 0..an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
     if (isTypeDecl(an.ast.nodes[item].kind) &&
-        textEquals(an.ast.nodes[item].text, name)) {
+        equals(an.ast.nodes[item].text, name)) {
       return item;
     }
   }
@@ -468,7 +458,7 @@ fn findStructAnywhere(an: *Analyzer, program: i32, name: *i8): i32 {
 }
 
 fn setNodeText(an: *Analyzer, node: i32, text: *i8): void {
-  if (textEquals(an.ast.nodes[node].text, text)) {
+  if (equals(an.ast.nodes[node].text, text)) {
     return;
   }
 
@@ -550,7 +540,7 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
   // left for the analyzer's own "unknown type".
   let elsewhere: i32 = findStructAnywhere(an, program, name);
   if (elsewhere != NO_NODE) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("type '");
     message.add(name);
     message.add("' is declared in '");
@@ -585,7 +575,7 @@ export struct SymbolList {
     let items: *Symbol = null;
 
     if (count > 0) {
-      items = malloc(sizeof(Symbol) * count as i64) as *Symbol;
+      items = alloc<Symbol>(count as i64);
       memcpy(items as *i8, (table.items + start) as *i8,
              sizeof(Symbol) * count as i64);
     }
@@ -595,7 +585,7 @@ export struct SymbolList {
 
   fn find(self: SymbolList, name: *i8): i32 {
     for (index in 0..self.count) {
-      if (textEquals(self.items[index].name, name)) {
+      if (equals(self.items[index].name, name)) {
         return index;
       }
     }
@@ -650,3 +640,33 @@ export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
     index = index + 1;
   }
 }
+
+test "which imports are paths and which name the library" {
+  assert(isPathImport("./lib"));
+  assert(isPathImport("../lib"));
+  assert(isPathImport("/abs/lib"));
+  assert(!isPathImport("std/list"));
+  assert(!isPathImport("lib"));
+  assert(!isPathImport(".hidden"));
+  assert(!isPathImport("..lib"));
+  assert(isStdImport("std/list"));
+  assert(!isStdImport("std"));
+  assert(!isStdImport("stdlib/list"));
+  assert(!isStdImport("./std/list"));
+}
+
+test "import paths resolve against the importer or the library" {
+  assertEq(resolveImportPath("src/main.ode", "./util"), "src/util.ode");
+  assertEq(resolveImportPath("src/main.ode", "./././util.ode"), "src/util.ode");
+  assertEq(resolveImportPath("src/main.ode", "../lib/x"), "src/../lib/x.ode");
+  assertEq(resolveImportPath("src/main.ode", "/abs/x"), "/abs/x.ode");
+
+  let saved: *i8 = STD_DIRECTORY;
+  STD_DIRECTORY = "/opt/ode/std";
+  assertEq(resolveImportPath("src/main.ode", "std/list"), "/opt/ode/std/list.ode");
+  assertEq(resolveImportPath("src/main.ode", "lib/list"), null);
+  STD_DIRECTORY = null;
+  assertEq(resolveImportPath("src/main.ode", "std/list"), null);
+  STD_DIRECTORY = saved;
+}
+

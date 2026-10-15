@@ -6,8 +6,8 @@
 // declarations in statements.ode.
 // ---------------------------------------------------------------------------
 
-import { malloc } from "../support/libc";
-import { Buf } from "../support/text";
+import { alloc } from "std/mem";
+import { Builder } from "std/text";
 import { FAILED, report, fail } from "../support/diagnostics";
 import { TokenKind, Token, TokenList } from "./token";
 import { NodeKind, Ast } from "./ast";
@@ -21,7 +21,7 @@ export struct Parser {
   atTopLevel: bool,
 
   fn new(tokens: *TokenList, ast: *Ast): *Parser {
-    let parser: *Parser = malloc(sizeof(Parser)) as *Parser;
+    let parser: *Parser = alloc<Parser>(1);
     parser.tokens = tokens;
     parser.ast = ast;
     parser.pos = 0;
@@ -50,7 +50,7 @@ export struct Parser {
 
   fn fail(self: *Parser, expected: *i8): void {
     let token: *Token = self.current();
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("expected '");
     message.add(expected);
     message.add("' but got '");

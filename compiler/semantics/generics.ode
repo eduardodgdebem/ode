@@ -27,8 +27,9 @@
 // using `List<List<T>>` -- is stopped after a fixed number of rounds.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
-import { Buf, textEquals } from "../support/text";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
+import { Builder, equals, copy, contains } from "std/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import {
@@ -36,7 +37,6 @@ import {
 } from "./modules";
 import { Analyzer, analyzerFail, analyzerFail2, quoted } from "./analyzer";
 import { structDeclOf } from "./methods";
-import { textContains } from "../tool/testsuite";
 
 // How many rounds of new instances are made before giving up.
 let INSTANTIATION_LIMIT: i32 = 64;
@@ -80,7 +80,7 @@ fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
 
 // One flag per node: whether it is part of a generic's declaration.
 export fn markTemplates(an: *Analyzer, program: i32): *i8 {
-  let marks: *i8 = malloc(an.ast.count as i64);
+  let marks: *i8 = alloc<i8>(an.ast.count as i64);
   for (node in 0..an.ast.count) {
     marks[node] = 0;
   }
@@ -130,7 +130,7 @@ fn cloneSubtree(an: *Analyzer, node: i32): i32 {
 // `List<i32, *Point>`: a generic's name and its arguments, which names the
 // instance.
 fn instanceKey(an: *Analyzer, base: *i8, typeNode: i32): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add(base);
   out.push('<');
 
@@ -169,7 +169,7 @@ fn findInstance(an: *Analyzer, program: i32, key: *i8): i32 {
     let item: i32 = an.ast.nodes[program].items[index];
     let kind: NodeKind = an.ast.nodes[item].kind;
     if ((kind == NodeKind.Struct || kind == NodeKind.Fn) &&
-        !isTemplate(an, item) && textEquals(an.ast.nodes[item].text, key)) {
+        !isTemplate(an, item) && equals(an.ast.nodes[item].text, key)) {
       return item;
     }
   }
@@ -182,7 +182,7 @@ export fn structTemplateNamed(an: *Analyzer, program: i32, name: *i8): i32 {
   for (index in 0..an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
     if (an.ast.nodes[item].kind == NodeKind.Struct && isTemplate(an, item) &&
-        textEquals(an.linkNames[item], name)) {
+        equals(an.linkNames[item], name)) {
       return item;
     }
   }
@@ -209,7 +209,7 @@ export fn functionTemplateIn(an: *Analyzer, program: i32, module: i32,
         an.ast.nodes[item].module == module && target >= 0) {
       for (entry in 0..an.ast.nodes[item].itemCount) {
         let importName: i32 = an.ast.nodes[item].items[entry];
-        if (textEquals(importLocalName(an, importName), name)) {
+        if (equals(importLocalName(an, importName), name)) {
           let declared: i32 = findTopLevel(an, program, target,
                                            an.ast.nodes[importName].text,
                                            false);
@@ -238,7 +238,7 @@ fn checkArgumentCount(an: *Analyzer, typeNode: i32, template: i32,
     return true;
   }
 
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add(what);
   message.add(" '");
   message.add(an.ast.nodes[template].text);
@@ -276,7 +276,7 @@ fn instantiate(an: *Analyzer, program: i32, template: i32, typeNode: i32,
         an.ast.nodes[node].itemCount == 0) {
       for (index in 0..an.ast.nodes[paramsNode].itemCount) {
         let param: *i8 = an.ast.nodes[an.ast.nodes[paramsNode].items[index]].text;
-        if (textEquals(an.ast.nodes[node].text, param)) {
+        if (equals(an.ast.nodes[node].text, param)) {
           let arg: i32 = an.ast.nodes[typeNode].items[index];
           an.ast.nodes[node].text = an.ast.nodes[arg].text;
           an.ast.nodes[node].textLength = an.ast.nodes[arg].textLength;
@@ -296,7 +296,7 @@ fn instantiate(an: *Analyzer, program: i32, template: i32, typeNode: i32,
   for (index in 0..an.ast.nodes[instance].itemCount) {
     let member: i32 = an.ast.nodes[instance].items[index];
     if (an.ast.nodes[member].kind == NodeKind.Fn) {
-      let name: *Buf = Buf.new();
+      let name: *Builder = Builder.new();
       name.add(key);
       name.push('.');
       name.add(an.ast.nodes[member].text);
@@ -380,7 +380,7 @@ fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
 
   if (kind == NodeKind.Type && an.ast.nodes[node].itemCount == 0 &&
       structTemplateNamed(an, program, an.ast.nodes[node].text) != NO_NODE) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("generic struct '");
     message.add(an.ast.nodes[node].text);
     message.add("' needs type arguments: write ");
@@ -393,7 +393,7 @@ fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
   if ((kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) &&
       an.structRefs[node] != null &&
       structTemplateNamed(an, program, an.structRefs[node]) != NO_NODE) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("generic struct '");
     message.add(an.structRefs[node]);
     message.add("' needs type arguments: write ");
@@ -407,7 +407,7 @@ fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
   if (kind == NodeKind.Call && an.ast.nodes[node].b == NO_NODE &&
       functionTemplateIn(an, program, an.ast.nodes[node].module,
                          an.ast.nodes[node].text) != NO_NODE) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("generic function '");
     message.add(an.ast.nodes[node].text);
     message.add("' needs type arguments: write ");
@@ -438,7 +438,7 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
     changed = false;
     rounds = rounds + 1;
     if (rounds > INSTANTIATION_LIMIT) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("generic '");
       message.add(an.ast.nodes[lastTemplate].text);
       message.add("' keeps asking for bigger instances of itself");
@@ -504,7 +504,7 @@ export fn declareInstances(an: *Analyzer, program: i32, module: i32): void {
     let item: i32 = an.ast.nodes[program].items[index];
     let home: i32 = an.ast.nodes[item].module;
     if (an.ast.nodes[item].kind != NodeKind.Fn || home == module ||
-        isTemplate(an, item) || !textContains(an.ast.nodes[item].text, "<")) {
+        isTemplate(an, item) || !contains(an.ast.nodes[item].text, "<")) {
       continue;
     }
 

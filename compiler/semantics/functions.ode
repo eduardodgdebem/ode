@@ -19,8 +19,8 @@
 // are pointers to code, so they pass to and from C as its function pointers.
 // ---------------------------------------------------------------------------
 
-import { malloc } from "../support/libc";
-import { Buf, textEquals } from "../support/text";
+import { alloc } from "std/mem";
+import { Builder, equals } from "std/text";
 import { FAILED, failAt } from "../support/diagnostics";
 import { TypeKind, Type } from "./types";
 import {
@@ -51,7 +51,7 @@ export enum CallTarget {
 }
 
 fn signatureText(params: *Type, count: i32, result: Type): *i8 {
-  let out: *Buf = Buf.new();
+  let out: *Builder = Builder.new();
   out.add("fn(");
 
   for (index in 0..count) {
@@ -74,7 +74,7 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
   let text: *i8 = signatureText(params, count, result);
 
   for (index in 0..an.signatures.count) {
-    if (textEquals(an.signatures.at(index).text, text)) {
+    if (equals(an.signatures.at(index).text, text)) {
       return Type { kind: TypeKind.Function, pointerDepth: depth,
                     structName: an.signatures.at(index).text };
     }
@@ -88,9 +88,9 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
 }
 
 // Where the signature of a function type is in the table.
-export fn signatureIndex(an: *Analyzer, type: Type): i32 {
+export fn signatureIndex(an: *Analyzer, type: Type): i64 {
   for (index in 0..an.signatures.count) {
-    if (textEquals(an.signatures.at(index).text, type.structName)) {
+    if (equals(an.signatures.at(index).text, type.structName)) {
       return index;
     }
   }
@@ -104,7 +104,7 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
   let count: i32 = an.ast.nodes[node].itemCount;
   let params: *Type = null as *Type;
   if (count > 0) {
-    params = malloc(sizeof(Type) * count as i64) as *Type;
+    params = alloc<Type>(count as i64);
   }
 
   for (index in 0..count) {
@@ -144,7 +144,7 @@ export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
     return Type.make(TypeKind.None, 0);
   }
 
-  let signature: i32 = signatureIndex(an, callee);
+  let signature: i64 = signatureIndex(an, callee);
   let found: Signature = an.signatures.at(signature);
   checkArguments(an, node, name, args, found.params, found.count);
 

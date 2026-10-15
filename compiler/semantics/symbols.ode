@@ -7,9 +7,9 @@
 // shadows an outer one for free.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
-import { List } from "../support/list";
-import { Buf, textEquals } from "../support/text";
+import { alloc, grow } from "std/mem";
+import { List } from "std/list";
+import { Builder, equals } from "std/text";
 import { report } from "../support/diagnostics";
 import { Type } from "./types";
 
@@ -40,10 +40,10 @@ export struct SymbolTable {
   scopeStarts: *List<i32>,
 
   fn new(): *SymbolTable {
-    let table: *SymbolTable = malloc(sizeof(SymbolTable)) as *SymbolTable;
+    let table: *SymbolTable = alloc<SymbolTable>(1);
     table.capacity = 64;
     table.count = 0;
-    table.items = malloc(sizeof(Symbol) * table.capacity as i64) as *Symbol;
+    table.items = alloc<Symbol>(table.capacity as i64);
     table.scopeStarts = List<i32>.new();
 
     table.enterScope();
@@ -57,7 +57,7 @@ export struct SymbolTable {
 
   // How many scopes are open, for undoing the ones a failure left open.
   fn depth(self: *SymbolTable): i32 {
-    return self.scopeStarts.count;
+    return self.scopeStarts.count as i32;
   }
 
   fn exitScope(self: *SymbolTable): void {
@@ -71,7 +71,7 @@ export struct SymbolTable {
   // Innermost first, so a shadowing declaration wins.
   // Undoes the scopes an abandoned statement left open.
   fn truncateScopes(self: *SymbolTable, depth: i32): void {
-    while (self.scopeStarts.count > depth) {
+    while (self.scopeStarts.count > depth as i64) {
       self.exitScope();
     }
   }
@@ -80,7 +80,7 @@ export struct SymbolTable {
     let index: i32 = self.count - 1;
 
     while (index >= 0) {
-      if (textEquals(self.items[index].name, name)) {
+      if (equals(self.items[index].name, name)) {
         return index;
       }
       index = index - 1;
@@ -96,7 +96,7 @@ export struct SymbolTable {
     let index: i32 = self.count - 1;
 
     while (index >= start) {
-      if (textEquals(self.items[index].name, name)) {
+      if (equals(self.items[index].name, name)) {
         return index;
       }
       index = index - 1;
@@ -109,7 +109,7 @@ export struct SymbolTable {
              params: *Type, paramCount: i32, line: i32,
              column: i32): void {
     if (self.findInScope(name) >= 0) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("symbol '");
       message.add(name);
       message.add("' already declared in this scope");
@@ -119,9 +119,7 @@ export struct SymbolTable {
 
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(Symbol) * self.capacity as i64) as
-          *Symbol;
+      self.items = grow<Symbol>(self.items, self.capacity as i64);
     }
 
     let index: i32 = self.count;
@@ -139,9 +137,7 @@ export struct SymbolTable {
   fn push(self: *SymbolTable, symbol: Symbol): void {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(Symbol) * self.capacity as i64) as
-          *Symbol;
+      self.items = grow<Symbol>(self.items, self.capacity as i64);
     }
 
     self.items[self.count] = symbol;

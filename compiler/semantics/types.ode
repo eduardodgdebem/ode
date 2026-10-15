@@ -8,8 +8,8 @@
 // a `Type` is a small value with methods rather than a pointer to one.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
-import { Buf, textEquals } from "../support/text";
+import { alloc, grow } from "std/mem";
+import { Builder, equals, indexOf } from "std/text";
 
 export enum TypeKind {
   // Not a type: what an expression the analyzer could not type is given.
@@ -186,7 +186,7 @@ export struct Type {
       return true;
     }
 
-    return textEquals(self.structName, b.structName);
+    return equals(self.structName, b.structName);
   }
 
   fn baseName(self: Type): *i8 {
@@ -214,7 +214,7 @@ export struct Type {
   }
 
   fn toText(self: Type): *i8 {
-    let out: *Buf = Buf.new();
+    let out: *Builder = Builder.new();
 
     let depth: i32 = 0;
     while (depth < self.pointerDepth) {
@@ -231,19 +231,19 @@ export struct Type {
 // Returns TY_NONE when the name is not a built-in type keyword. `usize` is a
 // second spelling of u64.
 export fn typeKindFromName(name: *i8): TypeKind {
-  if (textEquals(name, "i8")) { return TypeKind.I8; }
-  if (textEquals(name, "u8")) { return TypeKind.U8; }
-  if (textEquals(name, "i16")) { return TypeKind.I16; }
-  if (textEquals(name, "u16")) { return TypeKind.U16; }
-  if (textEquals(name, "i32")) { return TypeKind.I32; }
-  if (textEquals(name, "u32")) { return TypeKind.U32; }
-  if (textEquals(name, "i64")) { return TypeKind.I64; }
-  if (textEquals(name, "u64")) { return TypeKind.U64; }
-  if (textEquals(name, "usize")) { return TypeKind.U64; }
-  if (textEquals(name, "f32")) { return TypeKind.F32; }
-  if (textEquals(name, "f64")) { return TypeKind.F64; }
-  if (textEquals(name, "bool")) { return TypeKind.Bool; }
-  if (textEquals(name, "void")) { return TypeKind.Void; }
+  if (equals(name, "i8")) { return TypeKind.I8; }
+  if (equals(name, "u8")) { return TypeKind.U8; }
+  if (equals(name, "i16")) { return TypeKind.I16; }
+  if (equals(name, "u16")) { return TypeKind.U16; }
+  if (equals(name, "i32")) { return TypeKind.I32; }
+  if (equals(name, "u32")) { return TypeKind.U32; }
+  if (equals(name, "i64")) { return TypeKind.I64; }
+  if (equals(name, "u64")) { return TypeKind.U64; }
+  if (equals(name, "usize")) { return TypeKind.U64; }
+  if (equals(name, "f32")) { return TypeKind.F32; }
+  if (equals(name, "f64")) { return TypeKind.F64; }
+  if (equals(name, "bool")) { return TypeKind.Bool; }
+  if (equals(name, "void")) { return TypeKind.Void; }
 
   return TypeKind.None;
 }
@@ -336,12 +336,11 @@ export struct StructTable {
   capacity: i32,
 
   fn new(): *StructTable {
-    let table: *StructTable = malloc(sizeof(StructTable)) as *StructTable;
+    let table: *StructTable = alloc<StructTable>(1);
     table.capacity = 16;
     table.count = 0;
     table.items =
-        malloc(sizeof(StructLayout) * table.capacity as i64) as
-            *StructLayout;
+        alloc<StructLayout>(table.capacity as i64);
 
     return table;
   }
@@ -349,7 +348,7 @@ export struct StructTable {
   // Returns -1 when no struct of that name has been declared.
   fn indexOf(self: *StructTable, name: *i8): i32 {
     for (index in 0..self.count) {
-      if (textEquals(self.items[index].name, name)) {
+      if (equals(self.items[index].name, name)) {
         return index;
       }
     }
@@ -361,9 +360,7 @@ export struct StructTable {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.items =
-          realloc(self.items as *i8,
-                  sizeof(StructLayout) * self.capacity as i64) as
-              *StructLayout;
+          grow<StructLayout>(self.items, self.capacity as i64);
     }
 
     let index: i32 = self.count;
@@ -371,7 +368,7 @@ export struct StructTable {
     self.items[index].count = 0;
     self.items[index].capacity = 4;
     self.items[index].fields =
-        malloc(sizeof(FieldDef) * 4) as *FieldDef;
+        alloc<FieldDef>(4);
     self.count = self.count + 1;
 
     return index;
@@ -381,7 +378,7 @@ export struct StructTable {
   fn fieldIndex(self: *StructTable, structIndex: i32,
                 name: *i8): i32 {
     for (index in 0..self.items[structIndex].count) {
-      if (textEquals(self.items[structIndex].fields[index].name, name)) {
+      if (equals(self.items[structIndex].fields[index].name, name)) {
         return index;
       }
     }
@@ -395,9 +392,7 @@ export struct StructTable {
       self.items[structIndex].capacity =
           self.items[structIndex].capacity * 2;
       self.items[structIndex].fields =
-          realloc(self.items[structIndex].fields as *i8,
-                  sizeof(FieldDef) *
-                      self.items[structIndex].capacity as i64) as *FieldDef;
+          grow<FieldDef>(self.items[structIndex].fields, self.items[structIndex].capacity as i64);
     }
 
     let index: i32 = self.items[structIndex].count;

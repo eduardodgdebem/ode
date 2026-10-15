@@ -72,7 +72,7 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 
 ```
 compiler/          the compiler, written in Ode; main.ode is its entry
-  support/         libc bindings, text, diagnostics, processes and files
+  support/         diagnostics, processes, pipes and directories
   syntax/          tokens, lexer, AST, parser
   semantics/       types, symbols, modules, the type checker
   codegen/         the LLVM IR emitter, and the C toolchain that links it

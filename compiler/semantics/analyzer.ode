@@ -10,9 +10,10 @@
 // generator can look the answer up instead of deriving it a second time.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc, free } from "../support/libc";
-import { List } from "../support/list";
-import { Buf, textEquals } from "../support/text";
+import { free } from "std/c";
+import { alloc, grow } from "std/mem";
+import { List } from "std/list";
+import { Builder, equals } from "std/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
@@ -78,7 +79,7 @@ export struct Analyzer {
   currentReturnType: Type,
 
   fn new(ast: *Ast): *Analyzer {
-    let an: *Analyzer = malloc(sizeof(Analyzer)) as *Analyzer;
+    let an: *Analyzer = alloc<Analyzer>(1);
     an.ast = ast;
     an.symbols = SymbolTable.new();
     an.structs = StructTable.new();
@@ -90,7 +91,7 @@ export struct Analyzer {
     an.globals = List<i32>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
-        malloc(sizeof(SymbolList) * moduleCount() as i64) as *SymbolList;
+        alloc<SymbolList>(moduleCount() as i64);
     an.loopDepth = 0;
     an.inFunction = false;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
@@ -109,37 +110,27 @@ export struct Analyzer {
     let old: i32 = self.nodeCapacity;
     let size: i64 = count as i64;
     if (old == 0) {
-      self.types = malloc(sizeof(Type) * size) as *Type;
-      self.isGlobal = malloc(size);
-      self.linkNames = malloc(sizeof(*i8) * size) as **i8;
-      self.receivers = malloc(sizeof(ReceiverMode) * size) as
-          *ReceiverMode;
-      self.structRefs = malloc(sizeof(*i8) * size) as **i8;
-      self.isConstant = malloc(size);
-      self.values = malloc(sizeof(i64) * size) as *i64;
-      self.functionRefs = malloc(size);
-      self.callTargets = malloc(sizeof(CallTarget) * size) as *CallTarget;
-      self.variadicAfter = malloc(sizeof(i32) * size) as *i32;
+      self.types = alloc<Type>(size);
+      self.isGlobal = alloc<i8>(size);
+      self.linkNames = alloc<*i8>(size);
+      self.receivers = alloc<ReceiverMode>(size);
+      self.structRefs = alloc<*i8>(size);
+      self.isConstant = alloc<i8>(size);
+      self.values = alloc<i64>(size);
+      self.functionRefs = alloc<i8>(size);
+      self.callTargets = alloc<CallTarget>(size);
+      self.variadicAfter = alloc<i32>(size);
     } else {
-      self.types = realloc(self.types as *i8, sizeof(Type) * size) as
-          *Type;
-      self.isGlobal = realloc(self.isGlobal, size);
-      self.linkNames = realloc(self.linkNames as *i8,
-                               sizeof(*i8) * size) as **i8;
-      self.receivers = realloc(self.receivers as *i8,
-                               sizeof(ReceiverMode) * size) as
-          *ReceiverMode;
-      self.structRefs = realloc(self.structRefs as *i8,
-                                sizeof(*i8) * size) as **i8;
-      self.isConstant = realloc(self.isConstant, size);
-      self.values = realloc(self.values as *i8, sizeof(i64) * size) as
-          *i64;
-      self.functionRefs = realloc(self.functionRefs, size);
-      self.callTargets = realloc(self.callTargets as *i8,
-                                 sizeof(CallTarget) * size) as
-          *CallTarget;
-      self.variadicAfter = realloc(self.variadicAfter as *i8,
-                                   sizeof(i32) * size) as *i32;
+      self.types = grow<Type>(self.types, size);
+      self.isGlobal = grow<i8>(self.isGlobal, size);
+      self.linkNames = grow<*i8>(self.linkNames, size);
+      self.receivers = grow<ReceiverMode>(self.receivers, size);
+      self.structRefs = grow<*i8>(self.structRefs, size);
+      self.isConstant = grow<i8>(self.isConstant, size);
+      self.values = grow<i64>(self.values, size);
+      self.functionRefs = grow<i8>(self.functionRefs, size);
+      self.callTargets = grow<CallTarget>(self.callTargets, size);
+      self.variadicAfter = grow<i32>(self.variadicAfter, size);
     }
 
     for (index in old..count) {
@@ -171,7 +162,7 @@ export fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
 
 export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
                         detail: *i8): void {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add(context);
   message.add(": ");
   message.add(detail);
@@ -181,7 +172,7 @@ export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
 
 // "expected 'a' but got 'b'"-shaped detail, which several checks want.
 export fn expectedButGot(expected: *i8, got: *i8): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("expected '");
   message.add(expected);
   message.add("' but got '");
@@ -192,7 +183,7 @@ export fn expectedButGot(expected: *i8, got: *i8): *i8 {
 }
 
 export fn gotType(type: Type): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("got '");
   message.add(type.toText());
   message.push('\'');
@@ -201,7 +192,7 @@ export fn gotType(type: Type): *i8 {
 }
 
 export fn gotTwoTypes(left: Type, right: Type): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("got '");
   message.add(left.toText());
   message.add("' and '");
@@ -212,7 +203,7 @@ export fn gotTwoTypes(left: Type, right: Type): *i8 {
 }
 
 export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add(prefix);
   message.push('\'');
   message.add(name);
@@ -254,7 +245,7 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
                                context: *i8): void {
   // A function type is valid when everything in its signature is.
   if (type.kind == TypeKind.Function) {
-    let signature: i32 = signatureIndex(an, type);
+    let signature: i64 = signatureIndex(an, type);
     for (index in 0..an.signatures.at(signature).count) {
       analyzerValidateType(an, node, an.signatures.at(signature).params[index],
                            context);
@@ -293,7 +284,7 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
     return null;
   }
 
-  let types: *Type = malloc(sizeof(Type) * count as i64) as *Type;
+  let types: *Type = alloc<Type>(count as i64);
 
   for (index in 0..count) {
     let param: i32 = an.ast.nodes[params].items[index];
@@ -341,7 +332,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     }
 
     if (an.structs.fieldIndex(structIndex, fieldName) >= 0) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("struct '");
       message.add(name);
       message.add("' declares field '");
@@ -352,7 +343,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
 
     let type: Type = analyzerParseType(an, an.ast.nodes[field].a);
 
-    let context: *Buf = Buf.new();
+    let context: *Builder = Builder.new();
     context.add("field '");
     context.add(fieldName);
     context.add("' of struct '");
@@ -361,7 +352,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     analyzerValidateType(an, node, type, context.data);
 
     if (type.isVoid()) {
-      let message: *Buf = Buf.new();
+      let message: *Builder = Builder.new();
       message.add("field '");
       message.add(fieldName);
       message.add("' of struct '");
@@ -381,8 +372,8 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
   let count: i32 = an.structs.count;
 
   for (start in 0..count) {
-    let seen: *i8 = malloc(count as i64);
-    let stack: *i32 = malloc(sizeof(i32) * count as i64) as *i32;
+    let seen: *i8 = alloc<i8>(count as i64);
+    let stack: *i32 = alloc<i32>(count as i64);
     let stackCount: i32 = 0;
 
     for (index in 0..count) {
@@ -401,7 +392,7 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
         let type: Type = an.structs.items[current].fields[field].type;
 
         if (type.isStruct()) {
-          if (textEquals(type.structName, an.structs.items[start].name)) {
+          if (equals(type.structName, an.structs.items[start].name)) {
             analyzerFail2(an, program,
                           quoted("struct ", an.structs.items[start].name,
                                  " contains itself"),
@@ -474,7 +465,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     what = "return type of extern '";
   }
 
-  let context: *Buf = Buf.new();
+  let context: *Builder = Builder.new();
   context.add(what);
   context.add(name);
   context.push('\'');
@@ -482,7 +473,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
 
   let index: i32 = 0;
   for (index in 0..paramCount) {
-    let paramContext: *Buf = Buf.new();
+    let paramContext: *Builder = Builder.new();
     if (kind == NodeKind.Extern) {
       paramContext.add("parameter of extern '");
     } else {

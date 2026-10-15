@@ -1,181 +1,19 @@
 // ---------------------------------------------------------------------------
-// Text: output, growable buffers, and the helpers on C strings.
-//
-// Ode's string is `*i8`, a pointer to NUL-terminated bytes, so text is C's
-// and the helpers here are written over libc. `Buf` is the one growable
-// buffer everything builds text in.
-// ---------------------------------------------------------------------------
-
-import {
-  malloc, realloc, free, memcpy, strlen, strcmp, write, STDOUT,
-} from "./libc";
-
-// ---------------------------------------------------------------------------
 // Output, straight to write(2) rather than through printf's format strings.
+//
+// Text itself -- the Builder every diagnostic and line of IR is made in,
+// and the helpers on C strings -- comes from std/text.
 // ---------------------------------------------------------------------------
+
+import { strlen, write } from "std/c";
+import { Builder } from "std/text";
 
 export fn writeText(fd: i32, text: *i8): void {
   write(fd, text, strlen(text));
 }
 
-// Buffers are written by their own length, because strlen would stop at the
+// A builder is written by its own length, because strlen would stop at the
 // first NUL and silently truncate anything holding a `'\0'`.
-export fn writeBuf(fd: i32, buffer: *Buf): void {
-  write(fd, buffer.data, buffer.length);
-}
-
-fn print2(a: *i8, b: *i8): void {
-  writeText(STDOUT, a);
-  writeText(STDOUT, b);
-}
-
-// ---------------------------------------------------------------------------
-// Growable, NUL-terminated text. Every diagnostic and every line of emitted
-// IR is built in one of these.
-// ---------------------------------------------------------------------------
-
-export struct Buf {
-  data: *i8,
-  length: i64,
-  capacity: i64,
-
-  fn new(): *Buf {
-    let buffer: *Buf = malloc(sizeof(Buf)) as *Buf;
-    buffer.capacity = 64;
-    buffer.length = 0;
-    buffer.data = malloc(buffer.capacity);
-    buffer.data[0] = 0;
-
-    return buffer;
-  }
-
-  fn reserve(self: *Buf, extra: i64): void {
-    // One spare byte is always kept for the terminator.
-    let needed: i64 = self.length + extra + 1;
-
-    if (needed <= self.capacity) {
-      return;
-    }
-
-    while (self.capacity < needed) {
-      self.capacity = self.capacity * 2;
-    }
-
-    self.data = realloc(self.data, self.capacity);
-  }
-
-  fn push(self: *Buf, character: i8): void {
-    self.reserve(1);
-    self.data[self.length] = character;
-    self.length = self.length + 1;
-    self.data[self.length] = 0;
-  }
-
-  // Appends a known number of bytes, which is the only way to carry text that
-  // contains a NUL -- a `'\0'` literal, or a string with one written into it.
-  fn addBytes(self: *Buf, text: *i8, count: i64): void {
-    self.reserve(count);
-    memcpy(self.data + self.length, text, count);
-    self.length = self.length + count;
-    self.data[self.length] = 0;
-  }
-
-  fn add(self: *Buf, text: *i8): void {
-    self.addBytes(text, strlen(text));
-  }
-
-  // Decimal, written out by hand rather than with snprintf.
-  fn addInt(self: *Buf, value: i64): void {
-    if (value == 0) {
-      self.push('0');
-      return;
-    }
-
-    // The magnitude is worked out as a u64, which holds that of every i64 --
-    // including the most negative, which no i64 can hold.
-    let rest: u64 = value as u64;
-    if (value < 0) {
-      self.push('-');
-      rest = 0 - rest;
-    }
-
-    // At most 20 digits fit in an i64, and they come out backwards.
-    let digits: *i8 = malloc(24);
-    let count: i32 = 0;
-
-    while (rest > 0) {
-      digits[count] = ('0' + rest % 10) as i8;
-      rest = rest / 10;
-      count = count + 1;
-    }
-
-    while (count > 0) {
-      count = count - 1;
-      self.push(digits[count]);
-    }
-
-    free(digits);
-  }
-
-  fn free(self: *Buf): void {
-    free(self.data);
-    free(self as *i8);
-  }
-
-  // Detaches the text so it outlives the buffer.
-  fn take(self: *Buf): *i8 {
-    let text: *i8 = self.data;
-    free(self as *i8);
-
-    return text;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Text helpers.
-// ---------------------------------------------------------------------------
-
-export fn textEquals(a: *i8, b: *i8): bool {
-  return strcmp(a, b) == 0;
-}
-
-export fn textCopy(text: *i8): *i8 {
-  let count: i64 = strlen(text);
-  let copy: *i8 = malloc(count + 1);
-  memcpy(copy, text, count);
-  copy[count] = 0;
-
-  return copy;
-}
-
-export fn textSlice(text: *i8, start: i64, count: i64): *i8 {
-  let copy: *i8 = malloc(count + 1);
-  memcpy(copy, text + start, count);
-  copy[count] = 0;
-
-  return copy;
-}
-
-export fn intToText(value: i64): *i8 {
-  let buffer: *Buf = Buf.new();
-  buffer.addInt(value);
-
-  return buffer.take();
-}
-
-test "intToText writes decimal, with a sign" {
-  assertEq(intToText(0), "0");
-  assertEq(intToText(42), "42");
-  assertEq(intToText(-7), "-7");
-  assertEq(intToText(-9223372036854775807 - 1), "-9223372036854775808");
-}
-
-test "a Buf grows past its first capacity" {
-  let out: *Buf = Buf.new();
-  for (index in 0..1000) {
-    out.push('x');
-  }
-  out.add("end");
-  assertEq(out.length, 1003);
-  assertEq(textSlice(out.data, 998, 5), "xxend");
+export fn writeBuilder(fd: i32, text: *Builder): void {
+  write(fd, text.data, text.length);
 }

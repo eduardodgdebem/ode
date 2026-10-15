@@ -4,7 +4,7 @@
 // A token is its kind, its text, and where it starts.
 // ---------------------------------------------------------------------------
 
-import { malloc, realloc } from "../support/libc";
+import { alloc, grow } from "std/mem";
 import { Type } from "../semantics/types";
 
 export enum TokenKind {
@@ -103,10 +103,10 @@ export struct TokenList {
   capacity: i32,
 
   fn new(): *TokenList {
-    let list: *TokenList = malloc(sizeof(TokenList)) as *TokenList;
+    let list: *TokenList = alloc<TokenList>(1);
     list.capacity = 256;
     list.count = 0;
-    list.items = malloc(sizeof(Token) * list.capacity as i64) as *Token;
+    list.items = alloc<Token>(list.capacity as i64);
 
     return list;
   }
@@ -115,8 +115,7 @@ export struct TokenList {
          line: i32, column: i32): void {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
-      self.items = realloc(self.items as *i8,
-                           sizeof(Token) * self.capacity as i64) as *Token;
+      self.items = grow<Token>(self.items, self.capacity as i64);
     }
 
     let index: i32 = self.count;

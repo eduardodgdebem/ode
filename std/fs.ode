@@ -9,15 +9,16 @@
 // Paths are relative to the directory the program runs in.
 // ---------------------------------------------------------------------------
 
-import { fopen, fclose, fread, fwrite, strlen } from "./c";
+import { fopen, fclose, fread, fwrite, ferror, strlen } from "./c";
 import { Builder } from "./text";
 import { alloc, release } from "./mem";
 
 extern fn access(path: *i8, mode: i32): i32;
 extern fn unlink(path: *i8): i32;
 
-// The whole of the file at `path`, or null when it cannot be read. A file
-// holding a NUL byte reads as text that ends there.
+// The whole of the file at `path`, or null when it cannot be read -- a
+// directory included. A file holding a NUL byte reads as text that ends
+// there.
 export fn readFile(path: *i8): *i8 {
   let stream: *i8 = fopen(path, "rb");
   if (stream == null) {
@@ -33,7 +34,12 @@ export fn readFile(path: *i8): *i8 {
   }
 
   release<i8>(chunk);
+  let failed: bool = ferror(stream) != 0;
   fclose(stream);
+  if (failed) {
+    release<i8>(out.take());
+    return null;
+  }
   return out.take();
 }
 
@@ -87,6 +93,7 @@ test "a file written is read back whole" {
 
 test "what cannot be read or written says so" {
   assertEq(readFile("no-such-file.txt"), null);
+  assertEq(readFile("."), null);
   assert(!writeFile("no-such-directory/file.txt", "text"));
   assert(!appendFile("no-such-directory/file.txt", "text"));
   assert(!removeFile("no-such-file.txt"));

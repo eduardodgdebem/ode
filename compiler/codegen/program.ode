@@ -6,7 +6,7 @@
 // and method. genProgram puts them together into the text handed to clang.
 // ---------------------------------------------------------------------------
 
-import { Buf, textEquals, intToText } from "../support/text";
+import { Builder, equals, fromInt } from "std/text";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
@@ -24,7 +24,7 @@ import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { genStatement } from "./statements";
 import { emitCheckSupport, emitTestMain } from "./testing";
 
-fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
+fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
   let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
 
   out.add(keyword);
@@ -49,7 +49,7 @@ fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
     out.add(llvmTypeName(analyzerParseType(e.an, e.ast.nodes[param].a)));
 
     // A declaration names no parameters; a definition needs them to store.
-    if (textEquals(keyword, "define")) {
+    if (equals(keyword, "define")) {
       out.add(" %p");
       out.addInt(index as i64);
     }
@@ -78,7 +78,7 @@ fn genFunction(e: *Emitter, node: i32): void {
   // The body is written after the entry label, and the slots it asks for are
   // collected apart and put in front of it once the function is done.
   let entry: i64 = e.body.length;
-  e.allocas = Buf.new();
+  e.allocas = Builder.new();
 
   emitterEnterScope(e);
 
@@ -93,7 +93,7 @@ fn genFunction(e: *Emitter, node: i32): void {
 
       let slot: *i8 = emitAlloca(e, llvmTypeName(type));
 
-      let incoming: *Buf = Buf.new();
+      let incoming: *Builder = Builder.new();
       incoming.add("%p");
       incoming.addInt(index as i64);
       emitStore(e, type, incoming.data, slot);
@@ -110,7 +110,7 @@ fn genFunction(e: *Emitter, node: i32): void {
     if (returnType.isVoid()) {
       emitLine(e, "ret void");
     } else {
-      let line: *Buf = Buf.new();
+      let line: *Builder = Builder.new();
       line.add("ret ");
       line.add(llvmTypeName(returnType));
       line.push(' ');
@@ -122,7 +122,7 @@ fn genFunction(e: *Emitter, node: i32): void {
   emitterExitScope(e);
   e.body.add("}\n\n");
 
-  let spliced: *Buf = Buf.new();
+  let spliced: *Builder = Builder.new();
   spliced.addBytes(e.body.data, entry);
   spliced.addBytes(e.allocas.data, e.allocas.length);
   spliced.addBytes(e.body.data + entry, e.body.length - entry);
@@ -136,7 +136,7 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
 
   // An integer's value was worked out by the analyzer.
   if (type.isInteger() && kind != NodeKind.Number) {
-    return intToText(e.an.values[node]);
+    return fromInt(e.an.values[node]);
   }
   // Any other global made from an earlier one shares its initialiser.
   let source: i32 = globalDeclOf(e.an, node);
@@ -155,24 +155,24 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     return llvmName('@', e.an.linkNames[node]);
   }
   if (kind == NodeKind.FieldAccess) {
-    return intToText(e.an.values[node]);
+    return fromInt(e.an.values[node]);
   }
   if (kind == NodeKind.Cast) {
     return genConstant(e, e.ast.nodes[node].a, type);
   }
   if (kind == NodeKind.Unary) {
     let inner: *i8 = genConstant(e, e.ast.nodes[node].a, type);
-    let out: *Buf = Buf.new();
+    let out: *Builder = Builder.new();
     out.push('-');
     out.add(inner);
     return out.take();
   }
   if (kind == NodeKind.Sizeof) {
-    return intToText(sizeOf(e.an.structs, analyzerParseType(e.an,
+    return fromInt(sizeOf(e.an.structs, analyzerParseType(e.an,
                                                      e.ast.nodes[node].a)) as i64);
   }
   if (kind == NodeKind.Bool) {
-    if (textEquals(e.ast.nodes[node].text, "true")) {
+    if (equals(e.ast.nodes[node].text, "true")) {
       return "true";
     }
     return "false";
@@ -187,11 +187,11 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   if (type.isPointer()) {
     let text: *i8 = genNumberLiteral(e, node);
 
-    if (textEquals(text, "0")) {
+    if (equals(text, "0")) {
       return "null";
     }
 
-    let out: *Buf = Buf.new();
+    let out: *Builder = Builder.new();
     out.add("inttoptr (i64 ");
     out.add(text);
     out.add(" to ptr)");
@@ -260,8 +260,8 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
 
   // Under `ode test`, each test is a function, listed for the runner by its
   // address and its name.
-  let tests: *Buf = Buf.new();
-  let testNames: *Buf = Buf.new();
+  let tests: *Builder = Builder.new();
+  let testNames: *Builder = Builder.new();
   let testCount: i32 = 0;
 
   for (index in 0..count) {
@@ -273,7 +273,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
 
     if (e.ast.nodes[statement].kind == NodeKind.Test && TEST_MODE &&
         runsTestsOf(e.ast.nodes[statement].module)) {
-      let name: *Buf = Buf.new();
+      let name: *Builder = Builder.new();
       name.add("ode.test.");
       name.addInt(testCount as i64);
       e.an.linkNames[statement] = name.take();
@@ -311,7 +311,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   }
   emitCheckSupport(e, declared);
 
-  let module: *Buf = Buf.new();
+  let module: *Builder = Builder.new();
   module.addBytes(e.head.data, e.head.length);
   module.push('\n');
   module.addBytes(e.body.data, e.body.length);

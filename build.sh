@@ -30,7 +30,8 @@ if [ ! -x "$ODE" ]; then
     -Wno-override-module ${sysroot[@]+"${sysroot[@]}"}
   # The seed compiles the sources directly rather than through its own `ode
   # build`, so the script keeps working with a seed that predates the layout.
-  "$STAGE0" -o "$ODE" "$ROOT_DIR/compiler/main.ode"
+  # The compiler imports the standard library, which must be this checkout's.
+  ODE_STD="$ROOT_DIR/std" "$STAGE0" -o "$ODE" "$ROOT_DIR/compiler/main.ode"
 fi
 
 exec "$ODE" build "$@"

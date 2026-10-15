@@ -11,7 +11,7 @@
 // them change their arguments.
 // ---------------------------------------------------------------------------
 
-import { strlen, strcmp, strncmp, strstr, memcpy } from "./c";
+import { strlen, strnlen, strcmp, strncmp, strstr, memcpy } from "./c";
 import { alloc, grow, release } from "./mem";
 
 export fn length(text: *i8): i64 {
@@ -48,9 +48,12 @@ export fn contains(text: *i8, part: *i8): bool {
   return strstr(text, part) != null;
 }
 
-// The `count` bytes of `text` from `start`, as a string of their own.
+// The `count` bytes of `text` from `start`, as a string of their own. It
+// stops the program when those bytes run past the end of the text -- found
+// by looking at them alone, so slicing a little out of a long text costs no
+// more than the slice.
 export fn slice(text: *i8, start: i64, count: i64): *i8 {
-  assert(start >= 0 && count >= 0 && start + count <= strlen(text),
+  assert(start >= 0 && count >= 0 && strnlen(text + start, count) == count,
          "slice out of range");
   let out: *i8 = alloc<i8>(count + 1);
   memcpy(out, text + start, count);

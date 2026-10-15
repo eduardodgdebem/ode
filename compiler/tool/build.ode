@@ -20,22 +20,24 @@
 // fraction of a second anyway, so finer-grained tracking would buy nothing.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen, STDOUT, STDERR } from "../support/libc";
-import {
-  writeText, Buf, textEquals, textSlice, intToText,
-} from "../support/text";
+import { strlen } from "std/c";
+import { alloc } from "std/mem";
+import { readFile, exists } from "std/fs";
+import { Builder, equals, slice, fromInt } from "std/text";
+import { STDOUT, STDERR } from "../support/libc";
+import { writeText } from "../support/text";
 import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED,
 } from "../support/diagnostics";
 import {
-  TextList, StderrMode, runCommand, environment, currentDirectory, joinPath,
-  withSuffix, parentDirectory, fileExists, isExecutable, absolutePath,
-  readBytes, writeBytes, sameBytes, makeDirectories, removeTree, moveFile,
-  readFile,
+  TextList, StderrMode, runCommand, environment, setEnvironment,
+  currentDirectory, joinPath, withSuffix, parentDirectory, isExecutable,
+  absolutePath, readBytes, writeBytes, sameBytes, makeDirectories, removeTree,
+  moveFile,
 } from "../support/system";
 import { NodeKind, Ast } from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
-import { moduleCount, modulePath } from "../semantics/modules";
+import { moduleCount, modulePath, STD_DIRECTORY } from "../semantics/modules";
 import { quoted } from "../semantics/analyzer";
 import { hexDigit } from "../codegen/emitter";
 import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
@@ -80,7 +82,7 @@ struct Hasher {
   }
 
   fn hex(self: Hasher): *i8 {
-    let out: *Buf = Buf.new();
+    let out: *Builder = Builder.new();
     let shift: i32 = 60;
     while (shift >= 0) {
       let digit: u64 = (self.value >> shift as u64) & 15;
@@ -125,7 +127,7 @@ fn hashInputs(ws: *Workspace): Inputs {
 
   let lines: i32 = 0;
   for (module in 0..moduleCount()) {
-    let bytes: *Buf = readBytes(modulePath(module));
+    let bytes: *Builder = readBytes(modulePath(module));
     hasher.addText(modulePath(module));
     if (bytes != null) {
       hasher.addBytes(bytes.data, bytes.length);
@@ -160,7 +162,7 @@ export fn complain(text: *i8): void {
 fn shown(ws: *Workspace, path: *i8): *i8 {
   let length: i64 = strlen(ws.root);
   if (strlen(path) > length && path[length] == '/' &&
-      textEquals(textSlice(path, 0, length), ws.root)) {
+      equals(slice(path, 0, length), ws.root)) {
     return path + (length + 1);
   }
 
@@ -177,11 +179,11 @@ fn findRoot(): *i8 {
   let directory: *i8 = currentDirectory();
 
   while (directory != null) {
-    if (fileExists(joinPath(directory, "compiler/main.ode")) &&
-        fileExists(joinPath(directory, "bootstrap/ode.ll"))) {
+    if (exists(joinPath(directory, "compiler/main.ode")) &&
+        exists(joinPath(directory, "bootstrap/ode.ll"))) {
       return directory;
     }
-    if (textEquals(directory, "/")) {
+    if (equals(directory, "/")) {
       return null;
     }
     directory = parentDirectory(directory);
@@ -211,7 +213,7 @@ fn findSelf(invokedAs: *i8): *i8 {
   while (true) {
     let character: i8 = searchPath[index];
     if (character == ':' || character == 0) {
-      let directory: *i8 = textSlice(searchPath, start, index - start);
+      let directory: *i8 = slice(searchPath, start, index - start);
       let candidate: *i8 = joinPath(directory, invokedAs);
       if (strlen(directory) > 0 && isExecutable(candidate)) {
         return absolutePath(candidate);
@@ -239,11 +241,11 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
   makeDirectories(parentDirectory(ws.output));
 
   let inputs: Inputs = hashInputs(ws);
-  let stamp: *Buf = readBytes(stampPath(ws));
+  let stamp: *Builder = readBytes(stampPath(ws));
 
-  if (!force && fileExists(ws.output) && stamp != null &&
-      textEquals(stamp.data, inputs.hash)) {
-    let message: *Buf = Buf.new();
+  if (!force && exists(ws.output) && stamp != null &&
+      equals(stamp.data, inputs.hash)) {
+    let message: *Builder = Builder.new();
     message.add(shown(ws, ws.output));
     message.add(" is up to date");
     say(message.data);
@@ -255,7 +257,7 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
   let target: *i8 = ws.output;
   let inPlace: bool = false;
   let outputReal: *i8 = absolutePath(ws.output);
-  if (outputReal != null && textEquals(outputReal, ws.compiler)) {
+  if (outputReal != null && equals(outputReal, ws.compiler)) {
     inPlace = true;
     target = withSuffix(ws.output, ".new");
   }
@@ -273,11 +275,11 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
     moveFile(withSuffix(target, ".o"), withSuffix(ws.output, ".o"));
   }
 
-  let record: *Buf = Buf.new();
+  let record: *Builder = Builder.new();
   record.add(inputs.hash);
   writeBytes(stampPath(ws), record);
 
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("built ");
   message.add(shown(ws, ws.output));
   message.add(" from ");
@@ -308,7 +310,7 @@ fn commandBootstrap(ws: *Workspace): i32 {
   let from: *i8 = ws.output;
   let stage: i32 = 1;
   while (stage <= 2) {
-    let message: *Buf = Buf.new();
+    let message: *Builder = Builder.new();
     message.add("stage ");
     message.addInt(stage as i64);
     message.add(": ode");
@@ -317,7 +319,7 @@ fn commandBootstrap(ws: *Workspace): i32 {
     message.addInt((stage + 1) as i64);
     say(message.data);
 
-    let directory: *i8 = joinPath(work, intToText(stage as i64));
+    let directory: *i8 = joinPath(work, fromInt(stage as i64));
     makeDirectories(directory);
     let to: *i8 = joinPath(directory, "ode");
 
@@ -332,13 +334,13 @@ fn commandBootstrap(ws: *Workspace): i32 {
     stage = stage + 1;
   }
 
-  let second: *Buf = readBytes(joinPath(work, "1/ode"));
-  let third: *Buf = readBytes(joinPath(work, "2/ode"));
+  let second: *Builder = readBytes(joinPath(work, "1/ode"));
+  let third: *Builder = readBytes(joinPath(work, "2/ode"));
 
   say("");
   if (sameBytes(second, third)) {
     say("fixed point reached: ode2 and ode3 are byte-identical");
-    let size: *Buf = Buf.new();
+    let size: *Builder = Builder.new();
     size.add("  ");
     size.addInt(second.length);
     size.add(" bytes");
@@ -352,7 +354,7 @@ fn commandBootstrap(ws: *Workspace): i32 {
     offset = offset + 1;
   }
 
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("NOT a fixed point: ode2 and ode3 differ, first at byte ");
   message.addInt(offset);
   complain(message.data);
@@ -368,7 +370,7 @@ fn commandSeed(ws: *Workspace): i32 {
     return 1;
   }
 
-  let ir: *Buf = Buf.new();
+  let ir: *Builder = Builder.new();
   let command: *TextList = TextList.new().add(ws.output);
   command.add("--emit-llvm").add(ws.entry);
   if (runCommand(command, null, ir, StderrMode.Inherit) != 0) {
@@ -382,7 +384,7 @@ fn commandSeed(ws: *Workspace): i32 {
     return 1;
   }
 
-  let message: *Buf = Buf.new();
+  let message: *Builder = Builder.new();
   message.add("wrote ");
   message.add(shown(ws, seed));
   message.add(" (");
@@ -412,17 +414,17 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
   while (index < argc) {
     let argument: *i8 = argv[index];
 
-    if (textEquals(argument, "--force")) {
+    if (equals(argument, "--force")) {
       force = true;
-    } else if (textEquals(argument, "--update")) {
+    } else if (equals(argument, "--update")) {
       options.update = true;
-    } else if (textEquals(argument, "--filter") ||
-               textEquals(argument, "--ode")) {
+    } else if (equals(argument, "--filter") ||
+               equals(argument, "--ode")) {
       if (index + 1 >= argc) {
         return buildUsage();
       }
       index = index + 1;
-      if (textEquals(argument, "--filter")) {
+      if (equals(argument, "--filter")) {
         options.filter = argv[index];
       } else {
         options.compiler = absolutePath(argv[index]);
@@ -431,7 +433,7 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
           return 2;
         }
       }
-    } else if (textEquals(argument, "-h") || textEquals(argument, "--help")) {
+    } else if (equals(argument, "-h") || equals(argument, "--help")) {
       writeText(STDOUT, BUILD_USAGE);
       return 0;
     } else if (argument[0] == '-' || command != null) {
@@ -459,26 +461,30 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
     return 2;
   }
 
-  let ws: *Workspace = malloc(sizeof(Workspace)) as *Workspace;
+  let ws: *Workspace = alloc<Workspace>(1);
   ws.root = root;
   ws.compiler = compiler;
   ws.entry = joinPath(root, "compiler/main.ode");
   ws.output = joinPath(root, "build/ode");
 
   // Everything below starts compiles of its own; they share one answer to
-  // which SDK to use rather than each asking for it.
+  // which SDK to use rather than each asking for it -- and to which standard
+  // library to use, which is this repository's, wherever the compiler doing
+  // the compiling happens to live.
   shareSysroot();
+  STD_DIRECTORY = joinPath(root, "std");
+  setEnvironment("ODE_STD", STD_DIRECTORY);
 
-  if (textEquals(command, "build")) {
+  if (equals(command, "build")) {
     return commandBuild(ws, force);
   }
-  if (textEquals(command, "test")) {
+  if (equals(command, "test")) {
     return commandTest(ws, options);
   }
-  if (textEquals(command, "bootstrap")) {
+  if (equals(command, "bootstrap")) {
     return commandBootstrap(ws);
   }
-  if (textEquals(command, "seed")) {
+  if (equals(command, "seed")) {
     return commandSeed(ws);
   }
 
