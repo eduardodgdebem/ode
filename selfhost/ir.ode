@@ -12,6 +12,26 @@
 // parameters. Naming them sidesteps the rule entirely.
 // ---------------------------------------------------------------------------
 
+import {
+  malloc, realloc, strlen, nullText, Buf, bufNew, bufPush, bufAddBytes, bufAdd,
+  bufAddInt, bufTake, textEquals, intToText, failAt,
+} from "./prelude";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_CALL, NK_RETURN, NK_PRINT,
+  NK_EXPRSTMT, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
+  NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
+  Ast,
+} from "./ast";
+import {
+  TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
+  TY_BOOL, TY_VOID, TY_STRUCT, Type, typeMake, typeStruct, typeIsPointer,
+  typeIsVoid, typeIsBool, typeIsInteger, typeIsFloat, typeIsSigned,
+  typeBitWidth, typePointee, typeEquals, structIndexOf, structFieldIndex,
+} from "./type";
+import { NameSet, nameSetNew, nameSetHas, nameSetAdd } from "./modules";
+import { Analyzer, analyzerParseType, textHasDot } from "./analyzer";
+
 struct Local {
   name: *i8,
   // The alloca holding it, as a register name.
@@ -19,7 +39,7 @@ struct Local {
   type: Type,
 }
 
-struct Emitter {
+export struct Emitter {
   ast: *Ast,
   an: *Analyzer,
   // Struct bodies, string constants, globals and declarations.
@@ -48,7 +68,7 @@ struct Emitter {
   loopCapacity: i32,
 }
 
-fn emitterNew(ast: *Ast, an: *Analyzer): *Emitter {
+export fn emitterNew(ast: *Ast, an: *Analyzer): *Emitter {
   let e: *Emitter = malloc(sizeof(Emitter) as i64) as *Emitter;
   e.ast = ast;
   e.an = an;
@@ -1356,7 +1376,7 @@ fn genGlobal(e: *Emitter, node: i32): void {
   bufPush(e.head, '\n');
 }
 
-fn genProgram(e: *Emitter, program: i32): *i8 {
+export fn genProgram(e: *Emitter, program: i32): *i8 {
   let count: i32 = e.ast.nodes[program].itemCount;
 
   // Named struct types come first, so a function signature can mention one.

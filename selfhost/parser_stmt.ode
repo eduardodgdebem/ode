@@ -2,6 +2,29 @@
 // Statements and declarations.
 // ---------------------------------------------------------------------------
 
+import {
+  Buf, bufNew, bufPush, bufAdd, textEquals, textSlice, FAILED, report,
+} from "./prelude";
+import {
+  TK_NONE, TK_END, TK_IDENT, TK_STRING, TK_LET, TK_IF, TK_ELSE, TK_FN,
+  TK_EXTERN, TK_STRUCT, TK_RETURN, TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT,
+  TK_AS, TK_IMPORT, TK_EXPORT, TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH,
+  TK_PERCENT, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_STAR_ASSIGN, TK_SLASH_ASSIGN,
+  TK_PERCENT_ASSIGN, TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_SEMICOLON,
+  TK_COMMA, TK_COLON, Token,
+} from "./token";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELD, NK_RETURN, NK_PRINT,
+  NK_EXPRSTMT, NK_BINARY, NK_IDENT, NK_PARAMS, NK_PARAM, NK_IMPORT,
+  NK_IMPORTNAME, astAdd, astSetText, astAddItem,
+} from "./ast";
+import {
+  Parser, parserCurrent, parserKind, parserAdvance, parserFail,
+  parserErrorNode, startsStatement, parserSynchronize, parserExpect, parseType,
+  parseExpr,
+} from "./parser";
+
 // `a op= b` is sugar for `a = a op b`; this names the binary operator each
 // compound token stands for, or TK_NONE when the token is not one.
 fn compoundAssignOp(kind: i32): i32 {
@@ -501,7 +524,7 @@ fn parseExportDecl(parser: *Parser): i32 {
 
 // Parses one file's top level onto the end of `program`, which is shared by
 // every file in the build.
-fn parseModuleInto(parser: *Parser, program: i32): void {
+export fn parseModuleInto(parser: *Parser, program: i32): void {
   while (parserKind(parser) != TK_END) {
     let statement: i32 = parseStatementRecovering(parser);
     if (statement != NO_NODE) {

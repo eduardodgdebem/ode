@@ -10,7 +10,37 @@
 // generator can look the answer up instead of deriving it a second time.
 // ---------------------------------------------------------------------------
 
-struct Analyzer {
+import {
+  malloc, free, nullText, Buf, bufNew, bufPush, bufAdd, bufAddInt, bufTake,
+  textEquals, FAILED, report, failAt,
+} from "./prelude";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_CALL, NK_RETURN, NK_PRINT,
+  NK_EXPRSTMT, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
+  NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
+  NK_TYPE, NK_PARAMS, NK_IMPORT, Ast,
+} from "./ast";
+import {
+  TY_NONE, TY_I8, TY_I32, TY_I64, TY_U64, TY_F32, TY_BOOL, TY_VOID, TY_STRUCT,
+  Type, typeMake, typeStruct, typeIsPointer, typeIsStruct, typeIsVoid,
+  typeIsBool, typeIsInteger, typeIsFloat, typeIsNumeric, typeBitWidth,
+  typePointee, typePointerTo, typeEquals, typeToText, typeKindFromName, fitsIn,
+  parseMagnitude, StructTable, structTableNew, structIndexOf, structTableAdd,
+  structFieldIndex, structAddField,
+} from "./type";
+import {
+  SYM_VAR, SYM_FN, SymbolTable, symbolTableNew, symbolEnterScope,
+  symbolExitScope, symbolTruncateScopes, symbolFind, symbolDeclare,
+  declareSymbolCopy,
+} from "./symbols";
+import {
+  MODULE_COUNT, modulePath, linkModules, SymbolList, symbolListCopy,
+  symbolListFind, declareImports,
+} from "./modules";
+import { SOURCE_PATH } from "./main";
+
+export struct Analyzer {
   ast: *Ast,
   symbols: *SymbolTable,
   structs: *StructTable,
@@ -19,7 +49,7 @@ struct Analyzer {
   // Per node: whether this `let` is a program-level global.
   isGlobal: *i8,
   // Per node: the IR name of the top-level declaration it is or refers to,
-  // null for anything else. See 68_modules.ode.
+  // null for anything else. See modules.ode.
   linkNames: **i8,
   // Per module: the top-level values it declares.
   moduleSymbols: *SymbolList,
@@ -28,7 +58,7 @@ struct Analyzer {
   currentReturnType: Type,
 }
 
-fn analyzerNew(ast: *Ast): *Analyzer {
+export fn analyzerNew(ast: *Ast): *Analyzer {
   let an: *Analyzer = malloc(sizeof(Analyzer) as i64) as *Analyzer;
   an.ast = ast;
   an.symbols = symbolTableNew();
@@ -120,7 +150,7 @@ fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
 // Types out of the tree.
 // ---------------------------------------------------------------------------
 
-fn analyzerParseType(an: *Analyzer, node: i32): Type {
+export fn analyzerParseType(an: *Analyzer, node: i32): Type {
   if (node == NO_NODE || an.ast.nodes[node].kind != NK_TYPE) {
     failAt(0, 0, "expected type annotation");
   }
@@ -574,7 +604,7 @@ fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
   return type;
 }
 
-fn textHasDot(text: *i8, length: i64): bool {
+export fn textHasDot(text: *i8, length: i64): bool {
   let index: i64 = 0 as i64;
 
   while (index < length) {
@@ -1276,7 +1306,7 @@ fn itemInModule(an: *Analyzer, program: i32, index: i32, module: i32): bool {
   return an.ast.nodes[an.ast.nodes[program].items[index]].module == module;
 }
 
-fn analyze(an: *Analyzer, program: i32): void {
+export fn analyze(an: *Analyzer, program: i32): void {
   let count: i32 = an.ast.nodes[program].itemCount;
 
   linkModules(an, program);

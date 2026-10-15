@@ -6,6 +6,14 @@
 // so a change here needs the same change on the C++ side.
 // ---------------------------------------------------------------------------
 
+import { Buf, bufPush, bufAddBytes, bufAdd, bufAddInt } from "./prelude";
+import {
+  TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE, Token,
+  TokenList, tokenAt, kindName,
+} from "./token";
+import { NO_NODE, NK_TYPE, Ast, nodeKindName, nodeCarriesText } from "./ast";
+import { TY_NONE, Type, typeToText } from "./type";
+
 // Text is escaped rather than written raw so that a literal newline or NUL
 // inside a string cannot break the line-per-node format.
 fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
@@ -34,7 +42,7 @@ fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
   }
 }
 
-fn dumpTokens(list: *TokenList, out: *Buf): void {
+export fn dumpTokens(list: *TokenList, out: *Buf): void {
   let index: i32 = 0;
 
   while (index < list.count) {
@@ -67,7 +75,7 @@ fn dumpTokens(list: *TokenList, out: *Buf): void {
   }
 }
 
-fn nullTypes(): *Type {
+export fn nullTypes(): *Type {
   return 0 as i64 as *Type;
 }
 
@@ -76,7 +84,7 @@ fn nullTypes(): *Type {
 //
 // `types` is the analyzer's resolved-type table, or null to dump the tree on
 // its own. A node the analyzer never typed prints without an annotation.
-fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
+export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
             out: *Buf): void {
   if (index == NO_NODE) {
     return;

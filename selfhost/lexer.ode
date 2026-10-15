@@ -5,6 +5,22 @@
 // and column, so every token can be pointed at in a diagnostic.
 // ---------------------------------------------------------------------------
 
+import {
+  malloc, strlen, Buf, bufNew, bufPush, bufTake, textEquals, textCopy,
+  textSlice, failAt,
+} from "./prelude";
+import {
+  TK_NONE, TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE,
+  TK_LET, TK_IF, TK_ELSE, TK_FN, TK_EXTERN, TK_STRUCT, TK_SIZEOF, TK_RETURN,
+  TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT, TK_AS, TK_IMPORT, TK_EXPORT,
+  TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_PERCENT, TK_NOT, TK_AMP,
+  TK_PIPE, TK_CARET, TK_SHL, TK_SHR, TK_ANDAND, TK_OROR, TK_EQ, TK_NE, TK_LT,
+  TK_LE, TK_GT, TK_GE, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_STAR_ASSIGN,
+  TK_SLASH_ASSIGN, TK_PERCENT_ASSIGN, TK_LPAREN, TK_RPAREN, TK_LBRACE,
+  TK_RBRACE, TK_LBRACKET, TK_RBRACKET, TK_DOT, TK_SEMICOLON, TK_COMMA,
+  TK_COLON, TokenList, tokenListNew, tokenListAdd, tokenAt, kindName,
+} from "./token";
+
 struct Lexer {
   source: *i8,
   pos: i64,
@@ -337,7 +353,7 @@ fn lexerReadOperator(lexer: *Lexer, list: *TokenList): void {
                line, column);
 }
 
-fn tokenize(source: *i8): *TokenList {
+export fn tokenize(source: *i8): *TokenList {
   let lexer: *Lexer = lexerNew(source);
   let list: *TokenList = tokenListNew();
   // What the negative-literal rule reads to decide whether a `-` starts a

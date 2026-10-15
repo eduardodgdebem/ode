@@ -6,14 +6,32 @@
 // against the C++ compiler.
 // ---------------------------------------------------------------------------
 
-let SOURCE_PATH: *i8 = "<none>";
+import {
+  malloc, strlen, remove, STDOUT, STDERR, nullText, isNullText, writeText,
+  writeBuf, Buf, bufNew, bufPush, bufAdd, bufTake, textEquals, textSlice,
+  DIAGS, FAILED, diagnosticsNew, report, hasErrors, printDiagnostics, fail,
+  runProgram, readFile, writeFile,
+} from "./prelude";
+import { TokenList } from "./token";
+import { tokenize } from "./lexer";
+import { NK_PROGRAM, NK_IMPORT, Ast, astNew, astAdd } from "./ast";
+import { parserNew } from "./parser";
+import { parseModuleInto } from "./parser_stmt";
+import {
+  realpath, moduleAdd, moduleFind, modulePath, resolveImportPath,
+} from "./modules";
+import { Analyzer, analyzerNew, analyze } from "./analyzer";
+import { Emitter, emitterNew, genProgram } from "./ir";
+import { dumpTokens, nullTypes, dumpNode } from "./dump";
+
+export let SOURCE_PATH: *i8 = "<none>";
 
 // Ode has no adjacent string literal concatenation, so this is one line.
 let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n";
 
 // `path` without its directory and extension, which is what a bare `ode1
 // foo.ode` names its output.
-fn stemOf(path: *i8): *i8 {
+export fn stemOf(path: *i8): *i8 {
   let length: i64 = strlen(path);
   let start: i64 = 0 as i64;
   let end: i64 = length;

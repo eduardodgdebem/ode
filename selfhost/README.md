@@ -21,38 +21,35 @@ binaries must be byte-identical. A compiler that miscompiles itself stops
 reproducing itself, which the fixed point catches even when every test
 passes.
 
-## Why the sources are concatenated
+## How the sources are laid out
 
-Ode had no modules when these sources were written, so the compiler had to be
-one file. Keeping it as one file to *edit* would be miserable, so the sources
-are split here and `build.sh` concatenates them in name order into
-`build/ode.ode`, which is what actually gets compiled.
+The compiler is a set of modules entered at `main.ode`. Each file exports
+what the others use and imports what it uses, so `build.sh` compiles
+`main.ode` and the rest come along through its imports. Declaration order
+does not matter, within a file or across files: signatures, globals and
+struct names are all hoisted before any body is checked, and the modules
+import from each other in cycles freely.
 
-The language has `import` and `export` now, but the compiler can only use
-them once the checked-in seed understands them, since the seed is what
-compiles these sources first. Until `update-bootstrap.sh` refreshes it, the
-sources stay concatenated.
-
-Order does not affect meaning: function signatures, globals and struct names
-are all hoisted before any body is checked, so a function in `00_prelude.ode`
-may call one in `90_main.ode`. The numbering exists to keep the generated file
-stable and diffable, not to satisfy the compiler.
+Until the language had `import`, these files were concatenated into one in
+name order, which is what their old numeric prefixes were for. The seed in
+`bootstrap/ode.ll` has to understand any feature the sources use, so it was
+refreshed before they switched over.
 
 | File | Holds |
 |---|---|
-| `00_prelude.ode` | libc externs, growable text, failure, file I/O |
-| `10_token.ode` | token kinds, `Token`, `TokenList` |
-| `20_lexer.ode` | the lexer |
-| `30_ast.ode` | the node arena |
-| `40_parser.ode` | expressions |
-| `50_parser_stmt.ode` | statements and declarations |
-| `60_type.ode` | types and struct layouts |
-| `65_symbols.ode` | the symbol table |
-| `68_modules.ode` | files as modules: IR names, imports, per-file scopes |
-| `70_analyzer.ode` | the semantic analyzer |
-| `75_ir.ode` | the textual LLVM IR emitter |
-| `80_dump.ode` | the token, tree and type dumps |
-| `90_main.ode` | the driver |
+| `main.ode` | the driver, and the entry module |
+| `prelude.ode` | libc externs, growable text, failure, file I/O |
+| `token.ode` | token kinds, `Token`, `TokenList` |
+| `lexer.ode` | the lexer |
+| `ast.ode` | the node arena |
+| `parser.ode` | expressions |
+| `parser_stmt.ode` | statements and declarations |
+| `type.ode` | types and struct layouts |
+| `symbols.ode` | the symbol table |
+| `modules.ode` | files as modules: IR names, imports, per-file scopes |
+| `analyzer.ode` | the semantic analyzer |
+| `ir.ode` | the textual LLVM IR emitter |
+| `dump.ode` | the token, tree and type dumps |
 
 ## How correctness is checked
 
@@ -88,7 +85,7 @@ and diffs what it prints. All 23 match byte for byte. This is the answer to the 
 something better than bisecting a failing program.
 
 The dump formats are a contract. `ASTPrinter` in the C++ compiler and
-`80_dump.ode` here have to be changed together, and `difftest.sh` is what
+`dump.ode` here have to be changed together, and `difftest.sh` is what
 catches it when they are not.
 
 Every defect below came out of that comparison, and none would have been

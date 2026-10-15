@@ -20,7 +20,7 @@ fi
 
 "$ROOT_DIR/selfhost/build.sh" >/dev/null
 mkdir -p "$(dirname "$SEED_IR")"
-"$ODE" --emit-llvm "$ROOT_DIR/build/ode.ode" >"$SEED_IR"
+"$ODE" --emit-llvm "$ROOT_DIR/selfhost/main.ode" >"$SEED_IR"
 
 echo "wrote $SEED_IR ($(wc -c <"$SEED_IR" | tr -d ' ') bytes)"
 echo "commit it: a fresh checkout has nothing else to start from."

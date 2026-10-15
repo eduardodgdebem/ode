@@ -23,7 +23,20 @@
 // own declarations and its imports, and nothing else.
 // ---------------------------------------------------------------------------
 
-extern fn realpath(path: *i8, resolved: *i8): *i8;
+import {
+  malloc, realloc, memcpy, strlen, nullText, isNullText, Buf, bufNew, bufPush,
+  bufAdd, bufAddInt, bufTake, textEquals, textSlice, FAILED, report,
+} from "./prelude";
+import {
+  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_STRUCTLIT, NK_TYPE,
+  NK_IMPORT,
+} from "./ast";
+import { TY_NONE, typeKindFromName } from "./type";
+import { Symbol, SymbolTable, symbolDeclare } from "./symbols";
+import { Analyzer } from "./analyzer";
+import { SOURCE_PATH, stemOf } from "./main";
+
+export extern fn realpath(path: *i8, resolved: *i8): *i8;
 
 struct Module {
   // As diagnostics show it: the path given on the command line for the entry
@@ -34,10 +47,10 @@ struct Module {
 }
 
 let MODULES: *Module = 0 as i64 as *Module;
-let MODULE_COUNT: i32 = 0;
+export let MODULE_COUNT: i32 = 0;
 let MODULE_CAPACITY: i32 = 0;
 
-fn moduleAdd(path: *i8, real: *i8): i32 {
+export fn moduleAdd(path: *i8, real: *i8): i32 {
   if (MODULE_COUNT == MODULE_CAPACITY) {
     if (MODULE_CAPACITY == 0) {
       MODULE_CAPACITY = 8;
@@ -58,7 +71,7 @@ fn moduleAdd(path: *i8, real: *i8): i32 {
   return index;
 }
 
-fn moduleFind(real: *i8): i32 {
+export fn moduleFind(real: *i8): i32 {
   let index: i32 = 0;
 
   while (index < MODULE_COUNT) {
@@ -71,7 +84,7 @@ fn moduleFind(real: *i8): i32 {
   return -1;
 }
 
-fn modulePath(module: i32): *i8 {
+export fn modulePath(module: i32): *i8 {
   return MODULES[module].path;
 }
 
@@ -105,7 +118,7 @@ fn directoryOf(path: *i8): *i8 {
 // Where `import ... from "<spec>"` written in `importer` points. A relative
 // spec is taken from the importing file's directory, the way TypeScript reads
 // one, and the `.ode` may be left off.
-fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
+export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
   let out: *Buf = bufNew();
 
   if (spec[0] != '/') {
@@ -131,13 +144,13 @@ fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
 // IR names.
 // ---------------------------------------------------------------------------
 
-struct NameSet {
+export struct NameSet {
   items: **i8,
   count: i32,
   capacity: i32,
 }
 
-fn nameSetNew(): *NameSet {
+export fn nameSetNew(): *NameSet {
   let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
   set.capacity = 64;
   set.count = 0;
@@ -146,7 +159,7 @@ fn nameSetNew(): *NameSet {
   return set;
 }
 
-fn nameSetHas(set: *NameSet, name: *i8): bool {
+export fn nameSetHas(set: *NameSet, name: *i8): bool {
   let index: i32 = 0;
 
   while (index < set.count) {
@@ -159,7 +172,7 @@ fn nameSetHas(set: *NameSet, name: *i8): bool {
   return false;
 }
 
-fn nameSetAdd(set: *NameSet, name: *i8): void {
+export fn nameSetAdd(set: *NameSet, name: *i8): void {
   if (set.count == set.capacity) {
     set.capacity = set.capacity * 2;
     set.items = realloc(set.items as *i8,
@@ -472,7 +485,7 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
   }
 }
 
-fn linkModules(an: *Analyzer, program: i32): void {
+export fn linkModules(an: *Analyzer, program: i32): void {
   assignLinkNames(an, program);
   checkImports(an, program);
   rewriteStructNames(an, program);
@@ -482,13 +495,13 @@ fn linkModules(an: *Analyzer, program: i32): void {
 // Per-module scopes.
 // ---------------------------------------------------------------------------
 
-struct SymbolList {
+export struct SymbolList {
   items: *Symbol,
   count: i32,
 }
 
 // The symbols declared since `start`, copied out before their scope closes.
-fn symbolListCopy(table: *SymbolTable, start: i32): SymbolList {
+export fn symbolListCopy(table: *SymbolTable, start: i32): SymbolList {
   let count: i32 = table.count - start;
   let items: *Symbol = 0 as i64 as *Symbol;
 
@@ -501,7 +514,7 @@ fn symbolListCopy(table: *SymbolTable, start: i32): SymbolList {
   return SymbolList { items: items, count: count };
 }
 
-fn symbolListFind(list: SymbolList, name: *i8): i32 {
+export fn symbolListFind(list: SymbolList, name: *i8): i32 {
   let index: i32 = 0;
 
   while (index < list.count) {
@@ -515,7 +528,7 @@ fn symbolListFind(list: SymbolList, name: *i8): i32 {
 }
 
 // Binds a module's imported values in the scope its bodies are checked in.
-fn declareImports(an: *Analyzer, program: i32, module: i32): void {
+export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
   let index: i32 = 0;
 
   while (index < an.ast.nodes[program].itemCount) {
