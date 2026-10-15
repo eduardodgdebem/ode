@@ -20,7 +20,8 @@ import {
   Emitter, freshTemp, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, variableAddress, llvmName, internString,
 } from "./emitter";
-import { llvmTypeName, sizeOfType, zeroValue } from "./layout";
+import { llvmTypeName, zeroValue } from "./layout";
+import { sizeOf } from "../semantics/layout";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];
@@ -187,13 +188,12 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
 fn genFieldAddress(e: *Emitter, object: i32, field: *i8): *i8 {
   let objectType: Type = typeOfNode(e, object);
 
-  // `p.field` follows one level of pointer automatically, so the base is
-  // either the pointer's value or the address of a struct variable.
+  // `p.field` follows pointers automatically, so the base is either what
+  // the pointers lead to or the address of a struct variable.
   let base: *i8 = null;
-  let structType: Type = objectType;
+  let structType: Type = objectType.base();
   if (objectType.isPointer()) {
-    base = genExpr(e, object);
-    structType = objectType.pointee();
+    base = genStructPointer(e, object);
   } else {
     base = genAddress(e, object);
   }
@@ -212,13 +212,23 @@ fn genFieldAddress(e: *Emitter, object: i32, field: *i8): *i8 {
   return emitAssign(e, line.data);
 }
 
+// The address of the struct `object` points at, through however many
+// pointers it takes to get there.
+fn genStructPointer(e: *Emitter, object: i32): *i8 {
+  let objectType: Type = typeOfNode(e, object);
+  let pointer: *i8 = genExpr(e, object);
+
+  for (level in 1..objectType.pointerDepth) {
+    pointer = emitLoad(e, codePointer(), pointer);
+  }
+
+  return pointer;
+}
+
 // The value of the field `field` of the struct `object` is, or points at.
 fn genFieldValue(e: *Emitter, object: i32, field: *i8): *i8 {
   let objectType: Type = typeOfNode(e, object);
-  let structType: Type = objectType;
-  if (objectType.isPointer()) {
-    structType = objectType.pointee();
-  }
+  let structType: Type = objectType.base();
   let structIndex: i32 = e.an.structs.indexOf(structType.structName);
   let fieldIndex: i32 = e.an.structs.fieldIndex(structIndex, field);
   let fieldType: Type = e.an.structs.items[structIndex].fields[fieldIndex].type;
@@ -306,7 +316,7 @@ fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
     subtraction.add(rightInt);
     let difference: *i8 = emitAssign(e, subtraction.data);
 
-    let elementSize: i32 = sizeOfType(e, leftType.pointee());
+    let elementSize: i32 = sizeOf(e.an.structs, leftType.pointee());
     if (elementSize <= 1) {
       return difference;
     }
@@ -544,10 +554,15 @@ fn genMethodCall(e: *Emitter, node: i32): *i8 {
   }
 
   if (mode == ReceiverMode.Load) {
-    let pointee: Type = objectType.pointee();
-    let value: *i8 = emitLoad(e, pointee, genExpr(e, object));
-    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, llvmTypeName(pointee),
-                       value);
+    let structType: Type = objectType.base();
+    let value: *i8 = emitLoad(e, structType, genStructPointer(e, object));
+    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b,
+                       llvmTypeName(structType), value);
+  }
+
+  if (objectType.isPointer()) {
+    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, "ptr",
+                       genStructPointer(e, object));
   }
 
   return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, llvmTypeName(objectType),
@@ -724,7 +739,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
 
   if (kind == NodeKind.Sizeof) {
     let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
-    return intToText(sizeOfType(e, type) as i64);
+    return intToText(sizeOf(e.an.structs, type) as i64);
   }
 
   // `Color.Red` is a constant the analyzer already worked out.

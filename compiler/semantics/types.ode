@@ -163,6 +163,12 @@ export struct Type {
                   structName: self.structName };
   }
 
+  // What the pointers, if any, lead to in the end.
+  fn base(self: Type): Type {
+    return Type { kind: self.kind, pointerDepth: 0,
+                  structName: self.structName };
+  }
+
   fn pointerTo(self: Type): Type {
     return Type { kind: self.kind, pointerDepth: self.pointerDepth + 1,
                   structName: self.structName };

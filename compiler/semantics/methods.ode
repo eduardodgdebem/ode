@@ -215,10 +215,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  let structType: Type = objectType;
-  if (objectType.pointerDepth == 1) {
-    structType = objectType.pointee();
-  }
+  let structType: Type = objectType.base();
 
   if (!structType.isStruct()) {
     analyzerFail2(an, node, quoted("cannot call method ", name, ""),

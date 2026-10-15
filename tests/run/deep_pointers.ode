@@ -1,0 +1,33 @@
+// `.` follows however many pointers stand between it and the struct.
+
+struct Point {
+  x: i32,
+  y: i32,
+
+  fn sum(self: Point): i32 {
+    return self.x + self.y;
+  }
+
+  fn shift(self: *Point, by: i32): void {
+    self.x = self.x + by;
+  }
+}
+
+fn main(): i32 {
+  let point: Point = Point { x: 1, y: 2 };
+  let one: *Point = &point;
+  let two: **Point = &one;
+  let three: ***Point = &two;
+
+  print(two.x);
+  print(three.y);
+
+  three.x = 10;
+  print(point.x);
+
+  two.shift(5);
+  print(point.x);
+  print(three.sum());
+
+  return 0;
+}

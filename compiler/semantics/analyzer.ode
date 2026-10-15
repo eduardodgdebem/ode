@@ -34,8 +34,11 @@ export struct Analyzer {
   structs: *StructTable,
   // One entry per node, TY_NONE for anything that is not an expression.
   types: *Type,
-  // Per node: whether this `let` is a program-level global.
+  // Per node: whether this `let` is a program-level global -- 1, or 2 once
+  // its initialiser has been checked.
   isGlobal: *i8,
+  // Every global's declaration, in the order they are checked.
+  globals: *List<i32>,
   // Per node: the IR name of the top-level declaration it is or refers to,
   // null for anything else. See modules.ode.
   linkNames: **i8,
@@ -79,6 +82,7 @@ export struct Analyzer {
     an.growNodeArrays();
     an.enumNames = NameSet.new();
     an.signatures = List<Signature>.new();
+    an.globals = List<i32>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
         malloc(sizeof(SymbolList) as i64 * moduleCount() as i64) as *SymbolList;
@@ -424,6 +428,7 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
   }
 
   an.isGlobal[node] = 1 as i8;
+  an.globals.push(node);
   declareTopLevel(an, node, name, SymbolKind.Var, type, null, 0);
 }
 

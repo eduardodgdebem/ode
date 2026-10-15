@@ -1,0 +1,56 @@
+// A literal takes the type its context expects, so none of these needs `as`.
+
+struct Pixel {
+  red: u8,
+  depth: i16,
+  scale: f64,
+}
+
+fn widen(value: i64): i64 {
+  return value * 1000000000 + 7;
+}
+
+fn half(value: f64): f64 {
+  return value / 2;
+}
+
+fn main(): i32 {
+  let small: i16 = -12;
+  let big: i64 = 3000000000;
+  let byte: u8 = 255;
+  let letter: u8 = 'z';
+  let ratio: f64 = 3;
+
+  print(small);
+  print(big);
+  print(byte);
+  print(letter);
+  print(ratio);
+
+  // The other operand decides, from either side.
+  print(big + 1);
+  print(2 * big);
+  print(small < 0);
+  print(byte == 255);
+  print((big + 2) * 3 - 1);
+
+  // So do parameters, returns, fields and assignments.
+  print(widen(5));
+  print(half(5));
+  let pixel: Pixel = Pixel { red: 200, depth: -3, scale: 1 };
+  print(pixel.red);
+  print(pixel.depth);
+  print(pixel.scale);
+  big = 1 << 40;
+  print(big);
+
+  // With nothing to go by, a literal is still an i32: this wraps.
+  let wrapped: i64 = (2147483647 + 1) as i64;
+  print(wrapped);
+
+  // Casts still read wide literals as themselves.
+  print(-3000000000 as i64);
+  print(3000000000 as f64);
+
+  return 0;
+}

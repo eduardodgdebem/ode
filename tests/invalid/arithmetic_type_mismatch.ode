@@ -1,5 +1,7 @@
 fn main(): i32 {
-  let value: i64 = 1 + 2 as i64;
+  let small: i32 = 1;
+  let wide: i64 = 2;
+  let value: i64 = small + wide;
 
   return 0;
 }

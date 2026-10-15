@@ -17,11 +17,12 @@ import {
   quoted, analyzerParseType, analyzerValidateType, analyzerParamTypes,
 } from "./analyzer";
 import {
-  checkExpr, checkAssignTarget, isConstantExpr, isNumberLiteral,
+  checkExpr, checkExprAs, checkAssignTarget, isConstantExpr, isNumberLiteral,
   checkLiteralAs,
 } from "./expressions";
 import { analyzeMethodBodies } from "./methods";
 import { analyzeMatch } from "./enums";
+import { foldInteger, laterGlobalIn } from "./constants";
 import { isTemplate } from "./generics";
 
 // Runs one checking step, then puts back anything a failure skipped past so
@@ -130,7 +131,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
 
   // The initialiser is checked before the name is bound, so `let x = x + 1;`
   // cannot see the slot it is initialising.
-  let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
+  let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, declaredType);
 
   if (!FAILED && !declaredType.accepts(exprType)) {
     let context: *Buf = Buf.new();
@@ -151,11 +152,27 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
   // Globals were declared during hoisting; all that is left is to confirm the
   // initialiser can be emitted as an LLVM constant.
   if (an.isGlobal[node] != 0 as i8) {
-    if (!FAILED && !isConstantExpr(an, an.ast.nodes[node].b)) {
+    let init: i32 = an.ast.nodes[node].b;
+    let constant: bool = false;
+    if (declaredType.isInteger()) {
+      constant = foldInteger(an, init);
+    } else {
+      constant = isConstantExpr(an, init);
+    }
+
+    let later: i32 = laterGlobalIn(an, init);
+    if (!FAILED && !constant && later != NO_NODE) {
       analyzerFail2(an, node,
                     quoted("initialiser of global ", name, " is not constant"),
-                    "globals may only be initialised from literals");
+                    quoted("", an.ast.nodes[later].text,
+                           " is declared after it"));
     }
+    if (!FAILED && !constant) {
+      analyzerFail2(an, node,
+                    quoted("initialiser of global ", name, " is not constant"),
+                    "globals may only be initialised from literals, sizeof, enum members and earlier globals");
+    }
+    an.isGlobal[node] = 2 as i8;
     return;
   }
 
@@ -165,7 +182,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
 
 fn analyzeAssign(an: *Analyzer, node: i32): void {
   let targetType: Type = checkAssignTarget(an, node, an.ast.nodes[node].a);
-  let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
+  let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, targetType);
 
   if (!targetType.accepts(exprType)) {
     analyzerFail2(an, node, "type mismatch in assignment",
@@ -275,7 +292,8 @@ fn analyzeReturn(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let returned: Type = checkExpr(an, an.ast.nodes[node].a);
+  let returned: Type = checkExprAs(an, an.ast.nodes[node].a,
+                                   an.currentReturnType);
 
   if (an.currentReturnType.isVoid()) {
     analyzerFail2(an, node, "returning a value from a void function",
