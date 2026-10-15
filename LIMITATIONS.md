@@ -237,6 +237,19 @@ function is still an ordinary external symbol in the object file rather than
 The lexer stops the compile at its first error, so a lexical error in an
 imported file ends the run there, before any other file's diagnostics.
 
+### 6.6 Methods are only for structs, and have no interfaces
+
+A method is a function written inside a struct, and that is all a method can
+be:
+
+- methods cannot be added to a struct from outside its declaration (Rust's
+  separate `impl`, or Go declaring them anywhere in the package), nor to a
+  type that is not a struct;
+- there are no interfaces or traits, so nothing can be generic over "anything
+  with a `len()`" -- there are no function pointers to build one from either;
+- every method is visible wherever its struct is: there is no `pub`, and no
+  private helper method.
+
 ## 7. Codegen and runtime
 
 ### 7.1 No runtime checks

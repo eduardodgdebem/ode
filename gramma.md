@@ -45,7 +45,7 @@ cycles.
 - **ContinueStmt** → `continue` `;`
 - **FuncDecl** → `fn` IDENT `(` ParamList? `)` `:` Type Block
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
-- **StructDecl** → `struct` IDENT `{` FieldDecl* `}`
+- **StructDecl** → `struct` IDENT `{` (FieldDecl | FuncDecl)* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
 - **ReturnStmt** → `return` Expr? `;`
 - **PrintStmt** → `print` `(` Expr `)` `;`
@@ -79,7 +79,7 @@ cycles.
 - **Factor** → Cast ((`*` | `/` | `%`) Cast)*
 - **Cast** → Unary (`as` Type)*
 - **Unary** → (`-` | `+` | `!` | `*` | `&`) Unary | Postfix
-- **Postfix** → Primary (`.` IDENT | `[` Expr `]`)*
+- **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]`)*
 - **Primary** → NUMBER | STRING | CHAR | BOOLEAN | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
 - **StructLiteral** → IDENT `{` FieldInit* `}`
 - **FieldInit** → IDENT `:` Expr `,`?
@@ -190,6 +190,18 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
 - `.` follows one level of pointer automatically, so `node.next` works whether
   `node` is a `Node` or a `*Node`.
 - A struct literal must initialise every field exactly once, in any order.
+- A `fn` inside a struct is a method. If its first parameter is `self`, typed
+  as the struct or a pointer to it, it is called on a value: `v.len()`. The
+  receiver is adapted to `self` -- a struct is passed by address to a `*T`
+  `self`, and a pointer is followed for a `T` one -- so the call reads the same
+  on a value and on a pointer. A by-pointer method cannot be called on a
+  temporary, which has no address. Any method can also be called on the
+  struct's name with every parameter written out, `self` included, and one
+  without `self` can only be called that way: `Vec2.new(1, 2)`,
+  `Vec2.len(v)`. In `Name.method(...)`, a variable called `Name` wins over a
+  struct.
+- Methods belong to their struct: they are visible wherever the struct is,
+  including through an import of it under another name.
 - `sizeof(T)` is a `usize` and is what sizes an allocation for a struct.
 - Globals may only be initialised from constants — literals, `sizeof`, and
   casts or negations of those. Every global is visible to every function in

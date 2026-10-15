@@ -112,7 +112,12 @@ module.exports = grammar({
       field('body', $.field_declaration_list),
     ),
 
-    field_declaration_list: $ => seq('{', repeat($.field_declaration), '}'),
+    // Fields and methods, in any order.
+    field_declaration_list: $ => seq(
+      '{',
+      repeat(choice($.field_declaration, $.function_declaration)),
+      '}',
+    ),
 
     field_declaration: $ => seq(
       field('name', $._field_identifier),
@@ -207,6 +212,7 @@ module.exports = grammar({
       $.field_expression,
       $.index_expression,
       $.call_expression,
+      $.method_call_expression,
       $.struct_literal,
       $.sizeof_expression,
       $.parenthesized_expression,
@@ -264,6 +270,15 @@ module.exports = grammar({
 
     call_expression: $ => prec.left(PREC.call, seq(
       field('function', $.identifier),
+      field('arguments', $.argument_list),
+    )),
+
+    // `value.method(...)`, or `Struct.function(...)`: which one it is depends
+    // on what the name in front means, which only the compiler knows.
+    method_call_expression: $ => prec.left(PREC.call, seq(
+      field('object', $._expression),
+      '.',
+      field('method', $._field_identifier),
       field('arguments', $.argument_list),
     )),
 

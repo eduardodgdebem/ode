@@ -1,0 +1,15 @@
+struct Point {
+  x: i32,
+
+  fn get(self: Point): i32 {
+    return self.x;
+  }
+
+  fn get(self: *Point): i32 {
+    return self.x;
+  }
+}
+
+fn main(): i32 {
+  return 0;
+}

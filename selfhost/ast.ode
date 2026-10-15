@@ -52,6 +52,7 @@ export let NK_ARGS: i32 = 33;
 export let NK_ERROR: i32 = 34;
 export let NK_IMPORT: i32 = 35;
 export let NK_IMPORTNAME: i32 = 36;
+export let NK_METHODCALL: i32 = 37;
 
 struct Node {
   kind: i32,
@@ -81,6 +82,7 @@ struct Node {
   //   index    a=base   b=index
   //   sizeof   a=type
   //   importname a=alias, an ident, when the name is renamed with `as`
+  //   methodcall a=receiver, or the struct's name b=args
   a: i32,
   b: i32,
   c: i32,
@@ -88,7 +90,7 @@ struct Node {
   // the driver has found it.
   extra: i32,
   // Child indices, for program, block, struct, structlit, params, args and
-  // import.
+  // import. A struct's items are its fields and then, mixed in, its methods.
   items: *i32,
   itemCount: i32,
   itemCapacity: i32,
@@ -105,69 +107,69 @@ export struct Ast {
   // Every file is parsed into the one arena, so nodes are stamped with the
   // file being parsed as they are made.
   currentModule: i32,
-}
 
-export fn astNew(): *Ast {
-  let ast: *Ast = malloc(sizeof(Ast) as i64) as *Ast;
-  ast.capacity = 256;
-  ast.count = 0;
-  ast.currentModule = 0;
-  ast.nodes = malloc(sizeof(Node) as i64 * ast.capacity as i64) as *Node;
+  fn new(): *Ast {
+    let ast: *Ast = malloc(sizeof(Ast) as i64) as *Ast;
+    ast.capacity = 256;
+    ast.count = 0;
+    ast.currentModule = 0;
+    ast.nodes = malloc(sizeof(Node) as i64 * ast.capacity as i64) as *Node;
 
-  return ast;
-}
-
-export fn astAdd(ast: *Ast, kind: i32, line: i32, column: i32): i32 {
-  if (ast.count == ast.capacity) {
-    ast.capacity = ast.capacity * 2;
-    ast.nodes = realloc(ast.nodes as *i8,
-                        sizeof(Node) as i64 * ast.capacity as i64) as *Node;
+    return ast;
   }
 
-  let index: i32 = ast.count;
-  ast.nodes[index].kind = kind;
-  ast.nodes[index].line = line;
-  ast.nodes[index].column = column;
-  ast.nodes[index].text = nullText();
-  ast.nodes[index].textLength = 0 as i64;
-  ast.nodes[index].a = NO_NODE;
-  ast.nodes[index].b = NO_NODE;
-  ast.nodes[index].c = NO_NODE;
-  ast.nodes[index].extra = 0;
-  ast.nodes[index].items = 0 as i64 as *i32;
-  ast.nodes[index].itemCount = 0;
-  ast.nodes[index].itemCapacity = 0;
-  ast.nodes[index].module = ast.currentModule;
-  ast.nodes[index].exported = false;
-  ast.count = ast.count + 1;
-
-  return index;
-}
-
-// Copies a token's text onto a node, length included so a `'\0'` survives.
-export fn astSetText(ast: *Ast, index: i32, token: *Token): void {
-  ast.nodes[index].text = token.text;
-  ast.nodes[index].textLength = token.length;
-}
-
-export fn astAddItem(ast: *Ast, parent: i32, child: i32): void {
-  if (ast.nodes[parent].itemCount == ast.nodes[parent].itemCapacity) {
-    if (ast.nodes[parent].itemCapacity == 0) {
-      ast.nodes[parent].itemCapacity = 4;
-      ast.nodes[parent].items =
-          malloc(sizeof(i32) as i64 * 4 as i64) as *i32;
-    } else {
-      ast.nodes[parent].itemCapacity = ast.nodes[parent].itemCapacity * 2;
-      ast.nodes[parent].items =
-          realloc(ast.nodes[parent].items as *i8,
-                  sizeof(i32) as i64 *
-                      ast.nodes[parent].itemCapacity as i64) as *i32;
+  fn add(self: *Ast, kind: i32, line: i32, column: i32): i32 {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.nodes = realloc(self.nodes as *i8,
+                           sizeof(Node) as i64 * self.capacity as i64) as *Node;
     }
+
+    let index: i32 = self.count;
+    self.nodes[index].kind = kind;
+    self.nodes[index].line = line;
+    self.nodes[index].column = column;
+    self.nodes[index].text = nullText();
+    self.nodes[index].textLength = 0 as i64;
+    self.nodes[index].a = NO_NODE;
+    self.nodes[index].b = NO_NODE;
+    self.nodes[index].c = NO_NODE;
+    self.nodes[index].extra = 0;
+    self.nodes[index].items = 0 as i64 as *i32;
+    self.nodes[index].itemCount = 0;
+    self.nodes[index].itemCapacity = 0;
+    self.nodes[index].module = self.currentModule;
+    self.nodes[index].exported = false;
+    self.count = self.count + 1;
+
+    return index;
   }
 
-  let count: i32 = ast.nodes[parent].itemCount;
-  ast.nodes[parent].items[count] = child;
-  ast.nodes[parent].itemCount = count + 1;
+  // Copies a token's text onto a node, length included so a `'\0'` survives.
+  fn setText(self: *Ast, index: i32, token: *Token): void {
+    self.nodes[index].text = token.text;
+    self.nodes[index].textLength = token.length;
+  }
+
+  fn addItem(self: *Ast, parent: i32, child: i32): void {
+    if (self.nodes[parent].itemCount == self.nodes[parent].itemCapacity) {
+      if (self.nodes[parent].itemCapacity == 0) {
+        self.nodes[parent].itemCapacity = 4;
+        self.nodes[parent].items =
+            malloc(sizeof(i32) as i64 * 4 as i64) as *i32;
+      } else {
+        self.nodes[parent].itemCapacity = self.nodes[parent].itemCapacity * 2;
+        self.nodes[parent].items =
+            realloc(self.nodes[parent].items as *i8,
+                    sizeof(i32) as i64 *
+                        self.nodes[parent].itemCapacity as i64) as *i32;
+      }
+    }
+
+    let count: i32 = self.nodes[parent].itemCount;
+    self.nodes[parent].items[count] = child;
+    self.nodes[parent].itemCount = count + 1;
+  }
 }
 
 export fn nodeKindName(kind: i32): *i8 {
@@ -207,6 +209,7 @@ export fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_ERROR) { return "error"; }
   if (kind == NK_IMPORT) { return "import"; }
   if (kind == NK_IMPORTNAME) { return "importname"; }
+  if (kind == NK_METHODCALL) { return "methodcall"; }
 
   return "?";
 }
@@ -228,7 +231,7 @@ export fn nodeCarriesText(kind: i32): bool {
   if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
     return true;
   }
-  if (kind == NK_IMPORT || kind == NK_IMPORTNAME) {
+  if (kind == NK_IMPORT || kind == NK_IMPORTNAME || kind == NK_METHODCALL) {
     return true;
   }
 
