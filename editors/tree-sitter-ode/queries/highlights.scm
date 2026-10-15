@@ -91,10 +91,9 @@
 
 "return" @keyword.return
 
-[
-  "print"
-  "sizeof"
-] @function.builtin
+"sizeof" @function.builtin
+
+(variadic) @punctuation.special
 
 ; ---------------------------------------------------------------------------
 ; Operators and punctuation

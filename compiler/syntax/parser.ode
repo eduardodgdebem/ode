@@ -146,7 +146,7 @@ export fn startsStatement(kind: TokenKind): bool {
   if (kind == TokenKind.Let || kind == TokenKind.If || kind == TokenKind.While) {
     return true;
   }
-  if (kind == TokenKind.Return || kind == TokenKind.Print) {
+  if (kind == TokenKind.Return) {
     return true;
   }
 

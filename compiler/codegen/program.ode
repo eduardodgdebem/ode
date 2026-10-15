@@ -12,13 +12,13 @@ import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
 import { analyzerParseType } from "../semantics/analyzer";
 import { isTemplate } from "../semantics/generics";
+import { sizeOf } from "../semantics/layout";
 import { globalDeclOf } from "../semantics/constants";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
   declareLocal, llvmName, internString,
 } from "./emitter";
 import { llvmTypeName, zeroValue } from "./layout";
-import { sizeOf } from "../semantics/layout";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { genStatement } from "./statements";
 
@@ -51,6 +51,13 @@ fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
       out.add(" %p");
       out.addInt(index as i64);
     }
+  }
+
+  if (params != NO_NODE && e.ast.nodes[params].extra == 1) {
+    if (count > 0) {
+      out.add(", ");
+    }
+    out.add("...");
   }
 
   out.push(')');
@@ -229,8 +236,6 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
     e.head.add(" }\n");
     index = index + 1;
   }
-
-  e.head.add("declare i32 @printf(ptr, ...)\n");
 
   // Several files may declare one extern, and LLVM takes one declaration.
   let declared: *NameSet = NameSet.new();

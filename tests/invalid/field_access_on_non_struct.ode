@@ -1,6 +1,8 @@
 fn main(): i32 {
   let value: i32 = 1;
-  print(value.x);
+  printf("%d\n", value.x);
 
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

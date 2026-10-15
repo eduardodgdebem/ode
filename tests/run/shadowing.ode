@@ -2,10 +2,12 @@
 // the same name is untouched once the block ends. Parameters shadow the same
 // way, and a `let` may read the variable it shadows in its own initialiser.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn shadowParam(x: i32): i32 {
   {
     let x: i32 = 99;
-    print(x);
+    printf("%d\n", x);
   }
 
   return x;
@@ -17,7 +19,7 @@ fn shadowInLoop(n: i32): i32 {
 
   while (i < n) {
     let total: i32 = i * 100;
-    print(total);
+    printf("%d\n", total);
     i = i + 1;
   }
 
@@ -27,7 +29,7 @@ fn shadowInLoop(n: i32): i32 {
 fn readsWhatItShadows(x: i32): i32 {
   {
     let x: i32 = x + 1;
-    print(x);
+    printf("%d\n", x);
   }
 
   return x;
@@ -40,22 +42,22 @@ fn main(): i32 {
     let x: i32 = 99;
     {
       let x: i32 = 7;
-      print(x);
+      printf("%d\n", x);
     }
-    print(x);
+    printf("%d\n", x);
   }
 
-  print(x);
+  printf("%d\n", x);
 
   if (true) {
     let x: bool = false;
-    print(x);
+    printf("%d\n", x);
   }
 
-  print(x);
-  print(shadowParam(1));
-  print(shadowInLoop(3));
-  print(readsWhatItShadows(41));
+  printf("%d\n", x);
+  printf("%d\n", shadowParam(1));
+  printf("%d\n", shadowInLoop(3));
+  printf("%d\n", readsWhatItShadows(41));
 
   return 0;
 }

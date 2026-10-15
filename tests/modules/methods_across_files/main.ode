@@ -15,10 +15,12 @@ struct Box {
 fn main(): i32 {
   let t: Tally = Tally.start(10);
   t.add(5);
-  print(t.total);
-  print(makeTally().boxed());
+  printf("%d\n", t.total);
+  printf("%d\n", makeTally().boxed());
 
   let b: Box = Box { value: 7 };
-  print(b.get());
+  printf("%d\n", b.get());
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

@@ -2,31 +2,33 @@
 // widening one to i64 needs an `as`. See numeric_types.ode for the wider
 // types and for what happens to a literal i32 cannot hold.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
   let big: i64 = 300 as i64;
-  print(big);
+  printf("%lld\n", big);
 
   // 300 does not fit in 8 bits, so this truncates to 44.
   let narrow: i8 = big as i8;
-  print(narrow);
+  printf("%d\n", narrow);
 
   // u8 zero-extends where i8 would sign-extend.
   let unsigned: u8 = 200 as u8;
-  print(unsigned);
+  printf("%u\n", unsigned);
 
   let asFloat: f32 = big as f32;
-  print(asFloat);
+  printf("%f\n", asFloat);
 
   // Truncates toward zero.
   let backToInt: i32 = 9.75 as i32;
-  print(backToInt);
+  printf("%d\n", backToInt);
 
   let flag: bool = 1 as bool;
-  print(flag);
+  printf("%d\n", flag);
 
   // usize is a spelling of u64.
   let size: usize = 4096 as usize;
-  print(size);
+  printf("%llu\n", size);
 
   return 0;
 }

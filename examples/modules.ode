@@ -4,6 +4,8 @@
 // file sees them only by importing them by name. The files this one imports
 // live in examples/modules/.
 
+extern fn printf(format: *i8, ...): i32;
+
 import { Vec2, vecAdd, vecScale, lengthSquared as len2 } from "./modules/geometry";
 import { counterNext, counterValue } from "./modules/counter";
 
@@ -24,18 +26,18 @@ extern fn putchar(character: i32): i32;
 fn main(): i32 {
   let a: Vec2 = Vec2 { x: 3, y: 4 };
   let b: Vec2 = vecAdd(a, Vec2 { x: 1, y: 1 });
-  print(b.x);
-  print(b.y);
-  print(len2(a));
-  print(vecScale(a, 2).y);
+  printf("%d\n", b.x);
+  printf("%d\n", b.y);
+  printf("%d\n", len2(a));
+  printf("%d\n", vecScale(a, 2).y);
 
   let pair: Pair = Pair { left: helper(), right: 2 };
-  print(pair.left + pair.right);
+  printf("%d\n", pair.left + pair.right);
 
   counterNext();
   counterNext();
-  print(counterNext());
-  print(counterValue());
+  printf("%d\n", counterNext());
+  printf("%d\n", counterValue());
 
   putchar(79);
   putchar(75);

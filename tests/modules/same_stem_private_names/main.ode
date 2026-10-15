@@ -10,8 +10,10 @@ fn scale(value: i32): i32 {
 }
 
 fn main(): i32 {
-  print(scale(5));
-  print(applyA(5));
-  print(applyB(5));
+  printf("%d\n", scale(5));
+  printf("%d\n", applyA(5));
+  printf("%d\n", applyB(5));
   return 0;
 }
+
+extern fn printf(format: *i8, ...): i32;

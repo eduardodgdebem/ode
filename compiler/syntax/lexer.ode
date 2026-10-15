@@ -181,14 +181,24 @@ struct Lexer {
     list.add(TokenKind.Char, text.take(), count, line, column);
   }
 
-  // Two-character operators are tried before one-character ones, so `<=` never
-  // lexes as `<` followed by `=`.
+  // Longer operators are tried before shorter ones, so `<=` never lexes as `<`
+  // followed by `=`.
   fn readOperator(self: *Lexer, list: *TokenList): void {
     let line: i32 = self.line;
     let column: i32 = self.column;
     let first: i8 = self.peek();
     let second: i8 = self.peekNext();
     let kind: TokenKind = TokenKind.None;
+
+    // `...` is the one three-character operator.
+    if (first == '.' && second == '.' && self.pos + 2 < self.length &&
+        self.source[self.pos + 2] == '.') {
+      for (step in 0..3) {
+        self.advance();
+      }
+      list.add(TokenKind.Ellipsis, textCopy("..."), 3, line, column);
+      return;
+    }
 
     if (first == '=' && second == '=') { kind = TokenKind.Eq; }
     else if (first == '=' && second == '>') { kind = TokenKind.Arrow; }
@@ -282,7 +292,6 @@ fn keywordKind(text: *i8): TokenKind {
   if (textEquals(text, "while")) { return TokenKind.While; }
   if (textEquals(text, "break")) { return TokenKind.Break; }
   if (textEquals(text, "continue")) { return TokenKind.Continue; }
-  if (textEquals(text, "print")) { return TokenKind.Print; }
   if (textEquals(text, "as")) { return TokenKind.As; }
   if (textEquals(text, "import")) { return TokenKind.Import; }
   if (textEquals(text, "export")) { return TokenKind.Export; }

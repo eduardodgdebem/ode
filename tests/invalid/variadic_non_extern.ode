@@ -1,0 +1,7 @@
+fn sum(count: i32, ...): i32 {
+  return count;
+}
+
+fn main(): i32 {
+  return sum(0);
+}

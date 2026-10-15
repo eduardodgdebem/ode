@@ -4,7 +4,7 @@
 
 - **Program** → TopLevel*
 - **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | Statement
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | PrintStmt | ExprStmt | Block
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
 
@@ -56,7 +56,6 @@ cycles.
 - **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` Block
 - **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR
 - **ReturnStmt** → `return` Expr? `;`
-- **PrintStmt** → `print` `(` Expr `)` `;`
 - **ExprStmt** → Expr `;`
 - **Block** → `{` Statement* `}`
 - **LValue** → IDENT | `*` Unary | Postfix `.` IDENT | Postfix `[` Expr `]`
@@ -65,7 +64,7 @@ cycles.
 
 ## Functions
 
-- **ParamList** → Param (`,` Param)*
+- **ParamList** → Param (`,` Param)* (`,` `...`)? | `...`
 - **Param** → IDENT `:` Type
 - **FuncCall** → IDENT TypeArgs? `(` ArgList? `)`
 - **ArgList** → Expr (`,` Expr)*
@@ -118,10 +117,10 @@ position names a struct.
 - **CHAR** → `'` Char `'`
 - **Char** → any character except the closing quote or a newline, or an Escape
 - **Escape** → `\n` | `\t` | `\r` | `\0` | `\\` | `\"` | `\'`
-- **Operator** → a two-character operator if one matches, otherwise a
-  single-character one
+- **Operator** → `...` if it matches, otherwise a two-character operator if
+  one matches, otherwise a single-character one
 - **TwoCharOp** → `==` | `!=` | `<=` | `>=` | `&&` | `||` | `<<` | `>>` |
-  `+=` | `-=` | `*=` | `/=` | `%=`
+  `+=` | `-=` | `*=` | `/=` | `%=` | `=>` | `..`
 - **OneCharOp** → `+` | `-` | `*` | `/` | `%` | `&` | `|` | `^` | `!` | `<` |
   `>` | `=` | `.`
 - **Comment** → `//` to the end of the line
@@ -261,8 +260,12 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   its file regardless of declaration order.
 - Structs may be passed and returned by value between Ode functions, but not
   across `extern`, where the C ABI would need target-specific lowering.
-- `*i8` is Ode's string type: `print` renders it as text, while every other
-  pointer prints as an address.
+- `*i8` is Ode's string type, the one C's `char *` maps to.
+- An `extern` whose ParamList ends in `...` is variadic: it takes any number
+  of arguments after the ones it names, each promoted as C promotes it
+  (narrower integers and `bool` to `i32`, `f32` to `f64`). Only an `extern`
+  may be variadic, a struct cannot go through `...`, and a variadic extern
+  has no value as a function.
 - `else if` chains without nesting: the `if` after an `else` becomes the else
   branch directly, so no wrapping block is needed.
 - `for (i in start..end)` runs its body with `i` taking each value from

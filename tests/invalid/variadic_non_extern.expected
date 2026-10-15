@@ -1,0 +1,1 @@
+variadic_non_extern.ode:1:1: error: function 'sum' takes '...': only an extern can take a variable number of arguments

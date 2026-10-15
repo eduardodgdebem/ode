@@ -2,6 +2,8 @@
 // character literals are `i8`. Together they are what a self-hosted lexer
 // needs to scan its own source.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn strlen(text: *i8): i64;
 extern fn putchar(character: i32): i32;
 
@@ -29,26 +31,26 @@ fn countDigits(text: *i8): i32 {
 
 fn main(): i32 {
   // print treats *i8 as text; any other pointer prints as an address.
-  print("hello, world");
-  print(GREETING);
+  printf("%s\n", "hello, world");
+  printf("%s\n", GREETING);
 
   // Escapes are decoded by the lexer.
-  print("tab:\there");
-  print("quote:\"quoted\"");
-  print("backslash:\\");
+  printf("%s\n", "tab:\there");
+  printf("%s\n", "quote:\"quoted\"");
+  printf("%s\n", "backslash:\\");
 
   // A // inside a literal is text, not the start of a comment.
-  print("https://example.com");
+  printf("%s\n", "https://example.com");
 
-  print(strlen("hello") as i32);
-  print(countDigits("a1b22c333"));
+  printf("%d\n", strlen("hello") as i32);
+  printf("%d\n", countDigits("a1b22c333"));
 
   // Indexing a string yields bytes.
-  print(GREETING[0] as i32);
-  print(GREETING[1]);
+  printf("%d\n", GREETING[0] as i32);
+  printf("%d\n", GREETING[1]);
 
   let first: i8 = 'O';
-  print(first == GREETING[0]);
+  printf("%d\n", first == GREETING[0]);
 
   // Walking a string one byte at a time.
   let i: i64 = 0;

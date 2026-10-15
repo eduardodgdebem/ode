@@ -1,6 +1,8 @@
 // Expressions used as statements, at the top level and inside a block, whose
 // values are discarded; and a block's own scope.
 
+extern fn printf(format: *i8, ...): i32;
+
 (1+6);
 
 fn main(): i32 {
@@ -13,5 +15,5 @@ fn main(): i32 {
   }
 
   let a:i32 = 3;
-  print(a);
+  printf("%d\n", a);
 }

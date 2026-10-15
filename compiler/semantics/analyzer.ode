@@ -60,6 +60,9 @@ export struct Analyzer {
   signatures: *List<Signature>,
   // Per node: 1 for a function's name used as a value.
   functionRefs: *i8,
+  // Per call of a variadic extern: one more than the number of parameters it
+  // names, the arguments after which go through `...`. 0 for any other call.
+  variadicAfter: *i32,
   // Per call: what it calls, one of the CallTarget kinds.
   callTargets: *CallTarget,
   // How many nodes the per-node tables above have room for.
@@ -114,6 +117,7 @@ export struct Analyzer {
       self.values = malloc(sizeof(i64) * size) as *i64;
       self.functionRefs = malloc(size);
       self.callTargets = malloc(sizeof(CallTarget) * size) as *CallTarget;
+      self.variadicAfter = malloc(sizeof(i32) * size) as *i32;
     } else {
       self.types = realloc(self.types as *i8, sizeof(Type) * size) as
           *Type;
@@ -132,6 +136,8 @@ export struct Analyzer {
       self.callTargets = realloc(self.callTargets as *i8,
                                  sizeof(CallTarget) * size) as
           *CallTarget;
+      self.variadicAfter = realloc(self.variadicAfter as *i8,
+                                   sizeof(i32) * size) as *i32;
     }
 
     for (index in old..count) {
@@ -144,6 +150,7 @@ export struct Analyzer {
       self.functionRefs[index] = 0;
       self.callTargets[index] = CallTarget.Direct;
       self.values[index] = 0;
+      self.variadicAfter[index] = 0;
     }
 
     self.nodeCapacity = count;
@@ -502,7 +509,24 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     }
   }
 
+  let before: i32 = an.symbols.count;
   declareTopLevel(an, node, name, SymbolKind.Fn, returnType, params, paramCount);
+
+  // Only C can read arguments it was not told the types of.
+  if (isVariadic(an, node)) {
+    if (kind != NodeKind.Extern) {
+      analyzerFail2(an, node, quoted("function ", name, " takes '...'"),
+                    "only an extern can take a variable number of arguments");
+    } else if (an.symbols.count > before) {
+      an.symbols.items[before].variadic = true;
+    }
+  }
+}
+
+// Whether the function or extern `node` ends its parameters with `...`.
+export fn isVariadic(an: *Analyzer, node: i32): bool {
+  let params: i32 = an.ast.nodes[node].b;
+  return params != NO_NODE && an.ast.nodes[params].extra == 1;
 }
 
 // Whether the program item at `index` belongs to `module`.

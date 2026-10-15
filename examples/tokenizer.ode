@@ -2,6 +2,8 @@
 // for: dispatching on a character without nesting one block per case, and
 // steering a scan loop.
 
+extern fn printf(format: *i8, ...): i32;
+
 extern fn strlen(text: *i8): i64;
 
 let KIND_NUMBER: i32 = 1;
@@ -43,18 +45,18 @@ fn classify(c: i8): i32 {
 
 fn printKind(kind: i32): void {
   if (kind == KIND_NUMBER) {
-    print("number");
+    printf("%s\n", "number");
     // A bare return, which only a void function may write.
     return;
   } else if (kind == KIND_IDENT) {
-    print("ident");
+    printf("%s\n", "ident");
     return;
   } else if (kind == KIND_OPERATOR) {
-    print("operator");
+    printf("%s\n", "operator");
     return;
   }
 
-  print("unknown");
+  printf("%s\n", "unknown");
 }
 
 fn tokenize(source: *i8): i32 {
@@ -89,7 +91,7 @@ fn tokenize(source: *i8): i32 {
 }
 
 fn main(): i32 {
-  print(tokenize("foo + 42 * bar # ignored"));
+  printf("%d\n", tokenize("foo + 42 * bar # ignored"));
 
   return 0;
 }

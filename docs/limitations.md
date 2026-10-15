@@ -26,7 +26,7 @@ regression suite, so a recurrence fails a check rather than reaching a user.
 Two further latent bugs turned up while fixing those and are also closed: a
 `let` bound its name before its initialiser was generated, so `let x = x + 1;`
 in an inner block would have read its own uninitialised slot once scoping
-existed; and `print` promoted anything whose kind was `i8` — including `*i8` —
+existed; and the old `print` statement promoted anything whose kind was `i8` — including `*i8` —
 through `ptrtoint`, truncating every printed string to 32 bits. That one only
 worked because the constants sat below 4GB.
 
@@ -48,8 +48,8 @@ twice, so a side effect in the target — `a[next()] += 1` — runs twice.
 
 | Missing | Notes |
 |---|---|
-| Fixed-size arrays (`[i8; 256]`) | Deliberate — see 6.2 |
-| Tagged unions (enums with data) | Deliberate — see 6.3 |
+| Fixed-size arrays (`[i8; 256]`) | Deliberate — see 6.1 |
+| Tagged unions (enums with data) | Deliberate — see 6.2 |
 
 The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
 `i64`/`u64` (spelled `usize` too), plus `f32` and `f64`.
@@ -98,15 +98,6 @@ made from one declared after it, which also rules out two made of each other.
 yields a zero value. Several examples rely on it, including `main` in
 `example2` through `example5`.
 
-### 4.4 `print` does not accept structs
-
-```
-error: unsupported type for print statement
-```
-
-`print` handles integers, floats, booleans and pointers only. This diagnostic
-also carries no line or column — see 5.2.
-
 ## 5. Diagnostics
 
 ### 5.1 Errors are batched within a phase, but not across phases
@@ -145,9 +136,8 @@ What is left:
 
 ### 5.2 Some diagnostics have no position
 
-- Errors raised by the IR generator, including `print` of an unsupported type.
-  Most are internal invariants with nothing in the source to point at, but
-  `print` is user-facing.
+- Errors raised by the IR generator. They are internal invariants, with
+  nothing in the source to point at.
 - `rejectStructCycles`, which works over collected layouts rather than
   declarations.
 - `validateType` reports at the enclosing declaration rather than at the type
@@ -163,20 +153,13 @@ unreachable code, no implicit truncation notice.
 
 Choices, not oversights. Each has a reason and a workaround.
 
-### 6.1 No variadic `extern`
-
-`extern fn printf(fmt: *i8, ...): i32;` cannot be written; every declaration is
-fixed-arity. Nothing self-hosting needs is variadic — `malloc`, `fopen`,
-`fread`, `write`, `strlen`, `exit` are all fixed — and the built-in `print`
-covers debugging output.
-
-### 6.2 No fixed-size array types
+### 6.1 No fixed-size array types
 
 An array is a pointer plus indexing: `malloc` for the storage, `a[i]` to reach
 it. A real array type would add a second axis to `Type` for one bootstrap
 convenience.
 
-### 6.3 Enums carry no data
+### 6.2 Enums carry no data
 
 `enum` and `match` exist, but an enum member is only a name for an integer:
 there are no Rust-style variants carrying fields. A kind tag -- now an enum --
@@ -184,7 +167,7 @@ plus one struct holding every variant's fields stands in, as
 `examples/expr_tree.ode` shows. Wasteful in memory, and exactly what a C
 bootstrap compiler does.
 
-### 6.4 Structs cannot cross `extern` by value
+### 6.3 Structs cannot cross `extern` by value
 
 ```
 error: extern 'f' takes a struct by value: take a pointer instead
@@ -195,7 +178,7 @@ Passing an aggregate across the C ABI needs target-specific lowering — `sret`,
 plain LLVM aggregate would produce calls that disagree with the C side.
 Struct-by-value between two Ode functions is fine.
 
-### 6.5 Modules are named imports only
+### 6.4 Modules are named imports only
 
 `import { a, b as c } from "./path";` and `export` on a declaration are all
 there is. Missing, compared with TypeScript:
@@ -214,7 +197,7 @@ function is still an ordinary external symbol in the object file rather than
 The lexer stops the compile at its first error, so a lexical error in an
 imported file ends the run there, before any other file's diagnostics.
 
-### 6.6 Methods are only for structs, and have no interfaces
+### 6.5 Methods are only for structs, and have no interfaces
 
 A method is a function written inside a struct, and that is all a method can
 be:
@@ -228,7 +211,7 @@ be:
 - every method is visible wherever its struct is: there is no `pub`, and no
   private helper method.
 
-### 6.7 Generics are written out and checked per instance
+### 6.6 Generics are written out and checked per instance
 
 - Type arguments are always written: `max<i64>(a, b)`, never `max(a, b)`.
 - There are no constraints on a type parameter, so a generic's body is only
@@ -248,7 +231,7 @@ Division by zero produces garbage rather than a diagnostic or a trap:
 
 ```rust
 let z: i32 = 0;
-print(10 / z);     // prints an arbitrary value
+printf("%d\n", 10 / z);  // prints an arbitrary value
 ```
 
 There are also no bounds checks on indexing, no null checks on dereference,

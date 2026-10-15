@@ -1,5 +1,7 @@
 // `if` and `else` on a condition built with `&&`.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
   let num: i32 = 3;
   let sla: bool = num < 4;
@@ -11,5 +13,5 @@ fn main(): i32 {
     num = num * 3;
   }
 
-  print(num);
+  printf("%d\n", num);
 }

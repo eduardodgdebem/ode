@@ -22,8 +22,8 @@ import {
 } from "./expressions";
 import { analyzeMethodBodies } from "./methods";
 import { analyzeMatch } from "./enums";
-import { foldInteger, laterGlobalIn } from "./constants";
 import { isTemplate } from "./generics";
+import { foldInteger, laterGlobalIn } from "./constants";
 
 // Runs one checking step, then puts back anything a failure skipped past so
 // the next statement is checked as though the failed one were not there.
@@ -65,7 +65,6 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     NodeKind.Fn => { analyzeFuncDecl(an, node); return; }
     NodeKind.Extern => { analyzeExternDecl(an, node); return; }
     NodeKind.Return => { analyzeReturn(an, node); return; }
-    NodeKind.Print => { analyzePrint(an, node); return; }
     NodeKind.ExprStmt => { checkExpr(an, an.ast.nodes[node].a); return; }
     else => {}
   }
@@ -304,13 +303,6 @@ fn analyzeReturn(an: *Analyzer, node: i32): void {
     analyzerFail2(an, node, "wrong return type",
                   expectedButGot(an.currentReturnType.toText(),
                                  returned.toText()));
-  }
-}
-
-fn analyzePrint(an: *Analyzer, node: i32): void {
-  let type: Type = checkExpr(an, an.ast.nodes[node].a);
-  if (type.isVoid()) {
-    analyzerFail(an, node, "cannot print a void value");
   }
 }
 

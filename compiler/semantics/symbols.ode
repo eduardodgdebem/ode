@@ -28,6 +28,8 @@ export struct Symbol {
   // What the IR calls a top-level declaration, which differs from `name` when
   // two files use one name or when an import renames it. Null for a local.
   linkName: *i8,
+  // For an extern declared with `...`: it takes more arguments than `params`.
+  variadic: bool,
 }
 
 export struct SymbolTable {
@@ -129,6 +131,7 @@ export struct SymbolTable {
     self.items[index].params = params;
     self.items[index].paramCount = paramCount;
     self.items[index].linkName = null;
+    self.items[index].variadic = false;
     self.count = index + 1;
   }
 

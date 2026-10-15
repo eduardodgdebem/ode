@@ -16,12 +16,12 @@ import { analyzerParseType } from "../semantics/analyzer";
 import { textHasDot } from "../semantics/expressions";
 import { ReceiverMode } from "../semantics/methods";
 import { CallTarget } from "../semantics/functions";
+import { sizeOf } from "../semantics/layout";
 import {
   Emitter, freshTemp, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, variableAddress, llvmName, internString,
 } from "./emitter";
 import { llvmTypeName, zeroValue } from "./layout";
-import { sizeOf } from "../semantics/layout";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];
@@ -60,7 +60,7 @@ export fn emitStore(e: *Emitter, type: Type, value: *i8, address: *i8): void {
   emitLine(e, line.data);
 }
 
-export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
+fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
   if (from.equals(to)) {
     return value;
   }
@@ -569,6 +569,18 @@ fn genMethodCall(e: *Emitter, node: i32): *i8 {
                      genExpr(e, object));
 }
 
+// The type C's default argument promotions turn `type` into.
+fn promotedType(type: Type): Type {
+  if (type.isBool() || type.isEnum() ||
+      (type.isInteger() && type.bitWidth() < 32)) {
+    return Type.make(TypeKind.I32, 0);
+  }
+  if (type.kind == TypeKind.F32 && !type.isPointer()) {
+    return Type.make(TypeKind.F64, 0);
+  }
+  return type;
+}
+
 // Writes the call `node` resolved to, passing `args`, preceded by `first` of
 // type `firstType` when that is not empty.
 fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
@@ -583,15 +595,41 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
   // Every argument is evaluated before the call is written, because each one
   // may emit instructions of its own.
   let values: **i8 = malloc(sizeof(*i8) * (argCount + 1) as i64) as **i8;
-  let index: i32 = 0;
+  let types: *Type = malloc(sizeof(Type) * (argCount + 1) as i64) as *Type;
+  let named: i32 = e.an.variadicAfter[node] - 1;
   for (index in 0..argCount) {
-    values[index] = genExpr(e, e.ast.nodes[args].items[index]);
+    let argument: i32 = e.ast.nodes[args].items[index];
+    values[index] = genExpr(e, argument);
+    types[index] = typeOfNode(e, argument);
+
+    // What goes through `...` is promoted the way C promotes it: anything
+    // narrower than an int widens to i32, and an f32 to a double.
+    if (named >= 0 && index >= named) {
+      let promoted: Type = promotedType(types[index]);
+      values[index] = emitCast(e, values[index], types[index], promoted);
+      types[index] = promoted;
+    }
   }
 
   let line: *Buf = Buf.new();
   line.add("call ");
   line.add(llvmTypeName(returnType));
   line.push(' ');
+  // A variadic callee is called with its own type spelled out, which is how
+  // LLVM tells the named arguments from the rest.
+  if (named >= 0) {
+    line.push('(');
+    for (index in 0..named) {
+      if (index > 0) {
+        line.add(", ");
+      }
+      line.add(llvmTypeName(types[index]));
+    }
+    if (named > 0) {
+      line.add(", ");
+    }
+    line.add("...) ");
+  }
   line.add(callee);
   line.push('(');
 
@@ -606,7 +644,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
     if (index > 0 || hasFirst) {
       line.add(", ");
     }
-    line.add(llvmTypeName(typeOfNode(e, e.ast.nodes[args].items[index])));
+    line.add(llvmTypeName(types[index]));
     line.push(' ');
     line.add(values[index]);
   }

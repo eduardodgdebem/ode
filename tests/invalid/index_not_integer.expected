@@ -1,1 +1,1 @@
-index_not_integer.ode:3:13: error: index must be an integer: got 'bool'
+index_not_integer.ode:3:22: error: index must be an integer: got 'bool'

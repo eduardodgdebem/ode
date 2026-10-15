@@ -7,87 +7,20 @@
 // code still forms valid IR.
 // ---------------------------------------------------------------------------
 
-import { malloc, strlen } from "../support/libc";
+import { malloc } from "../support/libc";
 import { Buf, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
-import { TypeKind, Type } from "../semantics/types";
+import { Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
-  internString,
 } from "./emitter";
 import { llvmTypeName } from "./layout";
 import {
-  typeOfNode, emitAssign, emitLoad, emitStore, emitCast, genAddress, genExpr,
+  typeOfNode, emitAssign, emitLoad, emitStore, genAddress, genExpr,
 } from "./expressions";
-
-// The printf format for a value of this type, and whether the argument needs
-// the default promotions a variadic call performs.
-fn printFormat(type: Type): *i8 {
-  if (type.isNull() || type.isFunction()) {
-    return "%p\n";
-  }
-  if (type.isPointer()) {
-    // `*i8` is Ode's string type, so it prints as text. Any other pointer
-    // prints as an address.
-    if (type.kind == TypeKind.I8 && type.pointerDepth == 1) {
-      return "%s\n";
-    }
-    return "%p\n";
-  }
-
-  if (type.kind == TypeKind.Bool || type.kind == TypeKind.I8 || type.kind == TypeKind.I16 ||
-      type.kind == TypeKind.I32 || type.kind == TypeKind.Enum) {
-    return "%d\n";
-  }
-  if (type.kind == TypeKind.U8 || type.kind == TypeKind.U16 || type.kind == TypeKind.U32) {
-    return "%u\n";
-  }
-  match (type.kind) {
-    TypeKind.I64 => { return "%lld\n"; }
-    TypeKind.U64 => { return "%llu\n"; }
-    TypeKind.F32, TypeKind.F64 => { return "%f\n"; }
-    else => {}
-  }
-
-  failAt(0, 0, "unsupported type for print statement");
-  return "";
-}
-
-fn genPrint(e: *Emitter, node: i32): void {
-  let expr: i32 = e.ast.nodes[node].a;
-  let type: Type = typeOfNode(e, expr);
-  let format: *i8 = printFormat(type);
-  let value: *i8 = genExpr(e, expr);
-
-  // The default argument promotions a variadic call performs: anything
-  // narrower than an int widens to i32, and an f32 widens to double.
-  let argType: Type = type;
-  if (!type.isPointer()) {
-    if (type.isBool() || (type.isInteger() && type.bitWidth() < 32)) {
-      argType = Type.make(TypeKind.I32, 0);
-      value = emitCast(e, value, type, argType);
-    } else if (type.kind == TypeKind.F32) {
-      argType = Type.make(TypeKind.F64, 0);
-      value = emitCast(e, value, type, argType);
-    }
-  }
-
-  let formatSymbol: *i8 = internString(e, format, strlen(format));
-
-  let line: *Buf = Buf.new();
-  line.add("call i32 (ptr, ...) @printf(ptr ");
-  line.add(formatSymbol);
-  line.add(", ");
-  line.add(llvmTypeName(argType));
-  line.push(' ');
-  line.add(value);
-  line.push(')');
-
-  emitAssign(e, line.data);
-}
 
 export fn genStatement(e: *Emitter, node: i32): void {
   let kind: NodeKind = e.ast.nodes[node].kind;
@@ -138,11 +71,6 @@ export fn genStatement(e: *Emitter, node: i32): void {
 
   if (kind == NodeKind.ExprStmt) {
     genExpr(e, e.ast.nodes[node].a);
-    return;
-  }
-
-  if (kind == NodeKind.Print) {
-    genPrint(e, node);
     return;
   }
 

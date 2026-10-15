@@ -31,7 +31,6 @@ export enum NodeKind {
   Field,
   Call,
   Return,
-  Print,
   ExprStmt,
   Binary,
   Unary,
@@ -91,7 +90,6 @@ struct Node {
   //   finit    a=value
   //   call     a=args
   //   return   a=expr
-  //   print    a=expr
   //   exprstmt a=expr
   //   binary   a=left   b=right
   //   unary    a=operand
@@ -117,6 +115,7 @@ struct Node {
   c: i32,
   // Pointer depth, for a type node. For an import, the module it loads, once
   // the driver has found it. For a match arm, 1 when it is the `else` arm.
+  // For a parameter list, 1 when it ends in `...`.
   extra: i32,
   // Child indices, for program, block, struct, structlit, params, args and
   // import. A struct's items are its fields and then, mixed in, its methods.
@@ -217,7 +216,6 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     NodeKind.Field => { return "field"; }
     NodeKind.Call => { return "call"; }
     NodeKind.Return => { return "return"; }
-    NodeKind.Print => { return "print"; }
     NodeKind.ExprStmt => { return "exprstmt"; }
     NodeKind.Binary => { return "binary"; }
     NodeKind.Unary => { return "unary"; }

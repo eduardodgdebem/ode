@@ -1,5 +1,7 @@
 // A `while` loop counting to ten.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
   let i: i32 = 0;
   let sum: i32 = 0;
@@ -9,5 +11,5 @@ fn main(): i32 {
     i = i + 1;
   }
 
-  print(sum);
+  printf("%d\n", sum);
 }

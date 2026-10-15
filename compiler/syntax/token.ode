@@ -28,7 +28,6 @@ export enum TokenKind {
   While,
   Break,
   Continue,
-  Print,
   As,
   Import,
   Export,
@@ -75,6 +74,8 @@ export enum TokenKind {
   Arrow,
   // `..`, between a for loop's bounds.
   DotDot,
+  // `...`, ending a variadic extern's parameters.
+  Ellipsis,
 }
 // Not a token: the state before the first one has been read.
 
@@ -158,7 +159,6 @@ export fn kindName(kind: TokenKind): *i8 {
     TokenKind.While => { return "while"; }
     TokenKind.Break => { return "break"; }
     TokenKind.Continue => { return "continue"; }
-    TokenKind.Print => { return "print"; }
     TokenKind.As => { return "as"; }
     TokenKind.Import => { return "import"; }
     TokenKind.Export => { return "export"; }
@@ -203,6 +203,7 @@ export fn kindName(kind: TokenKind): *i8 {
     TokenKind.Colon => { return ":"; }
     TokenKind.Arrow => { return "=>"; }
     TokenKind.DotDot => { return ".."; }
+    TokenKind.Ellipsis => { return "..."; }
     else => {}
   }
 

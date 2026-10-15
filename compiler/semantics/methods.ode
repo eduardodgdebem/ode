@@ -18,7 +18,7 @@ import { TypeKind, Type } from "./types";
 import { SymbolKind } from "./symbols";
 import {
   Analyzer, analyzerFail, analyzerFail2, quoted, analyzerParseType,
-  analyzerValidateType, analyzerParamTypes,
+  analyzerValidateType, analyzerParamTypes, isVariadic,
 } from "./analyzer";
 import { isLValue, checkExpr, checkArguments } from "./expressions";
 import { analyzeFunctionBody } from "./statements";
@@ -127,6 +127,10 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
       if (findMethod(an, node, an.ast.nodes[method].text) != method) {
         analyzerFail(an, method,
                      quoted("method ", name, " is declared more than once"));
+      }
+      if (isVariadic(an, method)) {
+        analyzerFail2(an, method, quoted("method ", name, " takes '...'"),
+                      "only an extern can take a variable number of arguments");
       }
 
       analyzerValidateType(an, method,

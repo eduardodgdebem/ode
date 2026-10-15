@@ -2,6 +2,8 @@
 // hoisted function signatures this program could not be compiled at all,
 // which also ruled out writing a recursive-descent parser in Ode.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn isEven(n: i32): bool {
   if (n == 0) {
     return true;
@@ -19,10 +21,10 @@ fn isOdd(n: i32): bool {
 }
 
 fn main(): i32 {
-  print(isEven(10));
-  print(isOdd(10));
-  print(isEven(7));
-  print(isOdd(7));
+  printf("%d\n", isEven(10));
+  printf("%d\n", isOdd(10));
+  printf("%d\n", isEven(7));
+  printf("%d\n", isOdd(7));
 
   return 0;
 }

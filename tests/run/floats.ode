@@ -1,9 +1,11 @@
 // `f32` arithmetic, printed with six decimal places.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn main(): i32 {
     let x: f32 = 10.5;
     let y: f32 = 2.5;
     let z: f32 = x + y;
-    print(z);
+    printf("%f\n", z);
     return 0;
 }

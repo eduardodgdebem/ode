@@ -4,6 +4,8 @@
 // time. The iterative one keeps the last two numbers, takes linear time, and
 // uses i64 so that fib(90) -- which is past what i32 can hold -- still fits.
 
+extern fn printf(format: *i8, ...): i32;
+
 fn fibRecursive(n: i32): i32 {
   if (n < 2) {
     return n;
@@ -32,9 +34,9 @@ fn fibIterative(n: i32): i64 {
 }
 
 fn main(): i32 {
-  print(fibRecursive(25));
-  print(fibIterative(25) == fibRecursive(25) as i64);
-  print(fibIterative(90));
+  printf("%d\n", fibRecursive(25));
+  printf("%d\n", fibIterative(25) == fibRecursive(25) as i64);
+  printf("%lld\n", fibIterative(90));
 
   return 0;
 }

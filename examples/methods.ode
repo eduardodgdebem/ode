@@ -8,6 +8,8 @@
 // A method without `self` is called on the struct's name, the way an
 // associated function is in Rust or a namespaced one is in Zig.
 
+extern fn printf(format: *i8, ...): i32;
+
 struct Vec2 {
   x: i32,
   y: i32,
@@ -53,33 +55,33 @@ struct Counter {
 
 fn main(): i32 {
   let v: Vec2 = Vec2.new(3, 4);
-  print(v.lengthSquared());
+  printf("%d\n", v.lengthSquared());
 
   // A by-pointer method on a variable is passed its address.
   v.scale(2);
-  print(v.x);
+  printf("%d\n", v.x);
 
   // A by-value method on a pointer is passed what it points at.
   let p: *Vec2 = &v;
-  print(p.lengthSquared());
+  printf("%d\n", p.lengthSquared());
 
   // Calls chain, and a by-value method takes a temporary.
-  print(Vec2.new(1, 1).plus(Vec2.new(2, 3)).lengthSquared());
-  print(Vec2.zero().lengthSquared());
+  printf("%d\n", Vec2.new(1, 1).plus(Vec2.new(2, 3)).lengthSquared());
+  printf("%d\n", Vec2.zero().lengthSquared());
 
   let w: Vec2 = Vec2.new(1, 2);
-  print(w.doubledLength());
-  print(w.y);
+  printf("%d\n", w.doubledLength());
+  printf("%d\n", w.y);
 
   // Any method can be called on the struct with `self` written out.
-  print(Vec2.lengthSquared(w));
+  printf("%d\n", Vec2.lengthSquared(w));
   Vec2.scale(&w, 10);
-  print(w.x);
+  printf("%d\n", w.x);
 
   // A method returning the pointer it was given chains on it.
   let c: Counter = Counter { hits: 0 };
   c.bump().bump().bump();
-  print(c.hits);
+  printf("%d\n", c.hits);
 
   return 0;
 }

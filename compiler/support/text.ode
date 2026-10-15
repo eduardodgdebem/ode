@@ -11,7 +11,7 @@ import {
 } from "./libc";
 
 // ---------------------------------------------------------------------------
-// Output. There is no variadic extern, so nothing here goes through printf.
+// Output, straight to write(2) rather than through printf's format strings.
 // ---------------------------------------------------------------------------
 
 export fn writeText(fd: i32, text: *i8): void {
@@ -84,7 +84,7 @@ export struct Buf {
     self.addBytes(text, strlen(text));
   }
 
-  // Decimal, written out by hand because printf cannot be declared.
+  // Decimal, written out by hand rather than with snprintf.
   fn addInt(self: *Buf, value: i64): void {
     if (value == 0) {
       self.push('0');
