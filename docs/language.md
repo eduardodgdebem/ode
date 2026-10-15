@@ -113,6 +113,28 @@ fn find(list: *Node, value: i32): *Node {
 }
 ```
 
+## Functions as values
+
+A function's name, used other than to call it, is a value. Its type is
+written `fn(parameter types): result type`:
+
+```rust
+fn square(x: i32): i32 { return x * x; }
+
+fn apply(f: fn(i32): i32, x: i32): i32 {
+  return f(x);
+}
+
+let op: fn(i32): i32 = square;
+print(apply(op, 7));     // 49
+```
+
+A function value can be kept in a struct and called like a method, kept in a
+table and called by index (`table[i](x)`), returned, compared with `==`, and
+set to `null` for "no function". It is a pointer to code, so C can call it:
+`extern fn qsort(base: *i8, count: i64, size: i64, compare: fn(*i8, *i8): i32): void;`
+takes a comparison written in Ode.
+
 ## Calling C
 
 `extern` declares a function supplied by the C runtime or another object

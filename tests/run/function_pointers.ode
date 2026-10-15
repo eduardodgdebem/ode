@@ -1,0 +1,117 @@
+// Functions as values: stored, passed, returned, kept in structs and tables,
+// and handed to C as callbacks.
+
+extern fn malloc(size: i64): *i8;
+extern fn qsort(base: *i8, count: i64, size: i64,
+                compare: fn(*i8, *i8): i32): void;
+
+fn add(a: i32, b: i32): i32 {
+  return a + b;
+}
+
+fn multiply(a: i32, b: i32): i32 {
+  return a * b;
+}
+
+fn square(x: i32): i32 {
+  return x * x;
+}
+
+fn negate(x: i32): i32 {
+  return 0 - x;
+}
+
+// Taking a function.
+fn apply(f: fn(i32): i32, x: i32): i32 {
+  return f(x);
+}
+
+fn fold(values: *i32, count: i32, start: i32, step: fn(i32, i32): i32): i32 {
+  let total: i32 = start;
+  let i: i32 = 0;
+  while (i < count) {
+    total = step(total, values[i]);
+    i = i + 1;
+  }
+  return total;
+}
+
+// Returning one.
+fn pick(name: i8): fn(i32, i32): i32 {
+  if (name == '+') {
+    return add;
+  }
+  return multiply;
+}
+
+// In a struct, called like a method.
+struct Operation {
+  name: *i8,
+  run: fn(i32): i32,
+}
+
+// A global, initialised from a function.
+let DEFAULT: fn(i32): i32 = square;
+
+// The comparison qsort calls back into, with C's signature.
+fn compareInts(a: *i8, b: *i8): i32 {
+  let x: i32 = *(a as *i32);
+  let y: i32 = *(b as *i32);
+  if (x < y) {
+    return -1;
+  }
+  if (x > y) {
+    return 1;
+  }
+  return 0;
+}
+
+fn main(): i32 {
+  let op: fn(i32, i32): i32 = add;
+  print(op(2, 3));
+  op = multiply;
+  print(op(2, 3));
+
+  print(apply(square, 7));
+  print(apply(negate, 7));
+  print(apply(DEFAULT, 4));
+
+  let values: *i32 = malloc(sizeof(i32) as i64 * 5 as i64) as *i32;
+  values[0] = 5;
+  values[1] = 3;
+  values[2] = 9;
+  values[3] = 1;
+  values[4] = 7;
+  print(fold(values, 5, 0, add));
+  print(fold(values, 5, 1, multiply));
+  print(pick('+')(10, 20));
+  print(pick('*')(10, 20));
+
+  let op2: Operation = Operation { name: "square", run: square };
+  print(op2.run(9));
+  let p: *Operation = &op2;
+  p.run = negate;
+  print(p.run(9));
+
+  // A table of functions, indexed and called.
+  let table: *fn(i32): i32 =
+      malloc(sizeof(fn(i32): i32) as i64 * 2 as i64) as *fn(i32): i32;
+  table[0] = square;
+  table[1] = negate;
+  print(table[0](5) + table[1](5));
+
+  // `null` is the absence of a function, and functions compare.
+  let missing: fn(i32): i32 = null;
+  print(missing == null);
+  print(table[0] == square);
+  print(table[0] != table[1]);
+
+  qsort(values as *i8, 5 as i64, sizeof(i32) as i64, compareInts);
+  let i: i32 = 0;
+  while (i < 5) {
+    print(values[i]);
+    i = i + 1;
+  }
+
+  return 0;
+}

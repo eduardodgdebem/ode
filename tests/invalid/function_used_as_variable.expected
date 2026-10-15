@@ -1,1 +1,1 @@
-function_used_as_variable.ode:6:9: error: 'helper' is a function, not a variable
+function_used_as_variable.ode:7:3: error: type mismatch in declaration of 'value': declared as 'i32' but assigned 'fn(): i32'

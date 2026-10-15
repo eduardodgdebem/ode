@@ -22,6 +22,7 @@ import {
 } from "./analyzer";
 import { isLValue, checkExpr, checkArguments } from "./expressions";
 import { analyzeFunctionBody } from "./statements";
+import { CallTarget, checkCallThrough } from "./functions";
 
 // How a method call passes its receiver.
 export enum ReceiverMode {
@@ -222,6 +223,18 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   let method: i32 = NO_NODE;
   if (structNode != NO_NODE) {
     method = findMethod(an, structNode, name);
+  }
+
+  // `ops.apply(x)` with no method `apply` calls the field of that name, if
+  // it holds a function.
+  if (method == NO_NODE && structNode != NO_NODE) {
+    let structIndex: i32 = an.structs.indexOf(structType.structName);
+    let field: i32 = an.structs.fieldIndex(structIndex, name);
+    if (field >= 0) {
+      let fieldType: Type = an.structs.items[structIndex].fields[field].type;
+      an.callTargets[node] = CallTarget.Field;
+      return checkCallThrough(an, node, name, fieldType, an.ast.nodes[node].b);
+    }
   }
 
   if (method == NO_NODE) {

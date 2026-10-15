@@ -22,6 +22,9 @@ import {
 import { analyzeRecovering } from "./statements";
 import { ReceiverMode, registerMethods } from "./methods";
 import { registerEnum } from "./enums";
+import {
+  Signature, CallTarget, signatureIndex, parseFunctionType,
+} from "./functions";
 
 export struct Analyzer {
   ast: *Ast,
@@ -48,6 +51,14 @@ export struct Analyzer {
   // The IR names of every enum, which is how a type name is told to be an
   // enum's rather than a struct's.
   enumNames: *NameSet,
+  // Every function type seen, so that a type's signature can be read back.
+  signatures: *Signature,
+  signatureCount: i32,
+  signatureCapacity: i32,
+  // Per node: 1 for a function's name used as a value.
+  functionRefs: *i8,
+  // Per call: what it calls, one of the CallTarget kinds.
+  callTargets: *CallTarget,
   program: i32,
   loopDepth: i32,
   inFunction: bool,
@@ -67,6 +78,13 @@ export struct Analyzer {
     an.isConstant = malloc(ast.count as i64);
     an.values = malloc(sizeof(i64) as i64 * ast.count as i64) as *i64;
     an.enumNames = NameSet.new();
+    an.signatureCapacity = 16;
+    an.signatureCount = 0;
+    an.signatures = malloc(sizeof(Signature) as i64 *
+                           an.signatureCapacity as i64) as *Signature;
+    an.functionRefs = malloc(ast.count as i64);
+    an.callTargets = malloc(sizeof(CallTarget) as i64 * ast.count as i64) as
+        *CallTarget;
     an.program = NO_NODE;
     an.moduleSymbols =
         malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
@@ -82,6 +100,8 @@ export struct Analyzer {
       an.receivers[index] = ReceiverMode.None;
       an.structRefs[index] = null;
       an.isConstant[index] = 0 as i8;
+      an.functionRefs[index] = 0 as i8;
+      an.callTargets[index] = CallTarget.Direct;
       an.values[index] = 0 as i64;
       index = index + 1;
     }
@@ -158,6 +178,9 @@ export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
 // ---------------------------------------------------------------------------
 
 export fn analyzerParseType(an: *Analyzer, node: i32): Type {
+  if (node != NO_NODE && an.ast.nodes[node].kind == NodeKind.FnType) {
+    return parseFunctionType(an, node);
+  }
   if (node == NO_NODE || an.ast.nodes[node].kind != NodeKind.Type) {
     failAt(0, 0, "expected type annotation");
   }
@@ -180,6 +203,19 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
 
 export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
                                context: *i8): void {
+  // A function type is valid when everything in its signature is.
+  if (type.kind == TypeKind.Function) {
+    let signature: i32 = signatureIndex(an, type);
+    let index: i32 = 0;
+    while (index < an.signatures[signature].count) {
+      analyzerValidateType(an, node, an.signatures[signature].params[index],
+                           context);
+      index = index + 1;
+    }
+    analyzerValidateType(an, node, an.signatures[signature].result, context);
+    return;
+  }
+
   if (type.kind != TypeKind.Struct) {
     return;
   }

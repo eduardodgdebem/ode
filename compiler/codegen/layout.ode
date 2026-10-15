@@ -13,7 +13,7 @@ import { Emitter } from "./emitter";
 
 export fn llvmTypeName(type: Type): *i8 {
   // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.
-  if (type.isPointer() || type.isNull()) {
+  if (type.isPointer() || type.isNull() || type.isFunction()) {
     return "ptr";
   }
   if (type.kind == TypeKind.Enum) {
@@ -43,7 +43,7 @@ export fn llvmTypeName(type: Type): *i8 {
 }
 
 fn alignOfType(e: *Emitter, type: Type): i32 {
-  if (type.isPointer()) {
+  if (type.isPointer() || type.isFunction()) {
     return 8;
   }
 
@@ -84,7 +84,7 @@ fn alignUp(value: i32, alignment: i32): i32 {
 }
 
 export fn sizeOfType(e: *Emitter, type: Type): i32 {
-  if (type.isPointer()) {
+  if (type.isPointer() || type.isFunction()) {
     return 8;
   }
 
@@ -111,7 +111,7 @@ export fn sizeOfType(e: *Emitter, type: Type): i32 {
 }
 
 export fn zeroValue(type: Type): *i8 {
-  if (type.isPointer()) { return "null"; }
+  if (type.isPointer() || type.isFunction()) { return "null"; }
   match (type.kind) {
     TypeKind.Struct => { return "zeroinitializer"; }
     TypeKind.Bool => { return "false"; }

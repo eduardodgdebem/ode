@@ -1,0 +1,8 @@
+fn square(x: i32): i32 {
+  return x * x;
+}
+
+fn main(): i32 {
+  let f: fn(i32): i32 = square;
+  return f(true) + f(1, 2);
+}

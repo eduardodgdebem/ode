@@ -15,6 +15,7 @@ import { TypeKind, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import { textHasDot } from "../semantics/expressions";
 import { ReceiverMode } from "../semantics/methods";
+import { CallTarget } from "../semantics/functions";
 import {
   Emitter, freshTemp, freshLabel, emitLine, emitLabel, emitBranch,
   emitCondBranch, variableAddress, internString,
@@ -75,7 +76,8 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
   let source: *i8 = llvmTypeName(from);
 
   // Opaque pointers: pointer to pointer is not a conversion at all.
-  if ((from.isPointer() || from.isNull()) && to.isPointer()) {
+  let fromCode: bool = from.isPointer() || from.isNull() || from.isFunction();
+  if (fromCode && (to.isPointer() || to.isFunction())) {
     return value;
   }
 
@@ -164,53 +166,11 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
   }
 
   if (kind == NodeKind.FieldAccess) {
-    let object: i32 = e.ast.nodes[node].a;
-    let objectType: Type = typeOfNode(e, object);
-
-    // `p.field` follows one level of pointer automatically, so the base is
-    // either the pointer's value or the address of a struct variable.
-    let base: *i8 = null;
-    let structType: Type = objectType;
-    if (objectType.isPointer()) {
-      base = genExpr(e, object);
-      structType = objectType.pointee();
-    } else {
-      base = genAddress(e, object);
-    }
-
-    let structIndex: i32 = e.an.structs.indexOf(structType.structName);
-    let fieldIndex: i32 =
-        e.an.structs.fieldIndex(structIndex, e.ast.nodes[node].text);
-
-    let line: *Buf = Buf.new();
-    line.add("getelementptr inbounds ");
-    line.add(llvmTypeName(structType));
-    line.add(", ptr ");
-    line.add(base);
-    line.add(", i32 0, i32 ");
-    line.addInt(fieldIndex as i64);
-
-    return emitAssign(e, line.data);
+    return genFieldAddress(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
   }
 
   if (kind == NodeKind.Index) {
-    let base: i32 = e.ast.nodes[node].a;
-    let baseType: Type = typeOfNode(e, base);
-    let pointer: *i8 = genExpr(e, base);
-
-    let indexNode: i32 = e.ast.nodes[node].b;
-    let offset: *i8 = emitCast(e, genExpr(e, indexNode),
-                               typeOfNode(e, indexNode), Type.make(TypeKind.I64, 0));
-
-    let line: *Buf = Buf.new();
-    line.add("getelementptr inbounds ");
-    line.add(llvmTypeName(baseType.pointee()));
-    line.add(", ptr ");
-    line.add(pointer);
-    line.add(", i64 ");
-    line.add(offset);
-
-    return emitAssign(e, line.data);
+    return genIndexAddress(e, node);
   }
 
   // For `*p` the address to read or write is simply the value of `p`.
@@ -221,6 +181,84 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
   failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
          "expression does not denote an addressable location");
   return null;
+}
+
+// The address of the field `field` of the struct `object` is, or points at.
+fn genFieldAddress(e: *Emitter, object: i32, field: *i8): *i8 {
+  let objectType: Type = typeOfNode(e, object);
+
+  // `p.field` follows one level of pointer automatically, so the base is
+  // either the pointer's value or the address of a struct variable.
+  let base: *i8 = null;
+  let structType: Type = objectType;
+  if (objectType.isPointer()) {
+    base = genExpr(e, object);
+    structType = objectType.pointee();
+  } else {
+    base = genAddress(e, object);
+  }
+
+  let structIndex: i32 = e.an.structs.indexOf(structType.structName);
+  let fieldIndex: i32 = e.an.structs.fieldIndex(structIndex, field);
+
+  let line: *Buf = Buf.new();
+  line.add("getelementptr inbounds ");
+  line.add(llvmTypeName(structType));
+  line.add(", ptr ");
+  line.add(base);
+  line.add(", i32 0, i32 ");
+  line.addInt(fieldIndex as i64);
+
+  return emitAssign(e, line.data);
+}
+
+// The value of the field `field` of the struct `object` is, or points at.
+fn genFieldValue(e: *Emitter, object: i32, field: *i8): *i8 {
+  let objectType: Type = typeOfNode(e, object);
+  let structType: Type = objectType;
+  if (objectType.isPointer()) {
+    structType = objectType.pointee();
+  }
+  let structIndex: i32 = e.an.structs.indexOf(structType.structName);
+  let fieldIndex: i32 = e.an.structs.fieldIndex(structIndex, field);
+  let fieldType: Type = e.an.structs.items[structIndex].fields[fieldIndex].type;
+
+  // A struct with no storage -- a call result, say -- cannot be GEPed into,
+  // so the field is read straight out of the aggregate value.
+  if (!objectType.isPointer() && !isAddressable(e, object)) {
+    let line: *Buf = Buf.new();
+    line.add("extractvalue ");
+    line.add(llvmTypeName(objectType));
+    line.push(' ');
+    line.add(genExpr(e, object));
+    line.add(", ");
+    line.addInt(fieldIndex as i64);
+
+    return emitAssign(e, line.data);
+  }
+
+  return emitLoad(e, fieldType, genFieldAddress(e, object, field));
+}
+
+// The address of element `b` of the pointer `a`.
+fn genIndexAddress(e: *Emitter, node: i32): *i8 {
+  let base: i32 = e.ast.nodes[node].a;
+  let baseType: Type = typeOfNode(e, base);
+  let pointer: *i8 = genExpr(e, base);
+
+  let indexNode: i32 = e.ast.nodes[node].b;
+  let offset: *i8 = emitCast(e, genExpr(e, indexNode), typeOfNode(e, indexNode),
+                             Type.make(TypeKind.I64, 0));
+
+  let line: *Buf = Buf.new();
+  line.add("getelementptr inbounds ");
+  line.add(llvmTypeName(baseType.pointee()));
+  line.add(", ptr ");
+  line.add(pointer);
+  line.add(", i64 ");
+  line.add(offset);
+
+  return emitAssign(e, line.data);
 }
 
 // `&&` and `||` evaluate their right operand only when the left does not
@@ -457,40 +495,73 @@ fn genUnary(e: *Emitter, node: i32): *i8 {
 // up again: the call's own type is the return type, and every argument was
 // required to have exactly its parameter's type.
 fn genCall(e: *Emitter, node: i32): *i8 {
-  return genCallWith(e, node, e.ast.nodes[node].a, "", "");
+  // A variable holding a function is loaded, and the call goes through it.
+  if (e.an.callTargets[node] == CallTarget.Value) {
+    let callee: *i8 = emitLoad(e, codePointer(), variableAddress(e, node));
+    return genCallWith(e, node, callee, e.ast.nodes[node].a, "", "");
+  }
+
+  return genCallWith(e, node, direct(e, node), e.ast.nodes[node].a, "", "");
+}
+
+// `@name`: a call straight to the function the analyzer resolved.
+fn direct(e: *Emitter, node: i32): *i8 {
+  let out: *Buf = Buf.new();
+  out.push('@');
+  out.add(e.an.linkNames[node]);
+
+  return out.take();
+}
+
+// The type a function value is loaded as. Every pointer is the same `ptr`.
+fn codePointer(): Type {
+  return Type.make(TypeKind.I8, 1);
+}
+
+// `table[i](x)`: a call of whatever an expression produced.
+fn genCallValue(e: *Emitter, node: i32): *i8 {
+  let callee: *i8 = genExpr(e, e.ast.nodes[node].a);
+  return genCallWith(e, node, callee, e.ast.nodes[node].b, "", "");
 }
 
 // A method call is a call with the receiver, when there is one, put in front
 // of the arguments as `self`.
 fn genMethodCall(e: *Emitter, node: i32): *i8 {
+  // `ops.apply(x)` calls the function a field holds.
+  if (e.an.callTargets[node] == CallTarget.Field) {
+    let callee: *i8 = genFieldValue(e, e.ast.nodes[node].a,
+                                    e.ast.nodes[node].text);
+    return genCallWith(e, node, callee, e.ast.nodes[node].b, "", "");
+  }
+
   let mode: ReceiverMode = e.an.receivers[node];
   if (mode == ReceiverMode.None) {
-    return genCallWith(e, node, e.ast.nodes[node].b, "", "");
+    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, "", "");
   }
 
   let object: i32 = e.ast.nodes[node].a;
   let objectType: Type = typeOfNode(e, object);
 
   if (mode == ReceiverMode.Address) {
-    return genCallWith(e, node, e.ast.nodes[node].b, "ptr",
+    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, "ptr",
                        genAddress(e, object));
   }
 
   if (mode == ReceiverMode.Load) {
     let pointee: Type = objectType.pointee();
     let value: *i8 = emitLoad(e, pointee, genExpr(e, object));
-    return genCallWith(e, node, e.ast.nodes[node].b, llvmTypeName(pointee),
+    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, llvmTypeName(pointee),
                        value);
   }
 
-  return genCallWith(e, node, e.ast.nodes[node].b, llvmTypeName(objectType),
+  return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, llvmTypeName(objectType),
                      genExpr(e, object));
 }
 
 // Writes the call `node` resolved to, passing `args`, preceded by `first` of
 // type `firstType` when that is not empty.
-fn genCallWith(e: *Emitter, node: i32, args: i32, firstType: *i8,
-               first: *i8): *i8 {
+fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
+               firstType: *i8, first: *i8): *i8 {
   let returnType: Type = typeOfNode(e, node);
 
   let argCount: i32 = 0;
@@ -510,8 +581,8 @@ fn genCallWith(e: *Emitter, node: i32, args: i32, firstType: *i8,
   let line: *Buf = Buf.new();
   line.add("call ");
   line.add(llvmTypeName(returnType));
-  line.add(" @");
-  line.add(e.an.linkNames[node]);
+  line.push(' ');
+  line.add(callee);
   line.push('(');
 
   let hasFirst: bool = strlen(firstType) > 0 as i64;
@@ -632,6 +703,11 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
                         e.ast.nodes[node].textLength);
   }
 
+  // A function's name used as a value is the function's address.
+  if (kind == NodeKind.Ident && e.an.functionRefs[node] != 0 as i8) {
+    return direct(e, node);
+  }
+
   if (kind == NodeKind.Ident) {
     return emitLoad(e, typeOfNode(e, node),
                     variableAddress(e, node));
@@ -642,6 +718,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
     NodeKind.Unary => { return genUnary(e, node); }
     NodeKind.Call => { return genCall(e, node); }
     NodeKind.MethodCall => { return genMethodCall(e, node); }
+    NodeKind.CallValue => { return genCallValue(e, node); }
     NodeKind.StructLit => { return genStructLiteral(e, node); }
     else => {}
   }
@@ -663,28 +740,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   }
 
   if (kind == NodeKind.FieldAccess) {
-    let object: i32 = e.ast.nodes[node].a;
-    let objectType: Type = typeOfNode(e, object);
-
-    // A struct with no storage -- a call result, say -- cannot be GEPed into,
-    // so the field is read straight out of the aggregate value.
-    if (!objectType.isPointer() && !isAddressable(e, object)) {
-      let structIndex: i32 = e.an.structs.indexOf(objectType.structName);
-      let fieldIndex: i32 =
-          e.an.structs.fieldIndex(structIndex, e.ast.nodes[node].text);
-
-      let line: *Buf = Buf.new();
-      line.add("extractvalue ");
-      line.add(llvmTypeName(objectType));
-      line.push(' ');
-      line.add(genExpr(e, object));
-      line.add(", ");
-      line.addInt(fieldIndex as i64);
-
-      return emitAssign(e, line.data);
-    }
-
-    return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
+    return genFieldValue(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
   }
 
   if (kind == NodeKind.Index) {

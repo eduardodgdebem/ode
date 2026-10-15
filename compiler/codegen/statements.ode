@@ -25,7 +25,7 @@ import {
 // The printf format for a value of this type, and whether the argument needs
 // the default promotions a variadic call performs.
 fn printFormat(type: Type): *i8 {
-  if (type.isNull()) {
+  if (type.isNull() || type.isFunction()) {
     return "%p\n";
   }
   if (type.isPointer()) {
