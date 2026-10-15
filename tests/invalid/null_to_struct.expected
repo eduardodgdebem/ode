@@ -1,0 +1,1 @@
+null_to_struct.ode:6:3: error: type mismatch in declaration of 'p': declared as 'Point' but assigned 'null'

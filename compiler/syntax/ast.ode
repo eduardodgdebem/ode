@@ -54,6 +54,7 @@ export let NK_ERROR: i32 = 34;
 export let NK_IMPORT: i32 = 35;
 export let NK_IMPORTNAME: i32 = 36;
 export let NK_METHODCALL: i32 = 37;
+export let NK_NULL: i32 = 38;
 
 struct Node {
   kind: i32,
@@ -211,6 +212,7 @@ export fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_IMPORT) { return "import"; }
   if (kind == NK_IMPORTNAME) { return "importname"; }
   if (kind == NK_METHODCALL) { return "methodcall"; }
+  if (kind == NK_NULL) { return "null"; }
 
   return "?";
 }

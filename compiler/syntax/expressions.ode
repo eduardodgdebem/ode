@@ -10,15 +10,15 @@
 import { FAILED } from "../support/diagnostics";
 import {
   TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_SIZEOF, TK_AS,
-  TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_PERCENT, TK_NOT, TK_AMP, TK_PIPE,
-  TK_CARET, TK_SHL, TK_SHR, TK_ANDAND, TK_OROR, TK_EQ, TK_NE, TK_LT, TK_LE,
-  TK_GT, TK_GE, TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_LBRACKET,
+  TK_NULL, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_PERCENT, TK_NOT, TK_AMP,
+  TK_PIPE, TK_CARET, TK_SHL, TK_SHR, TK_ANDAND, TK_OROR, TK_EQ, TK_NE, TK_LT,
+  TK_LE, TK_GT, TK_GE, TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_LBRACKET,
   TK_RBRACKET, TK_DOT, TK_COMMA, TK_COLON, Token,
 } from "./token";
 import {
   NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
   NK_STRUCTLIT, NK_FINIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL,
-  NK_IDENT, NK_ARGS, NK_METHODCALL,
+  NK_IDENT, NK_ARGS, NK_METHODCALL, NK_NULL,
 } from "./ast";
 import { Parser, parseType } from "./parser";
 
@@ -311,6 +311,7 @@ fn parsePrimary(parser: *Parser): i32 {
   if (kind == TK_STRING) { return parseLiteral(parser, NK_STRING); }
   if (kind == TK_CHAR) { return parseLiteral(parser, NK_CHAR); }
   if (kind == TK_SIZEOF) { return parseSizeOf(parser); }
+  if (kind == TK_NULL) { return parseLiteral(parser, NK_NULL); }
 
   if (kind == TK_IDENT) {
     if (parser.peek().kind == TK_LPAREN) {

@@ -14,11 +14,11 @@ import { FAILED } from "../support/diagnostics";
 import {
   NO_NODE, NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
   NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
-  NK_METHODCALL,
+  NK_METHODCALL, NK_NULL,
 } from "../syntax/ast";
 import {
-  TY_NONE, TY_I8, TY_I32, TY_I64, TY_U64, TY_F32, TY_BOOL, TY_VOID, Type,
-  fitsIn, parseMagnitude,
+  TY_NONE, TY_I8, TY_I32, TY_I64, TY_U64, TY_F32, TY_BOOL, TY_VOID, TY_NULL,
+  Type, fitsIn, parseMagnitude,
 } from "./types";
 import { SYM_VAR, SYM_FN } from "./symbols";
 import {
@@ -74,6 +74,7 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
   // A string literal is a pointer into a private constant, so it behaves like
   // any other `*i8` from there on.
   if (kind == NK_STRING) { return Type.make(TY_I8, 1); }
+  if (kind == NK_NULL) { return Type.make(TY_NULL, 0); }
   if (kind == NK_CHAR) { return Type.make(TY_I8, 0); }
 
   if (kind == NK_SIZEOF) {
@@ -162,7 +163,7 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
     let argType: Type = checkExpr(an, argument);
     let paramType: Type = params[index];
 
-    if (!argType.equals(paramType)) {
+    if (!paramType.accepts(argType)) {
       let context: *Buf = Buf.new();
       context.add("argument ");
       context.addInt((index + 1) as i64);
@@ -253,7 +254,8 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
   }
 
   if (textEquals(op, "==") || textEquals(op, "!=")) {
-    if (!left.equals(right)) {
+    // `null` compares with any pointer, from either side.
+    if (!left.accepts(right) && !right.accepts(left)) {
       analyzerFail2(an, node, "equality operators require same type operands",
                     gotTwoTypes(left, right));
     }
@@ -390,6 +392,7 @@ fn checkCast(an: *Analyzer, node: i32): Type {
   }
 
   if (from.equals(to)) { return to; }
+  if (from.isNull() && to.isPointer()) { return to; }
   if (from.isNumeric() && to.isNumeric()) { return to; }
   if (from.isBool() && to.isInteger()) { return to; }
   if (from.isInteger() && to.isBool()) { return to; }
@@ -597,7 +600,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
     let fieldType: Type =
         an.structs.items[structIndex].fields[fieldIndex].type;
 
-    if (!valueType.equals(fieldType)) {
+    if (!fieldType.accepts(valueType)) {
       let context: *Buf = Buf.new();
       context.add("field '");
       context.add(fieldName);
@@ -636,6 +639,9 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   let kind: i32 = an.ast.nodes[node].kind;
 
   if (kind == NK_NUMBER || kind == NK_BOOL || kind == NK_STRING) {
+    return true;
+  }
+  if (kind == NK_NULL) {
     return true;
   }
   if (kind == NK_CHAR || kind == NK_SIZEOF) {

@@ -97,6 +97,22 @@ fn increment(target: *i32): void {
 }
 ```
 
+`null` is the pointer that points at nothing. It goes wherever a pointer of
+any type does, and compares with one from either side:
+
+```rust
+fn find(list: *Node, value: i32): *Node {
+  let node: *Node = list;
+  while (node != null) {
+    if (node.value == value) {
+      return node;
+    }
+    node = node.next;
+  }
+  return null;
+}
+```
+
 ## Calling C
 
 `extern` declares a function supplied by the C runtime or another object

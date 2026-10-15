@@ -27,6 +27,8 @@ export let TY_F64: i32 = 10;
 export let TY_BOOL: i32 = 11;
 export let TY_VOID: i32 = 12;
 export let TY_STRUCT: i32 = 13;
+// The type of `null`, which every pointer type accepts and nothing else does.
+export let TY_NULL: i32 = 14;
 
 let MAX_U64: u64 = 18446744073709551615 as u64;
 
@@ -48,6 +50,21 @@ export struct Type {
 
   fn isPointer(self: Type): bool {
     return self.pointerDepth > 0;
+  }
+
+  fn isNull(self: Type): bool {
+    return self.kind == TY_NULL && self.pointerDepth == 0;
+  }
+
+  // Whether a value of type `value` can be stored where `self` is expected.
+  // There are no implicit conversions, so that is equality -- except that
+  // `null` goes wherever any pointer does.
+  fn accepts(self: Type, value: Type): bool {
+    if (value.isNull()) {
+      return self.isPointer() || self.isNull();
+    }
+
+    return self.equals(value);
   }
 
   fn isStruct(self: Type): bool {
@@ -146,6 +163,7 @@ export struct Type {
     if (self.kind == TY_BOOL) { return "bool"; }
     if (self.kind == TY_VOID) { return "void"; }
     if (self.kind == TY_STRUCT) { return self.structName; }
+    if (self.kind == TY_NULL) { return "null"; }
 
     return "unknown";
   }

@@ -1,0 +1,56 @@
+// `null`: the pointer that points at nothing. It goes wherever a pointer of
+// any type does, and compares with one from either side.
+
+extern fn malloc(size: i64): *i8;
+
+struct Node {
+  value: i32,
+  next: *Node,
+}
+
+let EMPTY: *Node = null;
+
+fn find(list: *Node, value: i32): *Node {
+  let node: *Node = list;
+  while (node != null) {
+    if (node.value == value) {
+      return node;
+    }
+    node = node.next;
+  }
+
+  return null;
+}
+
+fn push(list: *Node, value: i32): *Node {
+  let node: *Node = malloc(sizeof(Node) as i64) as *Node;
+  node.value = value;
+  node.next = list;
+  return node;
+}
+
+fn length(list: *Node): i32 {
+  if (list == null) {
+    return 0;
+  }
+  return 1 + length(list.next);
+}
+
+fn main(): i32 {
+  let list: *Node = EMPTY;
+  print(length(list));
+
+  list = push(push(push(null, 1), 2), 3);
+  print(length(list));
+
+  print(find(list, 2) != null);
+  print(null == find(list, 7));
+
+  // In a struct literal, and cast to a pointer type explicitly.
+  let tail: Node = Node { value: 0, next: null };
+  print(tail.next == null);
+  let text: *i8 = null as *i8;
+  print(text == null);
+
+  return 0;
+}

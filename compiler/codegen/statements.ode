@@ -31,6 +31,9 @@ import {
 // The printf format for a value of this type, and whether the argument needs
 // the default promotions a variadic call performs.
 fn printFormat(type: Type): *i8 {
+  if (type.isNull()) {
+    return "%p\n";
+  }
   if (type.isPointer()) {
     // `*i8` is Ode's string type, so it prints as text. Any other pointer
     // prints as an address.

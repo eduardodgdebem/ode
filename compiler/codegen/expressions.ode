@@ -13,7 +13,7 @@ import { failAt } from "../support/diagnostics";
 import {
   NO_NODE, NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
   NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
-  NK_METHODCALL,
+  NK_METHODCALL, NK_NULL,
 } from "../syntax/ast";
 import { TY_I64, TY_BOOL, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
@@ -71,7 +71,7 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
   let source: *i8 = llvmTypeName(from);
 
   // Opaque pointers: pointer to pointer is not a conversion at all.
-  if (from.isPointer() && to.isPointer()) {
+  if ((from.isPointer() || from.isNull()) && to.isPointer()) {
     return value;
   }
 
@@ -617,6 +617,10 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
       value = value - 256;
     }
     return intToText(value as i64);
+  }
+
+  if (kind == NK_NULL) {
+    return "null";
   }
 
   if (kind == NK_STRING) {
