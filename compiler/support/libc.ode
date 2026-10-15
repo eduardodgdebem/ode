@@ -1,13 +1,6 @@
 // ---------------------------------------------------------------------------
-// The C library functions the compiler uses that std/c does not declare,
-// and the constants that go with them. Everything else comes from std.
+// The standard file descriptors. The C library itself comes from std/c.
 // ---------------------------------------------------------------------------
-
-export extern fn fseek(stream: *i8, offset: i64, whence: i32): i32;
-export extern fn ftell(stream: *i8): i64;
-export extern fn remove(path: *i8): i32;
 
 export let STDOUT: i32 = 1;
 export let STDERR: i32 = 2;
-export let SEEK_SET: i32 = 0;
-export let SEEK_END: i32 = 2;

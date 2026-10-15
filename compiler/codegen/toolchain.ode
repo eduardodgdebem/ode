@@ -10,9 +10,10 @@
 // matters, because a non-Apple clang ignores SDKROOT entirely.
 // ---------------------------------------------------------------------------
 
+import { exists } from "std/fs";
 import { Builder } from "std/text";
 import {
-  TextList, StderrMode, runCommand, environment, setEnvironment, fileExists,
+  TextList, StderrMode, runCommand, environment, setEnvironment,
 } from "../support/system";
 import { isSpace } from "../syntax/lexer";
 
@@ -37,7 +38,7 @@ export fn sysroot(): *i8 {
   SYSROOT_PROBED = true;
   SYSROOT = environment("SDKROOT");
 
-  if (SYSROOT == null && fileExists("/usr/bin/xcrun")) {
+  if (SYSROOT == null && exists("/usr/bin/xcrun")) {
     let output: *Builder = Builder.new();
     let command: *TextList = TextList.new().add("xcrun").add("--show-sdk-path");
     if (runCommand(command, null, output, StderrMode.Discard) == 0) {

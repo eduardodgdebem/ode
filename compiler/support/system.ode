@@ -11,8 +11,8 @@
 import { free, memcmp, strlen, fopen, fclose, fread, fwrite, read, getenv } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
+import { exists } from "std/fs";
 import { Builder, slice } from "std/text";
-import { fseek, ftell, SEEK_SET, SEEK_END } from "./libc";
 import { realpath } from "../semantics/modules";
 
 extern fn fork(): i32;
@@ -266,10 +266,6 @@ export fn parentDirectory(path: *i8): *i8 {
   return slice(path, 0, last);
 }
 
-export fn fileExists(path: *i8): bool {
-  return access(path, EXISTS) == 0;
-}
-
 export fn isExecutable(path: *i8): bool {
   return access(path, EXECUTABLE) == 0;
 }
@@ -332,7 +328,7 @@ export fn makeDirectories(path: *i8): bool {
     index = index + 1;
   }
 
-  return fileExists(path);
+  return exists(path);
 }
 
 export fn removeTree(path: *i8): void {
@@ -396,34 +392,3 @@ export fn makeTempDirectory(prefix: *i8): *i8 {
 // ---------------------------------------------------------------------------
 // Files.
 // ---------------------------------------------------------------------------
-
-export fn readFile(path: *i8): *i8 {
-  let stream: *i8 = fopen(path, "r");
-  if (stream == null) {
-    return null;
-  }
-
-  fseek(stream, 0, SEEK_END);
-  let size: i64 = ftell(stream);
-  fseek(stream, 0, SEEK_SET);
-
-  let text: *i8 = alloc<i8>(size + 1);
-  let count: i64 = fread(text, 1, size, stream);
-  fclose(stream);
-  text[count] = 0;
-
-  return text;
-}
-
-export fn writeFile(path: *i8, text: *i8): bool {
-  let stream: *i8 = fopen(path, "w");
-  if (stream == null) {
-    return false;
-  }
-
-  let count: i64 = strlen(text);
-  let written: i64 = fwrite(text, 1, count, stream);
-  fclose(stream);
-
-  return written == count;
-}

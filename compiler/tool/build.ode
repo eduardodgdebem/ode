@@ -22,6 +22,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
+import { readFile, exists } from "std/fs";
 import { Builder, equals, slice, fromInt } from "std/text";
 import { STDOUT, STDERR } from "../support/libc";
 import { writeText } from "../support/text";
@@ -30,9 +31,9 @@ import {
 } from "../support/diagnostics";
 import {
   TextList, StderrMode, runCommand, environment, setEnvironment,
-  currentDirectory, joinPath, withSuffix, parentDirectory, fileExists,
-  isExecutable, absolutePath, readBytes, writeBytes, sameBytes,
-  makeDirectories, removeTree, moveFile, readFile,
+  currentDirectory, joinPath, withSuffix, parentDirectory, isExecutable,
+  absolutePath, readBytes, writeBytes, sameBytes, makeDirectories, removeTree,
+  moveFile,
 } from "../support/system";
 import { NodeKind, Ast } from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
@@ -178,8 +179,8 @@ fn findRoot(): *i8 {
   let directory: *i8 = currentDirectory();
 
   while (directory != null) {
-    if (fileExists(joinPath(directory, "compiler/main.ode")) &&
-        fileExists(joinPath(directory, "bootstrap/ode.ll"))) {
+    if (exists(joinPath(directory, "compiler/main.ode")) &&
+        exists(joinPath(directory, "bootstrap/ode.ll"))) {
       return directory;
     }
     if (equals(directory, "/")) {
@@ -242,7 +243,7 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
   let inputs: Inputs = hashInputs(ws);
   let stamp: *Builder = readBytes(stampPath(ws));
 
-  if (!force && fileExists(ws.output) && stamp != null &&
+  if (!force && exists(ws.output) && stamp != null &&
       equals(stamp.data, inputs.hash)) {
     let message: *Builder = Builder.new();
     message.add(shown(ws, ws.output));

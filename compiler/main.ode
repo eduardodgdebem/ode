@@ -10,8 +10,9 @@
 // ---------------------------------------------------------------------------
 
 import { strlen } from "std/c";
+import { readFile, writeFile, exists, removeFile } from "std/fs";
 import { Builder, equals, slice } from "std/text";
-import { remove, STDOUT, STDERR } from "./support/libc";
+import { STDOUT, STDERR } from "./support/libc";
 import { writeText, writeBuilder } from "./support/text";
 import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED, report, hasErrors, printDiagnostics,
@@ -19,8 +20,7 @@ import {
 } from "./support/diagnostics";
 import {
   TextList, StderrMode, runCommand, environment, joinPath, stemOf, withSuffix,
-  parentDirectory, fileExists, isExecutable, absolutePath, removeTree,
-  makeTempDirectory, readFile, writeFile,
+  parentDirectory, isExecutable, absolutePath, removeTree, makeTempDirectory,
 } from "./support/system";
 import { TokenList } from "./syntax/token";
 import { NodeKind, Ast } from "./syntax/ast";
@@ -151,8 +151,8 @@ fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): void {
   }
 
   if (!keepIntermediates) {
-    remove(irPath);
-    remove(objectPath);
+    removeFile(irPath);
+    removeFile(objectPath);
   }
 }
 
@@ -269,7 +269,7 @@ fn findStdDirectory(argv0: *i8): *i8 {
   candidates.add(joinPath(bin, "std"));
 
   for (index in 0..candidates.size()) {
-    if (fileExists(joinPath(candidates.at(index), "list.ode"))) {
+    if (exists(joinPath(candidates.at(index), "list.ode"))) {
       return absolutePath(candidates.at(index));
     }
   }

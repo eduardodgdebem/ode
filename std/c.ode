@@ -45,6 +45,7 @@ export extern fn fwrite(buffer: *i8, size: i64, count: i64, stream: *i8): i64;
 export extern fn fgetc(stream: *i8): i32;
 export extern fn fputs(text: *i8, stream: *i8): i32;
 export extern fn fflush(stream: *i8): i32;
+export extern fn ferror(stream: *i8): i32;
 
 // Files, unbuffered, by descriptor.
 export extern fn write(fd: i32, buffer: *i8, count: i64): i64;
