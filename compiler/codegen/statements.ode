@@ -20,7 +20,7 @@ import {
 } from "./emitter";
 import { llvmTypeName } from "./layout";
 import {
-  typeOfNode, emitAssign, emitStore, emitCast, genAddress, genExpr,
+  typeOfNode, emitAssign, emitLoad, emitStore, emitCast, genAddress, genExpr,
 } from "./expressions";
 
 // The printf format for a value of this type, and whether the argument needs
@@ -202,23 +202,18 @@ export fn genStatement(e: *Emitter, node: i32): void {
     let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
     emitCondBranch(e, condition, bodyLabel, doneLabel);
 
-    if (e.loopCount == e.loopCapacity) {
-      e.loopCapacity = e.loopCapacity * 2;
-      e.loopContinue = realloc(e.loopContinue as *i8,
-                               sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
-      e.loopBreak = realloc(e.loopBreak as *i8,
-                            sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
-    }
-    e.loopContinue[e.loopCount] = condLabel;
-    e.loopBreak[e.loopCount] = doneLabel;
-    e.loopCount = e.loopCount + 1;
-
+    enterLoop(e, condLabel, doneLabel);
     emitLabel(e, bodyLabel);
     genStatement(e, e.ast.nodes[node].b);
     emitBranch(e, condLabel);
+    leaveLoop(e);
 
-    e.loopCount = e.loopCount - 1;
     emitLabel(e, doneLabel);
+    return;
+  }
+
+  if (kind == NodeKind.For) {
+    genFor(e, node);
     return;
   }
 
@@ -322,4 +317,85 @@ fn genMatch(e: *Emitter, node: i32): void {
   }
 
   emitLabel(e, done);
+}
+
+// Where `continue` and `break` go inside the loop being entered.
+fn enterLoop(e: *Emitter, continueLabel: *i8, breakLabel: *i8): void {
+  if (e.loopCount == e.loopCapacity) {
+    e.loopCapacity = e.loopCapacity * 2;
+    e.loopContinue = realloc(e.loopContinue as *i8,
+                             sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+    e.loopBreak = realloc(e.loopBreak as *i8,
+                          sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+  }
+
+  e.loopContinue[e.loopCount] = continueLabel;
+  e.loopBreak[e.loopCount] = breakLabel;
+  e.loopCount = e.loopCount + 1;
+}
+
+fn leaveLoop(e: *Emitter): void {
+  e.loopCount = e.loopCount - 1;
+}
+
+// `for (i in start..end)`. The count lives in a slot of its own and is
+// copied into the loop variable at the top of every pass, so assigning to
+// the variable in the body cannot change how many passes there are. Both
+// bounds are evaluated once, before the first.
+fn genFor(e: *Emitter, node: i32): void {
+  let start: i32 = e.ast.nodes[node].a;
+  let type: Type = typeOfNode(e, start);
+  let typeName: *i8 = llvmTypeName(type);
+
+  let first: *i8 = genExpr(e, start);
+  let last: *i8 = genExpr(e, e.ast.nodes[node].b);
+
+  let counter: *i8 = emitAlloca(e, typeName);
+  let variable: *i8 = emitAlloca(e, typeName);
+  emitStore(e, type, first, counter);
+
+  let condLabel: *i8 = freshLabel(e);
+  let bodyLabel: *i8 = freshLabel(e);
+  let stepLabel: *i8 = freshLabel(e);
+  let doneLabel: *i8 = freshLabel(e);
+
+  emitBranch(e, condLabel);
+  emitLabel(e, condLabel);
+  let current: *i8 = emitLoad(e, type, counter);
+
+  let compare: *Buf = Buf.new();
+  if (type.isSigned()) {
+    compare.add("icmp slt ");
+  } else {
+    compare.add("icmp ult ");
+  }
+  compare.add(typeName);
+  compare.push(' ');
+  compare.add(current);
+  compare.add(", ");
+  compare.add(last);
+  emitCondBranch(e, emitAssign(e, compare.data), bodyLabel, doneLabel);
+
+  enterLoop(e, stepLabel, doneLabel);
+  emitLabel(e, bodyLabel);
+  emitterEnterScope(e);
+  declareLocal(e, e.ast.nodes[node].text, variable, type);
+  emitStore(e, type, current, variable);
+  genStatement(e, e.ast.nodes[node].c);
+  emitterExitScope(e);
+  emitBranch(e, stepLabel);
+  leaveLoop(e);
+
+  emitLabel(e, stepLabel);
+  let before: *i8 = emitLoad(e, type, counter);
+  let increment: *Buf = Buf.new();
+  increment.add("add ");
+  increment.add(typeName);
+  increment.push(' ');
+  increment.add(before);
+  increment.add(", 1");
+  emitStore(e, type, emitAssign(e, increment.data), counter);
+  emitBranch(e, condLabel);
+
+  emitLabel(e, doneLabel);
 }

@@ -80,6 +80,9 @@
 ] @keyword.conditional
 
 "while" @keyword.repeat
+"for" @keyword.repeat
+"in" @keyword.repeat
+".." @operator
 
 [
   "break"

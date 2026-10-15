@@ -38,7 +38,7 @@ export fn emitAssign(e: *Emitter, instruction: *i8): *i8 {
   return temp;
 }
 
-fn emitLoad(e: *Emitter, type: Type, address: *i8): *i8 {
+export fn emitLoad(e: *Emitter, type: Type, address: *i8): *i8 {
   let line: *Buf = Buf.new();
   line.add("load ");
   line.add(llvmTypeName(type));

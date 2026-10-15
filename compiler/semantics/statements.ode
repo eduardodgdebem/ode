@@ -10,13 +10,16 @@
 import { Buf } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
-import { Type } from "./types";
+import { TypeKind, Type } from "./types";
 import { SymbolKind } from "./symbols";
 import {
-  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, quoted,
-  analyzerParseType, analyzerValidateType, analyzerParamTypes,
+  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, gotTwoTypes,
+  quoted, analyzerParseType, analyzerValidateType, analyzerParamTypes,
 } from "./analyzer";
-import { checkExpr, checkAssignTarget, isConstantExpr } from "./expressions";
+import {
+  checkExpr, checkAssignTarget, isConstantExpr, isNumberLiteral,
+  checkLiteralAs,
+} from "./expressions";
 import { analyzeMethodBodies } from "./methods";
 import { analyzeMatch } from "./enums";
 
@@ -55,6 +58,7 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     NodeKind.Assign => { analyzeAssign(an, node); return; }
     NodeKind.If => { analyzeIf(an, node); return; }
     NodeKind.While => { analyzeWhile(an, node); return; }
+    NodeKind.For => { analyzeFor(an, node); return; }
     NodeKind.Fn => { analyzeFuncDecl(an, node); return; }
     NodeKind.Extern => { analyzeExternDecl(an, node); return; }
     NodeKind.Return => { analyzeReturn(an, node); return; }
@@ -192,6 +196,72 @@ fn analyzeWhile(an: *Analyzer, node: i32): void {
   an.loopDepth = an.loopDepth + 1;
   analyzeStatement(an, an.ast.nodes[node].b);
   an.loopDepth = an.loopDepth - 1;
+}
+
+// `for (i in start..end)`: the bounds are integers of one type, which a
+// bound that is not a bare literal decides -- so `0..count` counts in
+// count's type -- and the loop variable has that type, in a scope of its
+// own around the body.
+fn analyzeFor(an: *Analyzer, node: i32): void {
+  let start: i32 = an.ast.nodes[node].a;
+  let end: i32 = an.ast.nodes[node].b;
+  let type: Type = Type.make(TypeKind.I32, 0);
+  let decided: i32 = NO_NODE;
+
+  if (!isNumberLiteral(an, start)) {
+    decided = start;
+  } else if (!isNumberLiteral(an, end)) {
+    decided = end;
+  }
+
+  if (decided != NO_NODE) {
+    type = checkExpr(an, decided);
+    if (FAILED) {
+      return;
+    }
+    if (!type.isInteger()) {
+      analyzerFail2(an, node, "for loop bounds must be integers", gotType(type));
+      return;
+    }
+  }
+
+  let index: i32 = 0;
+  while (index < 2) {
+    let bound: i32 = start;
+    if (index == 1) {
+      bound = end;
+    }
+
+    if (bound != decided) {
+      if (isNumberLiteral(an, bound)) {
+        if (!checkLiteralAs(an, bound, type)) {
+          return;
+        }
+      } else {
+        let other: Type = checkExpr(an, bound);
+        if (FAILED) {
+          return;
+        }
+        if (!other.equals(type)) {
+          analyzerFail2(an, node, "for loop bounds must have the same type",
+                        gotTwoTypes(type, other));
+          return;
+        }
+      }
+    }
+
+    index = index + 1;
+  }
+
+  an.symbols.enterScope();
+  an.symbols.declare(an.ast.nodes[node].text, SymbolKind.Var, type, null, 0,
+                     an.ast.nodes[node].line, an.ast.nodes[node].column);
+
+  an.loopDepth = an.loopDepth + 1;
+  analyzeStatement(an, an.ast.nodes[node].c);
+  an.loopDepth = an.loopDepth - 1;
+
+  an.symbols.exitScope();
 }
 
 fn analyzeReturn(an: *Analyzer, node: i32): void {

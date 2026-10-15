@@ -1,0 +1,6 @@
+fn main(): i32 {
+  let limit: u8 = 10 as u8;
+  for (i in -1..limit) {
+  }
+  return 0;
+}

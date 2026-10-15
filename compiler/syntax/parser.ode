@@ -139,7 +139,8 @@ export fn startsStatement(kind: TokenKind): bool {
   if (kind == TokenKind.Import || kind == TokenKind.Export) {
     return true;
   }
-  if (kind == TokenKind.Enum || kind == TokenKind.Match) {
+  if (kind == TokenKind.Enum || kind == TokenKind.Match ||
+      kind == TokenKind.For) {
     return true;
   }
   if (kind == TokenKind.Let || kind == TokenKind.If || kind == TokenKind.While) {

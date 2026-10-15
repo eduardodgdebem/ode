@@ -82,6 +82,7 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
     TokenKind.LBrace => { return parseBlock(parser); }
     TokenKind.If => { return parseIfStmt(parser); }
     TokenKind.While => { return parseWhileStmt(parser); }
+    TokenKind.For => { return parseForStmt(parser); }
     TokenKind.Break => { return parseBreakStmt(parser); }
     TokenKind.Continue => { return parseContinueStmt(parser); }
     TokenKind.Return => { return parseReturnStmt(parser); }
@@ -252,6 +253,35 @@ fn parseIfStmt(parser: *Parser): i32 {
   parser.ast.nodes[node].a = condition;
   parser.ast.nodes[node].b = thenBlock;
   parser.ast.nodes[node].c = elseBlock;
+
+  return node;
+}
+
+// ForStmt -> 'for' '(' IDENT 'in' Expr '..' Expr ')' Block
+//
+// `in` is matched by its text rather than as a keyword, like `from`.
+fn parseForStmt(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let node: i32 = parser.ast.add(NodeKind.For, start.line, start.column);
+
+  parser.expect(TokenKind.For, "for");
+  parser.expect(TokenKind.LParen, "(");
+  let name: *Token = parser.expect(TokenKind.Ident, "loop variable");
+  parser.ast.setText(node, name);
+
+  let word: *Token = parser.current();
+  if (word.kind != TokenKind.Ident || !textEquals(word.text, "in")) {
+    // Recovery skips the rest of the loop, body and all, from here.
+    parser.fail("in");
+    return node;
+  }
+  parser.advance();
+
+  parser.ast.nodes[node].a = parseExpr(parser);
+  parser.expect(TokenKind.DotDot, "..");
+  parser.ast.nodes[node].b = parseExpr(parser);
+  parser.expect(TokenKind.RParen, ")");
+  parser.ast.nodes[node].c = parseBlock(parser);
 
   return node;
 }

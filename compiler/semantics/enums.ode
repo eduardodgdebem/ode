@@ -26,11 +26,11 @@
 import { Buf, textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
-import { TypeKind, Type, fitsIn, parseMagnitude } from "./types";
+import { TypeKind, Type } from "./types";
 import {
   Analyzer, analyzerFail, analyzerFail2, expectedButGot, quoted,
 } from "./analyzer";
-import { checkExpr } from "./expressions";
+import { checkExpr, isNumberLiteral, checkLiteralAs } from "./expressions";
 import { analyzeStatement } from "./statements";
 
 // The declaration of the enum whose IR name is `name`.
@@ -210,36 +210,12 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
 
   // A number takes the type of the value matched, as long as it fits it,
   // so `0` matches an i64 and `200` a u8. A character stays an i8.
-  let literal: i32 = pattern;
-  let negated: bool = false;
-  if (an.ast.nodes[pattern].kind == NodeKind.Unary) {
-    literal = an.ast.nodes[pattern].a;
-    negated = true;
-  }
-
-  let type: Type = subject;
-  if (an.ast.nodes[literal].kind == NodeKind.Number) {
-    let text: *i8 = an.ast.nodes[literal].text;
-    let negative: bool = text[0] == '-';
-    let start: i64 = 0 as i64;
-    if (negative) {
-      start = 1 as i64;
-    }
-
-    let overflowed: bool = false;
-    let magnitude: u64 = parseMagnitude(text, start,
-                                        an.ast.nodes[literal].textLength,
-                                        &overflowed);
-    if (negated) {
-      negative = !negative;
-    }
-    if (overflowed || !fitsIn(magnitude, negative, subject)) {
-      analyzerFail(an, pattern,
-                   quoted("number is out of range for ", subject.toText(), ""));
+  if (isNumberLiteral(an, pattern)) {
+    if (!checkLiteralAs(an, pattern, subject)) {
       return;
     }
   } else {
-    type = checkExpr(an, literal);
+    let type: Type = checkExpr(an, pattern);
     if (FAILED) {
       return;
     }
@@ -251,8 +227,6 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
     }
   }
 
-  an.types[literal] = type;
-  an.types[pattern] = type;
   an.isConstant[pattern] = 1 as i8;
   an.values[pattern] = value;
 }

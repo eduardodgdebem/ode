@@ -713,3 +713,55 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
 
   return false;
 }
+
+// An integer literal, or one negated: `5`, `-5`, `- 5`.
+export fn isNumberLiteral(an: *Analyzer, node: i32): bool {
+  let literal: i32 = node;
+  if (an.ast.nodes[node].kind == NodeKind.Unary &&
+      textEquals(an.ast.nodes[node].text, "-")) {
+    literal = an.ast.nodes[node].a;
+  }
+
+  if (an.ast.nodes[literal].kind != NodeKind.Number) {
+    return false;
+  }
+
+  // A float literal is a literal, but not one an integer can take.
+  return !textHasDot(an.ast.nodes[literal].text,
+                     an.ast.nodes[literal].textLength);
+}
+
+// Types a number literal as `type` rather than as i32, provided it fits --
+// which is how `0` stands for an i64 where one is wanted. Reports and returns
+// false when it does not fit.
+export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
+  let literal: i32 = node;
+  let negated: bool = false;
+  if (an.ast.nodes[node].kind == NodeKind.Unary) {
+    literal = an.ast.nodes[node].a;
+    negated = true;
+  }
+
+  let text: *i8 = an.ast.nodes[literal].text;
+  let negative: bool = text[0] == '-';
+  let start: i64 = 0 as i64;
+  if (negative) {
+    start = 1 as i64;
+  }
+
+  let overflowed: bool = false;
+  let magnitude: u64 = parseMagnitude(text, start,
+                                      an.ast.nodes[literal].textLength,
+                                      &overflowed);
+  if (negated) {
+    negative = !negative;
+  }
+  if (overflowed || !fitsIn(magnitude, negative, type)) {
+    analyzerFail(an, node, quoted("number is out of range for ", type.toText(), ""));
+    return false;
+  }
+
+  an.types[literal] = type;
+  an.types[node] = type;
+  return true;
+}

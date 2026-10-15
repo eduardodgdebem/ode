@@ -35,6 +35,7 @@ export enum TokenKind {
   Null,
   Enum,
   Match,
+  For,
   Assign,
   Plus,
   Minus,
@@ -72,6 +73,8 @@ export enum TokenKind {
   Colon,
   // `=>`, between a match arm's patterns and its body.
   Arrow,
+  // `..`, between a for loop's bounds.
+  DotDot,
 }
 // Not a token: the state before the first one has been read.
 
@@ -162,6 +165,7 @@ export fn kindName(kind: TokenKind): *i8 {
     TokenKind.Null => { return "null"; }
     TokenKind.Enum => { return "enum"; }
     TokenKind.Match => { return "match"; }
+    TokenKind.For => { return "for"; }
     TokenKind.Assign => { return "="; }
     TokenKind.Plus => { return "+"; }
     TokenKind.Minus => { return "-"; }
@@ -198,6 +202,7 @@ export fn kindName(kind: TokenKind): *i8 {
     TokenKind.Comma => { return ","; }
     TokenKind.Colon => { return ":"; }
     TokenKind.Arrow => { return "=>"; }
+    TokenKind.DotDot => { return ".."; }
     else => {}
   }
 

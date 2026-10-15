@@ -64,6 +64,7 @@ export enum NodeKind {
   FnType,
   // A call of a value rather than of a name: `table[i](x)`.
   CallValue,
+  For,
 }
 
 struct Node {
@@ -100,6 +101,7 @@ struct Node {
   //   arm      a=body,    items=patterns, none for the `else` arm
   //   fntype   a=return type, items=parameter types
   //   callvalue a=callee b=args
+  //   for      a=start  b=end    c=body, and the loop variable's name
   a: i32,
   b: i32,
   c: i32,
@@ -235,6 +237,7 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     NodeKind.Arm => { return "arm"; }
     NodeKind.FnType => { return "fntype"; }
     NodeKind.CallValue => { return "callvalue"; }
+    NodeKind.For => { return "for"; }
   }
 
   return "?";
@@ -260,7 +263,8 @@ export fn nodeCarriesText(kind: NodeKind): bool {
   if (kind == NodeKind.Import || kind == NodeKind.ImportName || kind == NodeKind.MethodCall) {
     return true;
   }
-  if (kind == NodeKind.Enum || kind == NodeKind.EnumMember) {
+  if (kind == NodeKind.Enum || kind == NodeKind.EnumMember ||
+      kind == NodeKind.For) {
     return true;
   }
 
