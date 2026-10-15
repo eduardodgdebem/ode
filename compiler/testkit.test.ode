@@ -8,8 +8,7 @@ import { Diagnostic } from "./support/diagnostics";
 import { NodeKind } from "./syntax/ast";
 import { TypeKind, Type } from "./semantics/types";
 import {
-  problemsIn, problemsInFiles, typeOf, irOf, parse, Parsed, mentions, Files,
-  outputOf,
+  problemsIn, typeOf, irOf, parse, Parsed, Scope, Checked, mentions,
 } from "./testkit";
 
 test "a clean program has no problems" {
@@ -65,30 +64,41 @@ test "the IR of a clean snippet, and none for one that does not check" {
   assertEq(irOf("fn main(): i32 { return x; }"), "");
 }
 
-test "a program is built and run" {
-  assertEq(outputOf(`
-    import { printf } from "std/c";
+test "an expression is checked in the scope a test gives it" {
+  let scope: *Scope = Scope.new()
+      .declare("struct Point { x: i32, y: i32 }\nenum Color { Red, Green }")
+      .local("small", "i32").local("wide", "i64").local("p", "*Point");
 
-    fn main(): i32 {
-      printf("%d\n", 6 * 7);
-      return 3;
-    }
-  `), "42\nexit 3\n");
+  let ok: Checked = scope.check("wide + 1");
+  assert(ok.clean());
+  assert(ok.type.equals(Type.make(TypeKind.I64, 0)));
+
+  let bad: Checked = scope.check("small + wide");
+  assertEq(bad.problem(), Problem.ArithmeticTypes);
+  assertEq(bad.problems.at(0).column, 7);
+
+  assertEq(scope.check("p.x + p.z").problem(), Problem.NoSuchField);
+  assert(scope.check("Color.Green").type.isEnum());
 }
 
-test "a program of several files" {
-  let files: *Files = Files.new();
-  files.add("lib.ode", "export fn seven(): i32 { return 7; }\n");
-  files.add("main.ode", `
-    import { seven } from "./lib";
-
-    fn main(): i32 {
-      return seven() + nope;
-    }
-  `);
-  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+test "statements are checked as a function body" {
+  let found: *List<Diagnostic> = Scope.new().returning("i32").local("n", "i64")
+      .run("let m: i32 = 1;\nreturn n;");
   assertEq(found.count, 1);
-  assertEq(found.at(0).problem, Problem.UndefinedVariable);
-  assertEq(found.at(0).line, 4);
-  files.release();
+  assertEq(found.at(0).problem, Problem.WrongReturnType);
+  assertEq(found.at(0).line, 2);
+}
+
+test "declarations alone need no main" {
+  assertEq(Scope.new().declare("struct Point { x: i32 }").problems().count, 0);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare("struct Node { next: Node }").problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.RecursiveStruct);
+}
+
+test "an expression that does not parse is the parser's problem" {
+  let checked: Checked = Scope.new().check("1 + ");
+  assertEq(checked.problem(), Problem.UnexpectedToken);
+  assertEq(Scope.new().check("1 2").problem(), Problem.UnexpectedToken);
 }

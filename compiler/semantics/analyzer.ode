@@ -79,6 +79,9 @@ export struct Analyzer {
   program: i32,
   loopDepth: i32,
   inFunction: bool,
+  // Whether the program must have a `main`: it must, unless it is being
+  // tested, or is only a fragment a test checks.
+  requireMain: bool,
   currentReturnType: Type,
 
   fn new(ast: *Ast): *Analyzer {
@@ -97,6 +100,7 @@ export struct Analyzer {
         alloc<SymbolList>(moduleCount() as i64);
     an.loopDepth = 0;
     an.inFunction = false;
+    an.requireMain = true;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
 
     return an;
@@ -599,7 +603,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
   SOURCE_PATH = moduleDisplayPath(0);
   // `ode test` brings its own main.
-  if (!TEST_MODE && an.moduleSymbols[0].find("main") < 0) {
+  if (an.requireMain && !TEST_MODE && an.moduleSymbols[0].find("main") < 0) {
     report(Problem.NoMain, 0, 0, Facts.none());
   }
 }

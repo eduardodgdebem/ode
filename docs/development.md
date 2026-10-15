@@ -40,41 +40,48 @@ own configuration names.
 
 ## Testing
 
-Most tests are unit tests, written in Ode beside the code they test, in
-`*.test.ode` files next to the compiler's sources. They run the phases
-in-process -- each test is a process of its own, so the compiler's state is
-fresh -- and ask what was decided, never how it was worded:
+Tests are written in Ode, beside the code they test, at three levels:
+
+| Level | Where | What it tests |
+|---|---|---|
+| Unit | `test` blocks inside the source file itself | one function, called with real values: `Type.accepts`, `fitsIn`, `dedent`, `describe` |
+| Component | `x.test.ode`, beside `x.ode` | one phase on a fragment: an expression or statements checked in a `Scope`, declarations, a lexer input |
+| Integration | `x.int.ode` | the whole pipeline: programs built and run, programs of several files, rules about a program as a whole |
+
+They ask what was decided, never how it was worded. Every diagnostic is a
+`Problem` with `Facts` -- the names, types and counts it is about -- and
+`describe()` in `compiler/support/problems.ode` is the only place one becomes
+words, so changing how errors read changes no test but the few that test the
+rendering itself.
 
 ```rust
-test "a return of the wrong type" {
-  let found: *List<Diagnostic> = problemsIn(`
-    fn main(): i32 {
-      return true;
-    }
-  `);
-  assertEq(found.count, 1);
-  assertEq(found.at(0).problem, Problem.WrongReturnType);
-  assertEq(found.at(0).line, 2);
-  assertEq(found.at(0).column, 10);
+test "arithmetic needs one type" {
+  let scope: *Scope = Scope.new().local("small", "i32").local("wide", "i64");
+  let checked: Checked = scope.check("small + wide");
+  assertEq(checked.problem(), Problem.ArithmeticTypes);
+  assertEq(checked.problems.at(0).column, 7);
+  assert(scope.check("wide + 1").type.equals(Type.make(TypeKind.I64, 0)));
 }
 ```
 
-Every diagnostic is a `Problem` with `Facts` -- the names, types and counts
-it is about -- and `describe()` in `compiler/support/problems.ode` is the only
-place one becomes words, so changing how errors read changes no test but the
-few that test the rendering itself. `compiler/testkit.ode` has the tools:
+`compiler/testkit.ode` has the tools. A test runs in a process of its own, so
+each starts with the compiler's state fresh:
 
 | Tool | Gives |
 |---|---|
-| `problemsIn(source)` | the problems checking finds, each with its `Problem`, position and `Facts` |
-| `problemsInFiles(files, entry)` | the same, for a program of several files in a scratch `Files` directory |
-| `typeOf(setup, expression)` | the `Type` checking settles on |
-| `parse(source)` | the tree, to walk its nodes |
-| `irOf(source)` | the LLVM IR of a clean snippet |
+| `Scope.new().declare(source).local(name, type).returning(type)` | a scope for a fragment: declarations it can see, locals, the function's return type |
+| `scope.check(expression)` | a `Checked`: the problems, and the type checking settled on |
+| `scope.run(statements)` | the problems in statements checked as a function body |
+| `scope.problems()` | the problems in the declarations alone |
+| `problemsIn(source)`, `problemsInFiles(files, entry)` | the problems in a whole program, or one of several files |
+| `typeOf(setup, expression)`, `parse(source)`, `irOf(source)` | a type, a tree to walk, the IR of a clean snippet |
 | `outputOf(source)`, `outputOfFiles(files, entry)` | what a program prints when built and run -- the slow ones, which link with clang |
 
+A generic's instances are made when a whole file is linked, so a fragment
+that uses one is checked as declarations, where linking runs.
+
 ```bash
-./build/ode test compiler            # every test in the compiler
+./build/ode test compiler            # every test in the compiler, all three levels
 ./build/ode test compiler lexer      # the ones whose name says lexer
 ./build/ode test std                 # the standard library's
 ```

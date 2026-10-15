@@ -40,7 +40,7 @@ fn parserReparse(parser: *Parser, start: i32): i32 {
 
 // Parses one statement, recording the error and resynchronising if it does
 // not parse. Returns NO_NODE for a statement that recovery dropped.
-fn parseStatementRecovering(parser: *Parser): i32 {
+export fn parseStatementRecovering(parser: *Parser): i32 {
   let start: i32 = parser.pos;
   let node: i32 = parseStatement(parser);
 

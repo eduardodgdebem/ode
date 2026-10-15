@@ -26,19 +26,31 @@ import { List } from "std/list";
 import { readFile, writeFile } from "std/fs";
 import { Builder, contains } from "std/text";
 import { STDOUT } from "./support/libc";
+import { Problem } from "./support/problems";
 import { writeBuilder } from "./support/text";
 import {
-  SOURCE_PATH, Diagnostic, DIAGS, hasErrors, resetDiagnostics,
+  SOURCE_PATH, Diagnostic, DIAGS, FAILED, hasErrors, resetDiagnostics,
   formatDiagnostics,
 } from "./support/diagnostics";
 import {
   TextList, StderrMode, runCommand, runInChild, environment, changeDirectory,
   joinPath, parentDirectory, makeDirectories, removeTree, makeTempDirectory,
 } from "./support/system";
-import { NodeKind, Ast } from "./syntax/ast";
+import { TokenKind, TokenList } from "./syntax/token";
+import { NO_NODE, NodeKind, Ast } from "./syntax/ast";
+import { tokenize } from "./syntax/lexer";
+import { Parser, parseType } from "./syntax/parser";
+import { parseExpr } from "./syntax/expressions";
+import { parseStatementRecovering } from "./syntax/statements";
 import { TypeKind, Type } from "./semantics/types";
-import { resetModules, STD_DIRECTORY } from "./semantics/modules";
-import { Analyzer, analyze } from "./semantics/analyzer";
+import { SymbolKind } from "./semantics/symbols";
+import {
+  resetModules, STD_DIRECTORY, rewriteNodeNames, SymbolList, declareImports,
+} from "./semantics/modules";
+import { Analyzer, analyzerParseType, analyze } from "./semantics/analyzer";
+import { checkExpr } from "./semantics/expressions";
+import { analyzeRecovering } from "./semantics/statements";
+import { declareInstances } from "./semantics/generics";
 import { Emitter } from "./codegen/emitter";
 import { genProgram } from "./codegen/program";
 import { loadProgram, buildExecutable } from "./pipeline";
@@ -122,6 +134,182 @@ export struct Parsed {
 
   fn kind(self: Parsed, node: i32): NodeKind {
     return self.ast.nodes[node].kind;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Checking a fragment: an expression, or a few statements, in a scope a test
+// sets up -- declarations at the top, locals of given types -- with no
+// program around it.
+// ---------------------------------------------------------------------------
+
+struct ScopeLocal {
+  name: *i8,
+  type: *i8,
+}
+
+export struct Scope {
+  declarations: *Builder,
+  locals: *List<ScopeLocal>,
+  returns: *i8,
+
+  fn new(): *Scope {
+    let scope: *Scope = alloc<Scope>(1);
+    scope.declarations = Builder.new();
+    scope.locals = List<ScopeLocal>.new();
+    scope.returns = "void";
+    return scope;
+  }
+
+  // Top-level declarations the fragment can use: structs, enums, functions.
+  fn declare(self: *Scope, source: *i8): *Scope {
+    self.declarations.add(source);
+    self.declarations.push('\n');
+    return self;
+  }
+
+  // A local variable, its type written as in a declaration: "i64", "*Point".
+  fn local(self: *Scope, name: *i8, type: *i8): *Scope {
+    self.locals.push(ScopeLocal { name: name, type: type });
+    return self;
+  }
+
+  // The return type of the function the fragment is in; "void" by default.
+  fn returning(self: *Scope, type: *i8): *Scope {
+    self.returns = type;
+    return self;
+  }
+
+  // The problems in the scope's declarations alone.
+  fn problems(self: *Scope): *List<Diagnostic> {
+    enter(self);
+    return DIAGS.items;
+  }
+
+  // The problems in `expression`, and the type it has when it has none.
+  fn check(self: *Scope, expression: *i8): Checked {
+    let fragment: Fragment = enter(self);
+    if (hasErrors()) {
+      return Checked { problems: DIAGS.items, type: Type.make(TypeKind.None, 0) };
+    }
+
+    let parser: *Parser = fragmentParser(fragment, expression);
+    let node: i32 = parseExpr(parser);
+    if (!FAILED && parser.kind() != TokenKind.End) {
+      parser.fail("end of the expression");
+    }
+    if (hasErrors()) {
+      return Checked { problems: DIAGS.items, type: Type.make(TypeKind.None, 0) };
+    }
+
+    resolveNames(fragment);
+    let type: Type = checkExpr(fragment.an, node);
+    return Checked { problems: DIAGS.items, type: type };
+  }
+
+  // The problems in `statements`, checked as a function body is.
+  fn run(self: *Scope, statements: *i8): *List<Diagnostic> {
+    let fragment: Fragment = enter(self);
+    if (hasErrors()) {
+      return DIAGS.items;
+    }
+
+    let parser: *Parser = fragmentParser(fragment, statements);
+    parser.atTopLevel = false;
+    let body: *List<i32> = List<i32>.new();
+    while (parser.kind() != TokenKind.End) {
+      let statement: i32 = parseStatementRecovering(parser);
+      if (statement != NO_NODE) {
+        body.push(statement);
+      }
+    }
+    if (hasErrors()) {
+      return DIAGS.items;
+    }
+
+    resolveNames(fragment);
+    for (index in 0..body.count) {
+      analyzeRecovering(fragment.an, body.at(index));
+    }
+    return DIAGS.items;
+  }
+}
+
+// What checking an expression found.
+export struct Checked {
+  problems: *List<Diagnostic>,
+  // The expression's type; TypeKind.None when it has problems.
+  type: Type,
+
+  fn clean(self: Checked): bool {
+    return self.problems.count == 0;
+  }
+
+  // The first problem found. Only to be asked of a fragment that has one.
+  fn problem(self: Checked): Problem {
+    assert(self.problems.count > 0, "the fragment has no problem");
+    return self.problems.at(0).problem;
+  }
+}
+
+// A scope, entered: its declarations checked, and its locals declared, in the
+// body of a function returning what the scope says.
+struct Fragment {
+  an: *Analyzer,
+  root: i32,
+  // Where the fragment's own nodes start, for resolving their names.
+  firstNode: i32,
+}
+
+fn enter(scope: *Scope): Fragment {
+  let program: Loaded = load(SNIPPET, scope.declarations.data);
+  program.an.requireMain = false;
+  analyzeLoaded(program);
+  let an: *Analyzer = program.an;
+
+  // What the file declares, as its own functions see it.
+  an.symbols.enterScope();
+  let own: SymbolList = an.moduleSymbols[0];
+  for (symbol in 0..own.count) {
+    an.symbols.push(own.items[symbol]);
+  }
+  declareImports(an, program.root, 0);
+  declareInstances(an, program.root, 0);
+
+  let firstNode: i32 = program.ast.count;
+  an.symbols.enterScope();
+  an.inFunction = true;
+  an.currentReturnType = typeFromText(an, program.root, scope.returns);
+  for (index in 0..scope.locals.count) {
+    let local: ScopeLocal = scope.locals.at(index);
+    an.symbols.declare(local.name, SymbolKind.Var,
+                       typeFromText(an, program.root, local.type), null, 0, 0, 0);
+  }
+
+  return Fragment { an: an, root: program.root, firstNode: firstNode };
+}
+
+// A type written as in a declaration, resolved the way one would be there.
+fn typeFromText(an: *Analyzer, root: i32, text: *i8): Type {
+  let parser: *Parser = Parser.new(tokenize(text), an.ast);
+  let node: i32 = parseType(parser);
+  an.growNodeArrays();
+  rewriteNodeNames(an, root, node, null);
+  return analyzerParseType(an, node);
+}
+
+fn fragmentParser(fragment: Fragment, text: *i8): *Parser {
+  let tokens: *TokenList = tokenize(text);
+  fragment.an.ast.currentModule = 0;
+  return Parser.new(tokens, fragment.an.ast);
+}
+
+// Points the fragment's struct and enum names at their declarations, as
+// linking does for a file's.
+fn resolveNames(fragment: Fragment): void {
+  fragment.an.growNodeArrays();
+  for (node in fragment.firstNode..fragment.an.ast.count) {
+    rewriteNodeNames(fragment.an, fragment.root, node, null);
   }
 }
 

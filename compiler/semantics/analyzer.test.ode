@@ -1,42 +1,47 @@
 // ---------------------------------------------------------------------------
 // Declarations -- structs, externs, the program as a whole: what checking rejects.
+//
+// Each checks a fragment -- statements in a function body, or declarations
+// -- in a Scope that states what it can see, and asserts the problems found:
+// which, where in the fragment, and about what.
 // ---------------------------------------------------------------------------
 
 import { List } from "std/list";
 import { Problem } from "../support/problems";
 import { Diagnostic } from "../support/diagnostics";
-import { problemsIn } from "../testkit";
+import { Scope } from "../testkit";
 
 test "duplicate declaration" {
-  let found: *List<Diagnostic> = problemsIn(`
-    fn main(): i32 {
-      let value: i32 = 1;
-      let value: i32 = 2;
+  let found: *List<Diagnostic> = Scope.new()
+      .returning("i32")
+      .run(`
+        let value: i32 = 1;
+        let value: i32 = 2;
 
-      return 0;
-    }
-  `);
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.AlreadyDeclared);
-  assertEq(found.at(0).line, 3);
-  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 1);
   assertEq(found.at(0).facts.name, "value");
 }
 
 test "duplicate struct" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: i32,
-    }
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: i32,
+        }
 
-    struct Point {
-      y: i32,
-    }
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+        struct Point {
+          y: i32,
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.DuplicateStruct);
   assertEq(found.at(0).line, 5);
@@ -45,16 +50,17 @@ test "duplicate struct" {
 }
 
 test "duplicate struct field" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: i32,
-      x: i32,
-    }
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: i32,
+          x: i32,
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.DuplicateField);
   assertEq(found.at(0).line, 1);
@@ -64,17 +70,18 @@ test "duplicate struct field" {
 }
 
 test "extern returns struct" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: i32,
-    }
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: i32,
+        }
 
-    extern fn origin(): Point;
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+        extern fn origin(): Point;
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.ExternReturnsStruct);
   assertEq(found.at(0).line, 5);
@@ -83,17 +90,18 @@ test "extern returns struct" {
 }
 
 test "extern takes struct" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: i32,
-    }
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: i32,
+        }
 
-    extern fn plot(point: Point): void;
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+        extern fn plot(point: Point): void;
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.ExternTakesStruct);
   assertEq(found.at(0).line, 5);
@@ -102,41 +110,42 @@ test "extern takes struct" {
 }
 
 test "function type unknown struct" {
-  let found: *List<Diagnostic> = problemsIn(`
-    fn main(): i32 {
-      let f: fn(Missing): i32 = null;
-      return 0;
-    }
-  `);
+  let found: *List<Diagnostic> = Scope.new()
+      .returning("i32")
+      .run(`
+        let f: fn(Missing): i32 = null;
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.UnknownType);
-  assertEq(found.at(0).line, 2);
-  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
   assertEq(found.at(0).facts.name, "Missing");
 }
 
 test "method body errors" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: i32,
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: i32,
 
-      fn first(self: Point): bool {
-        return self.x;
-      }
+          fn first(self: Point): bool {
+            return self.x;
+          }
 
-      fn second(self: Point): i32 {
-        return self.missing;
-      }
+          fn second(self: Point): i32 {
+            return self.missing;
+          }
 
-      fn third(self: Point): Unknown {
-        return self.x;
-      }
-    }
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+          fn third(self: Point): Unknown {
+            return self.x;
+          }
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 4);
   assertEq(found.at(0).problem, Problem.UnknownType);
   assertEq(found.at(0).line, 12);
@@ -155,42 +164,33 @@ test "method body errors" {
   assertEq(found.at(3).column, 12);
 }
 
-test "no main" {
-  let found: *List<Diagnostic> = problemsIn(`
-    // The program never declares main.
-    fn helper(): i32 {
-      return 0;
-    }
-  `);
-  assertEq(found.count, 1);
-  assertEq(found.at(0).problem, Problem.NoMain);
-}
-
 test "recursive struct by value" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Node {
-      next: Node,
-    }
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Node {
+          next: Node,
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.RecursiveStruct);
   assertEq(found.at(0).facts.name, "Node");
 }
 
 test "unknown struct field type" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: Missing,
-    }
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: Missing,
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.UnknownType);
   assertEq(found.at(0).line, 1);
@@ -199,30 +199,31 @@ test "unknown struct field type" {
 }
 
 test "unknown type" {
-  let found: *List<Diagnostic> = problemsIn(`
-    fn main(): i32 {
-      let value: Missing = 1;
+  let found: *List<Diagnostic> = Scope.new()
+      .returning("i32")
+      .run(`
+        let value: Missing = 1;
 
-      return 0;
-    }
-  `);
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.UnknownType);
-  assertEq(found.at(0).line, 2);
-  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
   assertEq(found.at(0).facts.name, "Missing");
 }
 
 test "variadic non extern" {
-  let found: *List<Diagnostic> = problemsIn(`
-    fn sum(count: i32, ...): i32 {
-      return count;
-    }
-
-    fn main(): i32 {
-      return sum(0);
-    }
-  `);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        fn sum(count: i32, ...): i32 {
+          return count;
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return sum(0);
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.VariadicFunction);
   assertEq(found.at(0).line, 1);
@@ -231,15 +232,16 @@ test "variadic non extern" {
 }
 
 test "void struct field" {
-  let found: *List<Diagnostic> = problemsIn(`
-    struct Point {
-      x: void,
-    }
-
-    fn main(): i32 {
-      return 0;
-    }
-  `);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: void,
+        }
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.VoidField);
   assertEq(found.at(0).line, 1);
@@ -249,16 +251,16 @@ test "void struct field" {
 }
 
 test "void variable" {
-  let found: *List<Diagnostic> = problemsIn(`
-    fn main(): i32 {
-      let nothing: void = 0;
+  let found: *List<Diagnostic> = Scope.new()
+      .returning("i32")
+      .run(`
+        let nothing: void = 0;
 
-      return 0;
-    }
-  `);
+        return 0;
+      `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.VoidVariable);
-  assertEq(found.at(0).line, 2);
-  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
   assertEq(found.at(0).facts.name, "nothing");
 }
