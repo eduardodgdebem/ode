@@ -55,8 +55,10 @@ guesses.
 | `semantics/enums.ode` | enums and `match` |
 | `semantics/functions.ode` | function types and calls through function values |
 | `semantics/generics.ode` | generics: making each instance, before checking |
+| `semantics/constants.ode` | folding constant globals |
+| `semantics/layout.ode` | sizes and alignment |
 | `codegen/emitter.ode` | the emitter's state, lines, labels, locals, constants |
-| `codegen/layout.ode` | LLVM type names, sizes and alignment |
+| `codegen/layout.ode` | LLVM type names and zero values |
 | `codegen/expressions.ode` | emitting expressions |
 | `codegen/statements.ode` | emitting statements |
 | `codegen/program.ode` | functions, globals, and the module as a whole |

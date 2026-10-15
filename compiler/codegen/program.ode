@@ -12,12 +12,14 @@ import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
 import { analyzerParseType } from "../semantics/analyzer";
 import { isTemplate } from "../semantics/generics";
+import { globalDeclOf } from "../semantics/constants";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
   declareLocal, llvmName, internString,
 } from "./emitter";
-import { llvmTypeName, sizeOfType, zeroValue } from "./layout";
-import { emitStore, genNumberLiteral } from "./expressions";
+import { llvmTypeName, zeroValue } from "./layout";
+import { sizeOf } from "../semantics/layout";
+import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { genStatement } from "./statements";
 
 fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
@@ -123,6 +125,16 @@ fn genFunction(e: *Emitter, node: i32): void {
 fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   let kind: NodeKind = e.ast.nodes[node].kind;
 
+  // An integer's value was worked out by the analyzer.
+  if (type.isInteger() && kind != NodeKind.Number) {
+    return intToText(e.an.values[node]);
+  }
+  // Any other global made from an earlier one shares its initialiser.
+  let source: i32 = globalDeclOf(e.an, node);
+  if (source != NO_NODE) {
+    return genConstant(e, e.ast.nodes[source].b, type);
+  }
+
   if (kind == NodeKind.String) {
     return internString(e, e.ast.nodes[node].text,
                         e.ast.nodes[node].textLength);
@@ -147,7 +159,7 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     return out.take();
   }
   if (kind == NodeKind.Sizeof) {
-    return intToText(sizeOfType(e, analyzerParseType(e.an,
+    return intToText(sizeOf(e.an.structs, analyzerParseType(e.an,
                                                      e.ast.nodes[node].a)) as i64);
   }
   if (kind == NodeKind.Bool) {
@@ -157,14 +169,7 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     return "false";
   }
   if (kind == NodeKind.Char) {
-    let value: i32 = e.ast.nodes[node].text[0] as i32;
-    if (value < 0) {
-      value = value + 256;
-    }
-    if (value > 127) {
-      value = value - 256;
-    }
-    return intToText(value as i64);
+    return genCharLiteral(e, node);
   }
 
   // A pointer-typed global cannot be initialised from a bare integer: LLVM

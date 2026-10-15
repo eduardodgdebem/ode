@@ -54,7 +54,7 @@ fn integerLiteralValue(an: *Analyzer, node: i32, ok: *bool): i64 {
 
   if (kind == NodeKind.Unary && textEquals(an.ast.nodes[node].text, "-")) {
     let inner: i64 = integerLiteralValue(an, an.ast.nodes[node].a, ok);
-    return 0 as i64 - inner;
+    return 0 - inner;
   }
 
   if (kind == NodeKind.Char) {
@@ -63,29 +63,29 @@ fn integerLiteralValue(an: *Analyzer, node: i32, ok: *bool): i64 {
 
   if (kind != NodeKind.Number) {
     *ok = false;
-    return 0 as i64;
+    return 0;
   }
 
   let text: *i8 = an.ast.nodes[node].text;
   let negative: bool = text[0] == '-';
-  let index: i64 = 0 as i64;
+  let index: i64 = 0;
   if (negative) {
-    index = 1 as i64;
+    index = 1;
   }
 
-  let value: i64 = 0 as i64;
+  let value: i64 = 0;
   while (index < an.ast.nodes[node].textLength) {
     let digit: i8 = text[index];
     if (digit < '0' || digit > '9') {
       *ok = false;
-      return 0 as i64;
+      return 0;
     }
-    value = value * 10 as i64 + (digit - '0') as i64;
-    index = index + 1 as i64;
+    value = value * 10 + (digit - '0') as i64;
+    index = index + 1;
   }
 
   if (negative) {
-    return 0 as i64 - value;
+    return 0 - value;
   }
   return value;
 }
@@ -104,7 +104,7 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
   }
   an.enumNames.add(name);
 
-  let next: i64 = 0 as i64;
+  let next: i64 = 0;
   let index: i32 = 0;
   while (index < an.ast.nodes[node].itemCount) {
     let member: i32 = an.ast.nodes[node].items[index];
@@ -139,15 +139,15 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
     }
 
     // The value is an i32 underneath, so it has to fit one.
-    if (next > 2147483647 as i64 || next < -2147483648 as i64) {
+    if (next > 2147483647 || next < -2147483648) {
       analyzerFail2(an, member, quoted("value of ", memberName, " is out of range"),
                     "an enum's values have to fit in i32");
       FAILED = false;
     }
 
-    an.isConstant[member] = 1 as i8;
+    an.isConstant[member] = 1;
     an.values[member] = next;
-    next = next + 1 as i64;
+    next = next + 1;
     index = index + 1;
   }
 }
@@ -160,7 +160,7 @@ export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
   for (index in 0..an.ast.nodes[declaration].itemCount) {
     let member: i32 = an.ast.nodes[declaration].items[index];
     if (textEquals(an.ast.nodes[member].text, memberName)) {
-      an.isConstant[node] = 1 as i8;
+      an.isConstant[node] = 1;
       an.values[node] = an.values[member];
       return Type.ofEnum(enumName, 0);
     }
@@ -185,7 +185,7 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
     if (FAILED) {
       return;
     }
-    if (an.isConstant[pattern] == 0 as i8 || !type.equals(subject)) {
+    if (an.isConstant[pattern] == 0 || !type.equals(subject)) {
       analyzerFail2(an, pattern,
                     quoted("pattern is not a member of ", subject.structName, ""),
                     quoted("write one as ", subject.structName, ".<member>"));
@@ -220,7 +220,7 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
     }
   }
 
-  an.isConstant[pattern] = 1 as i8;
+  an.isConstant[pattern] = 1;
   an.values[pattern] = value;
 }
 
@@ -242,7 +242,7 @@ fn matchHandles(an: *Analyzer, node: i32, value: i64): bool {
     let armNode: i32 = an.ast.nodes[node].items[arm];
     for (pattern in 0..an.ast.nodes[armNode].itemCount) {
       let patternNode: i32 = an.ast.nodes[armNode].items[pattern];
-      if (an.isConstant[patternNode] != 0 as i8 &&
+      if (an.isConstant[patternNode] != 0 &&
           an.values[patternNode] == value) {
         return true;
       }
@@ -287,13 +287,13 @@ export fn analyzeMatch(an: *Analyzer, node: i32): void {
 
       // Checked before this pattern is recorded, so it does not find itself.
       let value: i64 = an.values[patternNode];
-      an.isConstant[patternNode] = 0 as i8;
+      an.isConstant[patternNode] = 0;
       if (matchHandles(an, node, value)) {
         analyzerFail(an, patternNode,
                      "this value is already handled by an earlier pattern");
         return;
       }
-      an.isConstant[patternNode] = 1 as i8;
+      an.isConstant[patternNode] = 1;
     }
 
     analyzeStatement(an, an.ast.nodes[armNode].a);

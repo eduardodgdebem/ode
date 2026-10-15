@@ -1,14 +1,10 @@
 // ---------------------------------------------------------------------------
-// Types, sizes and alignment.
-//
-// The sizes have to agree with what LLVM computes for the target, because
-// `sizeof` and pointer arithmetic are built on them. These are the rules LLVM
-// uses for a non-packed struct: every field starts at its own alignment, and
-// the whole is rounded up to the widest field's.
+// How Ode's types are spelled in LLVM IR. Their sizes are in
+// semantics/layout.ode.
 // ---------------------------------------------------------------------------
 
 import { TypeKind, Type } from "../semantics/types";
-import { Emitter, llvmName } from "./emitter";
+import { llvmName } from "./emitter";
 
 export fn llvmTypeName(type: Type): *i8 {
   // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.
@@ -36,70 +32,6 @@ export fn llvmTypeName(type: Type): *i8 {
   }
 
   return "void";
-}
-
-fn alignOfType(e: *Emitter, type: Type): i32 {
-  if (type.isPointer() || type.isFunction()) {
-    return 8;
-  }
-
-  if (type.kind == TypeKind.Struct) {
-    let structIndex: i32 = e.an.structs.indexOf(type.structName);
-    let widest: i32 = 1;
-
-    for (index in 0..e.an.structs.items[structIndex].count) {
-      let fieldAlign: i32 =
-          alignOfType(e, e.an.structs.items[structIndex].fields[index].type);
-      if (fieldAlign > widest) {
-        widest = fieldAlign;
-      }
-    }
-
-    return widest;
-  }
-
-  if (type.kind == TypeKind.Bool) { return 1; }
-
-  let bits: i32 = type.bitWidth();
-  if (bits == 0) {
-    return 1;
-  }
-
-  return bits / 8;
-}
-
-fn alignUp(value: i32, alignment: i32): i32 {
-  let remainder: i32 = value % alignment;
-  if (remainder == 0) {
-    return value;
-  }
-
-  return value + alignment - remainder;
-}
-
-export fn sizeOfType(e: *Emitter, type: Type): i32 {
-  if (type.isPointer() || type.isFunction()) {
-    return 8;
-  }
-
-  if (type.kind == TypeKind.Struct) {
-    let structIndex: i32 = e.an.structs.indexOf(type.structName);
-    let offset: i32 = 0;
-
-    for (index in 0..e.an.structs.items[structIndex].count) {
-      let fieldType: Type = e.an.structs.items[structIndex].fields[index].type;
-      offset = alignUp(offset, alignOfType(e, fieldType));
-      offset = offset + sizeOfType(e, fieldType);
-    }
-
-    return alignUp(offset, alignOfType(e, type));
-  }
-
-  // An i1 occupies a whole byte once it is stored.
-  if (type.kind == TypeKind.Bool) { return 1; }
-  if (type.kind == TypeKind.Void) { return 0; }
-
-  return type.bitWidth() / 8;
 }
 
 export fn zeroValue(type: Type): *i8 {

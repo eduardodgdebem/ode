@@ -57,69 +57,48 @@ The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
 
 ## 4. Type system
 
-### 4.1 A literal takes a wider type only from a cast written directly on it
+Three entries here were closed: a literal now takes the type its context
+expects, `.` follows any number of pointers, and globals can be built from
+earlier globals and constant arithmetic. What is left:
 
-Literals are `i32`, or `f32` when they contain a `.`. A literal written as the
-direct operand of a cast takes the target's type when `i32` cannot hold the
-value, so a wide constant can be written as itself:
+### 4.1 No implicit conversions between variables
 
-```rust
-let big: i64 = 3000000000 as i64;
-let all: u64 = 18446744073709551615 as u64;
-```
-
-A value that does fit `i32` keeps it, so a narrowing cast still truncates:
-`300 as i8` is 44, not an out-of-range literal.
-
-Two shapes are still rejected, because in neither is the literal the cast's
-operand:
+**Deliberate.** A literal, a character or a `sizeof` takes whatever numeric
+type is expected of it — the declared type, the parameter, the field, the
+return type, or the other operand — so none of these needs a cast:
 
 ```rust
-let big: i64 = -3000000000 as i64;  // `as` binds looser than unary minus, so
-                                    // the operand is the negation, not the 3e9
-let f: f64 = 3000000000 as f64;     // the target is not an integer type, so
-                                    // the literal falls back to i32
+let small: i16 = -12;
+let total: i64 = count64 * 2 + 1;
+let digit: i32 = '0' + offset;
+let bytes: *i8 = malloc(sizeof(Node) * 4);
 ```
 
-Both have a direct workaround — `-(3000000000 as i64)` and
-`3000000000 as i64 as f64` — so this is a wart rather than a wall.
+A value that already has a type never changes it silently, though: an `i32`
+variable used where an `i64` is wanted still needs `as i64`. With nothing to
+go by — `(2147483647 + 1) as i64`, say — a literal is `i32`, and the
+arithmetic wraps there before the cast.
 
-*Fix:* look through a negation in `checkCastOperand`, and type literals from
-context generally rather than only under a cast.
-
-### 4.2 No implicit conversions
-
-**Deliberate.** Every width change needs `as`, so `let n: i64 = 0;` is an
-error and `let n: i64 = 0 as i64;` is required. Explicit, but verbose in
-arithmetic-heavy code.
-
-### 4.3 `.` follows exactly one level of pointer
-
-`node.field` works when `node` is a struct or a `*Struct`. A `**Struct`
-requires `(*node).field`:
-
-```
-error: cannot read field 'x': '**P' is not a struct
-```
-
-### 4.4 Globals must be initialised from constants
+### 4.2 A constant global folds integers only
 
 ```rust
-let A: i32 = 1;
-let B: i32 = A;   // error: initialiser of global 'B' is not constant
+let RATE: f64 = 2.5;
+let DOUBLE: f64 = RATE * 2.0;   // error: initialiser of global 'DOUBLE' is
+                                // not constant
 ```
 
-Only literals, `sizeof`, and casts or negations of those. Global initialisers
-become LLVM constant initialisers, so anything computed has to be assigned from
-an `init()` function at start-up.
+An integer global may be any arithmetic on literals, `sizeof`, enum members
+and globals declared before it, worked out at compile time. A global of any
+other type may only be a literal or an earlier global. And a global is never
+made from one declared after it, which also rules out two made of each other.
 
-### 4.5 No all-paths-return analysis
+### 4.3 No all-paths-return analysis
 
 **Deliberate.** Falling off the end of a non-void function is allowed and
 yields a zero value. Several examples rely on it, including `main` in
 `example2` through `example5`.
 
-### 4.6 `print` does not accept structs
+### 4.4 `print` does not accept structs
 
 ```
 error: unsupported type for print statement

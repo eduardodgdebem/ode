@@ -56,8 +56,8 @@ export struct Workspace {
 // Hashing.
 // ---------------------------------------------------------------------------
 
-let FNV_OFFSET: u64 = 14695981039346656037 as u64;
-let FNV_PRIME: u64 = 1099511628211 as u64;
+let FNV_OFFSET: u64 = 14695981039346656037;
+let FNV_PRIME: u64 = 1099511628211;
 
 // 64-bit FNV-1a, which is plenty to notice that a file changed.
 struct Hasher {
@@ -68,7 +68,7 @@ struct Hasher {
   }
 
   fn addBytes(self: *Hasher, data: *i8, count: i64): void {
-    for (index in 0 as i64..count) {
+    for (index in 0..count) {
       self.value = (self.value ^ data[index] as u8 as u64) * FNV_PRIME;
     }
   }
@@ -76,14 +76,14 @@ struct Hasher {
   // The terminator goes in too, so that "ab" then "c" and "a" then "bc"
   // hash differently.
   fn addText(self: *Hasher, text: *i8): void {
-    self.addBytes(text, strlen(text) + 1 as i64);
+    self.addBytes(text, strlen(text) + 1);
   }
 
   fn hex(self: Hasher): *i8 {
     let out: *Buf = Buf.new();
     let shift: i32 = 60;
     while (shift >= 0) {
-      let digit: u64 = (self.value >> shift as u64) & 15 as u64;
+      let digit: u64 = (self.value >> shift as u64) & 15;
       out.push(hexDigit(digit as i32));
       shift = shift - 4;
     }
@@ -130,7 +130,7 @@ fn hashInputs(ws: *Workspace): Inputs {
     if (bytes != null) {
       hasher.addBytes(bytes.data, bytes.length);
 
-      for (index in 0 as i64..bytes.length) {
+      for (index in 0..bytes.length) {
         if (bytes.data[index] == '\n') {
           lines = lines + 1;
         }
@@ -160,8 +160,8 @@ export fn complain(text: *i8): void {
 fn shown(ws: *Workspace, path: *i8): *i8 {
   let length: i64 = strlen(ws.root);
   if (strlen(path) > length && path[length] == '/' &&
-      textEquals(textSlice(path, 0 as i64, length), ws.root)) {
-    return path + (length + 1 as i64);
+      textEquals(textSlice(path, 0, length), ws.root)) {
+    return path + (length + 1);
   }
 
   return path;
@@ -193,12 +193,12 @@ fn findRoot(): *i8 {
 // The absolute path of the program running now, from how it was invoked: a
 // path when argv[0] holds a `/`, and a search of PATH when it does not.
 fn findSelf(invokedAs: *i8): *i8 {
-  let index: i64 = 0 as i64;
-  while (invokedAs[index] != 0 as i8) {
+  let index: i64 = 0;
+  while (invokedAs[index] != 0) {
     if (invokedAs[index] == '/') {
       return absolutePath(invokedAs);
     }
-    index = index + 1 as i64;
+    index = index + 1;
   }
 
   let searchPath: *i8 = environment("PATH");
@@ -206,22 +206,22 @@ fn findSelf(invokedAs: *i8): *i8 {
     return null;
   }
 
-  let start: i64 = 0 as i64;
-  index = 0 as i64;
+  let start: i64 = 0;
+  index = 0;
   while (true) {
     let character: i8 = searchPath[index];
-    if (character == ':' || character == 0 as i8) {
+    if (character == ':' || character == 0) {
       let directory: *i8 = textSlice(searchPath, start, index - start);
       let candidate: *i8 = joinPath(directory, invokedAs);
-      if (strlen(directory) > 0 as i64 && isExecutable(candidate)) {
+      if (strlen(directory) > 0 && isExecutable(candidate)) {
         return absolutePath(candidate);
       }
-      if (character == 0 as i8) {
+      if (character == 0) {
         return null;
       }
-      start = index + 1 as i64;
+      start = index + 1;
     }
-    index = index + 1 as i64;
+    index = index + 1;
   }
 
   return null;
@@ -346,10 +346,10 @@ fn commandBootstrap(ws: *Workspace): i32 {
     return 0;
   }
 
-  let offset: i64 = 0 as i64;
+  let offset: i64 = 0;
   while (offset < second.length && offset < third.length &&
          second.data[offset] == third.data[offset]) {
-    offset = offset + 1 as i64;
+    offset = offset + 1;
   }
 
   let message: *Buf = Buf.new();
@@ -459,7 +459,7 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
     return 2;
   }
 
-  let ws: *Workspace = malloc(sizeof(Workspace) as i64) as *Workspace;
+  let ws: *Workspace = malloc(sizeof(Workspace)) as *Workspace;
   ws.root = root;
   ws.compiler = compiler;
   ws.entry = joinPath(root, "compiler/main.ode");

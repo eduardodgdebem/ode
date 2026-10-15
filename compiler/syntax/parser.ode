@@ -21,7 +21,7 @@ export struct Parser {
   atTopLevel: bool,
 
   fn new(tokens: *TokenList, ast: *Ast): *Parser {
-    let parser: *Parser = malloc(sizeof(Parser) as i64) as *Parser;
+    let parser: *Parser = malloc(sizeof(Parser)) as *Parser;
     parser.tokens = tokens;
     parser.ast = ast;
     parser.pos = 0;
@@ -239,7 +239,7 @@ fn expectCloseAngle(parser: *Parser): void {
     let token: *Token = parser.current();
     token.kind = TokenKind.Gt;
     token.text = ">";
-    token.length = 1 as i64;
+    token.length = 1;
     token.column = token.column + 1;
     return;
   }

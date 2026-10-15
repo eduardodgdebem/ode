@@ -239,12 +239,12 @@ fn switchConstant(value: i64, bits: i32): *i8 {
     return intToText(value);
   }
 
-  let span: i64 = 1 as i64 << bits as i64;
+  let span: i64 = 1 << bits as i64;
   let wrapped: i64 = value % span;
-  if (wrapped < 0 as i64) {
+  if (wrapped < 0) {
     wrapped = wrapped + span;
   }
-  if (wrapped >= span / 2 as i64) {
+  if (wrapped >= span / 2) {
     wrapped = wrapped - span;
   }
 
@@ -263,7 +263,7 @@ fn genMatch(e: *Emitter, node: i32): void {
   let done: *i8 = freshLabel(e);
   let fallback: *i8 = done;
   let armCount: i32 = e.ast.nodes[node].itemCount;
-  let labels: **i8 = malloc(sizeof(*i8) as i64 * (armCount + 1) as i64) as **i8;
+  let labels: **i8 = malloc(sizeof(*i8) * (armCount + 1) as i64) as **i8;
 
   let arm: i32 = 0;
   for (arm in 0..armCount) {

@@ -1,0 +1,44 @@
+// Globals can be made from earlier globals and constant arithmetic.
+
+enum Level { Low, Mid = 10, High }
+
+struct Pair {
+  a: i64,
+  b: i8,
+}
+
+let WIDTH: i32 = 80;
+let HEIGHT: i32 = 25;
+let CELLS: i32 = WIDTH * HEIGHT;
+let HALF: i32 = CELLS / 2 - 1;
+let MASK: u8 = 1 << 7 | 3;
+let SHIFTED: u8 = MASK >> 1;
+let PAIR_SIZE: i64 = sizeof(Pair) * 4;
+let NEGATIVE: i16 = -(WIDTH as i16) % 7;
+let TRUNCATED: i8 = (CELLS + 56) as i8;
+let TOP: i32 = Level.High as i32 + 1;
+let DEFAULT: Level = Level.Mid;
+let CHOSEN: Level = DEFAULT;
+let NAME: *i8 = "grid";
+let ALIAS: *i8 = NAME;
+let RATE: f64 = 2.5;
+let SAME_RATE: f64 = RATE;
+let ON: bool = true;
+let STILL_ON: bool = ON;
+
+fn main(): i32 {
+  print(CELLS);
+  print(HALF);
+  print(MASK);
+  print(SHIFTED);
+  print(PAIR_SIZE);
+  print(NEGATIVE);
+  print(TRUNCATED);
+  print(TOP);
+  print(CHOSEN as i32);
+  print(ALIAS);
+  print(SAME_RATE);
+  print(STILL_ON);
+
+  return 0;
+}

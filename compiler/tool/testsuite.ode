@@ -158,7 +158,7 @@ struct Suite {
 
 fn colour(code: *i8): *i8 {
   let out: *Buf = Buf.new();
-  out.push(27 as i8);
+  out.push(27);
   out.push('[');
   out.add(code);
   out.push('m');
@@ -177,13 +177,13 @@ fn addPadded(out: *Buf, text: *i8, width: i32): void {
 export fn textContains(text: *i8, part: *i8): bool {
   let length: i64 = strlen(text);
   let partLength: i64 = strlen(part);
-  let start: i64 = 0 as i64;
+  let start: i64 = 0;
 
   while (start + partLength <= length) {
     if (memcmp(text + start, part, partLength) == 0) {
       return true;
     }
-    start = start + 1 as i64;
+    start = start + 1;
   }
 
   return false;
@@ -207,7 +207,7 @@ fn writeIndented(text: *Buf): void {
 }
 
 fn withoutExtension(name: *i8): *i8 {
-  return textSlice(name, 0 as i64, strlen(name) - 4 as i64);
+  return textSlice(name, 0, strlen(name) - 4);
 }
 
 fn isDirectory(path: *i8): bool {
@@ -408,7 +408,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     return 1;
   }
 
-  let suite: *Suite = malloc(sizeof(Suite) as i64) as *Suite;
+  let suite: *Suite = malloc(sizeof(Suite)) as *Suite;
   suite.ws = ws;
   suite.compiler = compiler;
   suite.work = work;

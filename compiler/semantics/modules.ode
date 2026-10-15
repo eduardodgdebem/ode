@@ -91,15 +91,15 @@ export fn textEndsWith(text: *i8, suffix: *i8): bool {
 // Everything up to and including the last `/`, or nothing for a bare name.
 fn directoryOf(path: *i8): *i8 {
   let length: i64 = strlen(path);
-  let end: i64 = 0 as i64;
+  let end: i64 = 0;
 
-  for (index in 0 as i64..length) {
+  for (index in 0..length) {
     if (path[index] == '/') {
-      end = index + 1 as i64;
+      end = index + 1;
     }
   }
 
-  return textSlice(path, 0 as i64, end);
+  return textSlice(path, 0, end);
 }
 
 // Where `import ... from "<spec>"` written in `importer` points. A relative
@@ -135,7 +135,7 @@ export struct NameSet {
   names: *List<*i8>,
 
   fn new(): *NameSet {
-    let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
+    let set: *NameSet = malloc(sizeof(NameSet)) as *NameSet;
     set.names = List<*i8>.new();
 
     return set;
@@ -425,7 +425,7 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
   let count: i32 = an.ast.count;
 
   for (node in 0..count) {
-    if (inTemplate[node] == 0 as i8) {
+    if (inTemplate[node] == 0) {
       rewriteNodeNames(an, program, node, null);
     }
   }
@@ -524,9 +524,9 @@ export struct SymbolList {
     let items: *Symbol = null;
 
     if (count > 0) {
-      items = malloc(sizeof(Symbol) as i64 * count as i64) as *Symbol;
+      items = malloc(sizeof(Symbol) * count as i64) as *Symbol;
       memcpy(items as *i8, (table.items + start) as *i8,
-             sizeof(Symbol) as i64 * count as i64);
+             sizeof(Symbol) * count as i64);
     }
 
     return SymbolList { items: items, count: count };

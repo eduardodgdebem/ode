@@ -13,8 +13,8 @@ fn fibRecursive(n: i32): i32 {
 }
 
 fn fibIterative(n: i32): i64 {
-  let previous: i64 = 0 as i64;
-  let current: i64 = 1 as i64;
+  let previous: i64 = 0;
+  let current: i64 = 1;
 
   if (n == 0) {
     return previous;

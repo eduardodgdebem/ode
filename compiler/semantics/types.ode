@@ -38,7 +38,7 @@ export enum TypeKind {
 // Not a type: the entry for a node that is not an expression.
 
 
-let MAX_U64: u64 = 18446744073709551615 as u64;
+let MAX_U64: u64 = 18446744073709551615;
 
 export struct Type {
   kind: TypeKind,
@@ -163,6 +163,12 @@ export struct Type {
                   structName: self.structName };
   }
 
+  // What the pointers, if any, lead to in the end.
+  fn base(self: Type): Type {
+    return Type { kind: self.kind, pointerDepth: 0,
+                  structName: self.structName };
+  }
+
   fn pointerTo(self: Type): Type {
     return Type { kind: self.kind, pointerDepth: self.pointerDepth + 1,
                   structName: self.structName };
@@ -252,15 +258,15 @@ fn unsignedMax(bits: i32): u64 {
     return MAX_U64;
   }
 
-  return (1 as u64 << bits as u64) - 1 as u64;
+  return (1 << bits as u64) - 1;
 }
 
 fn signedMax(bits: i32): u64 {
   if (bits >= 64) {
-    return MAX_U64 / 2 as u64;
+    return MAX_U64 / 2;
   }
 
-  return (1 as u64 << (bits - 1) as u64) - 1 as u64;
+  return (1 << (bits - 1) as u64) - 1;
 }
 
 // The lexer folds a leading `-` into a number token where the position allows
@@ -278,7 +284,7 @@ export fn fitsIn(magnitude: u64, negative: bool, type: Type): bool {
 
   let max: u64 = signedMax(bits);
   if (negative) {
-    return magnitude <= max + 1 as u64;
+    return magnitude <= max + 1;
   }
 
   return magnitude <= max;
@@ -288,20 +294,20 @@ export fn fitsIn(magnitude: u64, negative: bool, type: Type): bool {
 // rather than wrapping.
 export fn parseMagnitude(text: *i8, start: i64, length: i64,
                          overflowed: *bool): u64 {
-  let value: u64 = 0 as u64;
+  let value: u64 = 0;
   let index: i64 = start;
   *overflowed = false;
 
   while (index < length) {
-    let digit: u64 = (text[index] as i64 - '0' as i64) as u64;
+    let digit: u64 = (text[index] as i64 - '0') as u64;
 
-    if (value > (MAX_U64 - digit) / 10 as u64) {
+    if (value > (MAX_U64 - digit) / 10) {
       *overflowed = true;
-      return 0 as u64;
+      return 0;
     }
 
-    value = value * 10 as u64 + digit;
-    index = index + 1 as i64;
+    value = value * 10 + digit;
+    index = index + 1;
   }
 
   return value;
@@ -330,11 +336,11 @@ export struct StructTable {
   capacity: i32,
 
   fn new(): *StructTable {
-    let table: *StructTable = malloc(sizeof(StructTable) as i64) as *StructTable;
+    let table: *StructTable = malloc(sizeof(StructTable)) as *StructTable;
     table.capacity = 16;
     table.count = 0;
     table.items =
-        malloc(sizeof(StructLayout) as i64 * table.capacity as i64) as
+        malloc(sizeof(StructLayout) * table.capacity as i64) as
             *StructLayout;
 
     return table;
@@ -356,7 +362,7 @@ export struct StructTable {
       self.capacity = self.capacity * 2;
       self.items =
           realloc(self.items as *i8,
-                  sizeof(StructLayout) as i64 * self.capacity as i64) as
+                  sizeof(StructLayout) * self.capacity as i64) as
               *StructLayout;
     }
 
@@ -365,7 +371,7 @@ export struct StructTable {
     self.items[index].count = 0;
     self.items[index].capacity = 4;
     self.items[index].fields =
-        malloc(sizeof(FieldDef) as i64 * 4 as i64) as *FieldDef;
+        malloc(sizeof(FieldDef) * 4) as *FieldDef;
     self.count = self.count + 1;
 
     return index;
@@ -390,7 +396,7 @@ export struct StructTable {
           self.items[structIndex].capacity * 2;
       self.items[structIndex].fields =
           realloc(self.items[structIndex].fields as *i8,
-                  sizeof(FieldDef) as i64 *
+                  sizeof(FieldDef) *
                       self.items[structIndex].capacity as i64) as *FieldDef;
     }
 

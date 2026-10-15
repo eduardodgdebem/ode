@@ -69,7 +69,7 @@ fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
     return;
   }
 
-  marks[node] = 1 as i8;
+  marks[node] = 1;
   markSubtree(an, an.ast.nodes[node].a, marks);
   markSubtree(an, an.ast.nodes[node].b, marks);
   markSubtree(an, an.ast.nodes[node].c, marks);
@@ -82,7 +82,7 @@ fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
 export fn markTemplates(an: *Analyzer, program: i32): *i8 {
   let marks: *i8 = malloc(an.ast.count as i64);
   for (node in 0..an.ast.count) {
-    marks[node] = 0 as i8;
+    marks[node] = 0;
   }
 
   for (index in 0..an.ast.nodes[program].itemCount) {
@@ -426,7 +426,7 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
   // A generic used without arguments is caught once, before any instance
   // is made, by looking at the code that is not itself generic.
   for (node in 0..marked) {
-    if (inTemplate[node] == 0 as i8) {
+    if (inTemplate[node] == 0) {
       checkBareUse(an, program, node);
     }
   }
@@ -451,7 +451,7 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
 
     let node: i32 = 0;
     while (node < an.ast.count) {
-      if (node < marked && inTemplate[node] != 0 as i8) {
+      if (node < marked && inTemplate[node] != 0) {
         node = node + 1;
         continue;
       }

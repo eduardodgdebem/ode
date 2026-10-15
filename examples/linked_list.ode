@@ -12,7 +12,7 @@ struct Node {
 }
 
 fn makeNode(value: i32): *Node {
-  let node: *Node = malloc(sizeof(Node) as i64) as *Node;
+  let node: *Node = malloc(sizeof(Node)) as *Node;
   node.value = value;
   node.next = null;
 

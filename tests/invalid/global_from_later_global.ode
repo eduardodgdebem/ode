@@ -1,0 +1,6 @@
+let FIRST: i32 = SECOND + 1;
+let SECOND: i32 = 2;
+
+fn main(): i32 {
+  return FIRST;
+}

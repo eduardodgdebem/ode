@@ -59,14 +59,14 @@ fn printKind(kind: i32): void {
 
 fn tokenize(source: *i8): i32 {
   let length: i64 = strlen(source);
-  let i: i64 = 0 as i64;
+  let i: i64 = 0;
   let count: i32 = 0;
 
   while (i < length) {
     let c: i8 = source[i];
 
     if (isSpace(c)) {
-      i = i + 1 as i64;
+      i = i + 1;
       continue;
     }
 
@@ -81,7 +81,7 @@ fn tokenize(source: *i8): i32 {
     // Consume the whole run of this kind. `&&` short-circuits, so `source[i]`
     // is only read once `i < length` has already held.
     while (i < length && !isSpace(source[i]) && classify(source[i]) == kind) {
-      i = i + 1 as i64;
+      i = i + 1;
     }
   }
 

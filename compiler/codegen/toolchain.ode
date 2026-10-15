@@ -42,12 +42,12 @@ export fn sysroot(): *i8 {
     let command: *TextList = TextList.new().add("xcrun").add("--show-sdk-path");
     if (runCommand(command, null, output, StderrMode.Discard) == 0) {
       // The path comes back with a newline after it.
-      while (output.length > 0 as i64 &&
-             isSpace(output.data[output.length - 1 as i64])) {
-        output.length = output.length - 1 as i64;
+      while (output.length > 0 &&
+             isSpace(output.data[output.length - 1])) {
+        output.length = output.length - 1;
       }
-      output.data[output.length] = 0 as i8;
-      if (output.length > 0 as i64) {
+      output.data[output.length] = 0;
+      if (output.length > 0) {
         SYSROOT = output.take();
       }
     }

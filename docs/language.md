@@ -71,7 +71,7 @@ declared return type.
 
 ```rust
 while (i < length && text[i] != '\0') {
-  i = i + 1 as i64;
+  i = i + 1;
 }
 ```
 
@@ -81,18 +81,32 @@ Integers in every width and signedness — `i8`, `u8`, `i16`, `u16`, `i32`,
 `u32`, `i64`, `u64` (also spelled `usize`) — the floats `f32` and `f64`, plus
 `bool`, `void`, and pointers to any of them (`*i8`, `**i8`).
 
-There are no implicit conversions. Integer literals are `i32`, so every other
-width is reached with an explicit cast:
+A literal takes the type its context expects — the declared type, the
+parameter, the field, the return type, or the other operand — so it is
+written as itself. A literal that does not fit what is expected is an error,
+not a wrap:
 
 ```rust
-let size: i64 = 4096 as i64;
-let byte: u8 = size as u8;
-let ratio: f64 = size as f64 / 3.0 as f64;
+let size: i64 = 4096;
+let small: i16 = -12;
+let next: i64 = size * 2 + 1;
+let ratio: f64 = 3;
+let byte: u8 = 300;          // error: number is out of range for 'u8'
 ```
 
-A literal too wide for `i32` takes the type it is cast to, so `3000000000 as
-i64` is written directly. One that does fit keeps `i32`, so a narrowing cast
-still truncates: `300 as i8` is 44.
+Characters and `sizeof` work the same way: `'0' + digit` is in the digit's
+type, and `malloc(sizeof(Node) * 4)` passes the `i64` malloc wants. With
+nothing to go by, an integer literal is `i32` and a decimal one `f32`.
+
+Values that already have a type never convert on their own, though. An `i32`
+variable used where an `i64` is wanted needs `as`:
+
+```rust
+let byte: u8 = size as u8;
+let ratio: f64 = size as f64 / 3.0;
+```
+
+A narrowing cast truncates: `300 as i8` is 44.
 
 ## Pointers
 
@@ -166,7 +180,7 @@ fn max<T>(a: T, b: T): T {
 
 let names: *List<*i8> = List<*i8>.new();
 names.push("ode");
-print(max<i64>(3 as i64, 9 as i64));
+print(max<i64>(3, 9));
 ```
 
 Each set of arguments makes an instance -- `List<i32>` and `List<*i8>` are
@@ -203,12 +217,13 @@ every field exactly once, in any order:
 let node: Point = Point { x: 3, y: 4 };
 ```
 
-`.` follows one level of pointer on its own, so `node.next.value` reads
-through two pointers without a single `*`. Fields are assignable, and
+`.` follows pointers on its own, however many there are, so
+`node.next.value` reads through two pointers without a single `*`, and a
+`**Node` reads its fields the same way. Fields are assignable, and
 `sizeof(T)` gives the byte size needed to allocate one:
 
 ```rust
-let node: *Node = malloc(sizeof(Node) as i64) as *Node;
+let node: *Node = malloc(sizeof(Node)) as *Node;
 node.value = 1;
 ```
 
@@ -317,7 +332,7 @@ An array is a pointer plus indexing. `values[i]` is `*(values + i)`, and
 works on either side of an assignment:
 
 ```rust
-let values: *i32 = malloc(sizeof(i32) as i64 * 8 as i64) as *i32;
+let values: *i32 = malloc(sizeof(i32) * 8) as *i32;
 values[0] = 41;
 print(values[0]);
 ```
@@ -325,11 +340,15 @@ print(values[0]);
 ## Globals
 
 A `let` at program level is a global, visible to every function regardless of
-declaration order. Initialisers must be constant — literals, `sizeof`, or a
-cast or negation of one:
+declaration order. Initialisers must be constant, because they are worked
+out at compile time. An integer global may be any arithmetic on literals,
+`sizeof`, enum members and the globals declared before it; a global of any
+other type may be a literal or an earlier global:
 
 ```rust
-let KIND_NUMBER: i32 = 0;
+let WIDTH: i32 = 80;
+let CELLS: i32 = WIDTH * 25;
+let BUFFER: i64 = sizeof(Cell) * CELLS;
 let allocations: i32 = 0;
 ```
 

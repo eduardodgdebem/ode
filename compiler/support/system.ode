@@ -48,7 +48,7 @@ export struct TextList {
   texts: *List<*i8>,
 
   fn new(): *TextList {
-    let list: *TextList = malloc(sizeof(TextList) as i64) as *TextList;
+    let list: *TextList = malloc(sizeof(TextList)) as *TextList;
     list.texts = List<*i8>.new();
 
     return list;
@@ -99,7 +99,7 @@ export enum StderrMode {
 export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
                      stderrMode: StderrMode): i32 {
   let capturing: bool = out != null;
-  let fds: *i32 = malloc(sizeof(i32) as i64 * 2 as i64) as *i32;
+  let fds: *i32 = malloc(sizeof(i32) * 2) as *i32;
   if (capturing) {
     pipe(fds);
   }
@@ -138,10 +138,10 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
   // would otherwise block forever on a parent that is waiting for it.
   if (capturing) {
     close(fds[1]);
-    let chunk: *i8 = malloc(4096 as i64);
+    let chunk: *i8 = malloc(4096);
     while (pid > 0) {
-      let count: i64 = read(fds[0], chunk, 4096 as i64);
-      if (count <= 0 as i64) {
+      let count: i64 = read(fds[0], chunk, 4096);
+      if (count <= 0) {
         break;
       }
       out.addBytes(chunk, count);
@@ -158,7 +158,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
     return -1;
   }
 
-  let status: *i32 = malloc(sizeof(i32) as i64) as *i32;
+  let status: *i32 = malloc(sizeof(i32)) as *i32;
   waitpid(pid, status, 0);
 
   // WIFEXITED and WEXITSTATUS are macros in C, so they are written out here.
@@ -176,7 +176,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
 // The variable's value, or null when it is unset or empty.
 export fn environment(name: *i8): *i8 {
   let value: *i8 = getenv(name);
-  if (value == null || value[0] == 0 as i8) {
+  if (value == null || value[0] == 0) {
     return null;
   }
 
@@ -188,8 +188,8 @@ export fn setEnvironment(name: *i8, value: *i8): void {
 }
 
 export fn currentDirectory(): *i8 {
-  let buffer: *i8 = malloc(4096 as i64);
-  if (getcwd(buffer, 4096 as i64) == null) {
+  let buffer: *i8 = malloc(4096);
+  if (getcwd(buffer, 4096) == null) {
     return null;
   }
 
@@ -207,8 +207,8 @@ export fn isTerminal(fd: i32): bool {
 export fn joinPath(directory: *i8, name: *i8): *i8 {
   let out: *Buf = Buf.new();
   out.add(directory);
-  if (strlen(directory) > 0 as i64 &&
-      directory[strlen(directory) - 1 as i64] != '/') {
+  if (strlen(directory) > 0 &&
+      directory[strlen(directory) - 1] != '/') {
     out.push('/');
   }
   out.add(name);
@@ -220,12 +220,12 @@ export fn joinPath(directory: *i8, name: *i8): *i8 {
 // names its output.
 export fn stemOf(path: *i8): *i8 {
   let length: i64 = strlen(path);
-  let start: i64 = 0 as i64;
+  let start: i64 = 0;
   let end: i64 = length;
 
-  for (index in 0 as i64..length) {
+  for (index in 0..length) {
     if (path[index] == '/') {
-      start = index + 1 as i64;
+      start = index + 1;
     }
     if (path[index] == '.') {
       end = index;
@@ -250,24 +250,24 @@ export fn withSuffix(base: *i8, suffix: *i8): *i8 {
 // The directory holding `path`, without a trailing `/`: `/` for something at
 // the root, and `.` for a bare name.
 export fn parentDirectory(path: *i8): *i8 {
-  let last: i64 = -1 as i64;
-  let index: i64 = 0 as i64;
+  let last: i64 = -1;
+  let index: i64 = 0;
 
-  while (path[index] != 0 as i8) {
+  while (path[index] != 0) {
     if (path[index] == '/') {
       last = index;
     }
-    index = index + 1 as i64;
+    index = index + 1;
   }
 
-  if (last < 0 as i64) {
+  if (last < 0) {
     return ".";
   }
-  if (last == 0 as i64) {
+  if (last == 0) {
     return "/";
   }
 
-  return textSlice(path, 0 as i64, last);
+  return textSlice(path, 0, last);
 }
 
 export fn fileExists(path: *i8): bool {
@@ -290,10 +290,10 @@ export fn readBytes(path: *i8): *Buf {
   }
 
   let out: *Buf = Buf.new();
-  let chunk: *i8 = malloc(65536 as i64);
+  let chunk: *i8 = malloc(65536);
   while (true) {
-    let count: i64 = fread(chunk, 1 as i64, 65536 as i64, stream);
-    if (count <= 0 as i64) {
+    let count: i64 = fread(chunk, 1, 65536, stream);
+    if (count <= 0) {
       break;
     }
     out.addBytes(chunk, count);
@@ -310,7 +310,7 @@ export fn writeBytes(path: *i8, data: *Buf): bool {
     return false;
   }
 
-  let written: i64 = fwrite(data.data, 1 as i64, data.length, stream);
+  let written: i64 = fwrite(data.data, 1, data.length, stream);
   fclose(stream);
 
   return written == data.length;
@@ -327,13 +327,13 @@ export fn sameBytes(a: *Buf, b: *Buf): bool {
 // Creates `path` and any directory above it that is missing.
 export fn makeDirectories(path: *i8): bool {
   let length: i64 = strlen(path);
-  let index: i64 = 1 as i64;
+  let index: i64 = 1;
 
   while (index <= length) {
     if (index == length || path[index] == '/') {
-      mkdir(textSlice(path, 0 as i64, index), 493);
+      mkdir(textSlice(path, 0, index), 493);
     }
-    index = index + 1 as i64;
+    index = index + 1;
   }
 
   return fileExists(path);
@@ -366,15 +366,15 @@ export fn listDirectory(path: *i8): *TextList {
 
 export fn splitLines(text: *Buf): *TextList {
   let lines: *TextList = TextList.new();
-  let start: i64 = 0 as i64;
-  let index: i64 = 0 as i64;
+  let start: i64 = 0;
+  let index: i64 = 0;
 
   while (index < text.length) {
     if (text.data[index] == '\n') {
       lines.add(textSlice(text.data, start, index - start));
-      start = index + 1 as i64;
+      start = index + 1;
     }
-    index = index + 1 as i64;
+    index = index + 1;
   }
   if (start < text.length) {
     lines.add(textSlice(text.data, start, text.length - start));
@@ -407,14 +407,14 @@ export fn readFile(path: *i8): *i8 {
     return null;
   }
 
-  fseek(stream, 0 as i64, SEEK_END);
+  fseek(stream, 0, SEEK_END);
   let size: i64 = ftell(stream);
-  fseek(stream, 0 as i64, SEEK_SET);
+  fseek(stream, 0, SEEK_SET);
 
-  let text: *i8 = malloc(size + 1 as i64);
-  let count: i64 = fread(text, 1 as i64, size, stream);
+  let text: *i8 = malloc(size + 1);
+  let count: i64 = fread(text, 1, size, stream);
   fclose(stream);
-  text[count] = 0 as i8;
+  text[count] = 0;
 
   return text;
 }
@@ -426,7 +426,7 @@ export fn writeFile(path: *i8, text: *i8): bool {
   }
 
   let count: i64 = strlen(text);
-  let written: i64 = fwrite(text, 1 as i64, count, stream);
+  let written: i64 = fwrite(text, 1, count, stream);
   fclose(stream);
 
   return written == count;

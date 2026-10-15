@@ -3,9 +3,10 @@
 //
 // Every expression's type is inferred bottom-up and recorded in `an.types`, so
 // the IR emitter reads the answer rather than deriving it a second time. There
-// are no implicit conversions: operands have to agree exactly, and the only
-// literal that takes its type from context is one written directly under a
-// cast, which is what makes `3000000000 as i64` expressible.
+// are no implicit conversions: operands have to agree exactly. A literal has
+// no fixed type, though: it takes the one its context expects -- the declared
+// type, the parameter, the other operand -- so `let n: i16 = 5;` and `n + 1`
+// need no cast. With nothing to go by it is `i32`, or `f32` with a `.`.
 // ---------------------------------------------------------------------------
 
 import { malloc } from "../support/libc";
@@ -24,6 +25,7 @@ import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
 } from "./functions";
 import { functionTemplateIn } from "./generics";
+import { isReadyGlobal } from "./constants";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -42,24 +44,37 @@ export fn isLValue(an: *Analyzer, node: i32): bool {
 }
 
 export fn checkExpr(an: *Analyzer, node: i32): Type {
+  return checkExprAs(an, node, Type.make(TypeKind.None, 0));
+}
+
+// checkExpr, for a place that expects a value of type `expected`. Only
+// literals listen: anything else has its own type, which the caller compares
+// with what it wanted.
+export fn checkExprAs(an: *Analyzer, node: i32, expected: Type): Type {
   // Once a construct has failed, the types under it are guesses at best and
   // out-of-range lookups at worst, so nothing more is inferred from it.
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
 
-  let type: Type = inferExprType(an, node);
+  let type: Type = inferExprType(an, node, expected);
   an.types[node] = type;
 
   return type;
 }
 
-fn inferExprType(an: *Analyzer, node: i32): Type {
+fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
   let kind: NodeKind = an.ast.nodes[node].kind;
 
+  // `-5` is checked as one literal, so that its range is the negative one.
+  if (isNumberLiteral(an, node) && expected.isInteger()) {
+    checkLiteralAs(an, node, expected);
+    return expected;
+  }
+
   match (kind) {
-    NodeKind.Binary => { return checkBinaryOp(an, node); }
-    NodeKind.Unary => { return checkUnaryOp(an, node); }
+    NodeKind.Binary => { return checkBinaryOp(an, node, expected); }
+    NodeKind.Unary => { return checkUnaryOp(an, node, expected); }
     NodeKind.Cast => { return checkCast(an, node); }
     NodeKind.FieldAccess => { return checkFieldAccess(an, node); }
     NodeKind.Index => { return checkIndex(an, node); }
@@ -70,6 +85,10 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
     else => {}
   }
   if (kind == NodeKind.Number) {
+    // An integer literal is a fine float; a float literal is no integer.
+    if (expected.isFloat()) {
+      return expected;
+    }
     return checkNumberLiteral(an, node, Type.make(TypeKind.I32, 0));
   }
   if (kind == NodeKind.Bool) { return Type.make(TypeKind.Bool, 0); }
@@ -78,7 +97,7 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
   match (kind) {
     NodeKind.String => { return Type.make(TypeKind.I8, 1); }
     NodeKind.Null => { return Type.make(TypeKind.Null, 0); }
-    NodeKind.Char => { return Type.make(TypeKind.I8, 0); }
+    NodeKind.Char => { return charType(expected); }
     else => {}
   }
 
@@ -87,6 +106,11 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
     analyzerValidateType(an, node, type, "in sizeof");
     if (type.isVoid()) {
       analyzerFail(an, node, "sizeof(void) is not allowed");
+    }
+    // A size is a constant, and like a literal it takes the integer type
+    // that is wanted of it.
+    if (expected.isInteger()) {
+      return expected;
     }
     return Type.make(TypeKind.U64, 0);
   }
@@ -112,6 +136,45 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
   return Type.make(TypeKind.Void, 0);
 }
 
+// A character is a byte's value, so it is a number of whatever integer type
+// is wanted, and an i8 otherwise.
+fn charType(expected: Type): Type {
+  if (expected.isInteger()) {
+    return expected;
+  }
+  return Type.make(TypeKind.I8, 0);
+}
+
+// Whether an expression is built from number and character literals and
+// sizes alone -- `1`, `-2`, `'a' + 1`, `sizeof(T) * 4` -- and so has no type
+// until its context gives it one.
+export fn isLiteralTree(an: *Analyzer, node: i32): bool {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  if (kind == NodeKind.Number || kind == NodeKind.Sizeof ||
+      kind == NodeKind.Char) {
+    return true;
+  }
+  if (kind == NodeKind.Unary) {
+    let op: *i8 = an.ast.nodes[node].text;
+    return (textEquals(op, "-") || textEquals(op, "+")) &&
+           isLiteralTree(an, an.ast.nodes[node].a);
+  }
+  if (kind == NodeKind.Binary) {
+    return isArithmetic(an.ast.nodes[node].text) &&
+           isLiteralTree(an, an.ast.nodes[node].a) &&
+           isLiteralTree(an, an.ast.nodes[node].b);
+  }
+  return false;
+}
+
+// The operators whose result has their operands' type.
+fn isArithmetic(op: *i8): bool {
+  return textEquals(op, "+") || textEquals(op, "-") || textEquals(op, "*") ||
+         textEquals(op, "/") || textEquals(op, "%") || textEquals(op, "&") ||
+         textEquals(op, "|") || textEquals(op, "^") || textEquals(op, "<<") ||
+         textEquals(op, ">>");
+}
+
 // `at` is the assignment being checked. The failure is reported there rather
 // than at the target, because the target has not been type-checked yet and it
 // is the statement that is wrong.
@@ -124,7 +187,7 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
 
   // `Color.Red` reads like a field but is a constant, with nowhere to store
   // to; that is only known once it has been checked.
-  if (!FAILED && an.isConstant[target] != 0 as i8) {
+  if (!FAILED && an.isConstant[target] != 0) {
     analyzerFail(an, at, "left-hand side of assignment is not assignable");
   }
 
@@ -183,8 +246,8 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
 
   for (index in 0..argCount) {
     let argument: i32 = an.ast.nodes[args].items[index];
-    let argType: Type = checkExpr(an, argument);
     let paramType: Type = params[index];
+    let argType: Type = checkExprAs(an, argument, paramType);
 
     if (!paramType.accepts(argType)) {
       let context: *Buf = Buf.new();
@@ -201,7 +264,7 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   }
 }
 
-fn checkUnaryOp(an: *Analyzer, node: i32): Type {
+fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   let op: *i8 = an.ast.nodes[node].text;
   let operand: i32 = an.ast.nodes[node].a;
 
@@ -212,7 +275,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32): Type {
     }
 
     let addressed: Type = checkExpr(an, operand);
-    if (!FAILED && an.isConstant[operand] != 0 as i8) {
+    if (!FAILED && an.isConstant[operand] != 0) {
       analyzerFail(an, node, "cannot take the address of a temporary value");
     }
     if (addressed.isVoid()) {
@@ -222,7 +285,11 @@ fn checkUnaryOp(an: *Analyzer, node: i32): Type {
     return addressed.pointerTo();
   }
 
-  let operandType: Type = checkExpr(an, operand);
+  let operandExpected: Type = Type.make(TypeKind.None, 0);
+  if (textEquals(op, "-") || textEquals(op, "+")) {
+    operandExpected = expected;
+  }
+  let operandType: Type = checkExprAs(an, operand, operandExpected);
 
   if (textEquals(op, "-")) {
     if (!operandType.isNumeric()) {
@@ -264,10 +331,28 @@ fn checkUnaryOp(an: *Analyzer, node: i32): Type {
   return Type.make(TypeKind.Void, 0);
 }
 
-fn checkBinaryOp(an: *Analyzer, node: i32): Type {
+fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   let op: *i8 = an.ast.nodes[node].text;
-  let left: Type = checkExpr(an, an.ast.nodes[node].a);
-  let right: Type = checkExpr(an, an.ast.nodes[node].b);
+  let leftNode: i32 = an.ast.nodes[node].a;
+  let rightNode: i32 = an.ast.nodes[node].b;
+
+  // Arithmetic hands down what is expected of its result; a comparison's
+  // operands expect nothing of their own. Either way a literal side takes the
+  // other side's type, so the side with a type of its own is checked first.
+  let wanted: Type = Type.make(TypeKind.None, 0);
+  if (isArithmetic(op)) {
+    wanted = expected;
+  }
+
+  let left: Type = Type.make(TypeKind.None, 0);
+  let right: Type = Type.make(TypeKind.None, 0);
+  if (isLiteralTree(an, leftNode) && !isLiteralTree(an, rightNode)) {
+    right = checkExprAs(an, rightNode, wanted);
+    left = checkExprAs(an, leftNode, operandHint(right, wanted));
+  } else {
+    left = checkExprAs(an, leftNode, wanted);
+    right = checkExprAs(an, rightNode, operandHint(left, wanted));
+  }
 
   if (textEquals(op, "||") || textEquals(op, "&&")) {
     if (!left.isBool() || !right.isBool()) {
@@ -403,6 +488,15 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
   return Type.make(TypeKind.Void, 0);
 }
 
+// What a literal operand is offered: the other side's type when that is a
+// number, so `n + 1` is in n's type, or else whatever the whole is.
+fn operandHint(other: Type, wanted: Type): Type {
+  if (other.isNumeric()) {
+    return other;
+  }
+  return wanted;
+}
+
 fn castRejection(an: *Analyzer, node: i32, from: Type, to: Type,
                  why: *i8): void {
   let context: *Buf = Buf.new();
@@ -462,6 +556,16 @@ fn checkCast(an: *Analyzer, node: i32): Type {
 // cast's target type, so that a value too wide for `i32` can be written at
 // all: `3000000000 as i64`.
 fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
+  // `-3000000000 as i64` is a negated literal; its literal is the one that
+  // has to be wide.
+  if (an.ast.nodes[node].kind == NodeKind.Unary &&
+      textEquals(an.ast.nodes[node].text, "-") &&
+      an.ast.nodes[an.ast.nodes[node].a].kind == NodeKind.Number) {
+    let inner: Type = checkCastOperand(an, an.ast.nodes[node].a, target);
+    an.types[node] = inner;
+    return inner;
+  }
+
   if (an.ast.nodes[node].kind != NodeKind.Number) {
     return checkExpr(an, node);
   }
@@ -473,7 +577,7 @@ fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
 }
 
 export fn textHasDot(text: *i8, length: i64): bool {
-  for (index in 0 as i64..length) {
+  for (index in 0..length) {
     if (text[index] == '.') {
       return true;
     }
@@ -500,17 +604,21 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
   // `3000000000 as i64` expressible at all.
   let fallback: Type = Type.make(TypeKind.I32, 0);
   let wanted: Type = target;
-  if (!target.isInteger()) {
+  if (target.isFloat()) {
+    // `3000000000 as f64`: an integer too wide for i32 is read as an i64,
+    // and converted from that.
+    wanted = Type.make(TypeKind.I64, 0);
+  } else if (!target.isInteger()) {
     wanted = fallback;
   }
 
   let negative: bool = text[0] == '-';
-  let start: i64 = 0 as i64;
+  let start: i64 = 0;
   if (negative) {
-    start = 1 as i64;
+    start = 1;
   }
 
-  let overflowed: *bool = malloc(sizeof(bool) as i64) as *bool;
+  let overflowed: *bool = malloc(sizeof(bool)) as *bool;
   let magnitude: u64 = parseMagnitude(text, start, length, overflowed);
 
   if (*overflowed) {
@@ -551,12 +659,9 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   let field: *i8 = an.ast.nodes[node].text;
   let objectType: Type = checkExpr(an, an.ast.nodes[node].a);
 
-  // A single level of pointer is followed automatically, so `p.field` works
-  // whether `p` is a struct or a pointer to one.
-  let structType: Type = objectType;
-  if (objectType.pointerDepth == 1) {
-    structType = objectType.pointee();
-  }
+  // Pointers are followed automatically, however many there are, so
+  // `p.field` works whether `p` is a struct or points at one.
+  let structType: Type = objectType.base();
 
   if (!structType.isStruct()) {
     analyzerFail2(an, node, quoted("cannot read field ", field, ""),
@@ -619,7 +724,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 
   let index: i32 = 0;
   for (index in 0..fieldCount) {
-    initialised[index] = 0 as i8;
+    initialised[index] = 0;
   }
 
   index = 0;
@@ -638,15 +743,15 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
       analyzerFail(an, node, message.data);
       return Type.ofStruct(name, 0);
     }
-    if (initialised[fieldIndex] != 0 as i8) {
+    if (initialised[fieldIndex] != 0) {
       analyzerFail(an, node,
                    quoted("field ", fieldName, " is initialised twice"));
     }
-    initialised[fieldIndex] = 1 as i8;
+    initialised[fieldIndex] = 1;
 
-    let valueType: Type = checkExpr(an, an.ast.nodes[init].a);
     let fieldType: Type =
         an.structs.items[structIndex].fields[fieldIndex].type;
+    let valueType: Type = checkExprAs(an, an.ast.nodes[init].a, fieldType);
 
     if (!fieldType.accepts(valueType)) {
       let context: *Buf = Buf.new();
@@ -665,7 +770,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   }
 
   for (index in 0..fieldCount) {
-    if (initialised[index] == 0 as i8) {
+    if (initialised[index] == 0) {
       let message: *Buf = Buf.new();
       message.add("field '");
       message.add(an.structs.items[structIndex].fields[index].name);
@@ -680,7 +785,8 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 }
 
 // Global initialisers become LLVM constant initialisers, so they may only be
-// literals and casts or negations of those.
+// literals, earlier globals, and casts or negations of those. An integer
+// global's is folded instead; see constants.ode.
 export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
 
@@ -691,10 +797,10 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
     return true;
   }
   if (kind == NodeKind.FieldAccess) {
-    return an.isConstant[node] != 0 as i8;
+    return an.isConstant[node] != 0;
   }
   if (kind == NodeKind.Ident) {
-    return an.functionRefs[node] != 0 as i8;
+    return an.functionRefs[node] != 0 || isReadyGlobal(an, node);
   }
   if (kind == NodeKind.Char || kind == NodeKind.Sizeof) {
     return true;
@@ -742,9 +848,9 @@ export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
 
   let text: *i8 = an.ast.nodes[literal].text;
   let negative: bool = text[0] == '-';
-  let start: i64 = 0 as i64;
+  let start: i64 = 0;
   if (negative) {
-    start = 1 as i64;
+    start = 1;
   }
 
   let overflowed: bool = false;

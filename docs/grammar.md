@@ -126,16 +126,21 @@ position names a struct.
   `>` | `=` | `.`
 - **Comment** → `//` to the end of the line
 
-A STRING has type `*i8` and points at a NUL-terminated constant. A CHAR has
-type `i8`. Comments are recognised by the lexer, so a `//` inside a string
+A STRING has type `*i8` and points at a NUL-terminated constant. A CHAR is
+the byte's value, typed like a NUMBER below, and `i8` by default. Comments are recognised by the lexer, so a `//` inside a string
 literal is text.
 
-A NUMBER is `i32`, or `f32` when it contains a `.`. The one exception is a
-literal written directly as the operand of a cast: it takes the cast's target
-type when `i32` (or `f32`) cannot hold it, which is what makes
-`3000000000 as i64` and `18446744073709551615 as u64` expressible. A value
-that does fit stays `i32`, so `300 as i8` still means "truncate an in-range
-`i32`" and yields 44.
+A NUMBER takes the numeric type its context expects: the declared type of a
+`let`, the target of an assignment, a parameter, a field in a struct literal,
+the return type, or the type of the other operand of a binary operator. An
+integer literal must fit that type, and may stand for a float; a decimal one
+only for a float. With no context it is `i32`, or `f32` when it contains a
+`.`. `sizeof` is typed the same way, and is `u64` by default.
+
+Under a cast a literal is read as itself: it stays `i32` when `i32` can hold
+it, so `300 as i8` still means "truncate an in-range `i32`" and yields 44, and
+otherwise takes the cast's integer type — `3000000000 as i64`,
+`-3000000000 as i64` — or `i64` for a float one: `3000000000 as f64`.
 
 The lexer looks no further than two characters when matching an operator, so
 `<<=` and `>>=` are not tokens: they lex as `<<` followed by `=`, which no
@@ -178,7 +183,7 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   floats, pointers and `bool` are rejected. `%` is `srem` on a signed type
   and `urem` on an unsigned one, and `>>` is arithmetic on a signed type and
   logical on an unsigned one, so `-1 >> 4` is `-1` while
-  `255 as u8 >> 4 as u8` is `15`
+  `(255 as u8) >> 4` is `15`
 - `a op= b` is sugar for `a = a op b`, for `op` in `+ - * / %`. The target is
   written into the tree twice, so a side effect in it -- `a[next()] += 1` --
   happens twice. There are no compound forms of the bitwise operators or the
@@ -186,9 +191,10 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
 - Unary `+` accepts any numeric operand and does nothing
 - Functions may be called before they are declared; the compiler collects
   every signature before checking any body, so mutual recursion works.
-- There are no implicit conversions. Integer literals are `i32`, so any other
-  width needs an explicit `as` (`let n: i64 = 0 as i64;`). A literal too wide
-  for `i32` takes the type it is cast to instead of being rejected.
+- There are no implicit conversions between typed values: an `i32` variable
+  needs `as i64` to be used as an `i64`. Literals have no type of their own
+  until their context gives them one (see NUMBER), so `let n: i64 = 0;` needs
+  no cast.
 - Pointer arithmetic: `p + i`, `i + p` and `p - i` step by elements, and
   `p - q` yields the `i64` number of elements between two pointers of the
   same type. `*void` supports neither arithmetic nor dereference; cast it to
@@ -219,8 +225,8 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   pointer, from either side. It is not an integer, so `let n: i32 = null;` is
   an error, and it is not a pointer to anything, so it cannot be
   dereferenced or offset. `null as *T` names its type explicitly.
-- `.` follows one level of pointer automatically, so `node.next` works whether
-  `node` is a `Node` or a `*Node`.
+- `.` follows pointers automatically, however many, so `node.next` works
+  whether `node` is a `Node`, a `*Node` or a `**Node`.
 - A struct literal must initialise every field exactly once, in any order.
 - An enum is a type of its own whose values are written `Name.Member`. A
   member without a value takes the one after the member before it, and the
@@ -246,9 +252,12 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   struct.
 - Methods belong to their struct: they are visible wherever the struct is,
   including through an import of it under another name.
-- `sizeof(T)` is a `usize` and is what sizes an allocation for a struct.
-- Globals may only be initialised from constants — literals, `sizeof`, and
-  casts or negations of those. Every global is visible to every function in
+- `sizeof(T)` is a constant: it takes the integer type wanted of it, and is a
+  `usize` otherwise. It is what sizes an allocation for a struct.
+- Globals may only be initialised from constants, worked out at compile time.
+  An integer global may be any arithmetic on literals, `sizeof`, enum members
+  and globals declared before it; any other global a literal or an earlier
+  global. Every global is visible to every function in
   its file regardless of declaration order.
 - Structs may be passed and returned by value between Ode functions, but not
   across `extern`, where the C ABI would need target-specific lowering.
