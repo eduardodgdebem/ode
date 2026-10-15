@@ -28,14 +28,14 @@ import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED,
 } from "../support/diagnostics";
 import {
-  TextList, StderrMode, runCommand, environment, currentDirectory, joinPath,
-  withSuffix, parentDirectory, fileExists, isExecutable, absolutePath,
-  readBytes, writeBytes, sameBytes, makeDirectories, removeTree, moveFile,
-  readFile,
+  TextList, StderrMode, runCommand, environment, setEnvironment,
+  currentDirectory, joinPath, withSuffix, parentDirectory, fileExists,
+  isExecutable, absolutePath, readBytes, writeBytes, sameBytes,
+  makeDirectories, removeTree, moveFile, readFile,
 } from "../support/system";
 import { NodeKind, Ast } from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
-import { moduleCount, modulePath } from "../semantics/modules";
+import { moduleCount, modulePath, STD_DIRECTORY } from "../semantics/modules";
 import { quoted } from "../semantics/analyzer";
 import { hexDigit } from "../codegen/emitter";
 import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
@@ -466,8 +466,12 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
   ws.output = joinPath(root, "build/ode");
 
   // Everything below starts compiles of its own; they share one answer to
-  // which SDK to use rather than each asking for it.
+  // which SDK to use rather than each asking for it -- and to which standard
+  // library to use, which is this repository's, wherever the compiler doing
+  // the compiling happens to live.
   shareSysroot();
+  STD_DIRECTORY = joinPath(root, "std");
+  setEnvironment("ODE_STD", STD_DIRECTORY);
 
   if (textEquals(command, "build")) {
     return commandBuild(ws, force);
