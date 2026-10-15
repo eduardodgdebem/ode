@@ -145,7 +145,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
     return;
   }
 
-  an.symbols.declare(name, SYM_VAR, declaredType, 0 as i64 as *Type, 0,
+  an.symbols.declare(name, SYM_VAR, declaredType, null, 0,
                      an.ast.nodes[node].line, an.ast.nodes[node].column);
 }
 
@@ -248,7 +248,7 @@ export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
       let param: i32 = an.ast.nodes[paramList].items[index];
       let paramType: Type = analyzerParseType(an, an.ast.nodes[param].a);
       an.symbols.declare(an.ast.nodes[param].text, SYM_VAR, paramType,
-                         0 as i64 as *Type, 0, an.ast.nodes[param].line,
+                         null, 0, an.ast.nodes[param].line,
                     an.ast.nodes[param].column);
       index = index + 1;
     }

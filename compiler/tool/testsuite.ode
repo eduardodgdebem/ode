@@ -24,9 +24,7 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, strlen, STDOUT } from "../support/libc";
-import {
-  nullText, isNullText, writeBuf, Buf, nullBuf, textEquals, textSlice,
-} from "../support/text";
+import { writeBuf, Buf, textEquals, textSlice } from "../support/text";
 import { fail } from "../support/diagnostics";
 import {
   memcmp, TextList, STDERR_MERGE, STDERR_DISCARD, runCommand, isTerminal,
@@ -67,7 +65,7 @@ struct Suite {
   off: *i8,
 
   fn selected(self: *Suite, name: *i8): bool {
-    return isNullText(self.filter) || textContains(name, self.filter);
+    return self.filter == null || textContains(name, self.filter);
   }
 
   fn pass(self: *Suite, kind: *i8, name: *i8): void {
@@ -120,7 +118,7 @@ struct Suite {
     let expected: *Buf = readBytes(expectedPath);
 
     if (self.update) {
-      if (expected == nullBuf() || !sameBytes(expected, actual)) {
+      if (expected == null || !sameBytes(expected, actual)) {
         writeBytes(expectedPath, actual);
         self.updated = self.updated + 1;
       }
@@ -128,7 +126,7 @@ struct Suite {
       return;
     }
 
-    if (expected == nullBuf()) {
+    if (expected == null) {
       self.fail(kind, name, missing);
       return;
     }
@@ -153,7 +151,7 @@ struct Suite {
     diff.add("--label").add("expected").add(expectedPath);
     diff.add("--label").add("actual").add(actualPath.data);
     let output: *Buf = Buf.new();
-    runCommand(diff, nullText(), output, STDERR_MERGE);
+    runCommand(diff, null, output, STDERR_MERGE);
     writeIndented(output);
   }
 }
@@ -244,7 +242,7 @@ fn runProgramCase(suite: *Suite, kind: *i8, source: *i8, name: *i8,
 
   let actual: *Buf = Buf.new();
   let program: *TextList = TextList.new().add(joinPath(suite.work, name));
-  let status: i32 = runCommand(program, nullText(), actual, STDERR_DISCARD);
+  let status: i32 = runCommand(program, null, actual, STDERR_DISCARD);
   if (status != 0) {
     let why: *Buf = Buf.new();
     why.add("program exited with status ");
@@ -299,7 +297,7 @@ fn runModule(suite: *Suite, caseDir: *i8, name: *i8): void {
   if (runCommand(compile, work, actual, STDERR_MERGE) == 0) {
     actual = Buf.new();
     let program: *TextList = TextList.new().add(joinPath(work, "main"));
-    runCommand(program, nullText(), actual, STDERR_MERGE);
+    runCommand(program, null, actual, STDERR_MERGE);
   }
 
   let expected: *Buf = Buf.new();
@@ -317,13 +315,13 @@ fn runModule(suite: *Suite, caseDir: *i8, name: *i8): void {
 // ---------------------------------------------------------------------------
 
 fn compileQuietly(suite: *Suite, command: *TextList): bool {
-  return runCommand(command, nullText(), Buf.new(), STDERR_MERGE) == 0;
+  return runCommand(command, null, Buf.new(), STDERR_MERGE) == 0;
 }
 
 // Whether the program at `path` runs and prints exactly "0".
 fn printsZero(path: *i8): bool {
   let output: *Buf = Buf.new();
-  if (runCommand(TextList.new().add(path), nullText(), output,
+  if (runCommand(TextList.new().add(path), null, output,
                  STDERR_DISCARD) != 0) {
     return false;
   }
@@ -399,7 +397,7 @@ fn runCli(suite: *Suite, name: *i8, passed: bool): void {
 
 export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   let compiler: *i8 = options.compiler;
-  if (isNullText(compiler)) {
+  if (compiler == null) {
     if (commandBuild(ws, false) != 0) {
       return 1;
     }
@@ -407,7 +405,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
 
   let work: *i8 = makeTempDirectory("ode-tests");
-  if (isNullText(work)) {
+  if (work == null) {
     complain("cannot create a temporary directory");
     return 1;
   }

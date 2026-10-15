@@ -44,7 +44,7 @@ export struct Diagnostics {
 // Past this many the list stops being useful and starts being noise.
 let DIAG_LIMIT: i32 = 20;
 
-export let DIAGS: *Diagnostics = 0 as i64 as *Diagnostics;
+export let DIAGS: *Diagnostics = null;
 // Raised by the construct that failed, lowered by whatever recovers from it.
 export let FAILED: bool = false;
 

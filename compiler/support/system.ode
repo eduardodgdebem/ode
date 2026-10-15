@@ -12,7 +12,7 @@ import {
   malloc, realloc, free, strlen, fopen, fclose, fread, fwrite, fseek, ftell,
   SEEK_SET, SEEK_END,
 } from "./libc";
-import { nullText, isNullText, Buf, nullBuf, textSlice } from "./text";
+import { Buf, textSlice } from "./text";
 import { realpath } from "../semantics/modules";
 
 extern fn fork(): i32;
@@ -78,7 +78,7 @@ export struct TextList {
 
   // The list as execvp wants it, ending in a null.
   fn argv(self: *TextList): **i8 {
-    self.items[self.count] = nullText();
+    self.items[self.count] = null;
     return self.items;
   }
 }
@@ -101,13 +101,13 @@ export let STDERR_DISCARD: i32 = 2;
 // its stderr under STDERR_MERGE.
 export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
                      stderrMode: i32): i32 {
-  let capturing: bool = out != nullBuf();
+  let capturing: bool = out != null;
   let fds: *i32 = malloc(sizeof(i32) as i64 * 2 as i64) as *i32;
   if (capturing) {
     pipe(fds);
   }
 
-  let devNull: *i8 = nullText();
+  let devNull: *i8 = null;
   if (stderrMode == STDERR_DISCARD) {
     devNull = fopen("/dev/null", "w");
   }
@@ -124,10 +124,10 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
       close(fds[0]);
       close(fds[1]);
     }
-    if (!isNullText(devNull)) {
+    if (devNull != null) {
       dup2(fileno(devNull), 2);
     }
-    if (!isNullText(dir) && chdir(dir) != 0) {
+    if (dir != null && chdir(dir) != 0) {
       _exit(127);
     }
 
@@ -153,7 +153,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
     close(fds[0]);
   }
 
-  if (!isNullText(devNull)) {
+  if (devNull != null) {
     fclose(devNull);
   }
 
@@ -179,8 +179,8 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
 // The variable's value, or null when it is unset or empty.
 export fn environment(name: *i8): *i8 {
   let value: *i8 = getenv(name);
-  if (isNullText(value) || value[0] == 0 as i8) {
-    return nullText();
+  if (value == null || value[0] == 0 as i8) {
+    return null;
   }
 
   return value;
@@ -192,8 +192,8 @@ export fn setEnvironment(name: *i8, value: *i8): void {
 
 export fn currentDirectory(): *i8 {
   let buffer: *i8 = malloc(4096 as i64);
-  if (isNullText(getcwd(buffer, 4096 as i64))) {
-    return nullText();
+  if (getcwd(buffer, 4096 as i64) == null) {
+    return null;
   }
 
   return buffer;
@@ -284,14 +284,14 @@ export fn isExecutable(path: *i8): bool {
 }
 
 export fn absolutePath(path: *i8): *i8 {
-  return realpath(path, nullText());
+  return realpath(path, null);
 }
 
 // A file's bytes, NULs included, or a null Buf if it cannot be read.
 export fn readBytes(path: *i8): *Buf {
   let stream: *i8 = fopen(path, "rb");
-  if (isNullText(stream)) {
-    return nullBuf();
+  if (stream == null) {
+    return null;
   }
 
   let out: *Buf = Buf.new();
@@ -311,7 +311,7 @@ export fn readBytes(path: *i8): *Buf {
 
 export fn writeBytes(path: *i8, data: *Buf): bool {
   let stream: *i8 = fopen(path, "wb");
-  if (isNullText(stream)) {
+  if (stream == null) {
     return false;
   }
 
@@ -345,15 +345,15 @@ export fn makeDirectories(path: *i8): bool {
 }
 
 export fn removeTree(path: *i8): void {
-  runCommand(TextList.new().add("rm").add("-rf").add(path), nullText(),
-             nullBuf(), STDERR_INHERIT);
+  runCommand(TextList.new().add("rm").add("-rf").add(path), null,
+             null, STDERR_INHERIT);
 }
 
 // Copies what is inside `from` into `to`, which must exist.
 export fn copyTree(from: *i8, to: *i8): bool {
   let contents: *i8 = joinPath(from, ".");
   return runCommand(TextList.new().add("cp").add("-R").add(contents).add(to),
-                    nullText(), nullBuf(), STDERR_INHERIT) == 0;
+                    null, null, STDERR_INHERIT) == 0;
 }
 
 export fn moveFile(from: *i8, to: *i8): bool {
@@ -363,7 +363,7 @@ export fn moveFile(from: *i8, to: *i8): bool {
 // The names in a directory, sorted, without `.` and `..`.
 export fn listDirectory(path: *i8): *TextList {
   let output: *Buf = Buf.new();
-  runCommand(TextList.new().add("ls").add("-1").add(path), nullText(), output,
+  runCommand(TextList.new().add("ls").add("-1").add(path), null, output,
              STDERR_DISCARD);
 
   return splitLines(output);
@@ -391,7 +391,7 @@ export fn splitLines(text: *Buf): *TextList {
 // A fresh, empty directory under $TMPDIR, or /tmp without one.
 export fn makeTempDirectory(prefix: *i8): *i8 {
   let base: *i8 = environment("TMPDIR");
-  if (isNullText(base)) {
+  if (base == null) {
     base = "/tmp";
   }
 
@@ -408,8 +408,8 @@ export fn makeTempDirectory(prefix: *i8): *i8 {
 
 export fn readFile(path: *i8): *i8 {
   let stream: *i8 = fopen(path, "r");
-  if (isNullText(stream)) {
-    return nullText();
+  if (stream == null) {
+    return null;
   }
 
   fseek(stream, 0 as i64, SEEK_END);
@@ -426,7 +426,7 @@ export fn readFile(path: *i8): *i8 {
 
 export fn writeFile(path: *i8, text: *i8): bool {
   let stream: *i8 = fopen(path, "w");
-  if (isNullText(stream)) {
+  if (stream == null) {
     return false;
   }
 

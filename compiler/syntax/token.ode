@@ -127,10 +127,6 @@ export struct TokenList {
   }
 }
 
-fn nullTokenList(): *TokenList {
-  return 0 as i64 as *TokenList;
-}
-
 export fn kindName(kind: i32): *i8 {
   if (kind == TK_END) { return "end"; }
   if (kind == TK_IDENT) { return "ident"; }

@@ -11,7 +11,7 @@
 // `Point.new(1, 2)`, or `Point.length(&p)`.
 // ---------------------------------------------------------------------------
 
-import { isNullText, Buf, textEquals } from "../support/text";
+import { Buf, textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NK_FN, NK_STRUCT, NK_IDENT } from "../syntax/ast";
 import { TY_NONE, TY_STRUCT, Type } from "./types";
@@ -188,7 +188,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   // variable of the same name wins, as it would anywhere else a name is
   // read.
   if (an.ast.nodes[object].kind == NK_IDENT &&
-      !isNullText(an.structRefs[node])) {
+      an.structRefs[node] != null) {
     let symbol: i32 = an.symbols.find(an.ast.nodes[object].text);
     if (symbol < 0 || an.symbols.items[symbol].kind != SYM_VAR) {
       return checkStaticCall(an, node, structDeclOf(an, an.structRefs[node]));

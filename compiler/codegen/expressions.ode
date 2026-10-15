@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, strlen } from "../support/libc";
-import { nullText, Buf, textEquals, intToText } from "../support/text";
+import { Buf, textEquals, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
 import {
   NO_NODE, NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
@@ -75,7 +75,7 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
     return value;
   }
 
-  let opcode: *i8 = nullText();
+  let opcode: *i8 = null;
 
   if (from.isPointer() && to.isInteger()) {
     opcode = "ptrtoint";
@@ -165,7 +165,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
 
     // `p.field` follows one level of pointer automatically, so the base is
     // either the pointer's value or the address of a struct variable.
-    let base: *i8 = nullText();
+    let base: *i8 = null;
     let structType: Type = objectType;
     if (objectType.isPointer()) {
       base = genExpr(e, object);
@@ -216,7 +216,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
 
   failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
          "expression does not denote an addressable location");
-  return nullText();
+  return null;
 }
 
 // `&&` and `||` evaluate their right operand only when the left does not
@@ -681,5 +681,5 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
 
   failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
          "unsupported expression in code generation");
-  return nullText();
+  return null;
 }

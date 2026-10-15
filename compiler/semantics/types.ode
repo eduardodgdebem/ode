@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, realloc } from "../support/libc";
-import { nullText, Buf, textEquals } from "../support/text";
+import { Buf, textEquals } from "../support/text";
 
 // Not a type: the entry for a node that is not an expression.
 export let TY_NONE: i32 = 0;
@@ -40,7 +40,7 @@ export struct Type {
 
   fn make(kind: i32, pointerDepth: i32): Type {
     return Type { kind: kind, pointerDepth: pointerDepth,
-                  structName: nullText() };
+                  structName: null };
   }
 
   fn ofStruct(name: *i8, pointerDepth: i32): Type {

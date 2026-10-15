@@ -24,9 +24,7 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, realloc, memcpy, strlen } from "../support/libc";
-import {
-  nullText, isNullText, Buf, textEquals, textSlice,
-} from "../support/text";
+import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
 import {
@@ -47,7 +45,7 @@ struct Module {
   real: *i8,
 }
 
-let MODULES: *Module = 0 as i64 as *Module;
+let MODULES: *Module = null;
 export let MODULE_COUNT: i32 = 0;
 let MODULE_CAPACITY: i32 = 0;
 
@@ -432,7 +430,7 @@ fn resolveStructName(an: *Analyzer, program: i32, module: i32,
     index = index + 1;
   }
 
-  return nullText();
+  return null;
 }
 
 // The first struct declared anywhere under `name`, for the diagnostic that
@@ -491,7 +489,7 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
       let module: i32 = an.ast.nodes[node].module;
       let resolved: *i8 = resolveStructName(an, program, module, name);
 
-      if (!isNullText(resolved)) {
+      if (resolved != null) {
         setNodeText(an, node, resolved);
       } else {
         // Left alone, the name would quietly mean whichever file happened to
@@ -543,7 +541,7 @@ export struct SymbolList {
   // The symbols declared since `start`, copied out before their scope closes.
   fn copyFrom(table: *SymbolTable, start: i32): SymbolList {
     let count: i32 = table.count - start;
-    let items: *Symbol = 0 as i64 as *Symbol;
+    let items: *Symbol = null;
 
     if (count > 0) {
       items = malloc(sizeof(Symbol) as i64 * count as i64) as *Symbol;

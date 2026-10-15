@@ -74,10 +74,6 @@ export fn dumpTokens(list: *TokenList, out: *Buf): void {
   }
 }
 
-export fn nullTypes(): *Type {
-  return 0 as i64 as *Type;
-}
-
 // Children print in slot order -- a, then b, then c, then the item list --
 // which is the order every kind stores them in, so no kind needs its own case.
 //
@@ -118,7 +114,7 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
   out.push(':');
   out.addInt(ast.nodes[index].column as i64);
 
-  if (types != nullTypes()) {
+  if (types != null) {
     if (types[index].kind != TY_NONE) {
       out.add(" : ");
       out.add(types[index].toText());

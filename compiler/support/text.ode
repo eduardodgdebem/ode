@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Text: nulls, output, growable buffers, and the helpers on C strings.
+// Text: output, growable buffers, and the helpers on C strings.
 //
 // Ode's string is `*i8`, a pointer to NUL-terminated bytes, so text is C's
 // and the helpers here are written over libc. `Buf` is the one growable
@@ -9,16 +9,6 @@
 import {
   malloc, realloc, free, memcpy, strlen, strcmp, write, STDOUT,
 } from "./libc";
-
-// Every null is written out per type, because there is no generic null and
-// `.` will not follow an untyped pointer.
-export fn nullText(): *i8 {
-  return 0 as i64 as *i8;
-}
-
-export fn isNullText(pointer: *i8): bool {
-  return pointer == nullText();
-}
 
 // ---------------------------------------------------------------------------
 // Output. There is no variadic extern, so nothing here goes through printf.
@@ -137,10 +127,6 @@ export struct Buf {
 
     return text;
   }
-}
-
-export fn nullBuf(): *Buf {
-  return 0 as i64 as *Buf;
 }
 
 // ---------------------------------------------------------------------------
