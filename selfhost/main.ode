@@ -1,16 +1,21 @@
 // ---------------------------------------------------------------------------
 // Driver.
 //
-// Reads a file, runs the phases, writes textual LLVM IR, and links it with
-// clang. The dump flags exist so selfhost/difftest.sh can compare each phase
-// against the C++ compiler.
+// Reads a file and the files it imports, runs the phases, writes textual LLVM
+// IR, and assembles and links it with the C toolchain. The dump flags print
+// what a phase produced, for looking at when one misbehaves.
+//
+// `ode build ...` is a different program sharing the binary: see
+// buildtool.ode.
 // ---------------------------------------------------------------------------
 
 import {
-  malloc, strlen, remove, STDOUT, STDERR, nullText, isNullText, writeText,
-  writeBuf, Buf, textEquals, textSlice, Diagnostics, DIAGS, FAILED, report,
-  hasErrors, printDiagnostics, fail, runProgram, readFile, writeFile,
+  strlen, remove, STDOUT, STDERR, nullText, isNullText, writeText, writeBuf,
+  Buf, nullBuf, textEquals, textSlice, Diagnostics, DIAGS, FAILED, report,
+  hasErrors, printDiagnostics, fail, readFile, writeFile,
 } from "./prelude";
+import { TextList, STDERR_INHERIT, runCommand } from "./system";
+import { ccCommand } from "./toolchain";
 import { TokenList } from "./token";
 import { tokenize } from "./lexer";
 import { NK_PROGRAM, NK_IMPORT, Ast } from "./ast";
@@ -22,11 +27,12 @@ import {
 import { Analyzer, analyzerNew, analyze } from "./analyzer";
 import { Emitter, emitterNew, genProgram } from "./ir";
 import { dumpTokens, nullTypes, dumpNode } from "./dump";
+import { buildMain } from "./buildtool";
 
 export let SOURCE_PATH: *i8 = "<none>";
 
 // Ode has no adjacent string literal concatenation, so this is one line.
-let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n";
+let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
 
 // `path` without its directory and extension, which is what a bare `ode1
 // foo.ode` names its output.
@@ -98,7 +104,31 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
   ast.nodes[item].extra = loadModule(ast, program, path, real, source);
 }
 
-fn withSuffix(base: *i8, suffix: *i8): *i8 {
+// Parses the file at `path`, whose tokens are `tokens`, and every file it
+// imports, onto `root`. Imports are followed breadth first: a loaded file's
+// declarations land on the end of the program's list, so walking the list to
+// its end reaches every file's imports, and a file asked for twice is found
+// by its real path.
+export fn loadProgram(ast: *Ast, root: i32, path: *i8, tokens: *TokenList): void {
+  let real: *i8 = realpath(path, nullText());
+  if (isNullText(real)) {
+    real = path;
+  }
+  moduleAdd(path, real);
+  parseModuleInto(Parser.new(tokens, ast), root);
+
+  let item: i32 = 0;
+  while (item < ast.nodes[root].itemCount) {
+    let statement: i32 = ast.nodes[root].items[item];
+    if (ast.nodes[statement].kind == NK_IMPORT) {
+      loadImport(ast, root, statement);
+    }
+    item = item + 1;
+  }
+  SOURCE_PATH = path;
+}
+
+export fn withSuffix(base: *i8, suffix: *i8): *i8 {
   let out: *Buf = Buf.new();
   out.add(base);
   out.add(suffix);
@@ -107,6 +137,10 @@ fn withSuffix(base: *i8, suffix: *i8): *i8 {
 }
 
 fn main(argc: i32, argv: **i8): i32 {
+  if (argc >= 2 && textEquals(argv[1], "build")) {
+    return buildMain(argc, argv);
+  }
+
   let wantTokens: bool = false;
   let wantAst: bool = false;
   let wantTypes: bool = false;
@@ -171,25 +205,7 @@ fn main(argc: i32, argv: **i8): i32 {
   let ast: *Ast = Ast.new();
   let root: i32 = ast.add(NK_PROGRAM, 0, 0);
 
-  let real: *i8 = realpath(path, nullText());
-  if (isNullText(real)) {
-    real = path;
-  }
-  moduleAdd(path, real);
-  parseModuleInto(Parser.new(tokens, ast), root);
-
-  // Imports are followed breadth first. A loaded file's declarations land on
-  // the end of the program's list, so walking the list to its end reaches
-  // every file's imports, and a file loaded twice is found by its real path.
-  let item: i32 = 0;
-  while (item < ast.nodes[root].itemCount) {
-    let statement: i32 = ast.nodes[root].items[item];
-    if (ast.nodes[statement].kind == NK_IMPORT) {
-      loadImport(ast, root, statement);
-    }
-    item = item + 1;
-  }
-  SOURCE_PATH = path;
+  loadProgram(ast, root, path, tokens);
 
   // A tree with a hole in it says nothing trustworthy about types, so the
   // syntax errors are reported on their own rather than alongside whatever
@@ -240,30 +256,21 @@ fn main(argc: i32, argv: **i8): i32 {
 
   let objectPath: *i8 = withSuffix(output, ".o");
 
-  // Assembling and linking are two runs of clang, which is what leaves a `.o`
-  // beside the `.ll` -- the two things worth looking at when codegen
-  // misbehaves.
-  let assemble: **i8 = malloc(sizeof(*i8) as i64 * 7 as i64) as **i8;
-  assemble[0] = "clang";
-  assemble[1] = "-c";
-  assemble[2] = irPath;
-  assemble[3] = "-o";
-  assemble[4] = objectPath;
-  assemble[5] = "-Wno-override-module";
-  assemble[6] = 0 as i64 as *i8;
+  // Assembling and linking are two runs of the C compiler, which is what
+  // leaves a `.o` beside the `.ll` -- the two things worth looking at when
+  // codegen misbehaves.
+  let assemble: *TextList = ccCommand();
+  assemble.add("-c").add(irPath).add("-o").add(objectPath);
+  assemble.add("-Wno-override-module");
 
-  if (runProgram(assemble) != 0) {
+  if (runCommand(assemble, nullText(), nullBuf(), STDERR_INHERIT) != 0) {
     fail("assembling failed");
   }
 
-  let link: **i8 = malloc(sizeof(*i8) as i64 * 5 as i64) as **i8;
-  link[0] = "clang";
-  link[1] = objectPath;
-  link[2] = "-o";
-  link[3] = output;
-  link[4] = 0 as i64 as *i8;
+  let link: *TextList = ccCommand();
+  link.add(objectPath).add("-o").add(output);
 
-  if (runProgram(link) != 0) {
+  if (runCommand(link, nullText(), nullBuf(), STDERR_INHERIT) != 0) {
     fail("linking failed");
   }
 

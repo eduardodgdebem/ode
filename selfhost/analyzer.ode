@@ -136,7 +136,7 @@ fn gotTwoTypes(left: Type, right: Type): *i8 {
   return message.take();
 }
 
-fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
+export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
   let message: *Buf = Buf.new();
   message.add(prefix);
   message.push('\'');

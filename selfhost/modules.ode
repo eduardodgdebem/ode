@@ -88,7 +88,7 @@ export fn modulePath(module: i32): *i8 {
   return MODULES[module].path;
 }
 
-fn textEndsWith(text: *i8, suffix: *i8): bool {
+export fn textEndsWith(text: *i8, suffix: *i8): bool {
   let length: i64 = strlen(text);
   let suffixLength: i64 = strlen(suffix);
 

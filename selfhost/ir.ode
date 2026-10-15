@@ -343,7 +343,7 @@ fn emitIRByte(out: *Buf, value: i8): void {
   out.push(hexDigit(code % 16));
 }
 
-fn hexDigit(value: i32): i8 {
+export fn hexDigit(value: i32): i8 {
   if (value < 10) {
     return ('0' as i32 + value) as i8;
   }

@@ -8,23 +8,25 @@ from.
 ## Building and testing
 
 ```bash
-./selfhost/build.sh              # build the compiler -> build/ode
-./tests/run_tests.sh             # the regression suite
-./selfhost/bootstrap.sh          # run the bootstrap to its fixed point
-./selfhost/update-bootstrap.sh   # refresh the checked-in seed
+./selfhost/build.sh              # first time only: seed, then build/ode
+./build/ode build                # build the compiler -> build/ode
+./build/ode build test           # the regression suite
+./build/ode build bootstrap      # run the bootstrap to its fixed point
+./build/ode build seed           # refresh the checked-in seed
 ```
 
-`build.sh` seeds a compiler from `bootstrap/ode.ll` when there is none, then
-uses it to build the real one. `bootstrap.sh` goes further: the compiler
-compiles its own sources, the result compiles them again, and the last two
-binaries must be byte-identical. A compiler that miscompiles itself stops
-reproducing itself, which the fixed point catches even when every test
-passes.
+`build.sh` turns `bootstrap/ode.ll` into a compiler with clang when there is
+none -- the one step that cannot be written in Ode -- and hands over to `ode
+build`, which is `buildtool.ode` and `testsuite.ode` here. `bootstrap` goes
+furthest: the compiler compiles its own sources, the result compiles them
+again, and the last two binaries must be byte-identical. A compiler that
+miscompiles itself stops reproducing itself, which the fixed point catches
+even when every test passes.
 
 ## How the sources are laid out
 
 The compiler is a set of modules entered at `main.ode`. Each file exports
-what the others use and imports what it uses, so `build.sh` compiles
+what the others use and imports what it uses, so building compiles
 `main.ode` and the rest come along through its imports. Declaration order
 does not matter, within a file or across files: signatures, globals and
 struct names are all hoisted before any body is checked, and the modules
@@ -58,6 +60,10 @@ refreshed before they switched over.
 | `analyzer.ode` | the semantic analyzer |
 | `ir.ode` | the textual LLVM IR emitter |
 | `dump.ode` | the token, tree and type dumps |
+| `system.ode` | running programs, files and directories, through libc |
+| `toolchain.ode` | the C compiler and SDK that assemble and link the IR |
+| `buildtool.ode` | `ode build`: building, bootstrapping, refreshing the seed |
+| `testsuite.ode` | `ode build test`: the regression suite |
 
 ## How correctness is checked
 
@@ -67,10 +73,10 @@ resolved types, diagnostics and program output byte for byte. All 284
 comparisons matched before it was removed, and every divergence it found is
 recorded below.
 
-With the reference gone, two things stand in its place: `tests/run_tests.sh`,
+With the reference gone, two things stand in its place: `ode build test`,
 which pins the output of every example and the diagnostic of every rejection
-case, and `bootstrap.sh`, which requires the compiler to reproduce itself
-exactly.
+case, and `ode build bootstrap`, which requires the compiler to reproduce
+itself exactly.
 
 Right now that means the token stream (`--dump-tokens`), the parsed tree
 (`--dump-ast`) and the tree with every resolved expression type
@@ -182,7 +188,7 @@ out by hand.
   once to assemble and once to link.
 - **No `-O`**, and no way to ask for optimisation.
 - **No unit tests.** A fault is found by bisecting a failing program, not by a
-  failing assertion. `bootstrap.sh` is the backstop: a compiler that
+  failing assertion. `ode build bootstrap` is the backstop: a compiler that
   miscompiles itself stops reproducing itself.
 
 ## Where it is going
