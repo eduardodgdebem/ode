@@ -30,12 +30,12 @@ export struct Diagnostics {
   total: i32,
 
   fn new(): *Diagnostics {
-    let bag: *Diagnostics = malloc(sizeof(Diagnostics) as i64) as *Diagnostics;
+    let bag: *Diagnostics = malloc(sizeof(Diagnostics)) as *Diagnostics;
     bag.capacity = DIAG_LIMIT;
     bag.count = 0;
     bag.total = 0;
     bag.items =
-        malloc(sizeof(Diagnostic) as i64 * bag.capacity as i64) as *Diagnostic;
+        malloc(sizeof(Diagnostic) * bag.capacity as i64) as *Diagnostic;
 
     return bag;
   }

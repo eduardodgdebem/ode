@@ -187,7 +187,7 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
 
   // `Color.Red` reads like a field but is a constant, with nowhere to store
   // to; that is only known once it has been checked.
-  if (!FAILED && an.isConstant[target] != 0 as i8) {
+  if (!FAILED && an.isConstant[target] != 0) {
     analyzerFail(an, at, "left-hand side of assignment is not assignable");
   }
 
@@ -275,7 +275,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     }
 
     let addressed: Type = checkExpr(an, operand);
-    if (!FAILED && an.isConstant[operand] != 0 as i8) {
+    if (!FAILED && an.isConstant[operand] != 0) {
       analyzerFail(an, node, "cannot take the address of a temporary value");
     }
     if (addressed.isVoid()) {
@@ -577,7 +577,7 @@ fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
 }
 
 export fn textHasDot(text: *i8, length: i64): bool {
-  for (index in 0 as i64..length) {
+  for (index in 0..length) {
     if (text[index] == '.') {
       return true;
     }
@@ -613,12 +613,12 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
   }
 
   let negative: bool = text[0] == '-';
-  let start: i64 = 0 as i64;
+  let start: i64 = 0;
   if (negative) {
-    start = 1 as i64;
+    start = 1;
   }
 
-  let overflowed: *bool = malloc(sizeof(bool) as i64) as *bool;
+  let overflowed: *bool = malloc(sizeof(bool)) as *bool;
   let magnitude: u64 = parseMagnitude(text, start, length, overflowed);
 
   if (*overflowed) {
@@ -724,7 +724,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 
   let index: i32 = 0;
   for (index in 0..fieldCount) {
-    initialised[index] = 0 as i8;
+    initialised[index] = 0;
   }
 
   index = 0;
@@ -743,11 +743,11 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
       analyzerFail(an, node, message.data);
       return Type.ofStruct(name, 0);
     }
-    if (initialised[fieldIndex] != 0 as i8) {
+    if (initialised[fieldIndex] != 0) {
       analyzerFail(an, node,
                    quoted("field ", fieldName, " is initialised twice"));
     }
-    initialised[fieldIndex] = 1 as i8;
+    initialised[fieldIndex] = 1;
 
     let fieldType: Type =
         an.structs.items[structIndex].fields[fieldIndex].type;
@@ -770,7 +770,7 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   }
 
   for (index in 0..fieldCount) {
-    if (initialised[index] == 0 as i8) {
+    if (initialised[index] == 0) {
       let message: *Buf = Buf.new();
       message.add("field '");
       message.add(an.structs.items[structIndex].fields[index].name);
@@ -797,10 +797,10 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
     return true;
   }
   if (kind == NodeKind.FieldAccess) {
-    return an.isConstant[node] != 0 as i8;
+    return an.isConstant[node] != 0;
   }
   if (kind == NodeKind.Ident) {
-    return an.functionRefs[node] != 0 as i8 || isReadyGlobal(an, node);
+    return an.functionRefs[node] != 0 || isReadyGlobal(an, node);
   }
   if (kind == NodeKind.Char || kind == NodeKind.Sizeof) {
     return true;
@@ -848,9 +848,9 @@ export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
 
   let text: *i8 = an.ast.nodes[literal].text;
   let negative: bool = text[0] == '-';
-  let start: i64 = 0 as i64;
+  let start: i64 = 0;
   if (negative) {
-    start = 1 as i64;
+    start = 1;
   }
 
   let overflowed: bool = false;

@@ -151,7 +151,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
 
   // Globals were declared during hoisting; all that is left is to confirm the
   // initialiser can be emitted as an LLVM constant.
-  if (an.isGlobal[node] != 0 as i8) {
+  if (an.isGlobal[node] != 0) {
     let init: i32 = an.ast.nodes[node].b;
     let constant: bool = false;
     if (declaredType.isInteger()) {
@@ -172,7 +172,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
                     quoted("initialiser of global ", name, " is not constant"),
                     "globals may only be initialised from literals, sizeof, enum members and earlier globals");
     }
-    an.isGlobal[node] = 2 as i8;
+    an.isGlobal[node] = 2;
     return;
   }
 

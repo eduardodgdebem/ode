@@ -21,7 +21,7 @@ import { sizeOf } from "./layout";
 // names something else.
 export fn globalDeclOf(an: *Analyzer, node: i32): i32 {
   if (an.ast.nodes[node].kind != NodeKind.Ident || an.linkNames[node] == null ||
-      an.functionRefs[node] != 0 as i8) {
+      an.functionRefs[node] != 0) {
     return NO_NODE;
   }
 
@@ -40,7 +40,7 @@ export fn globalDeclOf(an: *Analyzer, node: i32): i32 {
 // not, so no two globals can be made of each other.
 export fn isReadyGlobal(an: *Analyzer, node: i32): bool {
   let decl: i32 = globalDeclOf(an, node);
-  return decl != NO_NODE && an.isGlobal[decl] == 2 as i8;
+  return decl != NO_NODE && an.isGlobal[decl] == 2;
 }
 
 // `value` as a `type` holds it: cut to its width, and sign-extended back
@@ -51,9 +51,9 @@ fn wrap(value: i64, type: Type): i64 {
     return value;
   }
 
-  let range: i64 = (1 as i64) << (bits as i64);
-  let cut: i64 = value & (range - 1 as i64);
-  if (type.isSigned() && cut >= range / 2 as i64) {
+  let range: i64 = (1) << (bits as i64);
+  let cut: i64 = value & (range - 1);
+  if (type.isSigned() && cut >= range / 2) {
     return cut - range;
   }
 
@@ -70,7 +70,7 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
 
   let kind: NodeKind = an.ast.nodes[node].kind;
   let type: Type = an.types[node];
-  let value: i64 = 0 as i64;
+  let value: i64 = 0;
 
   if (!type.isInteger() && !type.isEnum()) {
     return false;
@@ -78,27 +78,27 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
 
   if (kind == NodeKind.Number) {
     let text: *i8 = an.ast.nodes[node].text;
-    let start: i64 = 0 as i64;
+    let start: i64 = 0;
     if (text[0] == '-') {
-      start = 1 as i64;
+      start = 1;
     }
     let overflowed: bool = false;
     value = parseMagnitude(text, start, an.ast.nodes[node].textLength,
                            &overflowed) as i64;
-    if (start == 1 as i64) {
+    if (start == 1) {
       value = -value;
     }
   } else if (kind == NodeKind.Char) {
     // The byte's value, which wrap() makes negative again in an i8.
     value = an.ast.nodes[node].text[0] as i64;
-    if (value < 0 as i64) {
-      value = value + 256 as i64;
+    if (value < 0) {
+      value = value + 256;
     }
   } else if (kind == NodeKind.Sizeof) {
     value = sizeOf(an.structs,
                    analyzerParseType(an, an.ast.nodes[node].a)) as i64;
   } else if (kind == NodeKind.FieldAccess) {
-    if (an.isConstant[node] == 0 as i8) {
+    if (an.isConstant[node] == 0) {
       return false;
     }
     value = an.values[node];
@@ -148,17 +148,17 @@ fn foldBinary(an: *Analyzer, node: i32, type: Type): bool {
   let right: i64 = an.values[an.ast.nodes[node].b];
   let signed: bool = type.isSigned();
 
-  if ((textEquals(op, "/") || textEquals(op, "%")) && right == 0 as i64) {
+  if ((textEquals(op, "/") || textEquals(op, "%")) && right == 0) {
     analyzerFail(an, node, "division by zero in a constant");
     return false;
   }
   if ((textEquals(op, "<<") || textEquals(op, ">>")) &&
-      (right < 0 as i64 || right >= type.bitWidth() as i64)) {
+      (right < 0 || right >= type.bitWidth() as i64)) {
     analyzerFail(an, node, "shift amount out of range in a constant");
     return false;
   }
 
-  let value: i64 = 0 as i64;
+  let value: i64 = 0;
   if (textEquals(op, "+")) {
     value = left + right;
   } else if (textEquals(op, "-")) {
@@ -194,7 +194,7 @@ fn foldBinary(an: *Analyzer, node: i32, type: Type): bool {
       let bits: i32 = type.bitWidth();
       let unsigned: u64 = left as u64;
       if (bits < 64) {
-        unsigned = unsigned & (((1 as u64) << (bits as u64)) - 1 as u64);
+        unsigned = unsigned & (((1) << (bits as u64)) - 1);
       }
       value = (unsigned >> right as u64) as i64;
     }

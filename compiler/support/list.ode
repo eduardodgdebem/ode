@@ -15,10 +15,10 @@ export struct List<T> {
   capacity: i32,
 
   fn new(): *List<T> {
-    let list: *List<T> = malloc(sizeof(List<T>) as i64) as *List<T>;
+    let list: *List<T> = malloc(sizeof(List<T>)) as *List<T>;
     list.capacity = 8;
     list.count = 0;
-    list.items = malloc(sizeof(T) as i64 * list.capacity as i64) as *T;
+    list.items = malloc(sizeof(T) * list.capacity as i64) as *T;
 
     return list;
   }
@@ -28,7 +28,7 @@ export struct List<T> {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.items = realloc(self.items as *i8,
-                           sizeof(T) as i64 * self.capacity as i64) as *T;
+                           sizeof(T) * self.capacity as i64) as *T;
     }
 
     self.items[self.count] = item;

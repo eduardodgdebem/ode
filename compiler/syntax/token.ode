@@ -102,10 +102,10 @@ export struct TokenList {
   capacity: i32,
 
   fn new(): *TokenList {
-    let list: *TokenList = malloc(sizeof(TokenList) as i64) as *TokenList;
+    let list: *TokenList = malloc(sizeof(TokenList)) as *TokenList;
     list.capacity = 256;
     list.count = 0;
-    list.items = malloc(sizeof(Token) as i64 * list.capacity as i64) as *Token;
+    list.items = malloc(sizeof(Token) * list.capacity as i64) as *Token;
 
     return list;
   }
@@ -115,7 +115,7 @@ export struct TokenList {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.items = realloc(self.items as *i8,
-                           sizeof(Token) as i64 * self.capacity as i64) as *Token;
+                           sizeof(Token) * self.capacity as i64) as *Token;
     }
 
     let index: i32 = self.count;

@@ -38,10 +38,10 @@ export struct SymbolTable {
   scopeStarts: *List<i32>,
 
   fn new(): *SymbolTable {
-    let table: *SymbolTable = malloc(sizeof(SymbolTable) as i64) as *SymbolTable;
+    let table: *SymbolTable = malloc(sizeof(SymbolTable)) as *SymbolTable;
     table.capacity = 64;
     table.count = 0;
-    table.items = malloc(sizeof(Symbol) as i64 * table.capacity as i64) as *Symbol;
+    table.items = malloc(sizeof(Symbol) * table.capacity as i64) as *Symbol;
     table.scopeStarts = List<i32>.new();
 
     table.enterScope();
@@ -118,7 +118,7 @@ export struct SymbolTable {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.items = realloc(self.items as *i8,
-                           sizeof(Symbol) as i64 * self.capacity as i64) as
+                           sizeof(Symbol) * self.capacity as i64) as
           *Symbol;
     }
 
@@ -137,7 +137,7 @@ export struct SymbolTable {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.items = realloc(self.items as *i8,
-                           sizeof(Symbol) as i64 * self.capacity as i64) as
+                           sizeof(Symbol) * self.capacity as i64) as
           *Symbol;
     }
 

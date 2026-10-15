@@ -182,7 +182,7 @@ fn parseExprStmt(parser: *Parser): i32 {
     let opLine: i32 = op.line;
     let opColumn: i32 = op.column;
     // The operator's spelling is the compound token without its `=`.
-    let opText: *i8 = textSlice(op.text, 0 as i64, op.length - 1 as i64);
+    let opText: *i8 = textSlice(op.text, 0, op.length - 1);
     parser.advance();
 
     let value: i32 = parseExpr(parser);
@@ -190,7 +190,7 @@ fn parseExprStmt(parser: *Parser): i32 {
 
     let sum: i32 = parser.ast.add(NodeKind.Binary, opLine, opColumn);
     parser.ast.nodes[sum].text = opText;
-    parser.ast.nodes[sum].textLength = op.length - 1 as i64;
+    parser.ast.nodes[sum].textLength = op.length - 1;
     parser.ast.nodes[sum].a = target;
     parser.ast.nodes[sum].b = value;
 

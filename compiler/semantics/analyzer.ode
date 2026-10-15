@@ -73,7 +73,7 @@ export struct Analyzer {
   currentReturnType: Type,
 
   fn new(ast: *Ast): *Analyzer {
-    let an: *Analyzer = malloc(sizeof(Analyzer) as i64) as *Analyzer;
+    let an: *Analyzer = malloc(sizeof(Analyzer)) as *Analyzer;
     an.ast = ast;
     an.symbols = SymbolTable.new();
     an.structs = StructTable.new();
@@ -85,7 +85,7 @@ export struct Analyzer {
     an.globals = List<i32>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
-        malloc(sizeof(SymbolList) as i64 * moduleCount() as i64) as *SymbolList;
+        malloc(sizeof(SymbolList) * moduleCount() as i64) as *SymbolList;
     an.loopDepth = 0;
     an.inFunction = false;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
@@ -104,46 +104,46 @@ export struct Analyzer {
     let old: i32 = self.nodeCapacity;
     let size: i64 = count as i64;
     if (old == 0) {
-      self.types = malloc(sizeof(Type) as i64 * size) as *Type;
+      self.types = malloc(sizeof(Type) * size) as *Type;
       self.isGlobal = malloc(size);
-      self.linkNames = malloc(sizeof(*i8) as i64 * size) as **i8;
-      self.receivers = malloc(sizeof(ReceiverMode) as i64 * size) as
+      self.linkNames = malloc(sizeof(*i8) * size) as **i8;
+      self.receivers = malloc(sizeof(ReceiverMode) * size) as
           *ReceiverMode;
-      self.structRefs = malloc(sizeof(*i8) as i64 * size) as **i8;
+      self.structRefs = malloc(sizeof(*i8) * size) as **i8;
       self.isConstant = malloc(size);
-      self.values = malloc(sizeof(i64) as i64 * size) as *i64;
+      self.values = malloc(sizeof(i64) * size) as *i64;
       self.functionRefs = malloc(size);
-      self.callTargets = malloc(sizeof(CallTarget) as i64 * size) as *CallTarget;
+      self.callTargets = malloc(sizeof(CallTarget) * size) as *CallTarget;
     } else {
-      self.types = realloc(self.types as *i8, sizeof(Type) as i64 * size) as
+      self.types = realloc(self.types as *i8, sizeof(Type) * size) as
           *Type;
       self.isGlobal = realloc(self.isGlobal, size);
       self.linkNames = realloc(self.linkNames as *i8,
-                               sizeof(*i8) as i64 * size) as **i8;
+                               sizeof(*i8) * size) as **i8;
       self.receivers = realloc(self.receivers as *i8,
-                               sizeof(ReceiverMode) as i64 * size) as
+                               sizeof(ReceiverMode) * size) as
           *ReceiverMode;
       self.structRefs = realloc(self.structRefs as *i8,
-                                sizeof(*i8) as i64 * size) as **i8;
+                                sizeof(*i8) * size) as **i8;
       self.isConstant = realloc(self.isConstant, size);
-      self.values = realloc(self.values as *i8, sizeof(i64) as i64 * size) as
+      self.values = realloc(self.values as *i8, sizeof(i64) * size) as
           *i64;
       self.functionRefs = realloc(self.functionRefs, size);
       self.callTargets = realloc(self.callTargets as *i8,
-                                 sizeof(CallTarget) as i64 * size) as
+                                 sizeof(CallTarget) * size) as
           *CallTarget;
     }
 
     for (index in old..count) {
       self.types[index] = Type.make(TypeKind.None, 0);
-      self.isGlobal[index] = 0 as i8;
+      self.isGlobal[index] = 0;
       self.linkNames[index] = null;
       self.receivers[index] = ReceiverMode.None;
       self.structRefs[index] = null;
-      self.isConstant[index] = 0 as i8;
-      self.functionRefs[index] = 0 as i8;
+      self.isConstant[index] = 0;
+      self.functionRefs[index] = 0;
       self.callTargets[index] = CallTarget.Direct;
-      self.values[index] = 0 as i64;
+      self.values[index] = 0;
     }
 
     self.nodeCapacity = count;
@@ -284,7 +284,7 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
     return null;
   }
 
-  let types: *Type = malloc(sizeof(Type) as i64 * count as i64) as *Type;
+  let types: *Type = malloc(sizeof(Type) * count as i64) as *Type;
 
   for (index in 0..count) {
     let param: i32 = an.ast.nodes[params].items[index];
@@ -373,14 +373,14 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
 
   for (start in 0..count) {
     let seen: *i8 = malloc(count as i64);
-    let stack: *i32 = malloc(sizeof(i32) as i64 * count as i64) as *i32;
+    let stack: *i32 = malloc(sizeof(i32) * count as i64) as *i32;
     let stackCount: i32 = 0;
 
     for (index in 0..count) {
-      seen[index] = 0 as i8;
+      seen[index] = 0;
     }
 
-    seen[start] = 1 as i8;
+    seen[start] = 1;
     stack[stackCount] = start;
     stackCount = stackCount + 1;
 
@@ -400,8 +400,8 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
           }
 
           let target: i32 = an.structs.indexOf(type.structName);
-          if (target >= 0 && seen[target] == 0 as i8) {
-            seen[target] = 1 as i8;
+          if (target >= 0 && seen[target] == 0) {
+            seen[target] = 1;
             stack[stackCount] = target;
             stackCount = stackCount + 1;
           }
@@ -427,7 +427,7 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
     analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
   }
 
-  an.isGlobal[node] = 1 as i8;
+  an.isGlobal[node] = 1;
   an.globals.push(node);
   declareTopLevel(an, node, name, SymbolKind.Var, type, null, 0);
 }

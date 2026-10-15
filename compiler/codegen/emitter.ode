@@ -53,7 +53,7 @@ export struct Emitter {
   loopBreak: *List<*i8>,
 
   fn new(ast: *Ast, an: *Analyzer): *Emitter {
-    let e: *Emitter = malloc(sizeof(Emitter) as i64) as *Emitter;
+    let e: *Emitter = malloc(sizeof(Emitter)) as *Emitter;
     e.ast = ast;
     e.an = an;
     e.head = Buf.new();
@@ -189,7 +189,7 @@ export fn llvmName(sigil: i8, name: *i8): *i8 {
   out.push(sigil);
 
   let bare: bool = true;
-  for (index in 0 as i64..strlen(name)) {
+  for (index in 0..strlen(name)) {
     let c: i8 = name[index];
     let plain: bool = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
                       (c >= '0' && c <= '9') || c == '_' || c == '.' ||
@@ -234,10 +234,10 @@ fn emitIRByte(out: *Buf, value: i8): void {
 
 export fn hexDigit(value: i32): i8 {
   if (value < 10) {
-    return ('0' as i32 + value) as i8;
+    return ('0' + value) as i8;
   }
 
-  return ('A' as i32 + value - 10) as i8;
+  return ('A' + value - 10) as i8;
 }
 
 // Adds a private constant for a string literal and returns its name.
@@ -250,10 +250,10 @@ export fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
 
   e.head.add(symbol);
   e.head.add(" = private unnamed_addr constant [");
-  e.head.addInt(length + 1 as i64);
+  e.head.addInt(length + 1);
   e.head.add(" x i8] c\"");
 
-  for (index in 0 as i64..length) {
+  for (index in 0..length) {
     emitIRByte(e.head, text[index]);
   }
 

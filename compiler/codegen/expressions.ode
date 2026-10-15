@@ -582,7 +582,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
 
   // Every argument is evaluated before the call is written, because each one
   // may emit instructions of its own.
-  let values: **i8 = malloc(sizeof(*i8) as i64 * (argCount + 1) as i64) as **i8;
+  let values: **i8 = malloc(sizeof(*i8) * (argCount + 1) as i64) as **i8;
   let index: i32 = 0;
   for (index in 0..argCount) {
     values[index] = genExpr(e, e.ast.nodes[args].items[index]);
@@ -595,7 +595,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
   line.add(callee);
   line.push('(');
 
-  let hasFirst: bool = strlen(firstType) > 0 as i64;
+  let hasFirst: bool = strlen(firstType) > 0;
   if (hasFirst) {
     line.add(firstType);
     line.push(' ');
@@ -717,7 +717,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   }
 
   // A function's name used as a value is the function's address.
-  if (kind == NodeKind.Ident && e.an.functionRefs[node] != 0 as i8) {
+  if (kind == NodeKind.Ident && e.an.functionRefs[node] != 0) {
     return direct(e, node);
   }
 
@@ -748,7 +748,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
   }
 
   // `Color.Red` is a constant the analyzer already worked out.
-  if (kind == NodeKind.FieldAccess && e.an.isConstant[node] != 0 as i8) {
+  if (kind == NodeKind.FieldAccess && e.an.isConstant[node] != 0) {
     return intToText(e.an.values[node]);
   }
 

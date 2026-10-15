@@ -100,7 +100,7 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
   let count: i32 = an.ast.nodes[node].itemCount;
   let params: *Type = null as *Type;
   if (count > 0) {
-    params = malloc(sizeof(Type) as i64 * count as i64) as *Type;
+    params = malloc(sizeof(Type) * count as i64) as *Type;
   }
 
   for (index in 0..count) {
@@ -114,7 +114,7 @@ export fn parseFunctionType(an: *Analyzer, node: i32): Type {
 
 // A function's name used as a value: its type is its signature.
 export fn checkFunctionRef(an: *Analyzer, node: i32, symbol: i32): Type {
-  an.functionRefs[node] = 1 as i8;
+  an.functionRefs[node] = 1;
   an.linkNames[node] = an.symbols.items[symbol].linkName;
 
   return functionType(an, an.symbols.items[symbol].params,
