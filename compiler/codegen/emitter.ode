@@ -1,0 +1,251 @@
+// ---------------------------------------------------------------------------
+// The IR emitter: textual LLVM IR, handed to clang.
+//
+// The IR is written as text rather than built through the LLVM C API, so the
+// compiler links against nothing and depends on clang only at the end. This
+// file holds the emitter's state, the helpers that write lines and labels,
+// locals, and string constants; the rest of codegen/ is built on them.
+//
+// Temporaries and labels are named (%t0, L0) rather than numbered, because
+// LLVM requires unnamed values to run 0, 1, 2... with no gaps, counting the
+// parameters. Naming them sidesteps the rule entirely.
+// ---------------------------------------------------------------------------
+
+import { malloc, realloc } from "../support/libc";
+import { Buf, textEquals } from "../support/text";
+import { Ast } from "../syntax/ast";
+import { Type } from "../semantics/types";
+import { Analyzer } from "../semantics/analyzer";
+
+struct Local {
+  name: *i8,
+  // The alloca holding it, as a register name.
+  reg: *i8,
+  type: Type,
+}
+
+export struct Emitter {
+  ast: *Ast,
+  an: *Analyzer,
+  // Struct bodies, string constants, globals and declarations.
+  head: *Buf,
+  // Function definitions.
+  body: *Buf,
+  nextTemp: i32,
+  nextLabel: i32,
+  nextString: i32,
+  // Whether the block being written already ended in a terminator, so that
+  // anything after a `return` opens a new block instead of emitting into a
+  // closed one.
+  terminated: bool,
+
+  locals: *Local,
+  localCount: i32,
+  localCapacity: i32,
+  scopeStarts: *i32,
+  scopeCount: i32,
+  scopeCapacity: i32,
+
+  // `continue` goes to the condition, `break` to the block after the loop.
+  loopContinue: **i8,
+  loopBreak: **i8,
+  loopCount: i32,
+  loopCapacity: i32,
+
+  fn new(ast: *Ast, an: *Analyzer): *Emitter {
+    let e: *Emitter = malloc(sizeof(Emitter) as i64) as *Emitter;
+    e.ast = ast;
+    e.an = an;
+    e.head = Buf.new();
+    e.body = Buf.new();
+    e.nextTemp = 0;
+    e.nextLabel = 0;
+    e.nextString = 0;
+    e.terminated = false;
+
+    e.localCapacity = 64;
+    e.localCount = 0;
+    e.locals = malloc(sizeof(Local) as i64 * e.localCapacity as i64) as *Local;
+    e.scopeCapacity = 32;
+    e.scopeCount = 0;
+    e.scopeStarts = malloc(sizeof(i32) as i64 * e.scopeCapacity as i64) as *i32;
+
+    e.loopCapacity = 16;
+    e.loopCount = 0;
+    e.loopContinue = malloc(sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+    e.loopBreak = malloc(sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+
+    return e;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Names and lines.
+// ---------------------------------------------------------------------------
+
+export fn freshTemp(e: *Emitter): *i8 {
+  let name: *Buf = Buf.new();
+  name.add("%t");
+  name.addInt(e.nextTemp as i64);
+  e.nextTemp = e.nextTemp + 1;
+
+  return name.take();
+}
+
+export fn freshLabel(e: *Emitter): *i8 {
+  let name: *Buf = Buf.new();
+  name.add("L");
+  name.addInt(e.nextLabel as i64);
+  e.nextLabel = e.nextLabel + 1;
+
+  return name.take();
+}
+
+export fn emitLine(e: *Emitter, text: *i8): void {
+  e.body.add("  ");
+  e.body.add(text);
+  e.body.push('\n');
+}
+
+export fn emitLabel(e: *Emitter, label: *i8): void {
+  e.body.add(label);
+  e.body.add(":\n");
+  e.terminated = false;
+}
+
+export fn emitBranch(e: *Emitter, label: *i8): void {
+  if (e.terminated) {
+    return;
+  }
+
+  let line: *Buf = Buf.new();
+  line.add("br label %");
+  line.add(label);
+  emitLine(e, line.data);
+  e.terminated = true;
+}
+
+export fn emitCondBranch(e: *Emitter, condition: *i8, whenTrue: *i8,
+                         whenFalse: *i8): void {
+  if (e.terminated) {
+    return;
+  }
+
+  let line: *Buf = Buf.new();
+  line.add("br i1 ");
+  line.add(condition);
+  line.add(", label %");
+  line.add(whenTrue);
+  line.add(", label %");
+  line.add(whenFalse);
+  emitLine(e, line.data);
+  e.terminated = true;
+}
+
+// ---------------------------------------------------------------------------
+// Locals.
+// ---------------------------------------------------------------------------
+
+export fn emitterEnterScope(e: *Emitter): void {
+  if (e.scopeCount == e.scopeCapacity) {
+    e.scopeCapacity = e.scopeCapacity * 2;
+    e.scopeStarts = realloc(e.scopeStarts as *i8,
+                            sizeof(i32) as i64 * e.scopeCapacity as i64) as *i32;
+  }
+
+  e.scopeStarts[e.scopeCount] = e.localCount;
+  e.scopeCount = e.scopeCount + 1;
+}
+
+export fn emitterExitScope(e: *Emitter): void {
+  e.scopeCount = e.scopeCount - 1;
+  e.localCount = e.scopeStarts[e.scopeCount];
+}
+
+export fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
+  if (e.localCount == e.localCapacity) {
+    e.localCapacity = e.localCapacity * 2;
+    e.locals = realloc(e.locals as *i8,
+                       sizeof(Local) as i64 * e.localCapacity as i64) as *Local;
+  }
+
+  e.locals[e.localCount].name = name;
+  e.locals[e.localCount].reg = reg;
+  e.locals[e.localCount].type = type;
+  e.localCount = e.localCount + 1;
+}
+
+// Innermost first, so a shadowed name resolves to the slot the analyzer
+// type-checked it against. A miss means the name is a top-level global, which
+// goes by the IR name the analyzer resolved it to.
+export fn variableAddress(e: *Emitter, node: i32): *i8 {
+  let name: *i8 = e.ast.nodes[node].text;
+  let index: i32 = e.localCount - 1;
+
+  while (index >= 0) {
+    if (textEquals(e.locals[index].name, name)) {
+      return e.locals[index].reg;
+    }
+    index = index - 1;
+  }
+
+  let global: *Buf = Buf.new();
+  global.push('@');
+  global.add(e.an.linkNames[node]);
+
+  return global.take();
+}
+
+// ---------------------------------------------------------------------------
+// Constants.
+// ---------------------------------------------------------------------------
+
+// One byte of an LLVM string constant. Anything outside plain printable ASCII
+// is written as \XX, and so are the quote and the backslash.
+fn emitIRByte(out: *Buf, value: i8): void {
+  let code: i32 = value as i32;
+  if (code < 0) {
+    code = code + 256;
+  }
+
+  if (code >= 32 && code < 127 && value != '"' && value != '\\') {
+    out.push(value);
+    return;
+  }
+
+  out.push('\\');
+  out.push(hexDigit(code / 16));
+  out.push(hexDigit(code % 16));
+}
+
+export fn hexDigit(value: i32): i8 {
+  if (value < 10) {
+    return ('0' as i32 + value) as i8;
+  }
+
+  return ('A' as i32 + value - 10) as i8;
+}
+
+// Adds a private constant for a string literal and returns its name.
+export fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
+  let name: *Buf = Buf.new();
+  name.add("@.str.");
+  name.addInt(e.nextString as i64);
+  e.nextString = e.nextString + 1;
+  let symbol: *i8 = name.take();
+
+  e.head.add(symbol);
+  e.head.add(" = private unnamed_addr constant [");
+  e.head.addInt(length + 1 as i64);
+  e.head.add(" x i8] c\"");
+
+  let index: i64 = 0 as i64;
+  while (index < length) {
+    emitIRByte(e.head, text[index]);
+    index = index + 1 as i64;
+  }
+
+  e.head.add("\\00\"\n");
+
+  return symbol;
+}

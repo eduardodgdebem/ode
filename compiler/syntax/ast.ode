@@ -1,0 +1,240 @@
+// ---------------------------------------------------------------------------
+// The AST.
+//
+// Nodes live in one growable arena and refer to each other by index, not by
+// pointer: the arena moves when it grows, so a held pointer would dangle. An
+// index of NO_NODE is the absent child.
+//
+// There are no sum types, so every node is the same struct with a kind tag.
+// `a`, `b` and `c` are the fixed children and mean different things per kind;
+// `items` is the variable-length child list that only some kinds use.
+// ---------------------------------------------------------------------------
+
+import { malloc, realloc } from "../support/libc";
+import { nullText } from "../support/text";
+import { Token } from "./token";
+
+export let NO_NODE: i32 = -1;
+
+export let NK_PROGRAM: i32 = 1;
+export let NK_BLOCK: i32 = 2;
+export let NK_VARDECL: i32 = 3;
+export let NK_ASSIGN: i32 = 4;
+export let NK_IF: i32 = 5;
+export let NK_WHILE: i32 = 6;
+export let NK_BREAK: i32 = 7;
+export let NK_CONTINUE: i32 = 8;
+export let NK_FN: i32 = 9;
+export let NK_EXTERN: i32 = 10;
+export let NK_STRUCT: i32 = 11;
+export let NK_FIELD: i32 = 12;
+export let NK_CALL: i32 = 13;
+export let NK_RETURN: i32 = 14;
+export let NK_PRINT: i32 = 15;
+export let NK_EXPRSTMT: i32 = 16;
+export let NK_BINARY: i32 = 17;
+export let NK_UNARY: i32 = 18;
+export let NK_CAST: i32 = 19;
+export let NK_FIELDACCESS: i32 = 20;
+export let NK_INDEX: i32 = 21;
+export let NK_STRUCTLIT: i32 = 22;
+export let NK_FINIT: i32 = 23;
+export let NK_SIZEOF: i32 = 24;
+export let NK_NUMBER: i32 = 25;
+export let NK_STRING: i32 = 26;
+export let NK_CHAR: i32 = 27;
+export let NK_BOOL: i32 = 28;
+export let NK_IDENT: i32 = 29;
+export let NK_TYPE: i32 = 30;
+export let NK_PARAMS: i32 = 31;
+export let NK_PARAM: i32 = 32;
+export let NK_ARGS: i32 = 33;
+// Stands in for a construct that did not parse.
+export let NK_ERROR: i32 = 34;
+export let NK_IMPORT: i32 = 35;
+export let NK_IMPORTNAME: i32 = 36;
+export let NK_METHODCALL: i32 = 37;
+
+struct Node {
+  kind: i32,
+  line: i32,
+  column: i32,
+  // A name, an operator's spelling, or a literal's decoded text.
+  text: *i8,
+  textLength: i64,
+  // Fixed children, NO_NODE when absent:
+  //   vardecl  a=type   b=expr
+  //   assign   a=target b=expr
+  //   if       a=cond   b=then   c=else
+  //   while    a=cond   b=body
+  //   fn       a=type   b=params c=body
+  //   extern   a=type   b=params
+  //   field    a=type
+  //   param    a=type
+  //   finit    a=value
+  //   call     a=args
+  //   return   a=expr
+  //   print    a=expr
+  //   exprstmt a=expr
+  //   binary   a=left   b=right
+  //   unary    a=operand
+  //   cast     a=expr   b=type
+  //   field access a=object
+  //   index    a=base   b=index
+  //   sizeof   a=type
+  //   importname a=alias, an ident, when the name is renamed with `as`
+  //   methodcall a=receiver, or the struct's name b=args
+  a: i32,
+  b: i32,
+  c: i32,
+  // Pointer depth, for a type node. For an import, the module it loads, once
+  // the driver has found it.
+  extra: i32,
+  // Child indices, for program, block, struct, structlit, params, args and
+  // import. A struct's items are its fields and then, mixed in, its methods.
+  items: *i32,
+  itemCount: i32,
+  itemCapacity: i32,
+  // The source file this node was parsed from, as an index into MODULES.
+  module: i32,
+  // Set on a top-level declaration written with `export`.
+  exported: bool,
+}
+
+export struct Ast {
+  nodes: *Node,
+  count: i32,
+  capacity: i32,
+  // Every file is parsed into the one arena, so nodes are stamped with the
+  // file being parsed as they are made.
+  currentModule: i32,
+
+  fn new(): *Ast {
+    let ast: *Ast = malloc(sizeof(Ast) as i64) as *Ast;
+    ast.capacity = 256;
+    ast.count = 0;
+    ast.currentModule = 0;
+    ast.nodes = malloc(sizeof(Node) as i64 * ast.capacity as i64) as *Node;
+
+    return ast;
+  }
+
+  fn add(self: *Ast, kind: i32, line: i32, column: i32): i32 {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.nodes = realloc(self.nodes as *i8,
+                           sizeof(Node) as i64 * self.capacity as i64) as *Node;
+    }
+
+    let index: i32 = self.count;
+    self.nodes[index].kind = kind;
+    self.nodes[index].line = line;
+    self.nodes[index].column = column;
+    self.nodes[index].text = nullText();
+    self.nodes[index].textLength = 0 as i64;
+    self.nodes[index].a = NO_NODE;
+    self.nodes[index].b = NO_NODE;
+    self.nodes[index].c = NO_NODE;
+    self.nodes[index].extra = 0;
+    self.nodes[index].items = 0 as i64 as *i32;
+    self.nodes[index].itemCount = 0;
+    self.nodes[index].itemCapacity = 0;
+    self.nodes[index].module = self.currentModule;
+    self.nodes[index].exported = false;
+    self.count = self.count + 1;
+
+    return index;
+  }
+
+  // Copies a token's text onto a node, length included so a `'\0'` survives.
+  fn setText(self: *Ast, index: i32, token: *Token): void {
+    self.nodes[index].text = token.text;
+    self.nodes[index].textLength = token.length;
+  }
+
+  fn addItem(self: *Ast, parent: i32, child: i32): void {
+    if (self.nodes[parent].itemCount == self.nodes[parent].itemCapacity) {
+      if (self.nodes[parent].itemCapacity == 0) {
+        self.nodes[parent].itemCapacity = 4;
+        self.nodes[parent].items =
+            malloc(sizeof(i32) as i64 * 4 as i64) as *i32;
+      } else {
+        self.nodes[parent].itemCapacity = self.nodes[parent].itemCapacity * 2;
+        self.nodes[parent].items =
+            realloc(self.nodes[parent].items as *i8,
+                    sizeof(i32) as i64 *
+                        self.nodes[parent].itemCapacity as i64) as *i32;
+      }
+    }
+
+    let count: i32 = self.nodes[parent].itemCount;
+    self.nodes[parent].items[count] = child;
+    self.nodes[parent].itemCount = count + 1;
+  }
+}
+
+export fn nodeKindName(kind: i32): *i8 {
+  if (kind == NK_PROGRAM) { return "program"; }
+  if (kind == NK_BLOCK) { return "block"; }
+  if (kind == NK_VARDECL) { return "vardecl"; }
+  if (kind == NK_ASSIGN) { return "assign"; }
+  if (kind == NK_IF) { return "if"; }
+  if (kind == NK_WHILE) { return "while"; }
+  if (kind == NK_BREAK) { return "break"; }
+  if (kind == NK_CONTINUE) { return "continue"; }
+  if (kind == NK_FN) { return "fn"; }
+  if (kind == NK_EXTERN) { return "extern"; }
+  if (kind == NK_STRUCT) { return "struct"; }
+  if (kind == NK_FIELD) { return "field"; }
+  if (kind == NK_CALL) { return "call"; }
+  if (kind == NK_RETURN) { return "return"; }
+  if (kind == NK_PRINT) { return "print"; }
+  if (kind == NK_EXPRSTMT) { return "exprstmt"; }
+  if (kind == NK_BINARY) { return "binary"; }
+  if (kind == NK_UNARY) { return "unary"; }
+  if (kind == NK_CAST) { return "cast"; }
+  if (kind == NK_FIELDACCESS) { return "fieldaccess"; }
+  if (kind == NK_INDEX) { return "index"; }
+  if (kind == NK_STRUCTLIT) { return "structlit"; }
+  if (kind == NK_FINIT) { return "finit"; }
+  if (kind == NK_SIZEOF) { return "sizeof"; }
+  if (kind == NK_NUMBER) { return "number"; }
+  if (kind == NK_STRING) { return "string"; }
+  if (kind == NK_CHAR) { return "char"; }
+  if (kind == NK_BOOL) { return "bool"; }
+  if (kind == NK_IDENT) { return "ident"; }
+  if (kind == NK_TYPE) { return "type"; }
+  if (kind == NK_PARAMS) { return "params"; }
+  if (kind == NK_PARAM) { return "param"; }
+  if (kind == NK_ARGS) { return "args"; }
+  if (kind == NK_ERROR) { return "error"; }
+  if (kind == NK_IMPORT) { return "import"; }
+  if (kind == NK_IMPORTNAME) { return "importname"; }
+  if (kind == NK_METHODCALL) { return "methodcall"; }
+
+  return "?";
+}
+
+// True for the kinds whose text is worth printing in a dump.
+export fn nodeCarriesText(kind: i32): bool {
+  if (kind == NK_VARDECL || kind == NK_FN || kind == NK_EXTERN) {
+    return true;
+  }
+  if (kind == NK_STRUCT || kind == NK_FIELD || kind == NK_CALL) {
+    return true;
+  }
+  if (kind == NK_BINARY || kind == NK_UNARY || kind == NK_FIELDACCESS) {
+    return true;
+  }
+  if (kind == NK_STRUCTLIT || kind == NK_FINIT || kind == NK_PARAM) {
+    return true;
+  }
+  if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
+    return true;
+  }
+  if (kind == NK_IMPORT || kind == NK_IMPORTNAME || kind == NK_METHODCALL) {
+    return true;
+  }
+
+  return kind == NK_BOOL || kind == NK_IDENT || kind == NK_TYPE;
+}

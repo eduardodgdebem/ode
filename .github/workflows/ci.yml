@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # From nothing but the checked-in seed and clang, as a fresh checkout
+      # would.
+      - name: Build from the seed
+        run: ./build.sh
+
+      - name: Test
+        run: ./build/ode build test
+
+      # The compiler must reproduce itself byte for byte.
+      - name: Bootstrap
+        run: ./build/ode build bootstrap

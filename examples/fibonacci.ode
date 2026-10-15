@@ -1,0 +1,40 @@
+// Fibonacci numbers, two ways.
+//
+// The recursive version is the definition written out, and takes exponential
+// time. The iterative one keeps the last two numbers, takes linear time, and
+// uses i64 so that fib(90) -- which is past what i32 can hold -- still fits.
+
+fn fibRecursive(n: i32): i32 {
+  if (n < 2) {
+    return n;
+  }
+
+  return fibRecursive(n - 1) + fibRecursive(n - 2);
+}
+
+fn fibIterative(n: i32): i64 {
+  let previous: i64 = 0 as i64;
+  let current: i64 = 1 as i64;
+
+  if (n == 0) {
+    return previous;
+  }
+
+  let step: i32 = 1;
+  while (step < n) {
+    let next: i64 = previous + current;
+    previous = current;
+    current = next;
+    step = step + 1;
+  }
+
+  return current;
+}
+
+fn main(): i32 {
+  print(fibRecursive(25));
+  print(fibIterative(25) == fibRecursive(25) as i64);
+  print(fibIterative(90));
+
+  return 0;
+}

@@ -1,5 +1,8 @@
-build
-.cache
+# The compiler, its intermediates and the bootstrap stages.
+/build/
+.cache/
+
+# What compiling a program in place leaves beside it.
 *.o
 *.ll
 

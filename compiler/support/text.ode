@@ -1,0 +1,176 @@
+// ---------------------------------------------------------------------------
+// Text: nulls, output, growable buffers, and the helpers on C strings.
+//
+// Ode's string is `*i8`, a pointer to NUL-terminated bytes, so text is C's
+// and the helpers here are written over libc. `Buf` is the one growable
+// buffer everything builds text in.
+// ---------------------------------------------------------------------------
+
+import {
+  malloc, realloc, free, memcpy, strlen, strcmp, write, STDOUT,
+} from "./libc";
+
+// Every null is written out per type, because there is no generic null and
+// `.` will not follow an untyped pointer.
+export fn nullText(): *i8 {
+  return 0 as i64 as *i8;
+}
+
+export fn isNullText(pointer: *i8): bool {
+  return pointer == nullText();
+}
+
+// ---------------------------------------------------------------------------
+// Output. There is no variadic extern, so nothing here goes through printf.
+// ---------------------------------------------------------------------------
+
+export fn writeText(fd: i32, text: *i8): void {
+  write(fd, text, strlen(text));
+}
+
+// Buffers are written by their own length, because strlen would stop at the
+// first NUL and silently truncate anything holding a `'\0'`.
+export fn writeBuf(fd: i32, buffer: *Buf): void {
+  write(fd, buffer.data, buffer.length);
+}
+
+fn print2(a: *i8, b: *i8): void {
+  writeText(STDOUT, a);
+  writeText(STDOUT, b);
+}
+
+// ---------------------------------------------------------------------------
+// Growable, NUL-terminated text. Every diagnostic and every line of emitted
+// IR is built in one of these.
+// ---------------------------------------------------------------------------
+
+export struct Buf {
+  data: *i8,
+  length: i64,
+  capacity: i64,
+
+  fn new(): *Buf {
+    let buffer: *Buf = malloc(sizeof(Buf) as i64) as *Buf;
+    buffer.capacity = 64 as i64;
+    buffer.length = 0 as i64;
+    buffer.data = malloc(buffer.capacity);
+    buffer.data[0] = 0 as i8;
+
+    return buffer;
+  }
+
+  fn reserve(self: *Buf, extra: i64): void {
+    // One spare byte is always kept for the terminator.
+    let needed: i64 = self.length + extra + 1 as i64;
+
+    if (needed <= self.capacity) {
+      return;
+    }
+
+    while (self.capacity < needed) {
+      self.capacity = self.capacity * 2 as i64;
+    }
+
+    self.data = realloc(self.data, self.capacity);
+  }
+
+  fn push(self: *Buf, character: i8): void {
+    self.reserve(1 as i64);
+    self.data[self.length] = character;
+    self.length = self.length + 1 as i64;
+    self.data[self.length] = 0 as i8;
+  }
+
+  // Appends a known number of bytes, which is the only way to carry text that
+  // contains a NUL -- a `'\0'` literal, or a string with one written into it.
+  fn addBytes(self: *Buf, text: *i8, count: i64): void {
+    self.reserve(count);
+    memcpy(self.data + self.length, text, count);
+    self.length = self.length + count;
+    self.data[self.length] = 0 as i8;
+  }
+
+  fn add(self: *Buf, text: *i8): void {
+    self.addBytes(text, strlen(text));
+  }
+
+  // Decimal, written out by hand because printf cannot be declared.
+  fn addInt(self: *Buf, value: i64): void {
+    if (value == 0 as i64) {
+      self.push('0');
+      return;
+    }
+
+    let rest: i64 = value;
+    if (rest < 0 as i64) {
+      self.push('-');
+      rest = 0 as i64 - rest;
+    }
+
+    // At most 20 digits fit in an i64, and they come out backwards.
+    let digits: *i8 = malloc(24 as i64);
+    let count: i32 = 0;
+
+    while (rest > 0 as i64) {
+      digits[count] = ('0' as i64 + rest % 10 as i64) as i8;
+      rest = rest / 10 as i64;
+      count = count + 1;
+    }
+
+    while (count > 0) {
+      count = count - 1;
+      self.push(digits[count]);
+    }
+
+    free(digits);
+  }
+
+  fn free(self: *Buf): void {
+    free(self.data);
+    free(self as *i8);
+  }
+
+  // Detaches the text so it outlives the buffer.
+  fn take(self: *Buf): *i8 {
+    let text: *i8 = self.data;
+    free(self as *i8);
+
+    return text;
+  }
+}
+
+export fn nullBuf(): *Buf {
+  return 0 as i64 as *Buf;
+}
+
+// ---------------------------------------------------------------------------
+// Text helpers.
+// ---------------------------------------------------------------------------
+
+export fn textEquals(a: *i8, b: *i8): bool {
+  return strcmp(a, b) == 0;
+}
+
+export fn textCopy(text: *i8): *i8 {
+  let count: i64 = strlen(text);
+  let copy: *i8 = malloc(count + 1 as i64);
+  memcpy(copy, text, count);
+  copy[count] = 0 as i8;
+
+  return copy;
+}
+
+export fn textSlice(text: *i8, start: i64, count: i64): *i8 {
+  let copy: *i8 = malloc(count + 1 as i64);
+  memcpy(copy, text + start, count);
+  copy[count] = 0 as i8;
+
+  return copy;
+}
+
+export fn intToText(value: i64): *i8 {
+  let buffer: *Buf = Buf.new();
+  buffer.addInt(value);
+
+  return buffer.take();
+}

@@ -1,0 +1,295 @@
+// ---------------------------------------------------------------------------
+// Checking statements and function bodies.
+//
+// A failed statement raises FAILED and returns. analyzeRecovering puts back the
+// scopes, loop depth and return type the failure skipped past, so the next
+// statement is checked as though the failed one were not there -- which is how
+// one run reports every error rather than the first.
+// ---------------------------------------------------------------------------
+
+import { Buf } from "../support/text";
+import { FAILED } from "../support/diagnostics";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT,
+  NK_IMPORT,
+} from "../syntax/ast";
+import { Type } from "./types";
+import { SYM_VAR, SYM_FN } from "./symbols";
+import {
+  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, quoted,
+  analyzerParseType, analyzerValidateType, analyzerParamTypes,
+} from "./analyzer";
+import { checkExpr, checkAssignTarget, isConstantExpr } from "./expressions";
+import { analyzeMethodBodies } from "./methods";
+
+// Runs one checking step, then puts back anything a failure skipped past so
+// the next statement is checked as though the failed one were not there.
+// Returns with FAILED lowered; the diagnostic has already been recorded.
+export fn analyzeRecovering(an: *Analyzer, node: i32): void {
+  let depth: i32 = an.symbols.scopeCount;
+  let loops: i32 = an.loopDepth;
+  let wasInFunction: bool = an.inFunction;
+  let returnType: Type = an.currentReturnType;
+
+  analyzeStatement(an, node);
+
+  if (!FAILED) {
+    return;
+  }
+
+  an.symbols.truncateScopes(depth);
+  an.loopDepth = loops;
+  an.inFunction = wasInFunction;
+  an.currentReturnType = returnType;
+  FAILED = false;
+}
+
+fn analyzeStatement(an: *Analyzer, node: i32): void {
+  if (FAILED) {
+    return;
+  }
+
+  let kind: i32 = an.ast.nodes[node].kind;
+
+  if (kind == NK_BLOCK) { analyzeBlock(an, node); return; }
+  if (kind == NK_VARDECL) { analyzeVarDecl(an, node); return; }
+  if (kind == NK_ASSIGN) { analyzeAssign(an, node); return; }
+  if (kind == NK_IF) { analyzeIf(an, node); return; }
+  if (kind == NK_WHILE) { analyzeWhile(an, node); return; }
+  if (kind == NK_FN) { analyzeFuncDecl(an, node); return; }
+  if (kind == NK_EXTERN) { analyzeExternDecl(an, node); return; }
+  if (kind == NK_RETURN) { analyzeReturn(an, node); return; }
+  if (kind == NK_PRINT) { analyzePrint(an, node); return; }
+  if (kind == NK_EXPRSTMT) { checkExpr(an, an.ast.nodes[node].a); return; }
+
+  if (kind == NK_BREAK) {
+    if (an.loopDepth == 0) {
+      analyzerFail(an, node, "break used outside of a loop");
+    }
+    return;
+  }
+
+  if (kind == NK_CONTINUE) {
+    if (an.loopDepth == 0) {
+      analyzerFail(an, node, "continue used outside of a loop");
+    }
+    return;
+  }
+
+  // A struct's fields were handled by the two registration passes; what is
+  // left is the bodies of its methods.
+  if (kind == NK_STRUCT) {
+    analyzeMethodBodies(an, node);
+    return;
+  }
+
+  // An import was handled by linkModules and the module's scope.
+  if (kind == NK_IMPORT) {
+    return;
+  }
+
+  analyzerFail(an, node, "unknown statement node type");
+}
+
+fn analyzeBlock(an: *Analyzer, node: i32): void {
+  an.symbols.enterScope();
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[node].itemCount) {
+    analyzeRecovering(an, an.ast.nodes[node].items[index]);
+    index = index + 1;
+  }
+
+  an.symbols.exitScope();
+}
+
+fn analyzeVarDecl(an: *Analyzer, node: i32): void {
+  let name: *i8 = an.ast.nodes[node].text;
+  let declaredType: Type = analyzerParseType(an, an.ast.nodes[node].a);
+
+  analyzerValidateType(an, node, declaredType,
+                       quoted("in declaration of ", name, ""));
+  if (declaredType.isVoid()) {
+    analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
+  }
+
+  // The initialiser is checked before the name is bound, so `let x = x + 1;`
+  // cannot see the slot it is initialising.
+  let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
+
+  if (!FAILED && !declaredType.equals(exprType)) {
+    let context: *Buf = Buf.new();
+    context.add("type mismatch in declaration of '");
+    context.add(name);
+    context.push('\'');
+
+    let detail: *Buf = Buf.new();
+    detail.add("declared as '");
+    detail.add(declaredType.toText());
+    detail.add("' but assigned '");
+    detail.add(exprType.toText());
+    detail.push('\'');
+
+    analyzerFail2(an, node, context.data, detail.data);
+  }
+
+  // Globals were declared during hoisting; all that is left is to confirm the
+  // initialiser can be emitted as an LLVM constant.
+  if (an.isGlobal[node] != 0 as i8) {
+    if (!FAILED && !isConstantExpr(an, an.ast.nodes[node].b)) {
+      analyzerFail2(an, node,
+                    quoted("initialiser of global ", name, " is not constant"),
+                    "globals may only be initialised from literals");
+    }
+    return;
+  }
+
+  an.symbols.declare(name, SYM_VAR, declaredType, 0 as i64 as *Type, 0,
+                     an.ast.nodes[node].line, an.ast.nodes[node].column);
+}
+
+fn analyzeAssign(an: *Analyzer, node: i32): void {
+  let targetType: Type = checkAssignTarget(an, node, an.ast.nodes[node].a);
+  let exprType: Type = checkExpr(an, an.ast.nodes[node].b);
+
+  if (!targetType.equals(exprType)) {
+    analyzerFail2(an, node, "type mismatch in assignment",
+                  expectedButGot(targetType.toText(),
+                                 exprType.toText()));
+  }
+}
+
+fn analyzeIf(an: *Analyzer, node: i32): void {
+  let condType: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (!condType.isBool()) {
+    analyzerFail2(an, node, "if condition must be boolean", gotType(condType));
+  }
+
+  analyzeStatement(an, an.ast.nodes[node].b);
+  if (an.ast.nodes[node].c != NO_NODE) {
+    analyzeStatement(an, an.ast.nodes[node].c);
+  }
+}
+
+fn analyzeWhile(an: *Analyzer, node: i32): void {
+  let condType: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (!condType.isBool()) {
+    analyzerFail2(an, node, "while condition must be boolean",
+                  gotType(condType));
+  }
+
+  an.loopDepth = an.loopDepth + 1;
+  analyzeStatement(an, an.ast.nodes[node].b);
+  an.loopDepth = an.loopDepth - 1;
+}
+
+fn analyzeReturn(an: *Analyzer, node: i32): void {
+  if (!an.inFunction) {
+    analyzerFail(an, node, "return used outside of a function");
+  }
+
+  if (an.ast.nodes[node].a == NO_NODE) {
+    if (!an.currentReturnType.isVoid()) {
+      analyzerFail2(an, node, "return without a value",
+                    quoted("this function returns ",
+                           an.currentReturnType.toText(), ""));
+    }
+    return;
+  }
+
+  let returned: Type = checkExpr(an, an.ast.nodes[node].a);
+
+  if (an.currentReturnType.isVoid()) {
+    analyzerFail2(an, node, "returning a value from a void function",
+                  gotType(returned));
+  }
+
+  if (!returned.equals(an.currentReturnType)) {
+    analyzerFail2(an, node, "wrong return type",
+                  expectedButGot(an.currentReturnType.toText(),
+                                 returned.toText()));
+  }
+}
+
+fn analyzePrint(an: *Analyzer, node: i32): void {
+  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (type.isVoid()) {
+    analyzerFail(an, node, "cannot print a void value");
+  }
+}
+
+fn analyzeFuncDecl(an: *Analyzer, node: i32): void {
+  let name: *i8 = an.ast.nodes[node].text;
+
+  // Top-level functions were already recorded by the hoisting pass.
+  if (an.symbols.find(name) < 0) {
+    let paramCount: i32 = 0;
+    let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b,
+                                           &paramCount);
+    an.symbols.declare(name, SYM_FN,
+                       analyzerParseType(an, an.ast.nodes[node].a), params,
+                  paramCount, an.ast.nodes[node].line,
+                  an.ast.nodes[node].column);
+  }
+
+  analyzeFunctionBody(an, node);
+}
+
+// Checks a function's body in a scope holding its parameters. The function
+// itself has already been declared, or, for a method, needs no declaring.
+export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
+  an.symbols.enterScope();
+
+  let paramList: i32 = an.ast.nodes[node].b;
+  if (paramList != NO_NODE) {
+    let index: i32 = 0;
+    while (index < an.ast.nodes[paramList].itemCount) {
+      let param: i32 = an.ast.nodes[paramList].items[index];
+      let paramType: Type = analyzerParseType(an, an.ast.nodes[param].a);
+      an.symbols.declare(an.ast.nodes[param].text, SYM_VAR, paramType,
+                         0 as i64 as *Type, 0, an.ast.nodes[param].line,
+                    an.ast.nodes[param].column);
+      index = index + 1;
+    }
+  }
+
+  // A nested function gets its own return type and loop nesting; neither
+  // leaks in from the function it is written inside.
+  let wasInFunction: bool = an.inFunction;
+  let previousReturnType: Type = an.currentReturnType;
+  let previousLoopDepth: i32 = an.loopDepth;
+
+  an.inFunction = true;
+  an.currentReturnType = analyzerParseType(an, an.ast.nodes[node].a);
+  an.loopDepth = 0;
+
+  analyzeStatement(an, an.ast.nodes[node].c);
+
+  an.inFunction = wasInFunction;
+  an.currentReturnType = previousReturnType;
+  an.loopDepth = previousLoopDepth;
+
+  an.symbols.exitScope();
+}
+
+fn analyzeExternDecl(an: *Analyzer, node: i32): void {
+  let name: *i8 = an.ast.nodes[node].text;
+  let paramCount: i32 = 0;
+  let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
+
+  if (an.symbols.find(name) < 0) {
+    an.symbols.declare(name, SYM_FN,
+                       analyzerParseType(an, an.ast.nodes[node].a), params,
+                  paramCount, an.ast.nodes[node].line,
+                  an.ast.nodes[node].column);
+  }
+
+  let index: i32 = 0;
+  while (index < paramCount) {
+    if (params[index].isVoid()) {
+      analyzerFail(an, node, quoted("extern ", name, " has a void parameter"));
+    }
+    index = index + 1;
+  }
+}

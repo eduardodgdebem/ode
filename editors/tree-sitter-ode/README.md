@@ -1,13 +1,13 @@
 # tree-sitter-ode
 
 A [tree-sitter](https://tree-sitter.github.io) grammar for Ode, kept in step
-with `gramma.md` at the repository root. It exists so editors can highlight,
+with `docs/grammar.md` in the repository. It exists so editors can highlight,
 fold and navigate `.ode` sources without the compiler being involved.
 
 ## Layout
 
 - `grammar.js` — the grammar. Precedence constants mirror the "Operator
-  Precedence" table in `gramma.md`, lowest binding first.
+  Precedence" table in `docs/grammar.md`, lowest binding first.
 - `queries/` — `highlights.scm`, `indents.scm`, `folds.scm` and `locals.scm`,
   written against the Neovim standard capture names.
 - `src/` — the generated parser. Regenerated from `grammar.js`, not edited.
@@ -43,6 +43,6 @@ npx tree-sitter-cli@0.25.10 query queries/highlights.scm ../../examples/structs.
 Inside Neovim, `:InspectTree` shows the parse tree for the current buffer and
 `:Inspect` reports the capture under the cursor.
 
-Every file under `examples/`, `selfhost/` and `tests/` parses with no error
+Every file under `examples/`, `compiler/` and `tests/` parses with no error
 nodes, apart from the rejection cases that are malformed on purpose; keep it
 that way when the language grows.

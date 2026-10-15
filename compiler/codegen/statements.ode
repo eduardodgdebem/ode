@@ -1,0 +1,233 @@
+// ---------------------------------------------------------------------------
+// Emitting statements.
+//
+// Locals live in allocas, and `if` and `while` become explicit branches between
+// labelled blocks. A block that has already ended -- in a `return`, `break` or
+// `continue` -- gets a fresh label before anything after it, so unreachable
+// code still forms valid IR.
+// ---------------------------------------------------------------------------
+
+import { realloc, strlen } from "../support/libc";
+import { Buf } from "../support/text";
+import { failAt } from "../support/diagnostics";
+import {
+  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
+  NK_CONTINUE, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT,
+} from "../syntax/ast";
+import {
+  TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
+  TY_BOOL, Type,
+} from "../semantics/types";
+import { analyzerParseType } from "../semantics/analyzer";
+import {
+  Emitter, freshLabel, emitLine, emitLabel, emitBranch, emitCondBranch,
+  emitterEnterScope, emitterExitScope, declareLocal, internString,
+} from "./emitter";
+import { llvmTypeName } from "./layout";
+import {
+  typeOfNode, emitAssign, emitStore, emitCast, genAddress, genExpr,
+} from "./expressions";
+
+// The printf format for a value of this type, and whether the argument needs
+// the default promotions a variadic call performs.
+fn printFormat(type: Type): *i8 {
+  if (type.isPointer()) {
+    // `*i8` is Ode's string type, so it prints as text. Any other pointer
+    // prints as an address.
+    if (type.kind == TY_I8 && type.pointerDepth == 1) {
+      return "%s\n";
+    }
+    return "%p\n";
+  }
+
+  if (type.kind == TY_BOOL || type.kind == TY_I8 || type.kind == TY_I16 ||
+      type.kind == TY_I32) {
+    return "%d\n";
+  }
+  if (type.kind == TY_U8 || type.kind == TY_U16 || type.kind == TY_U32) {
+    return "%u\n";
+  }
+  if (type.kind == TY_I64) { return "%lld\n"; }
+  if (type.kind == TY_U64) { return "%llu\n"; }
+  if (type.kind == TY_F32 || type.kind == TY_F64) { return "%f\n"; }
+
+  failAt(0, 0, "unsupported type for print statement");
+  return "";
+}
+
+fn genPrint(e: *Emitter, node: i32): void {
+  let expr: i32 = e.ast.nodes[node].a;
+  let type: Type = typeOfNode(e, expr);
+  let format: *i8 = printFormat(type);
+  let value: *i8 = genExpr(e, expr);
+
+  // The default argument promotions a variadic call performs: anything
+  // narrower than an int widens to i32, and an f32 widens to double.
+  let argType: Type = type;
+  if (!type.isPointer()) {
+    if (type.isBool() || (type.isInteger() && type.bitWidth() < 32)) {
+      argType = Type.make(TY_I32, 0);
+      value = emitCast(e, value, type, argType);
+    } else if (type.kind == TY_F32) {
+      argType = Type.make(TY_F64, 0);
+      value = emitCast(e, value, type, argType);
+    }
+  }
+
+  let formatSymbol: *i8 = internString(e, format, strlen(format));
+
+  let line: *Buf = Buf.new();
+  line.add("call i32 (ptr, ...) @printf(ptr ");
+  line.add(formatSymbol);
+  line.add(", ");
+  line.add(llvmTypeName(argType));
+  line.push(' ');
+  line.add(value);
+  line.push(')');
+
+  emitAssign(e, line.data);
+}
+
+export fn genStatement(e: *Emitter, node: i32): void {
+  let kind: i32 = e.ast.nodes[node].kind;
+
+  // A struct declaration produced its type up front, and a nested function
+  // declaration is not reachable here.
+  if (kind == NK_STRUCT || kind == NK_EXTERN) {
+    return;
+  }
+
+  if (kind == NK_BLOCK) {
+    emitterEnterScope(e);
+    let index: i32 = 0;
+    while (index < e.ast.nodes[node].itemCount) {
+      genStatement(e, e.ast.nodes[node].items[index]);
+      index = index + 1;
+    }
+    emitterExitScope(e);
+    return;
+  }
+
+  if (kind == NK_VARDECL) {
+    let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+    let value: *i8 = genExpr(e, e.ast.nodes[node].b);
+
+    let allocation: *Buf = Buf.new();
+    allocation.add("alloca ");
+    allocation.add(llvmTypeName(type));
+    let slot: *i8 = emitAssign(e, allocation.data);
+
+    emitStore(e, type, value, slot);
+    // Bound after the initialiser, so `let x = x + 1;` reads the outer x.
+    declareLocal(e, e.ast.nodes[node].text, slot, type);
+    return;
+  }
+
+  if (kind == NK_ASSIGN) {
+    let target: i32 = e.ast.nodes[node].a;
+    let type: Type = typeOfNode(e, target);
+    let value: *i8 = genExpr(e, e.ast.nodes[node].b);
+    emitStore(e, type, value, genAddress(e, target));
+    return;
+  }
+
+  if (kind == NK_EXPRSTMT) {
+    genExpr(e, e.ast.nodes[node].a);
+    return;
+  }
+
+  if (kind == NK_PRINT) {
+    genPrint(e, node);
+    return;
+  }
+
+  if (kind == NK_RETURN) {
+    if (e.ast.nodes[node].a == NO_NODE) {
+      emitLine(e, "ret void");
+    } else {
+      let type: Type = typeOfNode(e, e.ast.nodes[node].a);
+      let value: *i8 = genExpr(e, e.ast.nodes[node].a);
+
+      let line: *Buf = Buf.new();
+      line.add("ret ");
+      line.add(llvmTypeName(type));
+      line.push(' ');
+      line.add(value);
+      emitLine(e, line.data);
+    }
+    e.terminated = true;
+    return;
+  }
+
+  if (kind == NK_IF) {
+    let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
+    let thenLabel: *i8 = freshLabel(e);
+    let elseLabel: *i8 = freshLabel(e);
+    let doneLabel: *i8 = freshLabel(e);
+
+    if (e.ast.nodes[node].c == NO_NODE) {
+      emitCondBranch(e, condition, thenLabel, doneLabel);
+    } else {
+      emitCondBranch(e, condition, thenLabel, elseLabel);
+    }
+
+    emitLabel(e, thenLabel);
+    genStatement(e, e.ast.nodes[node].b);
+    emitBranch(e, doneLabel);
+
+    if (e.ast.nodes[node].c != NO_NODE) {
+      emitLabel(e, elseLabel);
+      genStatement(e, e.ast.nodes[node].c);
+      emitBranch(e, doneLabel);
+    }
+
+    emitLabel(e, doneLabel);
+    return;
+  }
+
+  if (kind == NK_WHILE) {
+    let condLabel: *i8 = freshLabel(e);
+    let bodyLabel: *i8 = freshLabel(e);
+    let doneLabel: *i8 = freshLabel(e);
+
+    emitBranch(e, condLabel);
+    emitLabel(e, condLabel);
+    let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
+    emitCondBranch(e, condition, bodyLabel, doneLabel);
+
+    if (e.loopCount == e.loopCapacity) {
+      e.loopCapacity = e.loopCapacity * 2;
+      e.loopContinue = realloc(e.loopContinue as *i8,
+                               sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+      e.loopBreak = realloc(e.loopBreak as *i8,
+                            sizeof(*i8) as i64 * e.loopCapacity as i64) as **i8;
+    }
+    e.loopContinue[e.loopCount] = condLabel;
+    e.loopBreak[e.loopCount] = doneLabel;
+    e.loopCount = e.loopCount + 1;
+
+    emitLabel(e, bodyLabel);
+    genStatement(e, e.ast.nodes[node].b);
+    emitBranch(e, condLabel);
+
+    e.loopCount = e.loopCount - 1;
+    emitLabel(e, doneLabel);
+    return;
+  }
+
+  if (kind == NK_BREAK) {
+    emitBranch(e, e.loopBreak[e.loopCount - 1]);
+    // Anything written after this needs a block of its own to live in.
+    emitLabel(e, freshLabel(e));
+    return;
+  }
+
+  if (kind == NK_CONTINUE) {
+    emitBranch(e, e.loopContinue[e.loopCount - 1]);
+    emitLabel(e, freshLabel(e));
+    return;
+  }
+
+  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
+         "unsupported statement in code generation");
+}

@@ -1,0 +1,139 @@
+// ---------------------------------------------------------------------------
+// Dumps: `--dump-tokens`, `--dump-ast` and `--dump-types`.
+//
+// One line per token or node, with its position, so the output of a phase can
+// be read when it misbehaves and diffed between two versions of the
+// compiler.
+// ---------------------------------------------------------------------------
+
+import { Buf } from "../support/text";
+import {
+  TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE, Token,
+  TokenList, kindName,
+} from "./token";
+import { NO_NODE, NK_TYPE, Ast, nodeKindName, nodeCarriesText } from "./ast";
+import { TY_NONE, Type } from "../semantics/types";
+
+// Text is escaped rather than written raw so that a literal newline or NUL
+// inside a string cannot break the line-per-node format.
+fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
+  let index: i64 = 0 as i64;
+
+  while (index < length) {
+    let character: i8 = text[index];
+
+    if (character == '\\') {
+      out.add("\\\\");
+    } else if (character == '\n') {
+      out.add("\\n");
+    } else if (character == '\t') {
+      out.add("\\t");
+    } else if (character == '\r') {
+      out.add("\\r");
+    } else if (character == '\'') {
+      out.add("\\'");
+    } else if (character == 0 as i8) {
+      out.add("\\0");
+    } else {
+      out.push(character);
+    }
+
+    index = index + 1 as i64;
+  }
+}
+
+export fn dumpTokens(list: *TokenList, out: *Buf): void {
+  let index: i32 = 0;
+
+  while (index < list.count) {
+    let token: *Token = list.at(index);
+
+    // The end token is the parser's sentinel, not part of the source.
+    if (token.kind == TK_END) {
+      index = index + 1;
+      continue;
+    }
+
+    out.addInt(token.line as i64);
+    out.push(':');
+    out.addInt(token.column as i64);
+    out.push(' ');
+    out.add(kindName(token.kind));
+
+    // An operator's text is its own name, so printing both says nothing.
+    if (token.kind == TK_IDENT || token.kind == TK_NUMBER ||
+        token.kind == TK_STRING || token.kind == TK_CHAR ||
+        token.kind == TK_BOOL || token.kind == TK_TYPE) {
+      out.add(" '");
+      out.addBytes(token.text, token.length);
+      out.push('\'');
+    }
+
+    out.push('\n');
+    index = index + 1;
+  }
+}
+
+export fn nullTypes(): *Type {
+  return 0 as i64 as *Type;
+}
+
+// Children print in slot order -- a, then b, then c, then the item list --
+// which is the order every kind stores them in, so no kind needs its own case.
+//
+// `types` is the analyzer's resolved-type table, or null to dump the tree on
+// its own. A node the analyzer never typed prints without an annotation.
+export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
+                   out: *Buf): void {
+  if (index == NO_NODE) {
+    return;
+  }
+
+  let level: i32 = 0;
+  while (level < depth) {
+    out.add("  ");
+    level = level + 1;
+  }
+
+  let kind: i32 = ast.nodes[index].kind;
+  out.add(nodeKindName(kind));
+
+  if (nodeCarriesText(kind)) {
+    out.add(" '");
+    dumpEscaped(out, ast.nodes[index].text, ast.nodes[index].textLength);
+    out.push('\'');
+  }
+
+  if (ast.nodes[index].exported) {
+    out.add(" export");
+  }
+
+  if (kind == NK_TYPE) {
+    out.add(" depth=");
+    out.addInt(ast.nodes[index].extra as i64);
+  }
+
+  out.push(' ');
+  out.addInt(ast.nodes[index].line as i64);
+  out.push(':');
+  out.addInt(ast.nodes[index].column as i64);
+
+  if (types != nullTypes()) {
+    if (types[index].kind != TY_NONE) {
+      out.add(" : ");
+      out.add(types[index].toText());
+    }
+  }
+
+  out.push('\n');
+
+  dumpNode(ast, types, ast.nodes[index].a, depth + 1, out);
+  dumpNode(ast, types, ast.nodes[index].b, depth + 1, out);
+  dumpNode(ast, types, ast.nodes[index].c, depth + 1, out);
+
+  let item: i32 = 0;
+  while (item < ast.nodes[index].itemCount) {
+    dumpNode(ast, types, ast.nodes[index].items[item], depth + 1, out);
+    item = item + 1;
+  }
+}
