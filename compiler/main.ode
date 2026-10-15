@@ -35,7 +35,7 @@ import {
 import { buildMain } from "./tool/build";
 
 // Ode has no adjacent string literal concatenation, so this is one line.
-let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode test <input.ode | directory> [filter]   runs the tests in a program, or in every file under a directory\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
+let USAGE: *i8 = "usage: ode [-o <path>] [--keep-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode test <input.ode | directory> [filter]   runs the tests in a program, or in every file under a directory\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
 
 // `ode test <input.ode | directory> [filter]`: builds the program with its tests and a
 // runner for its `main`, in a scratch directory, and runs it. The exit status
@@ -125,7 +125,7 @@ fn main(argc: i32, argv: **i8): i32 {
   let wantAst: bool = false;
   let wantTypes: bool = false;
   let emitOnly: bool = false;
-  let keepIntermediates: bool = true;
+  let keepIntermediates: bool = false;
   let path: *i8 = null;
   let output: *i8 = null;
 
@@ -141,8 +141,8 @@ fn main(argc: i32, argv: **i8): i32 {
       wantTypes = true;
     } else if (equals(argument, "--emit-llvm")) {
       emitOnly = true;
-    } else if (equals(argument, "--no-intermediates")) {
-      keepIntermediates = false;
+    } else if (equals(argument, "--keep-intermediates")) {
+      keepIntermediates = true;
     } else if (equals(argument, "-o")) {
       index = index + 1;
       if (index >= argc) {

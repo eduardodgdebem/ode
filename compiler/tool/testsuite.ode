@@ -353,22 +353,23 @@ fn checkOutputFlag(suite: *Suite): bool {
     return false;
   }
 
-  return isExecutable(out) && exists(withSuffix(out, ".ll")) &&
-         exists(withSuffix(out, ".o")) && printsZero(out);
+  // By default the executable is all a build leaves.
+  return isExecutable(out) && !exists(withSuffix(out, ".ll")) &&
+         !exists(withSuffix(out, ".o")) && printsZero(out);
 }
 
-fn checkNoIntermediatesFlag(suite: *Suite): bool {
-  let out: *i8 = joinPath(suite.work, "cli/dropped");
+fn checkKeepIntermediatesFlag(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/kept");
   makeDirectories(parentDirectory(out));
 
   let command: *TextList = TextList.new().add(suite.compiler);
-  command.add("--no-intermediates").add("-o").add(out).add(exampleOne(suite));
+  command.add("--keep-intermediates").add("-o").add(out).add(exampleOne(suite));
   if (!compileQuietly(suite, command)) {
     return false;
   }
 
-  return isExecutable(out) && !exists(withSuffix(out, ".ll")) &&
-         !exists(withSuffix(out, ".o"));
+  return isExecutable(out) && exists(withSuffix(out, ".ll")) &&
+         exists(withSuffix(out, ".o"));
 }
 
 // A path holding a space and a shell metacharacter must survive the linker.
@@ -590,8 +591,8 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   if (suite.selected("output-flag")) {
     runCli(suite, "output-flag", checkOutputFlag(suite));
   }
-  if (suite.selected("no-intermediates-flag")) {
-    runCli(suite, "no-intermediates-flag", checkNoIntermediatesFlag(suite));
+  if (suite.selected("keep-intermediates-flag")) {
+    runCli(suite, "keep-intermediates-flag", checkKeepIntermediatesFlag(suite));
   }
   if (suite.selected("hostile-output-path")) {
     runCli(suite, "hostile-output-path", checkHostileOutputPath(suite));

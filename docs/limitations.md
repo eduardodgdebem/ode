@@ -300,13 +300,10 @@ path holding a space or a metacharacter needs no quoting and cannot be
 re-split or executed. What is left is that the compiler has no backend of its
 own: it depends on `clang` to turn IR into a binary.
 
-### 8.3 Intermediates are always written
+### 8.3 Intermediates pass through the filesystem
 
-`ode -o <path>` writes the executable where asked, with `<path>.ll` and
-`<path>.o` beside it; `--no-intermediates` deletes those two once linking
-succeeds. With no flags the compiler writes `<stem>.ll`, `<stem>.o` and
-`<stem>` into the working directory.
-
-The residue is that the `.ll` and `.o` are always written before they can be
-removed, so there is no way to compile without touching the filesystem beyond
-the output, and no way to ask for only the IR without also linking.
+`ode file.ode` leaves only the executable, `<stem>`, or `<path>` with `-o`;
+`--keep-intermediates` keeps the `<path>.ll` and `<path>.o` it was built from
+beside it. Either way the two are written to disk on the way, because clang
+is handed files, so a build always touches the filesystem beyond its output.
+`--emit-llvm` prints the IR without building anything.

@@ -59,7 +59,7 @@ exits non-zero if anything differs. Its cases:
 
 A module case is compared against its diagnostics if it fails to compile and
 against what it prints if it runs. Four more checks exercise the driver's
-flags: `-o`, `--no-intermediates`, an output path holding shell
+flags: `-o`, `--keep-intermediates`, an output path holding shell
 metacharacters, and running with no input.
 
 The suite also runs the compiler's own tests -- the `test` blocks in
