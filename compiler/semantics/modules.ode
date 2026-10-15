@@ -25,7 +25,7 @@
 
 import { memcpy, strlen, strncmp } from "std/c";
 import { alloc } from "std/mem";
-import { List } from "../support/list";
+import { List } from "std/list";
 import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
@@ -53,7 +53,7 @@ export fn moduleAdd(path: *i8, real: *i8): i32 {
   }
 
   MODULES.push(Module { path: path, real: real });
-  return MODULES.count - 1;
+  return (MODULES.count - 1) as i32;
 }
 
 // Whether the file `module` is part of the standard library.
@@ -66,7 +66,7 @@ export fn isLibraryModule(module: i32): bool {
     return false;
   }
 
-  let real: *i8 = MODULES.at(module).real;
+  let real: *i8 = MODULES.at(module as i64).real;
   let length: i64 = strlen(library);
   return strncmp(real, library, length) == 0 && real[length] == '/';
 }
@@ -79,7 +79,7 @@ export fn moduleDisplayPath(module: i32): *i8 {
     return modulePath(module);
   }
 
-  let real: *i8 = MODULES.at(module).real;
+  let real: *i8 = MODULES.at(module as i64).real;
   let library: *i8 = realpath(STD_DIRECTORY, null);
   let out: *Buf = Buf.new();
   out.add("std");
@@ -92,12 +92,12 @@ export fn moduleCount(): i32 {
   if (MODULES == null) {
     return 0;
   }
-  return MODULES.count;
+  return MODULES.count as i32;
 }
 
 export fn moduleFind(real: *i8): i32 {
   for (index in 0..moduleCount()) {
-    if (textEquals(MODULES.at(index).real, real)) {
+    if (textEquals(MODULES.at(index as i64).real, real)) {
       return index;
     }
   }
@@ -106,7 +106,7 @@ export fn moduleFind(real: *i8): i32 {
 }
 
 export fn modulePath(module: i32): *i8 {
-  return MODULES.at(module).path;
+  return MODULES.at(module as i64).path;
 }
 
 export fn textEndsWith(text: *i8, suffix: *i8): bool {

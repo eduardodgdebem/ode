@@ -12,7 +12,7 @@
 
 import { free } from "std/c";
 import { alloc, grow } from "std/mem";
-import { List } from "../support/list";
+import { List } from "std/list";
 import { Buf, textEquals } from "../support/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
@@ -245,7 +245,7 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
                                context: *i8): void {
   // A function type is valid when everything in its signature is.
   if (type.kind == TypeKind.Function) {
-    let signature: i32 = signatureIndex(an, type);
+    let signature: i64 = signatureIndex(an, type);
     for (index in 0..an.signatures.at(signature).count) {
       analyzerValidateType(an, node, an.signatures.at(signature).params[index],
                            context);

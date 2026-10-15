@@ -88,7 +88,7 @@ fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
 }
 
 // Where the signature of a function type is in the table.
-export fn signatureIndex(an: *Analyzer, type: Type): i32 {
+export fn signatureIndex(an: *Analyzer, type: Type): i64 {
   for (index in 0..an.signatures.count) {
     if (textEquals(an.signatures.at(index).text, type.structName)) {
       return index;
@@ -144,7 +144,7 @@ export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
     return Type.make(TypeKind.None, 0);
   }
 
-  let signature: i32 = signatureIndex(an, callee);
+  let signature: i64 = signatureIndex(an, callee);
   let found: Signature = an.signatures.at(signature);
   checkArguments(an, node, name, args, found.params, found.count);
 

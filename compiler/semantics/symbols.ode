@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { alloc, grow } from "std/mem";
-import { List } from "../support/list";
+import { List } from "std/list";
 import { Buf, textEquals } from "../support/text";
 import { report } from "../support/diagnostics";
 import { Type } from "./types";
@@ -57,7 +57,7 @@ export struct SymbolTable {
 
   // How many scopes are open, for undoing the ones a failure left open.
   fn depth(self: *SymbolTable): i32 {
-    return self.scopeStarts.count;
+    return self.scopeStarts.count as i32;
   }
 
   fn exitScope(self: *SymbolTable): void {
@@ -71,7 +71,7 @@ export struct SymbolTable {
   // Innermost first, so a shadowing declaration wins.
   // Undoes the scopes an abandoned statement left open.
   fn truncateScopes(self: *SymbolTable, depth: i32): void {
-    while (self.scopeStarts.count > depth) {
+    while (self.scopeStarts.count > depth as i64) {
       self.exitScope();
     }
   }

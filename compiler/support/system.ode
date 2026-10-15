@@ -10,8 +10,8 @@
 
 import { free, memcmp, strlen, fopen, fclose, fread, fwrite, read, getenv } from "std/c";
 import { alloc } from "std/mem";
+import { List } from "std/list";
 import { fseek, ftell, SEEK_SET, SEEK_END } from "./libc";
-import { List } from "./list";
 import { Buf, textSlice } from "./text";
 import { realpath } from "../semantics/modules";
 
@@ -57,11 +57,11 @@ export struct TextList {
   }
 
   fn at(self: *TextList, index: i32): *i8 {
-    return self.texts.at(index);
+    return self.texts.at(index as i64);
   }
 
   fn size(self: *TextList): i32 {
-    return self.texts.count;
+    return self.texts.count as i32;
   }
 
   // The list as execvp wants it, ending in a null that is not one of its

@@ -13,7 +13,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
-import { List } from "../support/list";
+import { List } from "std/list";
 import { Buf, textEquals } from "../support/text";
 import { Ast } from "../syntax/ast";
 import { Type } from "../semantics/types";
@@ -51,7 +51,7 @@ export struct Emitter {
 
   locals: *List<Local>,
   // Where each open scope's locals start, innermost last.
-  scopeStarts: *List<i32>,
+  scopeStarts: *List<i64>,
 
   // `continue` goes to the condition, `break` to the block after the loop.
   loopContinue: *List<*i8>,
@@ -71,7 +71,7 @@ export struct Emitter {
     e.usesChecks = false;
 
     e.locals = List<Local>.new();
-    e.scopeStarts = List<i32>.new();
+    e.scopeStarts = List<i64>.new();
     e.loopContinue = List<*i8>.new();
     e.loopBreak = List<*i8>.new();
 
@@ -176,7 +176,7 @@ export fn declareLocal(e: *Emitter, name: *i8, reg: *i8, type: Type): void {
 // goes by the IR name the analyzer resolved it to.
 export fn variableAddress(e: *Emitter, node: i32): *i8 {
   let name: *i8 = e.ast.nodes[node].text;
-  let index: i32 = e.locals.count - 1;
+  let index: i64 = e.locals.count - 1;
 
   while (index >= 0) {
     if (textEquals(e.locals.at(index).name, name)) {
