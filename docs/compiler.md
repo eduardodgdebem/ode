@@ -139,8 +139,9 @@ The compiler can only use what the language supports, and a feature added to
 the compiler is usable by its own source only once the seed has it. Today
 that means:
 
-- No function pointers, so dispatch on a kind is a `match`, not a table of
-  handlers.
+- Dispatch on a kind is a `match` rather than a table of handlers: function
+  values exist now, but a `match` is checked for every kind and a table is
+  not.
 - No enums with data, so a node is one struct with a `NodeKind` and generic
   children.
 - No implicit conversions, so widths change through `as`.

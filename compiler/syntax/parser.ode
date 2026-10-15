@@ -8,7 +8,7 @@
 
 import { malloc } from "../support/libc";
 import { Buf } from "../support/text";
-import { report, fail } from "../support/diagnostics";
+import { FAILED, report, fail } from "../support/diagnostics";
 import { TokenKind, Token, TokenList } from "./token";
 import { NodeKind, Ast } from "./ast";
 
@@ -156,7 +156,7 @@ export fn startsStatement(kind: TokenKind): bool {
 // Types.
 // ---------------------------------------------------------------------------
 
-// Type -> '*'* BaseType
+// Type -> '*'* (BaseType | FnType)
 export fn parseType(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let startLine: i32 = start.line;
@@ -166,6 +166,30 @@ export fn parseType(parser: *Parser): i32 {
   while (parser.kind() == TokenKind.Star) {
     depth = depth + 1;
     parser.advance();
+  }
+
+  // FnType -> 'fn' '(' (Type (',' Type)*)? ')' ':' Type
+  if (parser.kind() == TokenKind.Fn) {
+    let node: i32 = parser.ast.add(NodeKind.FnType, startLine, startColumn);
+    parser.ast.nodes[node].extra = depth;
+    parser.advance();
+    parser.expect(TokenKind.LParen, "(");
+
+    if (parser.kind() != TokenKind.RParen) {
+      while (true) {
+        parser.ast.addItem(node, parseType(parser));
+        if (parser.kind() != TokenKind.Comma || FAILED) {
+          break;
+        }
+        parser.advance();
+      }
+    }
+
+    parser.expect(TokenKind.RParen, ")");
+    parser.expect(TokenKind.Colon, ":");
+    parser.ast.nodes[node].a = parseType(parser);
+
+    return node;
   }
 
   if (parser.kind() != TokenKind.Type && parser.kind() != TokenKind.Ident) {

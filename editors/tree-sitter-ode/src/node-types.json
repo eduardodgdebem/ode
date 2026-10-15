@@ -558,7 +558,19 @@
         "required": true,
         "types": [
           {
+            "type": "call_expression",
+            "named": true
+          },
+          {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
             "named": true
           }
         ]
@@ -1202,6 +1214,32 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "function_type",
+    "named": true,
+    "fields": {
+      "result": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "type",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -2237,6 +2275,10 @@
       "multiple": false,
       "required": true,
       "types": [
+        {
+          "type": "function_type",
+          "named": true
+        },
         {
           "type": "pointer_type",
           "named": true

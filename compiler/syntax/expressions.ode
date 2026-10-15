@@ -214,6 +214,27 @@ fn parsePostfix(parser: *Parser): i32 {
   let expr: i32 = parsePrimary(parser);
 
   while (true) {
+    // A call of whatever the expression so far produced -- `table[i](x)`,
+    // `make()(x)`. A call of a plain name was already parsed as one.
+    if (parser.kind() == TokenKind.LParen) {
+      let paren: *Token = parser.current();
+      let line: i32 = paren.line;
+      let column: i32 = paren.column;
+      parser.advance();
+
+      let args: i32 = parseArgList(parser);
+      parser.expect(TokenKind.RParen, ")");
+      if (FAILED) {
+        return expr;
+      }
+
+      let call: i32 = parser.ast.add(NodeKind.CallValue, line, column);
+      parser.ast.nodes[call].a = expr;
+      parser.ast.nodes[call].b = args;
+      expr = call;
+      continue;
+    }
+
     if (parser.kind() == TokenKind.Dot) {
       let dot: *Token = parser.current();
       let line: i32 = dot.line;

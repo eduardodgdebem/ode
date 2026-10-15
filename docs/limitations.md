@@ -49,15 +49,12 @@ twice, so a side effect in the target — `a[next()] += 1` — runs twice.
 
 | Missing | Notes |
 |---|---|
-| Function pointers | No function type exists, so dispatch tables have to be `if`/`else if` chains |
 | Fixed-size arrays (`[i8; 256]`) | Deliberate — see 6.2 |
 | Tagged unions (enums with data) | Deliberate — see 6.3 |
 
 The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
 `i64`/`u64` (spelled `usize` too), plus `f32` and `f64`.
 
-Function pointers are the significant one. Without them, a table-driven parser
-is not expressible and dispatch stays as chained conditionals.
 
 ## 4. Type system
 
@@ -248,7 +245,7 @@ be:
   separate `impl`, or Go declaring them anywhere in the package), nor to a
   type that is not a struct;
 - there are no interfaces or traits, so nothing can be generic over "anything
-  with a `len()`" -- there are no function pointers to build one from either;
+  with a `len()`" -- a struct of function values is the nearest thing;
 - every method is visible wherever its struct is: there is no `pub`, and no
   private helper method.
 

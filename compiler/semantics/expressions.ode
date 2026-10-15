@@ -20,6 +20,9 @@ import {
 } from "./analyzer";
 import { checkMethodCall } from "./methods";
 import { checkEnumMember } from "./enums";
+import {
+  CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
+} from "./functions";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -62,6 +65,7 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
     NodeKind.StructLit => { return checkStructLiteral(an, node); }
     NodeKind.Call => { return checkCall(an, node); }
     NodeKind.MethodCall => { return checkMethodCall(an, node); }
+    NodeKind.CallValue => { return checkCallValue(an, node); }
     else => {}
   }
   if (kind == NodeKind.Number) {
@@ -94,8 +98,9 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
       analyzerFail(an, node, quoted("undefined variable ", name, ""));
       return Type.make(TypeKind.None, 0);
     }
-    if (an.symbols.items[symbol].kind != SymbolKind.Var) {
-      analyzerFail(an, node, quoted("", name, " is a function, not a variable"));
+    // A function's name, used other than to call it, is its value.
+    if (an.symbols.items[symbol].kind == SymbolKind.Fn) {
+      return checkFunctionRef(an, node, symbol);
     }
 
     an.linkNames[node] = an.symbols.items[symbol].linkName;
@@ -133,10 +138,14 @@ fn checkCall(an: *Analyzer, node: i32): Type {
     analyzerFail(an, node, quoted("undefined function ", name, ""));
     return Type.make(TypeKind.None, 0);
   }
-  if (an.symbols.items[symbol].kind != SymbolKind.Fn) {
-    analyzerFail(an, node, quoted("", name, " is not a function"));
-  }
   an.linkNames[node] = an.symbols.items[symbol].linkName;
+
+  // A variable holding a function is called through.
+  if (an.symbols.items[symbol].kind == SymbolKind.Var) {
+    an.callTargets[node] = CallTarget.Value;
+    return checkCallThrough(an, node, name, an.symbols.items[symbol].type,
+                            an.ast.nodes[node].a);
+  }
 
   checkArguments(an, node, name, an.ast.nodes[node].a,
                  an.symbols.items[symbol].params,
@@ -300,6 +309,9 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
                     quoted("cannot order enum ", left.structName, " values"),
                     "compare them with == and !=, or match on them");
     }
+    if (left.isFunction()) {
+      analyzerFail(an, node, "cannot order function values");
+    }
     if (left.isStruct()) {
       analyzerFail2(an, node,
                     quoted("cannot order struct ", left.structName, " values"),
@@ -412,6 +424,10 @@ fn checkCast(an: *Analyzer, node: i32): Type {
   // An enum is an i32 underneath, and converts to and from any integer, but
   // only when asked to.
   if (from.isEnum() && to.isInteger()) { return to; }
+  // A function value is a pointer to code, and converts to and from any
+  // other pointer -- which is what handing one to C needs.
+  if (from.isFunction() && (to.isPointer() || to.isFunction())) { return to; }
+  if (from.isPointer() && to.isFunction()) { return to; }
   if (from.isInteger() && to.isEnum()) { return to; }
   if (from.isNumeric() && to.isNumeric()) { return to; }
   if (from.isBool() && to.isInteger()) { return to; }
@@ -678,6 +694,9 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   }
   if (kind == NodeKind.FieldAccess) {
     return an.isConstant[node] != 0 as i8;
+  }
+  if (kind == NodeKind.Ident) {
+    return an.functionRefs[node] != 0 as i8;
   }
   if (kind == NodeKind.Char || kind == NodeKind.Sizeof) {
     return true;

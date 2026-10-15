@@ -3,7 +3,8 @@ fn helper(): i32 {
 }
 
 fn main(): i32 {
-  print(helper);
+  // A function's name is a value of a function type, not of its result's.
+  let value: i32 = helper;
 
-  return 0;
+  return value;
 }

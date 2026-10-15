@@ -124,6 +124,12 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   if (kind == NodeKind.Null) {
     return "null";
   }
+  if (kind == NodeKind.Ident) {
+    let name: *Buf = Buf.new();
+    name.push('@');
+    name.add(e.an.linkNames[node]);
+    return name.take();
+  }
   if (kind == NodeKind.FieldAccess) {
     return intToText(e.an.values[node]);
   }

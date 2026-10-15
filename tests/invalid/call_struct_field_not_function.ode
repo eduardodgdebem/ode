@@ -1,0 +1,8 @@
+struct Counter {
+  hits: i32,
+}
+
+fn main(): i32 {
+  let c: Counter = Counter { hits: 0 };
+  return c.hits(1);
+}

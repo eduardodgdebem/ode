@@ -151,8 +151,18 @@ module.exports = grammar({
 
     type: $ => choice(
       $.pointer_type,
+      $.function_type,
       $.primitive_type,
       $._type_identifier,
+    ),
+
+    function_type: $ => seq(
+      'fn',
+      '(',
+      optional(seq($.type, repeat(seq(',', $.type)))),
+      ')',
+      ':',
+      field('result', $.type),
     ),
 
     pointer_type: $ => prec.right(seq('*', $.type)),
@@ -309,7 +319,8 @@ module.exports = grammar({
     )),
 
     call_expression: $ => prec.left(PREC.call, seq(
-      field('function', $.identifier),
+      field('function', choice($.identifier, $.index_expression,
+                               $.call_expression, $.parenthesized_expression)),
       field('arguments', $.argument_list),
     )),
 
