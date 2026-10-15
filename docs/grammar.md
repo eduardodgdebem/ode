@@ -3,7 +3,7 @@
 ## Program Structure
 
 - **Program** → TopLevel*
-- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | Statement
+- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | TestDecl | Statement
 - **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
@@ -48,6 +48,7 @@ cycles.
 - **TypeParams** → `<` IDENT (`,` IDENT)* `>`
 - **TypeArgs** → `<` Type (`,` Type)* `>`
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
+- **TestDecl** → `test` STRING Block — `test` is an IDENT anywhere a STRING does not follow it
 - **StructDecl** → `struct` IDENT TypeParams? `{` (FieldDecl | FuncDecl)* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
 - **EnumDecl** → `enum` IDENT `{` (EnumMember (`,` EnumMember)* `,`?)? `}`
@@ -279,6 +280,12 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   are rejected outside a loop. In a `for`, `continue` moves on to the next
   value. A function written inside a loop does not see it.
 - `return;` is only valid in a `void` function, and `return expr;` only in a
+- `assert(cond)`, `assert(cond, message)` and `assertEq(actual, expected)` are
+  built-in calls, unless the program declares a function of that name. They
+  return `void`. `assertEq` takes two values of one type — a literal takes the
+  other's — that is not a struct, and compares two `*i8`s by their text.
+- A TestDecl is checked and compiled only by `ode test`, as a `void`
+  function with no parameters.
   non-void one, where the expression's type must match the declared return
   type. Falling off the end of a non-void function is still permitted and
   yields a zero value; there is no all-paths-return analysis.

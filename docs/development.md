@@ -55,11 +55,21 @@ exits non-zero if anything differs. Its cases:
 | `examples/` | the same, for the showcase programs | `tests/examples/<name>.out` |
 | `tests/invalid/` | a program that must be rejected | the `<name>.expected` beside it |
 | `tests/modules/` | a directory of files entered at `main.ode` | `tests/modules/<name>.expected` |
+| `tests/unit/` | a file of tests, run by `ode test` | the `<name>.out` beside it, with the exit status |
 
 A module case is compared against its diagnostics if it fails to compile and
 against what it prints if it runs. Four more checks exercise the driver's
 flags: `-o`, `--no-intermediates`, an output path holding shell
 metacharacters, and running with no input.
+
+The suite also runs the compiler's own tests -- the `test` blocks in
+`compiler/` -- with `ode test compiler/main.ode`, and fails if any does. To
+run them alone, or only some:
+
+```bash
+./build/ode test compiler/main.ode          # every test in the compiler
+./build/ode test compiler/main.ode lexer    # the ones whose name says lexer
+```
 
 Adding a case is dropping a file in, then recording what it does with
 `--update`.

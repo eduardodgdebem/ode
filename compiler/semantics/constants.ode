@@ -12,7 +12,7 @@
 import { textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
-import { Type, parseMagnitude } from "./types";
+import { TypeKind, Type, parseMagnitude } from "./types";
 import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
 import { sizeOf } from "./layout";
 
@@ -226,4 +226,12 @@ export fn laterGlobalIn(an: *Analyzer, node: i32): i32 {
   }
 
   return NO_NODE;
+}
+
+test "wrap cuts to the width and sign-extends" {
+  assertEq(wrap(300, Type.make(TypeKind.I8, 0)), 44);
+  assertEq(wrap(200, Type.make(TypeKind.I8, 0)), -56);
+  assertEq(wrap(-1, Type.make(TypeKind.U8, 0)), 255);
+  assertEq(wrap(65536 + 5, Type.make(TypeKind.U16, 0)), 5);
+  assertEq(wrap(-1, Type.make(TypeKind.I64, 0)), -1);
 }

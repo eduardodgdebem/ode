@@ -223,6 +223,13 @@ be:
 - Each instance is compiled separately, so a generic used with many types
   makes the binary bigger accordingly.
 
+### 6.7 Tests are plain, and need a POSIX system
+
+A test has a name and a body, and nothing else: no setup or teardown, no
+parameters, no skipping, and no matchers beyond `assert` and `assertEq`.
+Each test runs in a child made with `fork`, so `ode test` runs on macOS and
+Linux but not Windows.
+
 ## 7. Codegen and runtime
 
 ### 7.1 No runtime checks

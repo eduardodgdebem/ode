@@ -272,3 +272,8 @@ export fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
 
   return symbol;
 }
+
+test "llvmName quotes only what LLVM cannot take bare" {
+  assertEq(llvmName('@', "main.helper"), "@main.helper");
+  assertEq(llvmName('%', "List<i32>"), "%\"List<i32>\"");
+}

@@ -407,6 +407,23 @@ fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
 
+// The compiler's own tests, written beside the code they test. They pass or
+// fail as a whole; what each printed is shown only on a failure.
+fn runCompilerTests(suite: *Suite): void {
+  suite.unitCount = suite.unitCount + 1;
+
+  let output: *Buf = Buf.new();
+  let run: *TextList = TextList.new().add(suite.compiler).add("test");
+  run.add(joinPath(suite.ws.root, "compiler/main.ode"));
+  if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
+    suite.pass("unit", "compiler");
+    return;
+  }
+
+  suite.fail("unit", "compiler", "a test of the compiler failed");
+  writeIndented(output);
+}
+
 fn runCli(suite: *Suite, name: *i8, passed: bool): void {
   if (passed) {
     suite.pass("cli", name);
@@ -511,6 +528,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     if (textEndsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
       runUnit(suite, joinPath(units, file), withoutExtension(file));
     }
+  }
+
+  if (suite.selected("compiler")) {
+    runCompilerTests(suite);
   }
 
   if (suite.selected("output-flag")) {

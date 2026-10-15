@@ -23,8 +23,8 @@ fn main(): i32 {
 ```
 
 The language has integers of every width, floats, pointers, structs with
-methods, generics, enums and `match`, functions as values, modules with `import` and `export`, and direct calls into C through
-`extern`. It has no garbage collector and no implicit conversions: what it compiles
+methods, generics, enums and `match`, functions as values, modules with `import` and `export`, tests written beside the code they
+test, and direct calls into C through `extern`. It has no garbage collector and no implicit conversions: what it compiles
 to is close to what is written.
 
 ## Quick start
@@ -41,7 +41,8 @@ You need `clang`. Nothing else.
 executable named after it. `-o <path>` puts the executable elsewhere, and the
 `.ll` and `.o` it keeps beside it follow; `--no-intermediates` deletes those.
 `--emit-llvm` prints the IR instead of linking, and `--dump-tokens`,
-`--dump-ast` and `--dump-types` print what a phase produced.
+`--dump-ast` and `--dump-types` print what a phase produced. `ode test
+file.ode` runs the `test` blocks written in a file and the files it imports.
 
 Errors are reported as `file:line:column: error: message`, and one run
 reports every error it can find:

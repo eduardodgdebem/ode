@@ -731,9 +731,14 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   // `p.field` works whether `p` is a struct or points at one.
   let structType: Type = objectType.base();
 
+  // Once the object has failed, its type has no name to look a field up by.
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
   if (!structType.isStruct()) {
     analyzerFail2(an, node, quoted("cannot read field ", field, ""),
                   quoted("", objectType.toText(), " is not a struct"));
+    return Type.make(TypeKind.None, 0);
   }
 
   let structIndex: i32 = an.structs.indexOf(structType.structName);

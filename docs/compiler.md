@@ -57,11 +57,13 @@ guesses.
 | `semantics/generics.ode` | generics: making each instance, before checking |
 | `semantics/constants.ode` | folding constant globals |
 | `semantics/layout.ode` | sizes and alignment |
+| `semantics/testing.ode` | tests, `assert` and `assertEq`, and the test runner's source |
 | `codegen/emitter.ode` | the emitter's state, lines, labels, locals, constants |
 | `codegen/layout.ode` | LLVM type names and zero values |
 | `codegen/expressions.ode` | emitting expressions |
 | `codegen/statements.ode` | emitting statements |
 | `codegen/program.ode` | functions, globals, and the module as a whole |
+| `codegen/testing.ode` | emitting checks, and the `main` that runs the tests |
 | `codegen/toolchain.ode` | which C compiler and SDK assemble and link |
 | `tool/build.ode` | `ode build`, `bootstrap` and `seed` |
 | `tool/testsuite.ode` | `ode build test` |
