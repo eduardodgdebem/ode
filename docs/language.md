@@ -9,18 +9,17 @@ should.
 ## A first program
 
 ```rust
-extern fn printf(format: *i8, ...): i32;
+import { println } from "std/io";
 
 fn main(): i32 {
-  printf("Hello, World!\n");
+  println("Hello, World!");
   return 0;
 }
 ```
 
 Execution starts at `main`, and what it returns is the process's exit status.
-Output goes through C: `printf` is declared with `extern` and called like any
-other function (see [Calling C](#calling-c)). The examples below leave its
-declaration out.
+`std/io` is part of the [standard library](std.md). The examples below use
+`printf`, imported from `std/c`, and leave the import out.
 
 Functions declare every parameter's type and their return type, and may be
 called before they are declared:
@@ -408,7 +407,9 @@ fn main(): i32 {
 ```
 
 `fn`, `extern fn`, `struct` and `let` can all be exported. A path is relative
-to the file that imports it, and `.ode` may be left off. Every file is loaded
+to the file that imports it, and `.ode` may be left off. An import that is
+not a path, such as `"std/list"`, names a module of the
+[standard library](std.md). Every file is loaded
 once, so imports may be cyclic. Compile the entry file as usual (`ode
 main.ode`) and the files it imports come along. Two files may each have a
 private declaration of the same name without colliding.

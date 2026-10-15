@@ -1,0 +1,100 @@
+// ---------------------------------------------------------------------------
+// Memory, by type rather than by byte count:
+//
+//   let nodes: *Node = alloc<Node>(16);
+//   nodes = grow<Node>(nodes, 32);
+//   release<Node>(nodes);
+//
+// Every function here works in elements of T, so no call needs a sizeof or
+// a cast. Allocation failure ends the program: there is no recovering from
+// it worth the check at every call.
+// ---------------------------------------------------------------------------
+
+import { malloc, calloc, realloc, free, memcpy, memmove, dprintf, abort } from "./c";
+
+fn outOfMemory(size: i64): void {
+  dprintf(2, "out of memory allocating %lld bytes\n", size);
+  abort();
+}
+
+// Room for `count` values of T, uninitialised.
+export fn alloc<T>(count: i64): *T {
+  let size: i64 = sizeof(T) * count;
+  let block: *i8 = malloc(size);
+  if (block == null && size > 0) {
+    outOfMemory(size);
+  }
+  return block as *T;
+}
+
+// Room for `count` values of T, every byte zero.
+export fn allocZeroed<T>(count: i64): *T {
+  let block: *i8 = calloc(count, sizeof(T));
+  if (block == null && count > 0) {
+    outOfMemory(sizeof(T) * count);
+  }
+  return block as *T;
+}
+
+// `values`, moved if need be to room for `count` of them. The values that
+// fit are kept.
+export fn grow<T>(values: *T, count: i64): *T {
+  let size: i64 = sizeof(T) * count;
+  let block: *i8 = realloc(values as *i8, size);
+  if (block == null && size > 0) {
+    outOfMemory(size);
+  }
+  return block as *T;
+}
+
+export fn release<T>(values: *T): void {
+  free(values as *i8);
+}
+
+// Copies `count` values from `from` to `to`, which must not overlap.
+export fn copy<T>(to: *T, from: *T, count: i64): void {
+  memcpy(to as *i8, from as *i8, sizeof(T) * count);
+}
+
+// Copies `count` values from `from` to `to`, which may overlap.
+export fn move<T>(to: *T, from: *T, count: i64): void {
+  memmove(to as *i8, from as *i8, sizeof(T) * count);
+}
+
+struct Pair {
+  left: i64,
+  right: i8,
+}
+
+test "alloc and grow keep the values" {
+  let values: *i32 = alloc<i32>(4);
+  for (index in 0..4) {
+    values[index] = index * 10;
+  }
+  values = grow<i32>(values, 1000);
+  values[999] = 7;
+  assertEq(values[3], 30);
+  assertEq(values[999], 7);
+  release<i32>(values);
+}
+
+test "allocZeroed zeroes structs" {
+  let pairs: *Pair = allocZeroed<Pair>(3);
+  assertEq(pairs[2].left, 0);
+  assertEq(pairs[2].right, 0);
+  release<Pair>(pairs);
+}
+
+test "move handles overlap, copy does not need to" {
+  let values: *i64 = alloc<i64>(5);
+  for (index in 0..5) {
+    values[index] = index as i64;
+  }
+  move<i64>(values + 1, values, 4);
+  assertEq(values[1], 0);
+  assertEq(values[4], 3);
+
+  let other: *i64 = alloc<i64>(5);
+  copy<i64>(other, values, 5);
+  assertEq(other[4], 3);
+}

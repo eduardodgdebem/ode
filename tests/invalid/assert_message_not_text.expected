@@ -1,0 +1,1 @@
+assert_message_not_text.ode:2:3: error: assert's message must be a string: got 'i32'

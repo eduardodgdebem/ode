@@ -230,6 +230,16 @@ parameters, no skipping, and no matchers beyond `assert` and `assertEq`.
 Each test runs in a child made with `fork`, so `ode test` runs on macOS and
 Linux but not Windows.
 
+### 6.8 The standard library is small
+
+`std/` has memory, a list, text, terminal I/O and whole files -- what the
+examples and tests needed first. There is no map or set, no formatting
+beyond `printf`, no time, no processes beyond `exit`, and no error values:
+a function that can fail returns null, false or a fallback, and one that
+must not -- an index out of range, running out of memory -- stops the
+program. A test cannot say that it expects to stop; such a test lives in
+`tests/unit/`, where its recorded failure is what is checked.
+
 ## 7. Codegen and runtime
 
 ### 7.1 No runtime checks

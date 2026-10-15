@@ -1,12 +1,9 @@
-// Heap-allocated nodes that point at their own type. This is the shape the
-// self-hosted compiler needs for its AST and symbol table: `sizeof` to size
-// an allocation, a pointer field for the link, and `.` following that pointer
-// without an explicit dereference.
+// Heap-allocated nodes that point at their own type: `alloc<Node>` to make
+// one, a pointer field for the link, and `.` following that pointer without
+// an explicit dereference.
 
-extern fn printf(format: *i8, ...): i32;
-
-extern fn malloc(size: i64): *i8;
-extern fn free(block: *i8): void;
+import { printf } from "std/c";
+import { alloc, release } from "std/mem";
 
 struct Node {
   value: i32,
@@ -14,7 +11,7 @@ struct Node {
 }
 
 fn makeNode(value: i32): *Node {
-  let node: *Node = malloc(sizeof(Node)) as *Node;
+  let node: *Node = alloc<Node>(1);
   node.value = value;
   node.next = null;
 
@@ -52,12 +49,12 @@ fn length(head: *Node): i32 {
   return count;
 }
 
-fn release(head: *Node): void {
+fn releaseAll(head: *Node): void {
   let current: *Node = head;
 
   while (current != null) {
     let next: *Node = current.next;
-    free(current as *i8);
+    release<Node>(current);
     current = next;
   }
 }
@@ -75,6 +72,6 @@ fn main(): i32 {
   printf("%d\n", list.next.value);
   printf("%d\n", list.next.next.value);
 
-  release(list);
+  releaseAll(list);
   return 0;
 }

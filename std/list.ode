@@ -1,0 +1,126 @@
+// ---------------------------------------------------------------------------
+// A growable list of T, kept behind a pointer so that every holder sees the
+// same one:
+//
+//   let names: *List<*i8> = List<*i8>.new();
+//   names.push("ada");
+//   for (index in 0..names.count) {
+//     printf("%s\n", names.at(index));
+//   }
+//
+// Reading or writing past the end stops the program rather than reaching
+// memory the list does not own.
+// ---------------------------------------------------------------------------
+
+import { alloc, grow, release } from "./mem";
+
+export struct List<T> {
+  items: *T,
+  count: i64,
+  capacity: i64,
+
+  fn new(): *List<T> {
+    return List<T>.withCapacity(8);
+  }
+
+  fn withCapacity(capacity: i64): *List<T> {
+    let list: *List<T> = alloc<List<T>>(1);
+    if (capacity < 1) {
+      capacity = 1;
+    }
+    list.items = alloc<T>(capacity);
+    list.count = 0;
+    list.capacity = capacity;
+    return list;
+  }
+
+  fn push(self: *List<T>, item: T): void {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = grow<T>(self.items, self.capacity);
+    }
+    self.items[self.count] = item;
+    self.count = self.count + 1;
+  }
+
+  fn at(self: *List<T>, index: i64): T {
+    assert(index >= 0 && index < self.count, "list index out of range");
+    return self.items[index];
+  }
+
+  fn set(self: *List<T>, index: i64, item: T): void {
+    assert(index >= 0 && index < self.count, "list index out of range");
+    self.items[index] = item;
+  }
+
+  fn last(self: *List<T>): T {
+    assert(self.count > 0, "last of an empty list");
+    return self.items[self.count - 1];
+  }
+
+  // Removes the last item and returns it.
+  fn pop(self: *List<T>): T {
+    assert(self.count > 0, "pop from an empty list");
+    self.count = self.count - 1;
+    return self.items[self.count];
+  }
+
+  // Drops every item past the first `count`.
+  fn truncate(self: *List<T>, count: i64): void {
+    if (count < self.count) {
+      self.count = count;
+    }
+  }
+
+  fn clear(self: *List<T>): void {
+    self.count = 0;
+  }
+
+  fn isEmpty(self: *List<T>): bool {
+    return self.count == 0;
+  }
+
+  // Frees the items and the list; neither may be used afterwards.
+  fn release(self: *List<T>): void {
+    release<T>(self.items);
+    release<List<T>>(self);
+  }
+}
+
+struct Point {
+  x: i32,
+  y: i32,
+}
+
+test "push grows past the first capacity" {
+  let numbers: *List<i64> = List<i64>.withCapacity(1);
+  for (index in 0..100) {
+    numbers.push(index as i64 * 3);
+  }
+  assertEq(numbers.count, 100);
+  assertEq(numbers.at(99), 297);
+  assertEq(numbers.last(), 297);
+}
+
+test "pop, set, truncate and clear" {
+  let numbers: *List<i32> = List<i32>.new();
+  numbers.push(1);
+  numbers.push(2);
+  numbers.push(3);
+  assertEq(numbers.pop(), 3);
+  numbers.set(0, 10);
+  assertEq(numbers.at(0), 10);
+  numbers.truncate(1);
+  assertEq(numbers.count, 1);
+  numbers.clear();
+  assert(numbers.isEmpty());
+  numbers.release();
+}
+
+test "a list holds structs" {
+  let points: *List<Point> = List<Point>.new();
+  points.push(Point { x: 1, y: 2 });
+  points.push(Point { x: 3, y: 4 });
+  assertEq(points.at(1).y, 4);
+}
+

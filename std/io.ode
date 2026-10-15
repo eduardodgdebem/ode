@@ -1,0 +1,80 @@
+// ---------------------------------------------------------------------------
+// Reading and writing the terminal.
+//
+//   println("what is your name?");
+//   let name: *i8 = readLine();
+//
+// Standard output goes through C's printf, so it interleaves correctly with
+// any printf the program makes itself; standard error is unbuffered.
+// ---------------------------------------------------------------------------
+
+import { printf, dprintf, getchar, fflush } from "./c";
+import { Builder } from "./text";
+import { writeFile, removeFile } from "./fs";
+
+export fn print(text: *i8): void {
+  printf("%s", text);
+}
+
+export fn println(text: *i8): void {
+  printf("%s\n", text);
+}
+
+export fn eprint(text: *i8): void {
+  dprintf(2, "%s", text);
+}
+
+export fn eprintln(text: *i8): void {
+  dprintf(2, "%s\n", text);
+}
+
+// Writes out anything printed so far that is still buffered.
+export fn flush(): void {
+  fflush(null);
+}
+
+// The next line of standard input, without its newline, or null once the
+// input has ended.
+export fn readLine(): *i8 {
+  let line: *Builder = Builder.new();
+  let character: i32 = getchar();
+  if (character < 0) {
+    return null;
+  }
+
+  while (character >= 0 && character != '\n') {
+    line.push(character as i8);
+    character = getchar();
+  }
+
+  return line.take();
+}
+
+extern fn open(path: *i8, flags: i32): i32;
+extern fn dup2(from: i32, to: i32): i32;
+extern fn close(fd: i32): i32;
+
+// Points standard input at a file holding `text`. Tests run in a process of
+// their own, so this lasts for the one test.
+fn feedInput(path: *i8, text: *i8): void {
+  writeFile(path, text);
+  let fd: i32 = open(path, 0);
+  dup2(fd, 0);
+  close(fd);
+}
+
+test "readLine splits lines and ends with null" {
+  feedInput("ode-std-io-input.txt", "first\n\nlast without newline");
+  assertEq(readLine(), "first");
+  assertEq(readLine(), "");
+  assertEq(readLine(), "last without newline");
+  assertEq(readLine(), null);
+  assertEq(readLine(), null);
+  removeFile("ode-std-io-input.txt");
+}
+
+test "readLine on empty input is null at once" {
+  feedInput("ode-std-io-empty.txt", "");
+  assertEq(readLine(), null);
+  removeFile("ode-std-io-empty.txt");
+}

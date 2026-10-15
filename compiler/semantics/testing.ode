@@ -14,6 +14,7 @@
 import { Buf, textEquals } from "../support/text";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
+import { isLibraryModule } from "./modules";
 import { Analyzer, analyzerFail2, gotType, gotTwoTypes } from "./analyzer";
 import { checkExpr, checkExprAs, isLiteralTree } from "./expressions";
 import { CallTarget } from "./functions";
@@ -109,6 +110,13 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
   }
 
   return Type.make(TypeKind.Void, 0);
+}
+
+// Whether `ode test` runs the tests written in `module`: those of the file
+// being tested and of the files it imports, but a standard library file's
+// only when it is the one being tested.
+export fn runsTestsOf(module: i32): bool {
+  return module == 0 || (!isLibraryModule(module) && !isLibraryModule(0));
 }
 
 // The module `ode test` adds to the program, once it has been loaded.

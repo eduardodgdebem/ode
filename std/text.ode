@@ -1,0 +1,252 @@
+// ---------------------------------------------------------------------------
+// Text: NUL-terminated `*i8` strings, the kind C passes around, and a
+// Builder for putting new ones together.
+//
+//   let out: *Builder = Builder.new();
+//   out.add("total: ");
+//   out.addInt(42);
+//   let line: *i8 = out.take();
+//
+// Functions that make a string return a new one the caller owns; none of
+// them change their arguments.
+// ---------------------------------------------------------------------------
+
+import { strlen, strcmp, strncmp, strstr, memcpy } from "./c";
+import { alloc, grow, release } from "./mem";
+
+export fn length(text: *i8): i64 {
+  return strlen(text);
+}
+
+export fn equals(a: *i8, b: *i8): bool {
+  return strcmp(a, b) == 0;
+}
+
+export fn startsWith(text: *i8, prefix: *i8): bool {
+  return strncmp(text, prefix, strlen(prefix)) == 0;
+}
+
+export fn endsWith(text: *i8, suffix: *i8): bool {
+  let textLength: i64 = strlen(text);
+  let suffixLength: i64 = strlen(suffix);
+  if (suffixLength > textLength) {
+    return false;
+  }
+  return strcmp(text + textLength - suffixLength, suffix) == 0;
+}
+
+// Where `part` first starts in `text`, or -1.
+export fn indexOf(text: *i8, part: *i8): i64 {
+  let found: *i8 = strstr(text, part);
+  if (found == null) {
+    return -1;
+  }
+  return found - text;
+}
+
+export fn contains(text: *i8, part: *i8): bool {
+  return strstr(text, part) != null;
+}
+
+// The `count` bytes of `text` from `start`, as a string of their own.
+export fn slice(text: *i8, start: i64, count: i64): *i8 {
+  assert(start >= 0 && count >= 0 && start + count <= strlen(text),
+         "slice out of range");
+  let out: *i8 = alloc<i8>(count + 1);
+  memcpy(out, text + start, count);
+  out[count] = '\0';
+  return out;
+}
+
+export fn copy(text: *i8): *i8 {
+  return slice(text, 0, strlen(text));
+}
+
+export fn fromInt(value: i64): *i8 {
+  let out: *Builder = Builder.new();
+  out.addInt(value);
+  return out.take();
+}
+
+// The decimal integer `text` holds, or `fallback` when it holds anything
+// else -- an empty string, a stray character, a value too wide for an i64.
+export fn parseInt(text: *i8, fallback: i64): i64 {
+  let index: i64 = 0;
+  let negative: bool = text[0] == '-';
+  if (negative || text[0] == '+') {
+    index = 1;
+  }
+  if (text[index] == '\0') {
+    return fallback;
+  }
+
+  // The magnitude, as a u64, may reach one past the largest i64 only when
+  // it is negative.
+  let limit: u64 = 9223372036854775807;
+  if (negative) {
+    limit = limit + 1;
+  }
+
+  let magnitude: u64 = 0;
+  while (text[index] != '\0') {
+    let digit: i8 = text[index];
+    if (digit < '0' || digit > '9') {
+      return fallback;
+    }
+    let value: u64 = (digit - '0') as u64;
+    if (magnitude > (limit - value) / 10) {
+      return fallback;
+    }
+    magnitude = magnitude * 10 + value;
+    index = index + 1;
+  }
+
+  if (negative) {
+    return (0 - magnitude) as i64;
+  }
+  return magnitude as i64;
+}
+
+export struct Builder {
+  data: *i8,
+  length: i64,
+  capacity: i64,
+
+  fn new(): *Builder {
+    let out: *Builder = alloc<Builder>(1);
+    out.capacity = 32;
+    out.data = alloc<i8>(out.capacity);
+    out.length = 0;
+    out.data[0] = '\0';
+    return out;
+  }
+
+  // Makes room for `extra` more bytes and the terminator.
+  fn reserve(self: *Builder, extra: i64): void {
+    if (self.length + extra + 1 <= self.capacity) {
+      return;
+    }
+    while (self.length + extra + 1 > self.capacity) {
+      self.capacity = self.capacity * 2;
+    }
+    self.data = grow<i8>(self.data, self.capacity);
+  }
+
+  fn addBytes(self: *Builder, bytes: *i8, count: i64): void {
+    self.reserve(count);
+    memcpy(self.data + self.length, bytes, count);
+    self.length = self.length + count;
+    self.data[self.length] = '\0';
+  }
+
+  fn add(self: *Builder, text: *i8): void {
+    self.addBytes(text, strlen(text));
+  }
+
+  fn push(self: *Builder, byte: i8): void {
+    self.reserve(1);
+    self.data[self.length] = byte;
+    self.length = self.length + 1;
+    self.data[self.length] = '\0';
+  }
+
+  fn addInt(self: *Builder, value: i64): void {
+    if (value == 0) {
+      self.push('0');
+      return;
+    }
+
+    // Worked out as a u64, which holds the magnitude of every i64 --
+    // including the most negative.
+    let rest: u64 = value as u64;
+    if (value < 0) {
+      self.push('-');
+      rest = 0 - rest;
+    }
+
+    let digits: *i8 = alloc<i8>(20);
+    let count: i64 = 0;
+    while (rest > 0) {
+      digits[count] = ('0' + rest % 10) as i8;
+      rest = rest / 10;
+      count = count + 1;
+    }
+    while (count > 0) {
+      count = count - 1;
+      self.push(digits[count]);
+    }
+    release<i8>(digits);
+  }
+
+  // The string built so far, which the caller now owns; the builder itself is
+  // freed.
+  fn take(self: *Builder): *i8 {
+    let text: *i8 = self.data;
+    release<Builder>(self);
+    return text;
+  }
+}
+
+test "comparisons" {
+  assert(equals("ode", "ode"));
+  assert(!equals("ode", "odes"));
+  assert(startsWith("compiler", "comp"));
+  assert(!startsWith("co", "comp"));
+  assert(endsWith("main.ode", ".ode"));
+  assert(!endsWith("ode", "main.ode"));
+  assertEq(indexOf("hello world", "world"), 6);
+  assertEq(indexOf("hello", "z"), -1);
+  assert(contains("hello", "ell"));
+}
+
+test "slices and copies are new strings" {
+  assertEq(slice("hello world", 6, 5), "world");
+  let original: *i8 = "abc";
+  let copied: *i8 = copy(original);
+  assertEq(copied, original);
+  assert(copied != original);
+}
+
+test "numbers to text and back" {
+  assertEq(fromInt(0), "0");
+  assertEq(fromInt(-42), "-42");
+  assertEq(fromInt(-9223372036854775807 - 1), "-9223372036854775808");
+  assertEq(parseInt("1234", -1), 1234);
+  assertEq(parseInt("-7", 0), -7);
+  assertEq(parseInt("+5", 0), 5);
+  assertEq(parseInt("9223372036854775807", 0), 9223372036854775807);
+  assertEq(parseInt("-9223372036854775808", 0), -9223372036854775807 - 1);
+}
+
+test "parseInt falls back on anything that is not a number" {
+  assertEq(parseInt("12a", -1), -1);
+  assertEq(parseInt("", -1), -1);
+  assertEq(parseInt("-", -1), -1);
+  assertEq(parseInt("+", -1), -1);
+  assertEq(parseInt(" 1", -1), -1);
+  assertEq(parseInt("1 ", -1), -1);
+  assertEq(parseInt("9223372036854775808", -1), -1);
+  assertEq(parseInt("-9223372036854775809", -1), -1);
+  assertEq(parseInt("99999999999999999999999", -1), -1);
+}
+
+test "comparisons that do not match" {
+  assert(!equals("", "a"));
+  assert(startsWith("anything", ""));
+  assert(endsWith("anything", ""));
+  assert(!endsWith("", "a"));
+  assertEq(indexOf("", "a"), -1);
+  assertEq(slice("abc", 3, 0), "");
+}
+
+test "a builder grows as text is added" {
+  let out: *Builder = Builder.new();
+  for (index in 0..100) {
+    out.add("ab");
+  }
+  out.push('!');
+  out.addInt(7);
+  assertEq(out.length, 202);
+  let text: *i8 = out.take();
+  assertEq(slice(text, 196, 6), "abab!7");
+}

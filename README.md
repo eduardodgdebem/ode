@@ -12,7 +12,7 @@ struct Counter {
   }
 }
 
-extern fn printf(format: *i8, ...): i32;
+import { printf } from "std/c";
 
 fn main(): i32 {
   let c: Counter = Counter { hits: 0 };
@@ -20,11 +20,17 @@ fn main(): i32 {
   printf("%d\n", c.hits);
   return 0;
 }
+
+test "bump counts" {
+  let c: Counter = Counter { hits: 0 };
+  c.bump();
+  assertEq(c.hits, 1);
+}
 ```
 
 The language has integers of every width, floats, pointers, structs with
 methods, generics, enums and `match`, functions as values, modules with `import` and `export`, tests written beside the code they
-test, and direct calls into C through `extern`. It has no garbage collector and no implicit conversions: what it compiles
+test, a small [standard library](docs/std.md), and direct calls into C through `extern`. It has no garbage collector and no implicit conversions: what it compiles
 to is close to what is written.
 
 ## Quick start
@@ -57,6 +63,7 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 
 - [The language](docs/language.md) -- a tour, feature by feature
 - [Grammar](docs/grammar.md) -- the syntax, in EBNF
+- [The standard library](docs/std.md) -- `std/...`: memory, lists, text, I/O, files
 - [Limitations](docs/limitations.md) -- what is missing, and what is left out on purpose
 - [Working on Ode](docs/development.md) -- building, testing, the bootstrap
 - [The compiler](docs/compiler.md) -- how it is put together
@@ -70,6 +77,7 @@ compiler/          the compiler, written in Ode; main.ode is its entry
   semantics/       types, symbols, modules, the type checker
   codegen/         the LLVM IR emitter, and the C toolchain that links it
   tool/            `ode build`: building, testing, bootstrapping
+std/               the standard library, imported as "std/..."
 bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite
