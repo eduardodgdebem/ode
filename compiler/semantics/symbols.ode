@@ -12,12 +12,14 @@ import { Buf, textEquals } from "../support/text";
 import { report } from "../support/diagnostics";
 import { Type } from "./types";
 
-export let SYM_VAR: i32 = 1;
-export let SYM_FN: i32 = 2;
+export enum SymbolKind {
+  Var,
+  Fn,
+}
 
 export struct Symbol {
   name: *i8,
-  kind: i32,
+  kind: SymbolKind,
   // For a function this is the return type.
   type: Type,
   params: *Type,
@@ -108,7 +110,7 @@ export struct SymbolTable {
     return -1;
   }
 
-  fn declare(self: *SymbolTable, name: *i8, kind: i32, type: Type,
+  fn declare(self: *SymbolTable, name: *i8, kind: SymbolKind, type: Type,
              params: *Type, paramCount: i32, line: i32,
              column: i32): void {
     if (self.findInScope(name) >= 0) {

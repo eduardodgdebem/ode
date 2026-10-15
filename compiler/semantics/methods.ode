@@ -13,9 +13,9 @@
 
 import { Buf, textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
-import { NO_NODE, NK_FN, NK_STRUCT, NK_IDENT } from "../syntax/ast";
-import { TY_NONE, TY_STRUCT, Type } from "./types";
-import { SYM_VAR } from "./symbols";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type } from "./types";
+import { SymbolKind } from "./symbols";
 import {
   Analyzer, analyzerFail, analyzerFail2, quoted, analyzerParseType,
   analyzerValidateType, analyzerParamTypes,
@@ -24,19 +24,26 @@ import { isLValue, checkExpr, checkArguments } from "./expressions";
 import { analyzeFunctionBody } from "./statements";
 
 // How a method call passes its receiver.
-export let RECV_NONE: i8 = 0 as i8;
-// As it is: a struct to a struct `self`, or a pointer to a pointer `self`.
-let RECV_PASS: i8 = 1 as i8;
-// The address of a struct, to a pointer `self`.
-export let RECV_ADDRESS: i8 = 2 as i8;
-// The struct a pointer points at, to a struct `self`.
-export let RECV_LOAD: i8 = 3 as i8;
+export enum ReceiverMode {
+  // There is none: the method was called on the struct's name.
+  None,
+  // As it is: a struct to a struct `self`, or a pointer to a pointer `self`.
+  Pass,
+  // The address of a struct, to a pointer `self`.
+  Address,
+  // The struct a pointer points at, to a struct `self`.
+  Load,
+}
+// How a method call passes its receiver.
 
-let SELF_NONE: i32 = 0;
-let SELF_VALUE: i32 = 1;
-let SELF_POINTER: i32 = 2;
-// A first parameter called `self` with some other type, already reported.
-let SELF_INVALID: i32 = 3;
+// What a method's first parameter makes of it.
+enum SelfKind {
+  None,
+  Value,
+  Pointer,
+  // A first parameter called `self` with some other type, already reported.
+  Invalid,
+}
 
 // The declaration of the struct whose IR name is `name`.
 fn structDeclOf(an: *Analyzer, name: *i8): i32 {
@@ -44,7 +51,7 @@ fn structDeclOf(an: *Analyzer, name: *i8): i32 {
 
   while (index < an.ast.nodes[an.program].itemCount) {
     let item: i32 = an.ast.nodes[an.program].items[index];
-    if (an.ast.nodes[item].kind == NK_STRUCT &&
+    if (an.ast.nodes[item].kind == NodeKind.Struct &&
         textEquals(an.ast.nodes[item].text, name)) {
       return item;
     }
@@ -61,7 +68,7 @@ fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
 
   while (index < an.ast.nodes[structNode].itemCount) {
     let item: i32 = an.ast.nodes[structNode].items[index];
-    if (an.ast.nodes[item].kind == NK_FN &&
+    if (an.ast.nodes[item].kind == NodeKind.Fn &&
         textEquals(an.ast.nodes[item].text, name)) {
       return item;
     }
@@ -81,36 +88,36 @@ fn methodName(an: *Analyzer, structNode: i32, method: i32): *i8 {
   return out.take();
 }
 
-fn methodSelf(an: *Analyzer, structNode: i32, method: i32): i32 {
+fn methodSelf(an: *Analyzer, structNode: i32, method: i32): SelfKind {
   let params: i32 = an.ast.nodes[method].b;
   if (params == NO_NODE || an.ast.nodes[params].itemCount == 0) {
-    return SELF_NONE;
+    return SelfKind.None;
   }
 
   let first: i32 = an.ast.nodes[params].items[0];
   if (!textEquals(an.ast.nodes[first].text, "self")) {
-    return SELF_NONE;
+    return SelfKind.None;
   }
 
   let type: Type = analyzerParseType(an, an.ast.nodes[first].a);
-  if (type.kind != TY_STRUCT ||
+  if (type.kind != TypeKind.Struct ||
       !textEquals(type.structName, an.ast.nodes[structNode].text)) {
-    return SELF_INVALID;
+    return SelfKind.Invalid;
   }
   if (type.pointerDepth == 0) {
-    return SELF_VALUE;
+    return SelfKind.Value;
   }
   if (type.pointerDepth == 1) {
-    return SELF_POINTER;
+    return SelfKind.Pointer;
   }
 
-  return SELF_INVALID;
+  return SelfKind.Invalid;
 }
 
 // Checks each method's signature, the way hoistSignature does a function's.
 // Methods are not symbols: they are found through the struct they belong to.
 export fn registerMethods(an: *Analyzer, node: i32): void {
-  if (an.ast.nodes[node].kind != NK_STRUCT) {
+  if (an.ast.nodes[node].kind != NodeKind.Struct) {
     return;
   }
 
@@ -118,7 +125,7 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
   while (index < an.ast.nodes[node].itemCount) {
     let method: i32 = an.ast.nodes[node].items[index];
 
-    if (an.ast.nodes[method].kind == NK_FN) {
+    if (an.ast.nodes[method].kind == NodeKind.Fn) {
       let name: *i8 = methodName(an, node, method);
 
       if (findMethod(an, node, an.ast.nodes[method].text) != method) {
@@ -140,7 +147,7 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
         param = param + 1;
       }
 
-      if (methodSelf(an, node, method) == SELF_INVALID) {
+      if (methodSelf(an, node, method) == SelfKind.Invalid) {
         let detail: *Buf = Buf.new();
         detail.add("it must be '");
         detail.add(an.ast.nodes[node].text);
@@ -165,7 +172,7 @@ export fn analyzeMethodBodies(an: *Analyzer, node: i32): void {
   while (index < an.ast.nodes[node].itemCount) {
     let method: i32 = an.ast.nodes[node].items[index];
 
-    if (an.ast.nodes[method].kind == NK_FN) {
+    if (an.ast.nodes[method].kind == NodeKind.Fn) {
       let depth: i32 = an.symbols.scopeCount;
       analyzeFunctionBody(an, method);
       an.symbols.truncateScopes(depth);
@@ -187,17 +194,17 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   // `Point.new(...)`: the receiver is a struct's name rather than a value. A
   // variable of the same name wins, as it would anywhere else a name is
   // read.
-  if (an.ast.nodes[object].kind == NK_IDENT &&
+  if (an.ast.nodes[object].kind == NodeKind.Ident &&
       an.structRefs[node] != null) {
     let symbol: i32 = an.symbols.find(an.ast.nodes[object].text);
-    if (symbol < 0 || an.symbols.items[symbol].kind != SYM_VAR) {
+    if (symbol < 0 || an.symbols.items[symbol].kind != SymbolKind.Var) {
       return checkStaticCall(an, node, structDeclOf(an, an.structRefs[node]));
     }
   }
 
   let objectType: Type = checkExpr(an, object);
   if (FAILED) {
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let structType: Type = objectType;
@@ -208,7 +215,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   if (!structType.isStruct()) {
     analyzerFail2(an, node, quoted("cannot call method ", name, ""),
                   quoted("", objectType.toText(), " is not a struct"));
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let structNode: i32 = structDeclOf(an, structType.structName);
@@ -225,41 +232,41 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
     message.add(name);
     message.push('\'');
     analyzerFail(an, node, message.data);
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let fullName: *i8 = methodName(an, structNode, method);
-  let self: i32 = methodSelf(an, structNode, method);
+  let self: SelfKind = methodSelf(an, structNode, method);
 
-  if (self == SELF_INVALID) {
-    return Type.make(TY_NONE, 0);
+  if (self == SelfKind.Invalid) {
+    return Type.make(TypeKind.None, 0);
   }
 
-  if (self == SELF_NONE) {
+  if (self == SelfKind.None) {
     let detail: *Buf = Buf.new();
     detail.add("call it on the struct instead: '");
     detail.add(fullName);
     detail.add("(...)'");
     analyzerFail2(an, node, quoted("", fullName, " has no 'self' parameter"),
                   detail.data);
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let receivesPointer: bool = objectType.isPointer();
 
-  if (self == SELF_POINTER && !receivesPointer) {
+  if (self == SelfKind.Pointer && !receivesPointer) {
     // `self` is the value's address, and a temporary has none to take.
     if (!isLValue(an, object)) {
       analyzerFail2(an, node,
                     quoted("cannot call ", fullName, " on a temporary value"),
                     "it takes 'self' by pointer, so store the value first");
-      return Type.make(TY_NONE, 0);
+      return Type.make(TypeKind.None, 0);
     }
-    an.receivers[node] = RECV_ADDRESS;
-  } else if (self == SELF_VALUE && receivesPointer) {
-    an.receivers[node] = RECV_LOAD;
+    an.receivers[node] = ReceiverMode.Address;
+  } else if (self == SelfKind.Value && receivesPointer) {
+    an.receivers[node] = ReceiverMode.Load;
   } else {
-    an.receivers[node] = RECV_PASS;
+    an.receivers[node] = ReceiverMode.Pass;
   }
 
   let paramCount: i32 = 0;
@@ -288,14 +295,14 @@ fn checkStaticCall(an: *Analyzer, node: i32, structNode: i32): Type {
     message.add(name);
     message.push('\'');
     analyzerFail(an, node, message.data);
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let paramCount: i32 = 0;
   let params: *Type = analyzerParamTypes(an, an.ast.nodes[method].b,
                                          &paramCount);
 
-  an.receivers[node] = RECV_NONE;
+  an.receivers[node] = ReceiverMode.None;
   checkArguments(an, node, methodName(an, structNode, method),
                  an.ast.nodes[node].b, params, paramCount);
   an.linkNames[node] = an.linkNames[method];

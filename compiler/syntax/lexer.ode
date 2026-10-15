@@ -8,17 +8,7 @@
 import { malloc, strlen } from "../support/libc";
 import { Buf, textEquals, textCopy, textSlice } from "../support/text";
 import { failAt } from "../support/diagnostics";
-import {
-  TK_NONE, TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE,
-  TK_LET, TK_IF, TK_ELSE, TK_FN, TK_EXTERN, TK_STRUCT, TK_SIZEOF, TK_RETURN,
-  TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT, TK_AS, TK_IMPORT, TK_EXPORT,
-  TK_NULL, TK_ENUM, TK_MATCH, TK_ASSIGN, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH,
-  TK_PERCENT, TK_NOT, TK_AMP, TK_PIPE, TK_CARET, TK_SHL, TK_SHR, TK_ANDAND,
-  TK_OROR, TK_EQ, TK_NE, TK_LT, TK_LE, TK_GT, TK_GE, TK_PLUS_ASSIGN,
-  TK_MINUS_ASSIGN, TK_STAR_ASSIGN, TK_SLASH_ASSIGN, TK_PERCENT_ASSIGN,
-  TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_LBRACKET, TK_RBRACKET, TK_DOT,
-  TK_SEMICOLON, TK_COMMA, TK_COLON, TK_ARROW, TokenList, kindName,
-} from "./token";
+import { TokenKind, TokenList, kindName } from "./token";
 
 struct Lexer {
   source: *i8,
@@ -125,7 +115,7 @@ struct Lexer {
 
     let count: i64 = self.pos - start;
     let text: *i8 = textSlice(self.source, start, count);
-    list.add(TK_NUMBER, text, count, line, column);
+    list.add(TokenKind.Number, text, count, line, column);
   }
 
   fn readString(self: *Lexer, list: *TokenList): void {
@@ -160,7 +150,7 @@ struct Lexer {
     }
 
     let count: i64 = text.length;
-    list.add(TK_STRING, text.take(), count, line, column);
+    list.add(TokenKind.String, text.take(), count, line, column);
   }
 
   fn readChar(self: *Lexer, list: *TokenList): void {
@@ -184,7 +174,7 @@ struct Lexer {
     self.advance();
 
     let count: i64 = text.length;
-    list.add(TK_CHAR, text.take(), count, line, column);
+    list.add(TokenKind.Char, text.take(), count, line, column);
   }
 
   // Two-character operators are tried before one-character ones, so `<=` never
@@ -194,24 +184,24 @@ struct Lexer {
     let column: i32 = self.column;
     let first: i8 = self.peek();
     let second: i8 = self.peekNext();
-    let kind: i32 = 0 - 1;
+    let kind: TokenKind = TokenKind.None;
 
-    if (first == '=' && second == '=') { kind = TK_EQ; }
-    else if (first == '=' && second == '>') { kind = TK_ARROW; }
-    else if (first == '!' && second == '=') { kind = TK_NE; }
-    else if (first == '<' && second == '=') { kind = TK_LE; }
-    else if (first == '>' && second == '=') { kind = TK_GE; }
-    else if (first == '&' && second == '&') { kind = TK_ANDAND; }
-    else if (first == '|' && second == '|') { kind = TK_OROR; }
-    else if (first == '<' && second == '<') { kind = TK_SHL; }
-    else if (first == '>' && second == '>') { kind = TK_SHR; }
-    else if (first == '+' && second == '=') { kind = TK_PLUS_ASSIGN; }
-    else if (first == '-' && second == '=') { kind = TK_MINUS_ASSIGN; }
-    else if (first == '*' && second == '=') { kind = TK_STAR_ASSIGN; }
-    else if (first == '/' && second == '=') { kind = TK_SLASH_ASSIGN; }
-    else if (first == '%' && second == '=') { kind = TK_PERCENT_ASSIGN; }
+    if (first == '=' && second == '=') { kind = TokenKind.Eq; }
+    else if (first == '=' && second == '>') { kind = TokenKind.Arrow; }
+    else if (first == '!' && second == '=') { kind = TokenKind.Ne; }
+    else if (first == '<' && second == '=') { kind = TokenKind.Le; }
+    else if (first == '>' && second == '=') { kind = TokenKind.Ge; }
+    else if (first == '&' && second == '&') { kind = TokenKind.AndAnd; }
+    else if (first == '|' && second == '|') { kind = TokenKind.OrOr; }
+    else if (first == '<' && second == '<') { kind = TokenKind.Shl; }
+    else if (first == '>' && second == '>') { kind = TokenKind.Shr; }
+    else if (first == '+' && second == '=') { kind = TokenKind.PlusAssign; }
+    else if (first == '-' && second == '=') { kind = TokenKind.MinusAssign; }
+    else if (first == '*' && second == '=') { kind = TokenKind.StarAssign; }
+    else if (first == '/' && second == '=') { kind = TokenKind.SlashAssign; }
+    else if (first == '%' && second == '=') { kind = TokenKind.PercentAssign; }
 
-    if (kind >= 0) {
+    if (kind != TokenKind.None) {
       self.advance();
       self.advance();
       list.add(kind, textCopy(kindName(kind)),
@@ -219,28 +209,28 @@ struct Lexer {
       return;
     }
 
-    if (first == '=') { kind = TK_ASSIGN; }
-    else if (first == '+') { kind = TK_PLUS; }
-    else if (first == '-') { kind = TK_MINUS; }
-    else if (first == '*') { kind = TK_STAR; }
-    else if (first == '/') { kind = TK_SLASH; }
-    else if (first == '%') { kind = TK_PERCENT; }
-    else if (first == '!') { kind = TK_NOT; }
-    else if (first == '&') { kind = TK_AMP; }
-    else if (first == '|') { kind = TK_PIPE; }
-    else if (first == '^') { kind = TK_CARET; }
-    else if (first == '<') { kind = TK_LT; }
-    else if (first == '>') { kind = TK_GT; }
-    else if (first == '(') { kind = TK_LPAREN; }
-    else if (first == ')') { kind = TK_RPAREN; }
-    else if (first == '{') { kind = TK_LBRACE; }
-    else if (first == '}') { kind = TK_RBRACE; }
-    else if (first == '[') { kind = TK_LBRACKET; }
-    else if (first == ']') { kind = TK_RBRACKET; }
-    else if (first == '.') { kind = TK_DOT; }
-    else if (first == ';') { kind = TK_SEMICOLON; }
-    else if (first == ',') { kind = TK_COMMA; }
-    else if (first == ':') { kind = TK_COLON; }
+    if (first == '=') { kind = TokenKind.Assign; }
+    else if (first == '+') { kind = TokenKind.Plus; }
+    else if (first == '-') { kind = TokenKind.Minus; }
+    else if (first == '*') { kind = TokenKind.Star; }
+    else if (first == '/') { kind = TokenKind.Slash; }
+    else if (first == '%') { kind = TokenKind.Percent; }
+    else if (first == '!') { kind = TokenKind.Not; }
+    else if (first == '&') { kind = TokenKind.Amp; }
+    else if (first == '|') { kind = TokenKind.Pipe; }
+    else if (first == '^') { kind = TokenKind.Caret; }
+    else if (first == '<') { kind = TokenKind.Lt; }
+    else if (first == '>') { kind = TokenKind.Gt; }
+    else if (first == '(') { kind = TokenKind.LParen; }
+    else if (first == ')') { kind = TokenKind.RParen; }
+    else if (first == '{') { kind = TokenKind.LBrace; }
+    else if (first == '}') { kind = TokenKind.RBrace; }
+    else if (first == '[') { kind = TokenKind.LBracket; }
+    else if (first == ']') { kind = TokenKind.RBracket; }
+    else if (first == '.') { kind = TokenKind.Dot; }
+    else if (first == ';') { kind = TokenKind.Semicolon; }
+    else if (first == ',') { kind = TokenKind.Comma; }
+    else if (first == ':') { kind = TokenKind.Colon; }
     else {
       failAt(line, column, "unexpected character");
     }
@@ -275,47 +265,47 @@ export fn isSpace(character: i8): bool {
          character == '\r';
 }
 
-fn keywordKind(text: *i8): i32 {
-  if (textEquals(text, "let")) { return TK_LET; }
-  if (textEquals(text, "if")) { return TK_IF; }
-  if (textEquals(text, "else")) { return TK_ELSE; }
-  if (textEquals(text, "fn")) { return TK_FN; }
-  if (textEquals(text, "extern")) { return TK_EXTERN; }
-  if (textEquals(text, "struct")) { return TK_STRUCT; }
-  if (textEquals(text, "sizeof")) { return TK_SIZEOF; }
-  if (textEquals(text, "return")) { return TK_RETURN; }
-  if (textEquals(text, "while")) { return TK_WHILE; }
-  if (textEquals(text, "break")) { return TK_BREAK; }
-  if (textEquals(text, "continue")) { return TK_CONTINUE; }
-  if (textEquals(text, "print")) { return TK_PRINT; }
-  if (textEquals(text, "as")) { return TK_AS; }
-  if (textEquals(text, "import")) { return TK_IMPORT; }
-  if (textEquals(text, "export")) { return TK_EXPORT; }
-  if (textEquals(text, "null")) { return TK_NULL; }
-  if (textEquals(text, "enum")) { return TK_ENUM; }
-  if (textEquals(text, "match")) { return TK_MATCH; }
+fn keywordKind(text: *i8): TokenKind {
+  if (textEquals(text, "let")) { return TokenKind.Let; }
+  if (textEquals(text, "if")) { return TokenKind.If; }
+  if (textEquals(text, "else")) { return TokenKind.Else; }
+  if (textEquals(text, "fn")) { return TokenKind.Fn; }
+  if (textEquals(text, "extern")) { return TokenKind.Extern; }
+  if (textEquals(text, "struct")) { return TokenKind.Struct; }
+  if (textEquals(text, "sizeof")) { return TokenKind.Sizeof; }
+  if (textEquals(text, "return")) { return TokenKind.Return; }
+  if (textEquals(text, "while")) { return TokenKind.While; }
+  if (textEquals(text, "break")) { return TokenKind.Break; }
+  if (textEquals(text, "continue")) { return TokenKind.Continue; }
+  if (textEquals(text, "print")) { return TokenKind.Print; }
+  if (textEquals(text, "as")) { return TokenKind.As; }
+  if (textEquals(text, "import")) { return TokenKind.Import; }
+  if (textEquals(text, "export")) { return TokenKind.Export; }
+  if (textEquals(text, "null")) { return TokenKind.Null; }
+  if (textEquals(text, "enum")) { return TokenKind.Enum; }
+  if (textEquals(text, "match")) { return TokenKind.Match; }
   // `from` is not a keyword: it only means anything after an import list, and
   // it is too useful a name to take away everywhere else.
-  if (textEquals(text, "true")) { return TK_BOOL; }
-  if (textEquals(text, "false")) { return TK_BOOL; }
+  if (textEquals(text, "true")) { return TokenKind.Bool; }
+  if (textEquals(text, "false")) { return TokenKind.Bool; }
 
   // Type names are their own kind rather than identifiers, which is what the
   // parser reads to tell `let x: i32` from `let x: Point`.
-  if (textEquals(text, "i8")) { return TK_TYPE; }
-  if (textEquals(text, "u8")) { return TK_TYPE; }
-  if (textEquals(text, "i16")) { return TK_TYPE; }
-  if (textEquals(text, "u16")) { return TK_TYPE; }
-  if (textEquals(text, "i32")) { return TK_TYPE; }
-  if (textEquals(text, "u32")) { return TK_TYPE; }
-  if (textEquals(text, "i64")) { return TK_TYPE; }
-  if (textEquals(text, "u64")) { return TK_TYPE; }
-  if (textEquals(text, "usize")) { return TK_TYPE; }
-  if (textEquals(text, "f32")) { return TK_TYPE; }
-  if (textEquals(text, "f64")) { return TK_TYPE; }
-  if (textEquals(text, "bool")) { return TK_TYPE; }
-  if (textEquals(text, "void")) { return TK_TYPE; }
+  if (textEquals(text, "i8")) { return TokenKind.Type; }
+  if (textEquals(text, "u8")) { return TokenKind.Type; }
+  if (textEquals(text, "i16")) { return TokenKind.Type; }
+  if (textEquals(text, "u16")) { return TokenKind.Type; }
+  if (textEquals(text, "i32")) { return TokenKind.Type; }
+  if (textEquals(text, "u32")) { return TokenKind.Type; }
+  if (textEquals(text, "i64")) { return TokenKind.Type; }
+  if (textEquals(text, "u64")) { return TokenKind.Type; }
+  if (textEquals(text, "usize")) { return TokenKind.Type; }
+  if (textEquals(text, "f32")) { return TokenKind.Type; }
+  if (textEquals(text, "f64")) { return TokenKind.Type; }
+  if (textEquals(text, "bool")) { return TokenKind.Type; }
+  if (textEquals(text, "void")) { return TokenKind.Type; }
 
-  return TK_IDENT;
+  return TokenKind.Ident;
 }
 
 // Decodes the character after a backslash: no \xNN and no unicode yet.
@@ -336,21 +326,24 @@ fn escapeValue(character: i8, line: i32, column: i32): i8 {
 // end an expression, which is what makes `print(-17 % 5)` one negative number
 // and `x = 5 - 3` a subtraction. Note that `=` is absent from the set, so
 // `let c: i32 = --5;` is a negation of `-5`.
-fn foldsNegative(lastKind: i32): bool {
-  if (lastKind == TK_NONE) {
+fn foldsNegative(lastKind: TokenKind): bool {
+  if (lastKind == TokenKind.None) {
     return true;
   }
 
-  if (lastKind == TK_EQ || lastKind == TK_NE) { return true; }
-  if (lastKind == TK_LT || lastKind == TK_LE) { return true; }
-  if (lastKind == TK_GT || lastKind == TK_GE) { return true; }
-  if (lastKind == TK_PLUS || lastKind == TK_MINUS) { return true; }
-  if (lastKind == TK_STAR || lastKind == TK_SLASH) { return true; }
-  if (lastKind == TK_ANDAND || lastKind == TK_OROR) { return true; }
-  if (lastKind == TK_LPAREN || lastKind == TK_LBRACE) { return true; }
-  if (lastKind == TK_COMMA || lastKind == TK_COLON) { return true; }
+  match (lastKind) {
+    TokenKind.Eq, TokenKind.Ne => { return true; }
+    TokenKind.Lt, TokenKind.Le => { return true; }
+    TokenKind.Gt, TokenKind.Ge => { return true; }
+    TokenKind.Plus, TokenKind.Minus => { return true; }
+    TokenKind.Star, TokenKind.Slash => { return true; }
+    TokenKind.AndAnd, TokenKind.OrOr => { return true; }
+    TokenKind.LParen, TokenKind.LBrace => { return true; }
+    TokenKind.Comma, TokenKind.Colon => { return true; }
+    else => {}
+  }
 
-  return lastKind == TK_RETURN;
+  return lastKind == TokenKind.Return;
 }
 
 export fn tokenize(source: *i8): *TokenList {
@@ -358,7 +351,7 @@ export fn tokenize(source: *i8): *TokenList {
   let list: *TokenList = TokenList.new();
   // What the negative-literal rule reads to decide whether a `-` starts a
   // number or is an operator.
-  let lastKind: i32 = TK_NONE;
+  let lastKind: TokenKind = TokenKind.None;
 
   while (true) {
     lexer.skipTrivia();
@@ -388,7 +381,7 @@ export fn tokenize(source: *i8): *TokenList {
 
   // The end token carries no position, so a diagnostic about running out of
   // input names the file rather than pointing past its last line.
-  list.add(TK_END, textCopy(""), 0 as i64, 0, 0);
+  list.add(TokenKind.End, textCopy(""), 0 as i64, 0, 0);
 
   return list;
 }

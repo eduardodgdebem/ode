@@ -88,10 +88,13 @@ export struct TextList {
 // ---------------------------------------------------------------------------
 
 // What happens to a child's stderr.
-export let STDERR_INHERIT: i32 = 0;
-// Collected with its stdout, in the order the two were written.
-export let STDERR_MERGE: i32 = 1;
-export let STDERR_DISCARD: i32 = 2;
+export enum StderrMode {
+  Inherit,
+  // Collected with its stdout, in the order the two were written.
+  Merge,
+  Discard,
+}
+// What happens to a child's stderr.
 
 // Runs `command` and returns its exit status, or -1 if it could not be run
 // or died on a signal.
@@ -100,7 +103,7 @@ export let STDERR_DISCARD: i32 = 2;
 // the child's stdout is collected into it instead of going to ours, and so is
 // its stderr under STDERR_MERGE.
 export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
-                     stderrMode: i32): i32 {
+                     stderrMode: StderrMode): i32 {
   let capturing: bool = out != null;
   let fds: *i32 = malloc(sizeof(i32) as i64 * 2 as i64) as *i32;
   if (capturing) {
@@ -108,7 +111,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
   }
 
   let devNull: *i8 = null;
-  if (stderrMode == STDERR_DISCARD) {
+  if (stderrMode == StderrMode.Discard) {
     devNull = fopen("/dev/null", "w");
   }
 
@@ -118,7 +121,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Buf,
   if (pid == 0) {
     if (capturing) {
       dup2(fds[1], 1);
-      if (stderrMode == STDERR_MERGE) {
+      if (stderrMode == StderrMode.Merge) {
         dup2(fds[1], 2);
       }
       close(fds[0]);
@@ -346,14 +349,14 @@ export fn makeDirectories(path: *i8): bool {
 
 export fn removeTree(path: *i8): void {
   runCommand(TextList.new().add("rm").add("-rf").add(path), null,
-             null, STDERR_INHERIT);
+             null, StderrMode.Inherit);
 }
 
 // Copies what is inside `from` into `to`, which must exist.
 export fn copyTree(from: *i8, to: *i8): bool {
   let contents: *i8 = joinPath(from, ".");
   return runCommand(TextList.new().add("cp").add("-R").add(contents).add(to),
-                    null, null, STDERR_INHERIT) == 0;
+                    null, null, StderrMode.Inherit) == 0;
 }
 
 export fn moveFile(from: *i8, to: *i8): bool {
@@ -364,7 +367,7 @@ export fn moveFile(from: *i8, to: *i8): bool {
 export fn listDirectory(path: *i8): *TextList {
   let output: *Buf = Buf.new();
   runCommand(TextList.new().add("ls").add("-1").add(path), null, output,
-             STDERR_DISCARD);
+             StderrMode.Discard);
 
   return splitLines(output);
 }

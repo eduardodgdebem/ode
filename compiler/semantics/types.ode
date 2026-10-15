@@ -11,46 +11,49 @@
 import { malloc, realloc } from "../support/libc";
 import { Buf, textEquals } from "../support/text";
 
+export enum TypeKind {
+  // Not a type: what an expression the analyzer could not type is given.
+  None,
+  I8,
+  U8,
+  I16,
+  U16,
+  I32,
+  U32,
+  I64,
+  U64,
+  F32,
+  F64,
+  Bool,
+  Void,
+  Struct,
+  // The type of `null`, which every pointer type accepts and nothing else does.
+  Null,
+  // An enum, named like a struct. Its values are i32 underneath.
+  Enum,
+}
 // Not a type: the entry for a node that is not an expression.
-export let TY_NONE: i32 = 0;
 
-export let TY_I8: i32 = 1;
-export let TY_U8: i32 = 2;
-export let TY_I16: i32 = 3;
-export let TY_U16: i32 = 4;
-export let TY_I32: i32 = 5;
-export let TY_U32: i32 = 6;
-export let TY_I64: i32 = 7;
-export let TY_U64: i32 = 8;
-export let TY_F32: i32 = 9;
-export let TY_F64: i32 = 10;
-export let TY_BOOL: i32 = 11;
-export let TY_VOID: i32 = 12;
-export let TY_STRUCT: i32 = 13;
-// The type of `null`, which every pointer type accepts and nothing else does.
-export let TY_NULL: i32 = 14;
-// An enum, named like a struct. Its values are i32 underneath.
-export let TY_ENUM: i32 = 15;
 
 let MAX_U64: u64 = 18446744073709551615 as u64;
 
 export struct Type {
-  kind: i32,
+  kind: TypeKind,
   pointerDepth: i32,
   // Only meaningful when kind is TY_STRUCT.
   structName: *i8,
 
-  fn make(kind: i32, pointerDepth: i32): Type {
+  fn make(kind: TypeKind, pointerDepth: i32): Type {
     return Type { kind: kind, pointerDepth: pointerDepth,
                   structName: null };
   }
 
   fn ofStruct(name: *i8, pointerDepth: i32): Type {
-    return Type { kind: TY_STRUCT, pointerDepth: pointerDepth,
+    return Type { kind: TypeKind.Struct, pointerDepth: pointerDepth,
                   structName: name };
   }
   fn ofEnum(name: *i8, pointerDepth: i32): Type {
-    return Type { kind: TY_ENUM, pointerDepth: pointerDepth,
+    return Type { kind: TypeKind.Enum, pointerDepth: pointerDepth,
                   structName: name };
   }
 
@@ -59,11 +62,11 @@ export struct Type {
   }
 
   fn isEnum(self: Type): bool {
-    return self.kind == TY_ENUM && self.pointerDepth == 0;
+    return self.kind == TypeKind.Enum && self.pointerDepth == 0;
   }
 
   fn isNull(self: Type): bool {
-    return self.kind == TY_NULL && self.pointerDepth == 0;
+    return self.kind == TypeKind.Null && self.pointerDepth == 0;
   }
 
   // Whether a value of type `value` can be stored where `self` is expected.
@@ -78,15 +81,15 @@ export struct Type {
   }
 
   fn isStruct(self: Type): bool {
-    return !self.isPointer() && self.kind == TY_STRUCT;
+    return !self.isPointer() && self.kind == TypeKind.Struct;
   }
 
   fn isVoid(self: Type): bool {
-    return !self.isPointer() && self.kind == TY_VOID;
+    return !self.isPointer() && self.kind == TypeKind.Void;
   }
 
   fn isBool(self: Type): bool {
-    return !self.isPointer() && self.kind == TY_BOOL;
+    return !self.isPointer() && self.kind == TypeKind.Bool;
   }
 
   fn isInteger(self: Type): bool {
@@ -94,7 +97,16 @@ export struct Type {
       return false;
     }
 
-    return self.kind >= TY_I8 && self.kind <= TY_U64;
+    match (self.kind) {
+      TypeKind.I8, TypeKind.U8, TypeKind.I16, TypeKind.U16, TypeKind.I32,
+      TypeKind.U32, TypeKind.I64, TypeKind.U64 => {
+        return true;
+      }
+      else => {
+        return false;
+      }
+    }
+    return false;
   }
 
   fn isFloat(self: Type): bool {
@@ -102,7 +114,7 @@ export struct Type {
       return false;
     }
 
-    return self.kind == TY_F32 || self.kind == TY_F64;
+    return self.kind == TypeKind.F32 || self.kind == TypeKind.F64;
   }
 
   fn isNumeric(self: Type): bool {
@@ -116,22 +128,25 @@ export struct Type {
       return false;
     }
 
-    if (self.kind == TY_U8 || self.kind == TY_U16) {
+    if (self.kind == TypeKind.U8 || self.kind == TypeKind.U16) {
       return false;
     }
 
-    return self.kind != TY_U32 && self.kind != TY_U64;
+    return self.kind != TypeKind.U32 && self.kind != TypeKind.U64;
   }
 
   // Zero for anything without a width of its own: bool, void, structs.
   fn bitWidth(self: Type): i32 {
-    if (self.kind == TY_I8 || self.kind == TY_U8) { return 8; }
-    if (self.kind == TY_I16 || self.kind == TY_U16) { return 16; }
-    if (self.kind == TY_I32 || self.kind == TY_U32) { return 32; }
-    if (self.kind == TY_ENUM) { return 32; }
-    if (self.kind == TY_F32) { return 32; }
-    if (self.kind == TY_I64 || self.kind == TY_U64) { return 64; }
-    if (self.kind == TY_F64) { return 64; }
+    match (self.kind) {
+      TypeKind.I8, TypeKind.U8 => { return 8; }
+      TypeKind.I16, TypeKind.U16 => { return 16; }
+      TypeKind.I32, TypeKind.U32 => { return 32; }
+      TypeKind.Enum => { return 32; }
+      TypeKind.F32 => { return 32; }
+      TypeKind.I64, TypeKind.U64 => { return 64; }
+      TypeKind.F64 => { return 64; }
+      else => {}
+    }
 
     return 0;
   }
@@ -153,7 +168,7 @@ export struct Type {
 
     // Only a struct or an enum has a name, and two of them are the same type
     // only when they are the same declaration.
-    if (self.kind != TY_STRUCT && self.kind != TY_ENUM) {
+    if (self.kind != TypeKind.Struct && self.kind != TypeKind.Enum) {
       return true;
     }
 
@@ -161,21 +176,24 @@ export struct Type {
   }
 
   fn baseName(self: Type): *i8 {
-    if (self.kind == TY_I8) { return "i8"; }
-    if (self.kind == TY_U8) { return "u8"; }
-    if (self.kind == TY_I16) { return "i16"; }
-    if (self.kind == TY_U16) { return "u16"; }
-    if (self.kind == TY_I32) { return "i32"; }
-    if (self.kind == TY_U32) { return "u32"; }
-    if (self.kind == TY_I64) { return "i64"; }
-    if (self.kind == TY_U64) { return "u64"; }
-    if (self.kind == TY_F32) { return "f32"; }
-    if (self.kind == TY_F64) { return "f64"; }
-    if (self.kind == TY_BOOL) { return "bool"; }
-    if (self.kind == TY_VOID) { return "void"; }
-    if (self.kind == TY_STRUCT) { return self.structName; }
-    if (self.kind == TY_NULL) { return "null"; }
-    if (self.kind == TY_ENUM) { return self.structName; }
+    match (self.kind) {
+      TypeKind.I8 => { return "i8"; }
+      TypeKind.U8 => { return "u8"; }
+      TypeKind.I16 => { return "i16"; }
+      TypeKind.U16 => { return "u16"; }
+      TypeKind.I32 => { return "i32"; }
+      TypeKind.U32 => { return "u32"; }
+      TypeKind.I64 => { return "i64"; }
+      TypeKind.U64 => { return "u64"; }
+      TypeKind.F32 => { return "f32"; }
+      TypeKind.F64 => { return "f64"; }
+      TypeKind.Bool => { return "bool"; }
+      TypeKind.Void => { return "void"; }
+      TypeKind.Struct => { return self.structName; }
+      TypeKind.Null => { return "null"; }
+      TypeKind.Enum => { return self.structName; }
+      else => {}
+    }
 
     return "unknown";
   }
@@ -197,22 +215,22 @@ export struct Type {
 
 // Returns TY_NONE when the name is not a built-in type keyword. `usize` is a
 // second spelling of u64.
-export fn typeKindFromName(name: *i8): i32 {
-  if (textEquals(name, "i8")) { return TY_I8; }
-  if (textEquals(name, "u8")) { return TY_U8; }
-  if (textEquals(name, "i16")) { return TY_I16; }
-  if (textEquals(name, "u16")) { return TY_U16; }
-  if (textEquals(name, "i32")) { return TY_I32; }
-  if (textEquals(name, "u32")) { return TY_U32; }
-  if (textEquals(name, "i64")) { return TY_I64; }
-  if (textEquals(name, "u64")) { return TY_U64; }
-  if (textEquals(name, "usize")) { return TY_U64; }
-  if (textEquals(name, "f32")) { return TY_F32; }
-  if (textEquals(name, "f64")) { return TY_F64; }
-  if (textEquals(name, "bool")) { return TY_BOOL; }
-  if (textEquals(name, "void")) { return TY_VOID; }
+export fn typeKindFromName(name: *i8): TypeKind {
+  if (textEquals(name, "i8")) { return TypeKind.I8; }
+  if (textEquals(name, "u8")) { return TypeKind.U8; }
+  if (textEquals(name, "i16")) { return TypeKind.I16; }
+  if (textEquals(name, "u16")) { return TypeKind.U16; }
+  if (textEquals(name, "i32")) { return TypeKind.I32; }
+  if (textEquals(name, "u32")) { return TypeKind.U32; }
+  if (textEquals(name, "i64")) { return TypeKind.I64; }
+  if (textEquals(name, "u64")) { return TypeKind.U64; }
+  if (textEquals(name, "usize")) { return TypeKind.U64; }
+  if (textEquals(name, "f32")) { return TypeKind.F32; }
+  if (textEquals(name, "f64")) { return TypeKind.F64; }
+  if (textEquals(name, "bool")) { return TypeKind.Bool; }
+  if (textEquals(name, "void")) { return TypeKind.Void; }
 
-  return TY_NONE;
+  return TypeKind.None;
 }
 
 // ---------------------------------------------------------------------------

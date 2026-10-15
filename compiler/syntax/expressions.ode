@@ -8,18 +8,8 @@
 // ---------------------------------------------------------------------------
 
 import { FAILED } from "../support/diagnostics";
-import {
-  TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_SIZEOF, TK_AS,
-  TK_NULL, TK_PLUS, TK_MINUS, TK_STAR, TK_SLASH, TK_PERCENT, TK_NOT, TK_AMP,
-  TK_PIPE, TK_CARET, TK_SHL, TK_SHR, TK_ANDAND, TK_OROR, TK_EQ, TK_NE, TK_LT,
-  TK_LE, TK_GT, TK_GE, TK_LPAREN, TK_RPAREN, TK_LBRACE, TK_RBRACE, TK_LBRACKET,
-  TK_RBRACKET, TK_DOT, TK_COMMA, TK_COLON, Token,
-} from "./token";
-import {
-  NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
-  NK_STRUCTLIT, NK_FINIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL,
-  NK_IDENT, NK_ARGS, NK_METHODCALL, NK_NULL,
-} from "./ast";
+import { TokenKind, Token } from "./token";
+import { NodeKind } from "./ast";
 import { Parser, parseType } from "./parser";
 
 export fn parseExpr(parser: *Parser): i32 {
@@ -31,7 +21,7 @@ export fn parseExpr(parser: *Parser): i32 {
 // operators. `isLevelOp` is what distinguishes them.
 fn parseBinaryNode(parser: *Parser, left: i32, right: i32,
                    op: *Token): i32 {
-  let node: i32 = parser.ast.add(NK_BINARY, op.line, op.column);
+  let node: i32 = parser.ast.add(NodeKind.Binary, op.line, op.column);
   parser.ast.setText(node, op);
   parser.ast.nodes[node].a = left;
   parser.ast.nodes[node].b = right;
@@ -42,7 +32,7 @@ fn parseBinaryNode(parser: *Parser, left: i32, right: i32,
 fn parseLogicOr(parser: *Parser): i32 {
   let left: i32 = parseLogicAnd(parser);
 
-  while (parser.kind() == TK_OROR) {
+  while (parser.kind() == TokenKind.OrOr) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseLogicAnd(parser);
@@ -55,7 +45,7 @@ fn parseLogicOr(parser: *Parser): i32 {
 fn parseLogicAnd(parser: *Parser): i32 {
   let left: i32 = parseBitOr(parser);
 
-  while (parser.kind() == TK_ANDAND) {
+  while (parser.kind() == TokenKind.AndAnd) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseBitOr(parser);
@@ -68,7 +58,7 @@ fn parseLogicAnd(parser: *Parser): i32 {
 fn parseBitOr(parser: *Parser): i32 {
   let left: i32 = parseBitXor(parser);
 
-  while (parser.kind() == TK_PIPE) {
+  while (parser.kind() == TokenKind.Pipe) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseBitXor(parser);
@@ -81,7 +71,7 @@ fn parseBitOr(parser: *Parser): i32 {
 fn parseBitXor(parser: *Parser): i32 {
   let left: i32 = parseBitAnd(parser);
 
-  while (parser.kind() == TK_CARET) {
+  while (parser.kind() == TokenKind.Caret) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseBitAnd(parser);
@@ -96,7 +86,7 @@ fn parseBitXor(parser: *Parser): i32 {
 fn parseBitAnd(parser: *Parser): i32 {
   let left: i32 = parseEquality(parser);
 
-  while (parser.kind() == TK_AMP) {
+  while (parser.kind() == TokenKind.Amp) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseEquality(parser);
@@ -109,7 +99,7 @@ fn parseBitAnd(parser: *Parser): i32 {
 fn parseEquality(parser: *Parser): i32 {
   let left: i32 = parseComparison(parser);
 
-  while (parser.kind() == TK_EQ || parser.kind() == TK_NE) {
+  while (parser.kind() == TokenKind.Eq || parser.kind() == TokenKind.Ne) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseComparison(parser);
@@ -122,8 +112,8 @@ fn parseEquality(parser: *Parser): i32 {
 fn parseComparison(parser: *Parser): i32 {
   let left: i32 = parseShift(parser);
 
-  while (parser.kind() == TK_GT || parser.kind() == TK_GE ||
-         parser.kind() == TK_LT || parser.kind() == TK_LE) {
+  while (parser.kind() == TokenKind.Gt || parser.kind() == TokenKind.Ge ||
+         parser.kind() == TokenKind.Lt || parser.kind() == TokenKind.Le) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseShift(parser);
@@ -136,7 +126,7 @@ fn parseComparison(parser: *Parser): i32 {
 fn parseShift(parser: *Parser): i32 {
   let left: i32 = parseTerm(parser);
 
-  while (parser.kind() == TK_SHL || parser.kind() == TK_SHR) {
+  while (parser.kind() == TokenKind.Shl || parser.kind() == TokenKind.Shr) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseTerm(parser);
@@ -149,7 +139,7 @@ fn parseShift(parser: *Parser): i32 {
 fn parseTerm(parser: *Parser): i32 {
   let left: i32 = parseFactor(parser);
 
-  while (parser.kind() == TK_PLUS || parser.kind() == TK_MINUS) {
+  while (parser.kind() == TokenKind.Plus || parser.kind() == TokenKind.Minus) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseFactor(parser);
@@ -162,8 +152,8 @@ fn parseTerm(parser: *Parser): i32 {
 fn parseFactor(parser: *Parser): i32 {
   let left: i32 = parseCast(parser);
 
-  while (parser.kind() == TK_STAR || parser.kind() == TK_SLASH ||
-         parser.kind() == TK_PERCENT) {
+  while (parser.kind() == TokenKind.Star || parser.kind() == TokenKind.Slash ||
+         parser.kind() == TokenKind.Percent) {
     let op: *Token = parser.current();
     parser.advance();
     let right: i32 = parseCast(parser);
@@ -178,14 +168,14 @@ fn parseFactor(parser: *Parser): i32 {
 fn parseCast(parser: *Parser): i32 {
   let expr: i32 = parseUnary(parser);
 
-  while (parser.kind() == TK_AS) {
+  while (parser.kind() == TokenKind.As) {
     let op: *Token = parser.current();
     let line: i32 = op.line;
     let column: i32 = op.column;
     parser.advance();
 
     let type: i32 = parseType(parser);
-    let node: i32 = parser.ast.add(NK_CAST, line, column);
+    let node: i32 = parser.ast.add(NodeKind.Cast, line, column);
     parser.ast.nodes[node].a = expr;
     parser.ast.nodes[node].b = type;
     expr = node;
@@ -198,17 +188,17 @@ fn parseCast(parser: *Parser): i32 {
 // `+` does nothing but is kept as a node so the analyzer can still reject a
 // non-numeric operand.
 fn parseUnary(parser: *Parser): i32 {
-  let kind: i32 = parser.kind();
+  let kind: TokenKind = parser.kind();
 
-  if (kind == TK_MINUS || kind == TK_PLUS || kind == TK_NOT ||
-      kind == TK_STAR || kind == TK_AMP) {
+  if (kind == TokenKind.Minus || kind == TokenKind.Plus || kind == TokenKind.Not ||
+      kind == TokenKind.Star || kind == TokenKind.Amp) {
     let op: *Token = parser.current();
     let line: i32 = op.line;
     let column: i32 = op.column;
     parser.advance();
 
     let operand: i32 = parseUnary(parser);
-    let node: i32 = parser.ast.add(NK_UNARY, line, column);
+    let node: i32 = parser.ast.add(NodeKind.Unary, line, column);
     parser.ast.setText(node, op);
     parser.ast.nodes[node].a = operand;
 
@@ -224,13 +214,13 @@ fn parsePostfix(parser: *Parser): i32 {
   let expr: i32 = parsePrimary(parser);
 
   while (true) {
-    if (parser.kind() == TK_DOT) {
+    if (parser.kind() == TokenKind.Dot) {
       let dot: *Token = parser.current();
       let line: i32 = dot.line;
       let column: i32 = dot.column;
       parser.advance();
 
-      let field: *Token = parser.expect(TK_IDENT, "field name");
+      let field: *Token = parser.expect(TokenKind.Ident, "field name");
       if (FAILED) {
         return expr;
       }
@@ -239,15 +229,15 @@ fn parsePostfix(parser: *Parser): i32 {
       // receiver may also be a struct's name, for `Point.new(...)`; which of
       // the two it is waits for the analyzer, since only it knows whether the
       // name is a variable.
-      if (parser.kind() == TK_LPAREN) {
+      if (parser.kind() == TokenKind.LParen) {
         parser.advance();
         let args: i32 = parseArgList(parser);
-        parser.expect(TK_RPAREN, ")");
+        parser.expect(TokenKind.RParen, ")");
         if (FAILED) {
           return expr;
         }
 
-        let call: i32 = parser.ast.add(NK_METHODCALL, line, column);
+        let call: i32 = parser.ast.add(NodeKind.MethodCall, line, column);
         parser.ast.setText(call, field);
         parser.ast.nodes[call].a = expr;
         parser.ast.nodes[call].b = args;
@@ -255,26 +245,26 @@ fn parsePostfix(parser: *Parser): i32 {
         continue;
       }
 
-      let node: i32 = parser.ast.add(NK_FIELDACCESS, line, column);
+      let node: i32 = parser.ast.add(NodeKind.FieldAccess, line, column);
       parser.ast.setText(node, field);
       parser.ast.nodes[node].a = expr;
       expr = node;
       continue;
     }
 
-    if (parser.kind() == TK_LBRACKET) {
+    if (parser.kind() == TokenKind.LBracket) {
       let bracket: *Token = parser.current();
       let line: i32 = bracket.line;
       let column: i32 = bracket.column;
       parser.advance();
 
       let index: i32 = parseExpr(parser);
-      parser.expect(TK_RBRACKET, "]");
+      parser.expect(TokenKind.RBracket, "]");
       if (FAILED) {
         return expr;
       }
 
-      let node: i32 = parser.ast.add(NK_INDEX, line, column);
+      let node: i32 = parser.ast.add(NodeKind.Index, line, column);
       parser.ast.nodes[node].a = expr;
       parser.ast.nodes[node].b = index;
       expr = node;
@@ -287,7 +277,7 @@ fn parsePostfix(parser: *Parser): i32 {
   return expr;
 }
 
-fn parseLiteral(parser: *Parser, kind: i32): i32 {
+fn parseLiteral(parser: *Parser, kind: NodeKind): i32 {
   let token: *Token = parser.current();
   let node: i32 = parser.ast.add(kind, token.line, token.column);
   parser.ast.setText(node, token);
@@ -297,32 +287,35 @@ fn parseLiteral(parser: *Parser, kind: i32): i32 {
 }
 
 fn parsePrimary(parser: *Parser): i32 {
-  let kind: i32 = parser.kind();
+  let kind: TokenKind = parser.kind();
 
-  if (kind == TK_LPAREN) {
+  if (kind == TokenKind.LParen) {
     parser.advance();
     let expr: i32 = parseExpr(parser);
-    parser.expect(TK_RPAREN, ")");
+    parser.expect(TokenKind.RParen, ")");
     return expr;
   }
 
-  if (kind == TK_NUMBER) { return parseLiteral(parser, NK_NUMBER); }
-  if (kind == TK_BOOL) { return parseLiteral(parser, NK_BOOL); }
-  if (kind == TK_STRING) { return parseLiteral(parser, NK_STRING); }
-  if (kind == TK_CHAR) { return parseLiteral(parser, NK_CHAR); }
-  if (kind == TK_SIZEOF) { return parseSizeOf(parser); }
-  if (kind == TK_NULL) { return parseLiteral(parser, NK_NULL); }
+  match (kind) {
+    TokenKind.Number => { return parseLiteral(parser, NodeKind.Number); }
+    TokenKind.Bool => { return parseLiteral(parser, NodeKind.Bool); }
+    TokenKind.String => { return parseLiteral(parser, NodeKind.String); }
+    TokenKind.Char => { return parseLiteral(parser, NodeKind.Char); }
+    TokenKind.Sizeof => { return parseSizeOf(parser); }
+    TokenKind.Null => { return parseLiteral(parser, NodeKind.Null); }
+    else => {}
+  }
 
-  if (kind == TK_IDENT) {
-    if (parser.peek().kind == TK_LPAREN) {
+  if (kind == TokenKind.Ident) {
+    if (parser.peek().kind == TokenKind.LParen) {
       return parseFuncCall(parser);
     }
     // Nothing else in the grammar puts a block directly after an expression,
     // so `Name {` is unambiguously a struct literal.
-    if (parser.peek().kind == TK_LBRACE) {
+    if (parser.peek().kind == TokenKind.LBrace) {
       return parseStructLiteral(parser);
     }
-    return parseLiteral(parser, NK_IDENT);
+    return parseLiteral(parser, NodeKind.Ident);
   }
 
   parser.fail("number, string, character, boolean, identifier, or '('");
@@ -335,12 +328,12 @@ fn parseSizeOf(parser: *Parser): i32 {
   let line: i32 = start.line;
   let column: i32 = start.column;
 
-  parser.expect(TK_SIZEOF, "sizeof");
-  parser.expect(TK_LPAREN, "(");
+  parser.expect(TokenKind.Sizeof, "sizeof");
+  parser.expect(TokenKind.LParen, "(");
   let type: i32 = parseType(parser);
-  parser.expect(TK_RPAREN, ")");
+  parser.expect(TokenKind.RParen, ")");
 
-  let node: i32 = parser.ast.add(NK_SIZEOF, line, column);
+  let node: i32 = parser.ast.add(NodeKind.Sizeof, line, column);
   parser.ast.nodes[node].a = type;
 
   return node;
@@ -352,11 +345,11 @@ fn parseFuncCall(parser: *Parser): i32 {
   let column: i32 = name.column;
   parser.advance();
 
-  parser.expect(TK_LPAREN, "(");
+  parser.expect(TokenKind.LParen, "(");
   let args: i32 = parseArgList(parser);
-  parser.expect(TK_RPAREN, ")");
+  parser.expect(TokenKind.RParen, ")");
 
-  let node: i32 = parser.ast.add(NK_CALL, line, column);
+  let node: i32 = parser.ast.add(NodeKind.Call, line, column);
   parser.ast.setText(node, name);
   parser.ast.nodes[node].a = args;
 
@@ -365,16 +358,16 @@ fn parseFuncCall(parser: *Parser): i32 {
 
 fn parseArgList(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NK_ARGS, start.line, start.column);
+  let node: i32 = parser.ast.add(NodeKind.Args, start.line, start.column);
 
-  if (parser.kind() == TK_RPAREN) {
+  if (parser.kind() == TokenKind.RParen) {
     return node;
   }
 
   while (true) {
     parser.ast.addItem(node, parseExpr(parser));
 
-    if (parser.kind() != TK_COMMA) {
+    if (parser.kind() != TokenKind.Comma) {
       break;
     }
     parser.advance();
@@ -385,22 +378,22 @@ fn parseArgList(parser: *Parser): i32 {
 
 // StructLiteral -> IDENT '{' (IDENT ':' Expr ','?)* '}'
 fn parseStructLiteral(parser: *Parser): i32 {
-  let name: *Token = parser.expect(TK_IDENT, "struct name");
-  let node: i32 = parser.ast.add(NK_STRUCTLIT, name.line, name.column);
+  let name: *Token = parser.expect(TokenKind.Ident, "struct name");
+  let node: i32 = parser.ast.add(NodeKind.StructLit, name.line, name.column);
   parser.ast.setText(node, name);
 
-  parser.expect(TK_LBRACE, "{");
+  parser.expect(TokenKind.LBrace, "{");
 
-  while (parser.kind() != TK_RBRACE && parser.kind() != TK_END) {
-    let field: *Token = parser.expect(TK_IDENT, "field name");
-    parser.expect(TK_COLON, ":");
+  while (parser.kind() != TokenKind.RBrace && parser.kind() != TokenKind.End) {
+    let field: *Token = parser.expect(TokenKind.Ident, "field name");
+    parser.expect(TokenKind.Colon, ":");
 
-    let init: i32 = parser.ast.add(NK_FINIT, field.line, field.column);
+    let init: i32 = parser.ast.add(NodeKind.FieldInit, field.line, field.column);
     parser.ast.setText(init, field);
     parser.ast.nodes[init].a = parseExpr(parser);
     parser.ast.addItem(node, init);
 
-    if (parser.kind() == TK_COMMA) {
+    if (parser.kind() == TokenKind.Comma) {
       parser.advance();
     }
     // Without this the loop would sit on the token that failed, because a
@@ -410,7 +403,7 @@ fn parseStructLiteral(parser: *Parser): i32 {
     }
   }
 
-  parser.expect(TK_RBRACE, "}");
+  parser.expect(TokenKind.RBrace, "}");
 
   return node;
 }

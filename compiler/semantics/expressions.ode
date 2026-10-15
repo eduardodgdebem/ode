@@ -11,16 +11,9 @@
 import { malloc } from "../support/libc";
 import { Buf, textEquals } from "../support/text";
 import { FAILED } from "../support/diagnostics";
-import {
-  NO_NODE, NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
-  NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
-  NK_METHODCALL, NK_NULL,
-} from "../syntax/ast";
-import {
-  TY_NONE, TY_I8, TY_I32, TY_I64, TY_U64, TY_F32, TY_BOOL, TY_VOID, TY_NULL,
-  Type, fitsIn, parseMagnitude,
-} from "./types";
-import { SYM_VAR, SYM_FN } from "./symbols";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type, fitsIn, parseMagnitude } from "./types";
+import { SymbolKind } from "./symbols";
 import {
   Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, gotTwoTypes,
   quoted, analyzerParseType, analyzerValidateType,
@@ -31,13 +24,13 @@ import { checkEnumMember } from "./enums";
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
 export fn isLValue(an: *Analyzer, node: i32): bool {
-  let kind: i32 = an.ast.nodes[node].kind;
+  let kind: NodeKind = an.ast.nodes[node].kind;
 
-  if (kind == NK_IDENT || kind == NK_FIELDACCESS || kind == NK_INDEX) {
+  if (kind == NodeKind.Ident || kind == NodeKind.FieldAccess || kind == NodeKind.Index) {
     return true;
   }
 
-  if (kind == NK_UNARY) {
+  if (kind == NodeKind.Unary) {
     return textEquals(an.ast.nodes[node].text, "*");
   }
 
@@ -48,7 +41,7 @@ export fn checkExpr(an: *Analyzer, node: i32): Type {
   // Once a construct has failed, the types under it are guesses at best and
   // out-of-range lookups at worst, so nothing more is inferred from it.
   if (FAILED) {
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let type: Type = inferExprType(an, node);
@@ -58,44 +51,50 @@ export fn checkExpr(an: *Analyzer, node: i32): Type {
 }
 
 fn inferExprType(an: *Analyzer, node: i32): Type {
-  let kind: i32 = an.ast.nodes[node].kind;
+  let kind: NodeKind = an.ast.nodes[node].kind;
 
-  if (kind == NK_BINARY) { return checkBinaryOp(an, node); }
-  if (kind == NK_UNARY) { return checkUnaryOp(an, node); }
-  if (kind == NK_CAST) { return checkCast(an, node); }
-  if (kind == NK_FIELDACCESS) { return checkFieldAccess(an, node); }
-  if (kind == NK_INDEX) { return checkIndex(an, node); }
-  if (kind == NK_STRUCTLIT) { return checkStructLiteral(an, node); }
-  if (kind == NK_CALL) { return checkCall(an, node); }
-  if (kind == NK_METHODCALL) { return checkMethodCall(an, node); }
-  if (kind == NK_NUMBER) {
-    return checkNumberLiteral(an, node, Type.make(TY_I32, 0));
+  match (kind) {
+    NodeKind.Binary => { return checkBinaryOp(an, node); }
+    NodeKind.Unary => { return checkUnaryOp(an, node); }
+    NodeKind.Cast => { return checkCast(an, node); }
+    NodeKind.FieldAccess => { return checkFieldAccess(an, node); }
+    NodeKind.Index => { return checkIndex(an, node); }
+    NodeKind.StructLit => { return checkStructLiteral(an, node); }
+    NodeKind.Call => { return checkCall(an, node); }
+    NodeKind.MethodCall => { return checkMethodCall(an, node); }
+    else => {}
   }
-  if (kind == NK_BOOL) { return Type.make(TY_BOOL, 0); }
+  if (kind == NodeKind.Number) {
+    return checkNumberLiteral(an, node, Type.make(TypeKind.I32, 0));
+  }
+  if (kind == NodeKind.Bool) { return Type.make(TypeKind.Bool, 0); }
   // A string literal is a pointer into a private constant, so it behaves like
   // any other `*i8` from there on.
-  if (kind == NK_STRING) { return Type.make(TY_I8, 1); }
-  if (kind == NK_NULL) { return Type.make(TY_NULL, 0); }
-  if (kind == NK_CHAR) { return Type.make(TY_I8, 0); }
+  match (kind) {
+    NodeKind.String => { return Type.make(TypeKind.I8, 1); }
+    NodeKind.Null => { return Type.make(TypeKind.Null, 0); }
+    NodeKind.Char => { return Type.make(TypeKind.I8, 0); }
+    else => {}
+  }
 
-  if (kind == NK_SIZEOF) {
+  if (kind == NodeKind.Sizeof) {
     let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
     analyzerValidateType(an, node, type, "in sizeof");
     if (type.isVoid()) {
       analyzerFail(an, node, "sizeof(void) is not allowed");
     }
-    return Type.make(TY_U64, 0);
+    return Type.make(TypeKind.U64, 0);
   }
 
-  if (kind == NK_IDENT) {
+  if (kind == NodeKind.Ident) {
     let name: *i8 = an.ast.nodes[node].text;
     let symbol: i32 = an.symbols.find(name);
 
     if (symbol < 0) {
       analyzerFail(an, node, quoted("undefined variable ", name, ""));
-      return Type.make(TY_NONE, 0);
+      return Type.make(TypeKind.None, 0);
     }
-    if (an.symbols.items[symbol].kind != SYM_VAR) {
+    if (an.symbols.items[symbol].kind != SymbolKind.Var) {
       analyzerFail(an, node, quoted("", name, " is a function, not a variable"));
     }
 
@@ -104,7 +103,7 @@ fn inferExprType(an: *Analyzer, node: i32): Type {
   }
 
   analyzerFail(an, node, "unknown expression node type");
-  return Type.make(TY_VOID, 0);
+  return Type.make(TypeKind.Void, 0);
 }
 
 // `at` is the assignment being checked. The failure is reported there rather
@@ -132,9 +131,9 @@ fn checkCall(an: *Analyzer, node: i32): Type {
 
   if (symbol < 0) {
     analyzerFail(an, node, quoted("undefined function ", name, ""));
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
-  if (an.symbols.items[symbol].kind != SYM_FN) {
+  if (an.symbols.items[symbol].kind != SymbolKind.Fn) {
     analyzerFail(an, node, quoted("", name, " is not a function"));
   }
   an.linkNames[node] = an.symbols.items[symbol].linkName;
@@ -233,7 +232,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32): Type {
       analyzerFail2(an, node, "logical NOT requires boolean operand",
                     gotType(operandType));
     }
-    return Type.make(TY_BOOL, 0);
+    return Type.make(TypeKind.Bool, 0);
   }
 
   if (textEquals(op, "*")) {
@@ -249,7 +248,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32): Type {
   }
 
   analyzerFail(an, node, quoted("unknown unary operator ", op, ""));
-  return Type.make(TY_VOID, 0);
+  return Type.make(TypeKind.Void, 0);
 }
 
 fn checkBinaryOp(an: *Analyzer, node: i32): Type {
@@ -262,7 +261,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
       analyzerFail2(an, node, "logical operators require boolean operands",
                     gotTwoTypes(left, right));
     }
-    return Type.make(TY_BOOL, 0);
+    return Type.make(TypeKind.Bool, 0);
   }
 
   if (textEquals(op, "==") || textEquals(op, "!=")) {
@@ -283,7 +282,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
                            " values"),
                     "compare their fields instead");
     }
-    return Type.make(TY_BOOL, 0);
+    return Type.make(TypeKind.Bool, 0);
   }
 
   if (textEquals(op, ">") || textEquals(op, ">=") || textEquals(op, "<") ||
@@ -306,7 +305,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
                     quoted("cannot order struct ", left.structName, " values"),
                     "compare their fields instead");
     }
-    return Type.make(TY_BOOL, 0);
+    return Type.make(TypeKind.Bool, 0);
   }
 
   let isAdd: bool = textEquals(op, "+");
@@ -328,7 +327,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
           analyzerFail(an, node,
                        "cannot take the difference of '*void' pointers");
         }
-        return Type.make(TY_I64, 0);
+        return Type.make(TypeKind.I64, 0);
       }
 
       let pointer: Type = left;
@@ -385,7 +384,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32): Type {
   }
 
   analyzerFail(an, node, "unknown binary operator");
-  return Type.make(TY_VOID, 0);
+  return Type.make(TypeKind.Void, 0);
 }
 
 fn castRejection(an: *Analyzer, node: i32, from: Type, to: Type,
@@ -443,7 +442,7 @@ fn checkCast(an: *Analyzer, node: i32): Type {
 // cast's target type, so that a value too wide for `i32` can be written at
 // all: `3000000000 as i64`.
 fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
-  if (an.ast.nodes[node].kind != NK_NUMBER) {
+  if (an.ast.nodes[node].kind != NodeKind.Number) {
     return checkExpr(an, node);
   }
 
@@ -474,7 +473,7 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
     if (target.isFloat()) {
       return target;
     }
-    return Type.make(TY_F32, 0);
+    return Type.make(TypeKind.F32, 0);
   }
 
   // A literal that fits `i32` stays `i32` even under a cast, so that a
@@ -482,7 +481,7 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
   // in-range i32" rather than becoming an out-of-range literal. Only a value
   // `i32` cannot hold takes the cast's target type, which is what makes
   // `3000000000 as i64` expressible at all.
-  let fallback: Type = Type.make(TY_I32, 0);
+  let fallback: Type = Type.make(TypeKind.I32, 0);
   let wanted: Type = target;
   if (!target.isInteger()) {
     wanted = fallback;
@@ -524,10 +523,10 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   // of the same name wins, as it would anywhere else a name is read.
   let object: i32 = an.ast.nodes[node].a;
   let typeName: *i8 = an.structRefs[node];
-  if (an.ast.nodes[object].kind == NK_IDENT && typeName != null &&
+  if (an.ast.nodes[object].kind == NodeKind.Ident && typeName != null &&
       an.enumNames.has(typeName)) {
     let symbol: i32 = an.symbols.find(an.ast.nodes[object].text);
-    if (symbol < 0 || an.symbols.items[symbol].kind != SYM_VAR) {
+    if (symbol < 0 || an.symbols.items[symbol].kind != SymbolKind.Var) {
       return checkEnumMember(an, node, typeName);
     }
   }
@@ -551,7 +550,7 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   if (structIndex < 0) {
     analyzerFail2(an, node, quoted("field ", field, ""),
                   quoted("unknown type ", structType.toText(), ""));
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   let fieldIndex: i32 = an.structs.fieldIndex(structIndex, field);
@@ -563,7 +562,7 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
     message.add(field);
     message.push('\'');
     analyzerFail(an, node, message.data);
-    return Type.make(TY_NONE, 0);
+    return Type.make(TypeKind.None, 0);
   }
 
   return an.structs.items[structIndex].fields[fieldIndex].type;
@@ -669,24 +668,24 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 // Global initialisers become LLVM constant initialisers, so they may only be
 // literals and casts or negations of those.
 export fn isConstantExpr(an: *Analyzer, node: i32): bool {
-  let kind: i32 = an.ast.nodes[node].kind;
+  let kind: NodeKind = an.ast.nodes[node].kind;
 
-  if (kind == NK_NUMBER || kind == NK_BOOL || kind == NK_STRING) {
+  if (kind == NodeKind.Number || kind == NodeKind.Bool || kind == NodeKind.String) {
     return true;
   }
-  if (kind == NK_NULL) {
+  if (kind == NodeKind.Null) {
     return true;
   }
-  if (kind == NK_FIELDACCESS) {
+  if (kind == NodeKind.FieldAccess) {
     return an.isConstant[node] != 0 as i8;
   }
-  if (kind == NK_CHAR || kind == NK_SIZEOF) {
+  if (kind == NodeKind.Char || kind == NodeKind.Sizeof) {
     return true;
   }
-  if (kind == NK_CAST) {
+  if (kind == NodeKind.Cast) {
     return isConstantExpr(an, an.ast.nodes[node].a);
   }
-  if (kind == NK_UNARY) {
+  if (kind == NodeKind.Unary) {
     if (!textEquals(an.ast.nodes[node].text, "-")) {
       return false;
     }

@@ -9,13 +9,9 @@
 
 import { Buf } from "../support/text";
 import { FAILED } from "../support/diagnostics";
-import {
-  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
-  NK_CONTINUE, NK_FN, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT,
-  NK_IMPORT, NK_ENUM, NK_MATCH,
-} from "../syntax/ast";
+import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "./types";
-import { SYM_VAR, SYM_FN } from "./symbols";
+import { SymbolKind } from "./symbols";
 import {
   Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, quoted,
   analyzerParseType, analyzerValidateType, analyzerParamTypes,
@@ -51,27 +47,30 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let kind: i32 = an.ast.nodes[node].kind;
+  let kind: NodeKind = an.ast.nodes[node].kind;
 
-  if (kind == NK_BLOCK) { analyzeBlock(an, node); return; }
-  if (kind == NK_VARDECL) { analyzeVarDecl(an, node); return; }
-  if (kind == NK_ASSIGN) { analyzeAssign(an, node); return; }
-  if (kind == NK_IF) { analyzeIf(an, node); return; }
-  if (kind == NK_WHILE) { analyzeWhile(an, node); return; }
-  if (kind == NK_FN) { analyzeFuncDecl(an, node); return; }
-  if (kind == NK_EXTERN) { analyzeExternDecl(an, node); return; }
-  if (kind == NK_RETURN) { analyzeReturn(an, node); return; }
-  if (kind == NK_PRINT) { analyzePrint(an, node); return; }
-  if (kind == NK_EXPRSTMT) { checkExpr(an, an.ast.nodes[node].a); return; }
+  match (kind) {
+    NodeKind.Block => { analyzeBlock(an, node); return; }
+    NodeKind.VarDecl => { analyzeVarDecl(an, node); return; }
+    NodeKind.Assign => { analyzeAssign(an, node); return; }
+    NodeKind.If => { analyzeIf(an, node); return; }
+    NodeKind.While => { analyzeWhile(an, node); return; }
+    NodeKind.Fn => { analyzeFuncDecl(an, node); return; }
+    NodeKind.Extern => { analyzeExternDecl(an, node); return; }
+    NodeKind.Return => { analyzeReturn(an, node); return; }
+    NodeKind.Print => { analyzePrint(an, node); return; }
+    NodeKind.ExprStmt => { checkExpr(an, an.ast.nodes[node].a); return; }
+    else => {}
+  }
 
-  if (kind == NK_BREAK) {
+  if (kind == NodeKind.Break) {
     if (an.loopDepth == 0) {
       analyzerFail(an, node, "break used outside of a loop");
     }
     return;
   }
 
-  if (kind == NK_CONTINUE) {
+  if (kind == NodeKind.Continue) {
     if (an.loopDepth == 0) {
       analyzerFail(an, node, "continue used outside of a loop");
     }
@@ -80,23 +79,23 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
 
   // A struct's fields were handled by the two registration passes; what is
   // left is the bodies of its methods.
-  if (kind == NK_STRUCT) {
+  if (kind == NodeKind.Struct) {
     analyzeMethodBodies(an, node);
     return;
   }
 
   // An enum was registered before anything else was checked.
-  if (kind == NK_ENUM) {
+  if (kind == NodeKind.Enum) {
     return;
   }
 
-  if (kind == NK_MATCH) {
+  if (kind == NodeKind.Match) {
     analyzeMatch(an, node);
     return;
   }
 
   // An import was handled by linkModules and the module's scope.
-  if (kind == NK_IMPORT) {
+  if (kind == NodeKind.Import) {
     return;
   }
 
@@ -156,7 +155,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
     return;
   }
 
-  an.symbols.declare(name, SYM_VAR, declaredType, null, 0,
+  an.symbols.declare(name, SymbolKind.Var, declaredType, null, 0,
                      an.ast.nodes[node].line, an.ast.nodes[node].column);
 }
 
@@ -238,7 +237,7 @@ fn analyzeFuncDecl(an: *Analyzer, node: i32): void {
     let paramCount: i32 = 0;
     let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b,
                                            &paramCount);
-    an.symbols.declare(name, SYM_FN,
+    an.symbols.declare(name, SymbolKind.Fn,
                        analyzerParseType(an, an.ast.nodes[node].a), params,
                   paramCount, an.ast.nodes[node].line,
                   an.ast.nodes[node].column);
@@ -258,7 +257,7 @@ export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
     while (index < an.ast.nodes[paramList].itemCount) {
       let param: i32 = an.ast.nodes[paramList].items[index];
       let paramType: Type = analyzerParseType(an, an.ast.nodes[param].a);
-      an.symbols.declare(an.ast.nodes[param].text, SYM_VAR, paramType,
+      an.symbols.declare(an.ast.nodes[param].text, SymbolKind.Var, paramType,
                          null, 0, an.ast.nodes[param].line,
                     an.ast.nodes[param].column);
       index = index + 1;
@@ -290,7 +289,7 @@ fn analyzeExternDecl(an: *Analyzer, node: i32): void {
   let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
 
   if (an.symbols.find(name) < 0) {
-    an.symbols.declare(name, SYM_FN,
+    an.symbols.declare(name, SymbolKind.Fn,
                        analyzerParseType(an, an.ast.nodes[node].a), params,
                   paramCount, an.ast.nodes[node].line,
                   an.ast.nodes[node].column);

@@ -27,11 +27,8 @@ import { malloc, realloc, memcpy, strlen } from "../support/libc";
 import { Buf, textEquals, textSlice } from "../support/text";
 import { SOURCE_PATH, FAILED, report } from "../support/diagnostics";
 import { stemOf } from "../support/system";
-import {
-  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELDACCESS,
-  NK_STRUCTLIT, NK_IDENT, NK_TYPE, NK_IMPORT, NK_METHODCALL, NK_ENUM,
-} from "../syntax/ast";
-import { TY_NONE, typeKindFromName } from "./types";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, typeKindFromName } from "./types";
 import { Symbol, SymbolTable } from "./symbols";
 import { Analyzer } from "./analyzer";
 
@@ -213,12 +210,12 @@ export struct NameSet {
 }
 
 // Structs and enums share one namespace: a type name means one or the other.
-fn isTypeDecl(kind: i32): bool {
-  return kind == NK_STRUCT || kind == NK_ENUM;
+fn isTypeDecl(kind: NodeKind): bool {
+  return kind == NodeKind.Struct || kind == NodeKind.Enum;
 }
 
-fn isValueDecl(kind: i32): bool {
-  return kind == NK_FN || kind == NK_EXTERN || kind == NK_VARDECL;
+fn isValueDecl(kind: NodeKind): bool {
+  return kind == NodeKind.Fn || kind == NodeKind.Extern || kind == NodeKind.VarDecl;
 }
 
 // The first top-level declaration in `module` named `name`, of a struct when
@@ -229,7 +226,7 @@ fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
 
   while (index < an.ast.nodes[program].itemCount) {
     let item: i32 = an.ast.nodes[program].items[index];
-    let kind: i32 = an.ast.nodes[item].kind;
+    let kind: NodeKind = an.ast.nodes[item].kind;
 
     if (an.ast.nodes[item].module == module &&
         textEquals(an.ast.nodes[item].text, name)) {
@@ -257,7 +254,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   let index: i32 = 0;
   while (index < count) {
     let item: i32 = an.ast.nodes[program].items[index];
-    if (an.ast.nodes[item].kind == NK_EXTERN) {
+    if (an.ast.nodes[item].kind == NodeKind.Extern) {
       let name: *i8 = an.ast.nodes[item].text;
       an.linkNames[item] = name;
       if (!values.has(name)) {
@@ -273,11 +270,11 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
     index = 0;
     while (index < count) {
       let item: i32 = an.ast.nodes[program].items[index];
-      let kind: i32 = an.ast.nodes[item].kind;
+      let kind: NodeKind = an.ast.nodes[item].kind;
       let name: *i8 = an.ast.nodes[item].text;
 
       if (an.ast.nodes[item].module == module) {
-        if (kind == NK_FN || kind == NK_VARDECL) {
+        if (kind == NodeKind.Fn || kind == NodeKind.VarDecl) {
           an.linkNames[item] = values.claim(module, name);
         }
 
@@ -306,12 +303,12 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   while (index < count) {
     let item: i32 = an.ast.nodes[program].items[index];
 
-    if (an.ast.nodes[item].kind == NK_STRUCT) {
+    if (an.ast.nodes[item].kind == NodeKind.Struct) {
       let member: i32 = 0;
       while (member < an.ast.nodes[item].itemCount) {
         let method: i32 = an.ast.nodes[item].items[member];
 
-        if (an.ast.nodes[method].kind == NK_FN) {
+        if (an.ast.nodes[method].kind == NodeKind.Fn) {
           let name: *Buf = Buf.new();
           name.add(an.linkNames[item]);
           name.push('.');
@@ -356,7 +353,7 @@ fn checkImports(an: *Analyzer, program: i32): void {
     let item: i32 = an.ast.nodes[program].items[index];
     let target: i32 = an.ast.nodes[item].extra;
 
-    if (an.ast.nodes[item].kind == NK_IMPORT && target >= 0) {
+    if (an.ast.nodes[item].kind == NodeKind.Import && target >= 0) {
       let name: i32 = 0;
       while (name < an.ast.nodes[item].itemCount) {
         let importName: i32 = an.ast.nodes[item].items[name];
@@ -412,7 +409,7 @@ fn resolveStructName(an: *Analyzer, program: i32, module: i32,
     let item: i32 = an.ast.nodes[program].items[index];
     let target: i32 = an.ast.nodes[item].extra;
 
-    if (an.ast.nodes[item].kind == NK_IMPORT &&
+    if (an.ast.nodes[item].kind == NodeKind.Import &&
         an.ast.nodes[item].module == module && target >= 0) {
       let entry: i32 = 0;
       while (entry < an.ast.nodes[item].itemCount) {
@@ -471,10 +468,10 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
   let node: i32 = 0;
 
   while (node < an.ast.count) {
-    let kind: i32 = an.ast.nodes[node].kind;
-    let names: bool = kind == NK_STRUCTLIT;
-    if (kind == NK_TYPE) {
-      names = typeKindFromName(an.ast.nodes[node].text) == TY_NONE;
+    let kind: NodeKind = an.ast.nodes[node].kind;
+    let names: bool = kind == NodeKind.StructLit;
+    if (kind == NodeKind.Type) {
+      names = typeKindFromName(an.ast.nodes[node].text) == TypeKind.None;
     }
 
     // `Point.new()` names a struct where a value usually goes. Whether it
@@ -482,9 +479,9 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
     // only records the struct the name would mean.
     //
     // `Color.Red` names an enum the same way, and is resolved the same way.
-    if (kind == NK_METHODCALL || kind == NK_FIELDACCESS) {
+    if (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) {
       let receiver: i32 = an.ast.nodes[node].a;
-      if (an.ast.nodes[receiver].kind == NK_IDENT) {
+      if (an.ast.nodes[receiver].kind == NodeKind.Ident) {
         an.structRefs[node] =
             resolveStructName(an, program, an.ast.nodes[node].module,
                               an.ast.nodes[receiver].text);
@@ -581,7 +578,7 @@ export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
     let item: i32 = an.ast.nodes[program].items[index];
     let target: i32 = an.ast.nodes[item].extra;
 
-    if (an.ast.nodes[item].kind == NK_IMPORT &&
+    if (an.ast.nodes[item].kind == NodeKind.Import &&
         an.ast.nodes[item].module == module && target >= 0) {
       let entry: i32 = 0;
       while (entry < an.ast.nodes[item].itemCount) {

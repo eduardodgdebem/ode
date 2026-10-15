@@ -13,19 +13,14 @@
 import { malloc, free } from "../support/libc";
 import { Buf, textEquals } from "../support/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
-import {
-  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELD, NK_TYPE,
-  NK_PARAMS, Ast,
-} from "../syntax/ast";
-import {
-  TY_NONE, TY_VOID, TY_STRUCT, Type, typeKindFromName, StructTable,
-} from "./types";
-import { SYM_VAR, SYM_FN, SymbolTable } from "./symbols";
+import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
+import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
+import { SymbolKind, SymbolTable } from "./symbols";
 import {
   MODULE_COUNT, modulePath, NameSet, linkModules, SymbolList, declareImports,
 } from "./modules";
 import { analyzeRecovering } from "./statements";
-import { RECV_NONE, registerMethods } from "./methods";
+import { ReceiverMode, registerMethods } from "./methods";
 import { registerEnum } from "./enums";
 
 export struct Analyzer {
@@ -42,7 +37,7 @@ export struct Analyzer {
   // Per module: the top-level values it declares.
   moduleSymbols: *SymbolList,
   // Per method call: how its receiver is passed, one of the RECV_ kinds.
-  receivers: *i8,
+  receivers: *ReceiverMode,
   // Per method call written on a name, `Point.new()`: the IR name of the
   // struct that name means in the call's file, or null if it means none.
   structRefs: **i8,
@@ -66,7 +61,8 @@ export struct Analyzer {
     an.types = malloc(sizeof(Type) as i64 * ast.count as i64) as *Type;
     an.isGlobal = malloc(ast.count as i64);
     an.linkNames = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
-    an.receivers = malloc(ast.count as i64);
+    an.receivers = malloc(sizeof(ReceiverMode) as i64 * ast.count as i64) as
+        *ReceiverMode;
     an.structRefs = malloc(sizeof(*i8) as i64 * ast.count as i64) as **i8;
     an.isConstant = malloc(ast.count as i64);
     an.values = malloc(sizeof(i64) as i64 * ast.count as i64) as *i64;
@@ -76,14 +72,14 @@ export struct Analyzer {
         malloc(sizeof(SymbolList) as i64 * MODULE_COUNT as i64) as *SymbolList;
     an.loopDepth = 0;
     an.inFunction = false;
-    an.currentReturnType = Type.make(TY_VOID, 0);
+    an.currentReturnType = Type.make(TypeKind.Void, 0);
 
     let index: i32 = 0;
     while (index < ast.count) {
-      an.types[index] = Type.make(TY_NONE, 0);
+      an.types[index] = Type.make(TypeKind.None, 0);
       an.isGlobal[index] = 0 as i8;
       an.linkNames[index] = null;
-      an.receivers[index] = RECV_NONE;
+      an.receivers[index] = ReceiverMode.None;
       an.structRefs[index] = null;
       an.isConstant[index] = 0 as i8;
       an.values[index] = 0 as i64;
@@ -162,17 +158,17 @@ export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
 // ---------------------------------------------------------------------------
 
 export fn analyzerParseType(an: *Analyzer, node: i32): Type {
-  if (node == NO_NODE || an.ast.nodes[node].kind != NK_TYPE) {
+  if (node == NO_NODE || an.ast.nodes[node].kind != NodeKind.Type) {
     failAt(0, 0, "expected type annotation");
   }
 
   let name: *i8 = an.ast.nodes[node].text;
   let depth: i32 = an.ast.nodes[node].extra;
-  let kind: i32 = typeKindFromName(name);
+  let kind: TypeKind = typeKindFromName(name);
 
   // A built-in type lexes as its own token kind; anything else is a struct
   // or enum name, which lexes as an identifier.
-  if (kind == TY_NONE) {
+  if (kind == TypeKind.None) {
     if (an.enumNames.has(name)) {
       return Type.ofEnum(name, depth);
     }
@@ -184,7 +180,7 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
 
 export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
                                context: *i8): void {
-  if (type.kind != TY_STRUCT) {
+  if (type.kind != TypeKind.Struct) {
     return;
   }
 
@@ -195,7 +191,7 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
 }
 
 export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type {
-  if (params == NO_NODE || an.ast.nodes[params].kind != NK_PARAMS) {
+  if (params == NO_NODE || an.ast.nodes[params].kind != NodeKind.Params) {
     *countOut = 0;
     return null;
   }
@@ -224,7 +220,7 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
 // ---------------------------------------------------------------------------
 
 fn registerStructName(an: *Analyzer, node: i32): void {
-  if (an.ast.nodes[node].kind != NK_STRUCT) {
+  if (an.ast.nodes[node].kind != NodeKind.Struct) {
     return;
   }
 
@@ -238,7 +234,7 @@ fn registerStructName(an: *Analyzer, node: i32): void {
 }
 
 fn registerStructFields(an: *Analyzer, node: i32): void {
-  if (an.ast.nodes[node].kind != NK_STRUCT) {
+  if (an.ast.nodes[node].kind != NodeKind.Struct) {
     return;
   }
 
@@ -251,7 +247,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     let fieldName: *i8 = an.ast.nodes[field].text;
 
     // Methods are mixed in with the fields, and are registered after them.
-    if (an.ast.nodes[field].kind != NK_FIELD) {
+    if (an.ast.nodes[field].kind != NodeKind.Field) {
       index = index + 1;
       continue;
     }
@@ -347,7 +343,7 @@ fn rejectStructCycles(an: *Analyzer, program: i32): void {
 }
 
 fn hoistGlobal(an: *Analyzer, node: i32): void {
-  if (an.ast.nodes[node].kind != NK_VARDECL) {
+  if (an.ast.nodes[node].kind != NodeKind.VarDecl) {
     return;
   }
 
@@ -360,12 +356,12 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
   }
 
   an.isGlobal[node] = 1 as i8;
-  declareTopLevel(an, node, name, SYM_VAR, type, null, 0);
+  declareTopLevel(an, node, name, SymbolKind.Var, type, null, 0);
 }
 
 // SymbolTable.declare for a top-level declaration, which also carries its IR
 // name.
-fn declareTopLevel(an: *Analyzer, node: i32, name: *i8, kind: i32, type: Type,
+fn declareTopLevel(an: *Analyzer, node: i32, name: *i8, kind: SymbolKind, type: Type,
                    params: *Type, paramCount: i32): void {
   let before: i32 = an.symbols.count;
   an.symbols.declare(name, kind, type, params, paramCount,
@@ -377,8 +373,8 @@ fn declareTopLevel(an: *Analyzer, node: i32, name: *i8, kind: i32, type: Type,
 }
 
 fn hoistSignature(an: *Analyzer, node: i32): void {
-  let kind: i32 = an.ast.nodes[node].kind;
-  if (kind != NK_FN && kind != NK_EXTERN) {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  if (kind != NodeKind.Fn && kind != NodeKind.Extern) {
     return;
   }
 
@@ -388,7 +384,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
   let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
 
   let what: *i8 = "return type of '";
-  if (kind == NK_EXTERN) {
+  if (kind == NodeKind.Extern) {
     what = "return type of extern '";
   }
 
@@ -401,7 +397,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
   let index: i32 = 0;
   while (index < paramCount) {
     let paramContext: *Buf = Buf.new();
-    if (kind == NK_EXTERN) {
+    if (kind == NodeKind.Extern) {
       paramContext.add("parameter of extern '");
     } else {
       paramContext.add("parameter of '");
@@ -414,7 +410,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
 
   // Passing a struct by value across the C ABI needs target-specific lowering
   // that this compiler does not do, so require a pointer.
-  if (kind == NK_EXTERN) {
+  if (kind == NodeKind.Extern) {
     if (returnType.isStruct()) {
       analyzerFail2(an, node,
                     quoted("extern ", name, " returns a struct by value"),
@@ -432,7 +428,7 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     }
   }
 
-  declareTopLevel(an, node, name, SYM_FN, returnType, params, paramCount);
+  declareTopLevel(an, node, name, SymbolKind.Fn, returnType, params, paramCount);
 }
 
 // Whether the program item at `index` belongs to `module`.
