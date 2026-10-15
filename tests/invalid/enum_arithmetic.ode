@@ -1,0 +1,6 @@
+enum Color { Red, Green, Blue }
+
+fn main(): i32 {
+  let c: Color = Color.Red + Color.Green;
+  return 0;
+}

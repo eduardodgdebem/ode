@@ -51,7 +51,7 @@ twice, so a side effect in the target — `a[next()] += 1` — runs twice.
 |---|---|
 | Function pointers | No function type exists, so dispatch tables have to be `if`/`else if` chains |
 | Fixed-size arrays (`[i8; 256]`) | Deliberate — see 6.2 |
-| Tagged unions | Deliberate — see 6.3 |
+| Tagged unions (enums with data) | Deliberate — see 6.3 |
 
 The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
 `i64`/`u64` (spelled `usize` too), plus `f32` and `f64`.
@@ -201,9 +201,11 @@ An array is a pointer plus indexing: `malloc` for the storage, `a[i]` to reach
 it. A real array type would add a second axis to `Type` for one bootstrap
 convenience.
 
-### 6.3 No sum types
+### 6.3 Enums carry no data
 
-A kind tag plus one struct holding every variant's fields stands in, as
+`enum` and `match` exist, but an enum member is only a name for an integer:
+there are no Rust-style variants carrying fields. A kind tag -- now an enum --
+plus one struct holding every variant's fields stands in, as
 `examples/expr_tree.ode` shows. Wasteful in memory, and exactly what a C
 bootstrap compiler does.
 

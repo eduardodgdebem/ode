@@ -7,12 +7,9 @@
 // ---------------------------------------------------------------------------
 
 import { Buf } from "../support/text";
-import {
-  TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE, Token,
-  TokenList, kindName,
-} from "./token";
-import { NO_NODE, NK_TYPE, Ast, nodeKindName, nodeCarriesText } from "./ast";
-import { TY_NONE, Type } from "../semantics/types";
+import { TokenKind, Token, TokenList, kindName } from "./token";
+import { NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText } from "./ast";
+import { TypeKind, Type } from "../semantics/types";
 
 // Text is escaped rather than written raw so that a literal newline or NUL
 // inside a string cannot break the line-per-node format.
@@ -49,7 +46,7 @@ export fn dumpTokens(list: *TokenList, out: *Buf): void {
     let token: *Token = list.at(index);
 
     // The end token is the parser's sentinel, not part of the source.
-    if (token.kind == TK_END) {
+    if (token.kind == TokenKind.End) {
       index = index + 1;
       continue;
     }
@@ -61,9 +58,9 @@ export fn dumpTokens(list: *TokenList, out: *Buf): void {
     out.add(kindName(token.kind));
 
     // An operator's text is its own name, so printing both says nothing.
-    if (token.kind == TK_IDENT || token.kind == TK_NUMBER ||
-        token.kind == TK_STRING || token.kind == TK_CHAR ||
-        token.kind == TK_BOOL || token.kind == TK_TYPE) {
+    if (token.kind == TokenKind.Ident || token.kind == TokenKind.Number ||
+        token.kind == TokenKind.String || token.kind == TokenKind.Char ||
+        token.kind == TokenKind.Bool || token.kind == TokenKind.Type) {
       out.add(" '");
       out.addBytes(token.text, token.length);
       out.push('\'');
@@ -91,7 +88,7 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
     level = level + 1;
   }
 
-  let kind: i32 = ast.nodes[index].kind;
+  let kind: NodeKind = ast.nodes[index].kind;
   out.add(nodeKindName(kind));
 
   if (nodeCarriesText(kind)) {
@@ -104,7 +101,7 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
     out.add(" export");
   }
 
-  if (kind == NK_TYPE) {
+  if (kind == NodeKind.Type) {
     out.add(" depth=");
     out.addInt(ast.nodes[index].extra as i64);
   }
@@ -115,7 +112,7 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
   out.addInt(ast.nodes[index].column as i64);
 
   if (types != null) {
-    if (types[index].kind != TY_NONE) {
+    if (types[index].kind != TypeKind.None) {
       out.add(" : ");
       out.add(types[index].toText());
     }

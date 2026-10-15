@@ -1,0 +1,374 @@
+// ---------------------------------------------------------------------------
+// Enums and match.
+//
+// An enum is a named set of integer constants:
+//
+//     enum Color { Red, Green = 5, Blue }
+//
+// A member without a value takes the one after the member before it, and the
+// first takes 0, so Blue is 6. The enum is a type of its own -- a `Color` is
+// not an i32, and converts to one only through `as` -- and its members are
+// written `Color.Red`. Underneath it is an i32.
+//
+// `match` picks a block by value:
+//
+//     match (color) {
+//       Color.Red => { ... }
+//       Color.Green, Color.Blue => { ... }
+//     }
+//
+// On an enum it has to handle every member or have an `else` arm, so adding
+// a member is a compile error at every match that forgot it. On an integer
+// or a character it has to have an `else`, since no list of arms can cover
+// every value. A value may appear in only one arm.
+// ---------------------------------------------------------------------------
+
+import { Buf, textEquals } from "../support/text";
+import { FAILED } from "../support/diagnostics";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type, fitsIn, parseMagnitude } from "./types";
+import {
+  Analyzer, analyzerFail, analyzerFail2, expectedButGot, quoted,
+} from "./analyzer";
+import { checkExpr } from "./expressions";
+import { analyzeStatement } from "./statements";
+
+// The declaration of the enum whose IR name is `name`.
+fn enumDeclOf(an: *Analyzer, name: *i8): i32 {
+  let index: i32 = 0;
+
+  while (index < an.ast.nodes[an.program].itemCount) {
+    let item: i32 = an.ast.nodes[an.program].items[index];
+    if (an.ast.nodes[item].kind == NodeKind.Enum &&
+        textEquals(an.ast.nodes[item].text, name)) {
+      return item;
+    }
+    index = index + 1;
+  }
+
+  return NO_NODE;
+}
+
+// The value of an integer literal, possibly negated, or false through `ok`
+// when the node is not one.
+fn integerLiteralValue(an: *Analyzer, node: i32, ok: *bool): i64 {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  *ok = true;
+
+  if (kind == NodeKind.Unary && textEquals(an.ast.nodes[node].text, "-")) {
+    let inner: i64 = integerLiteralValue(an, an.ast.nodes[node].a, ok);
+    return 0 as i64 - inner;
+  }
+
+  if (kind == NodeKind.Char) {
+    return an.ast.nodes[node].text[0] as i64;
+  }
+
+  if (kind != NodeKind.Number) {
+    *ok = false;
+    return 0 as i64;
+  }
+
+  let text: *i8 = an.ast.nodes[node].text;
+  let negative: bool = text[0] == '-';
+  let index: i64 = 0 as i64;
+  if (negative) {
+    index = 1 as i64;
+  }
+
+  let value: i64 = 0 as i64;
+  while (index < an.ast.nodes[node].textLength) {
+    let digit: i8 = text[index];
+    if (digit < '0' || digit > '9') {
+      *ok = false;
+      return 0 as i64;
+    }
+    value = value * 10 as i64 + (digit - '0') as i64;
+    index = index + 1 as i64;
+  }
+
+  if (negative) {
+    return 0 as i64 - value;
+  }
+  return value;
+}
+
+// Records an enum: its name, so that type names can be told apart from struct
+// names, and the value of every member.
+export fn registerEnum(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NodeKind.Enum) {
+    return;
+  }
+
+  let name: *i8 = an.ast.nodes[node].text;
+  if (an.enumNames.has(name)) {
+    analyzerFail(an, node, quoted("enum ", name, " is declared more than once"));
+    return;
+  }
+  an.enumNames.add(name);
+
+  let next: i64 = 0 as i64;
+  let index: i32 = 0;
+  while (index < an.ast.nodes[node].itemCount) {
+    let member: i32 = an.ast.nodes[node].items[index];
+    let memberName: *i8 = an.ast.nodes[member].text;
+
+    let earlier: i32 = 0;
+    while (earlier < index) {
+      let other: i32 = an.ast.nodes[node].items[earlier];
+      if (textEquals(an.ast.nodes[other].text, memberName)) {
+        let message: *Buf = Buf.new();
+        message.add("enum '");
+        message.add(name);
+        message.add("' declares member '");
+        message.add(memberName);
+        message.add("' twice");
+        analyzerFail(an, member, message.data);
+        FAILED = false;
+      }
+      earlier = earlier + 1;
+    }
+
+    let valueNode: i32 = an.ast.nodes[member].a;
+    if (valueNode != NO_NODE) {
+      let ok: bool = true;
+      let written: i64 = integerLiteralValue(an, valueNode, &ok);
+      if (!ok || an.ast.nodes[valueNode].kind == NodeKind.Char) {
+        analyzerFail2(an, member,
+                      quoted("value of ", memberName, " is not an integer literal"),
+                      "an enum member's value has to be written as a number");
+        FAILED = false;
+      } else {
+        next = written;
+      }
+    }
+
+    // The value is an i32 underneath, so it has to fit one.
+    if (next > 2147483647 as i64 || next < -2147483648 as i64) {
+      analyzerFail2(an, member, quoted("value of ", memberName, " is out of range"),
+                    "an enum's values have to fit in i32");
+      FAILED = false;
+    }
+
+    an.isConstant[member] = 1 as i8;
+    an.values[member] = next;
+    next = next + 1 as i64;
+    index = index + 1;
+  }
+}
+
+// `Color.Red`, once the name in front is known to be an enum's.
+export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
+  let declaration: i32 = enumDeclOf(an, enumName);
+  let memberName: *i8 = an.ast.nodes[node].text;
+
+  let index: i32 = 0;
+  while (index < an.ast.nodes[declaration].itemCount) {
+    let member: i32 = an.ast.nodes[declaration].items[index];
+    if (textEquals(an.ast.nodes[member].text, memberName)) {
+      an.isConstant[node] = 1 as i8;
+      an.values[node] = an.values[member];
+      return Type.ofEnum(enumName, 0);
+    }
+    index = index + 1;
+  }
+
+  let message: *Buf = Buf.new();
+  message.add("enum '");
+  message.add(enumName);
+  message.add("' has no member '");
+  message.add(memberName);
+  message.push('\'');
+  analyzerFail(an, node, message.data);
+
+  return Type.make(TypeKind.None, 0);
+}
+
+// Checks one pattern of a match on a value of type `subject`, and records
+// the value it stands for.
+fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
+  if (subject.isEnum()) {
+    let type: Type = checkExpr(an, pattern);
+    if (FAILED) {
+      return;
+    }
+    if (an.isConstant[pattern] == 0 as i8 || !type.equals(subject)) {
+      analyzerFail2(an, pattern,
+                    quoted("pattern is not a member of ", subject.structName, ""),
+                    quoted("write one as ", subject.structName, ".<member>"));
+    }
+    return;
+  }
+
+  let ok: bool = true;
+  let value: i64 = integerLiteralValue(an, pattern, &ok);
+  if (!ok) {
+    analyzerFail2(an, pattern, "pattern is not a literal",
+                  "a match on an integer takes number and character literals");
+    return;
+  }
+
+  // A number takes the type of the value matched, as long as it fits it,
+  // so `0` matches an i64 and `200` a u8. A character stays an i8.
+  let literal: i32 = pattern;
+  let negated: bool = false;
+  if (an.ast.nodes[pattern].kind == NodeKind.Unary) {
+    literal = an.ast.nodes[pattern].a;
+    negated = true;
+  }
+
+  let type: Type = subject;
+  if (an.ast.nodes[literal].kind == NodeKind.Number) {
+    let text: *i8 = an.ast.nodes[literal].text;
+    let negative: bool = text[0] == '-';
+    let start: i64 = 0 as i64;
+    if (negative) {
+      start = 1 as i64;
+    }
+
+    let overflowed: bool = false;
+    let magnitude: u64 = parseMagnitude(text, start,
+                                        an.ast.nodes[literal].textLength,
+                                        &overflowed);
+    if (negated) {
+      negative = !negative;
+    }
+    if (overflowed || !fitsIn(magnitude, negative, subject)) {
+      analyzerFail(an, pattern,
+                   quoted("number is out of range for ", subject.toText(), ""));
+      return;
+    }
+  } else {
+    type = checkExpr(an, literal);
+    if (FAILED) {
+      return;
+    }
+    if (!type.equals(subject)) {
+      analyzerFail2(an, pattern,
+                    "pattern does not have the type of the value matched",
+                    expectedButGot(subject.toText(), type.toText()));
+      return;
+    }
+  }
+
+  an.types[literal] = type;
+  an.types[pattern] = type;
+  an.isConstant[pattern] = 1 as i8;
+  an.values[pattern] = value;
+}
+
+// The member of the enum declared at `declaration` whose value no arm of
+// `node` handles, or NO_NODE when every one is handled.
+fn unhandledMember(an: *Analyzer, node: i32, declaration: i32): i32 {
+  let index: i32 = 0;
+
+  while (index < an.ast.nodes[declaration].itemCount) {
+    let member: i32 = an.ast.nodes[declaration].items[index];
+    if (!matchHandles(an, node, an.values[member])) {
+      return member;
+    }
+    index = index + 1;
+  }
+
+  return NO_NODE;
+}
+
+fn matchHandles(an: *Analyzer, node: i32, value: i64): bool {
+  let arm: i32 = 0;
+
+  while (arm < an.ast.nodes[node].itemCount) {
+    let armNode: i32 = an.ast.nodes[node].items[arm];
+    let pattern: i32 = 0;
+    while (pattern < an.ast.nodes[armNode].itemCount) {
+      let patternNode: i32 = an.ast.nodes[armNode].items[pattern];
+      if (an.isConstant[patternNode] != 0 as i8 &&
+          an.values[patternNode] == value) {
+        return true;
+      }
+      pattern = pattern + 1;
+    }
+    arm = arm + 1;
+  }
+
+  return false;
+}
+
+export fn analyzeMatch(an: *Analyzer, node: i32): void {
+  let subject: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (FAILED) {
+    return;
+  }
+
+  if (!subject.isEnum() && !subject.isInteger()) {
+    analyzerFail2(an, node, quoted("cannot match on ", subject.toText(), ""),
+                  "match works on enums, integers and characters");
+    return;
+  }
+
+  let hasElse: bool = false;
+  let arm: i32 = 0;
+  while (arm < an.ast.nodes[node].itemCount) {
+    let armNode: i32 = an.ast.nodes[node].items[arm];
+
+    if (hasElse) {
+      analyzerFail(an, armNode, "an arm after 'else' can never be reached");
+      return;
+    }
+
+    if (an.ast.nodes[armNode].extra == 1) {
+      hasElse = true;
+    }
+
+    let pattern: i32 = 0;
+    while (pattern < an.ast.nodes[armNode].itemCount) {
+      let patternNode: i32 = an.ast.nodes[armNode].items[pattern];
+      checkPattern(an, patternNode, subject);
+      if (FAILED) {
+        return;
+      }
+
+      // Checked before this pattern is recorded, so it does not find itself.
+      let value: i64 = an.values[patternNode];
+      an.isConstant[patternNode] = 0 as i8;
+      if (matchHandles(an, node, value)) {
+        analyzerFail(an, patternNode,
+                     "this value is already handled by an earlier pattern");
+        return;
+      }
+      an.isConstant[patternNode] = 1 as i8;
+
+      pattern = pattern + 1;
+    }
+
+    analyzeStatement(an, an.ast.nodes[armNode].a);
+    if (FAILED) {
+      return;
+    }
+
+    arm = arm + 1;
+  }
+
+  if (hasElse) {
+    return;
+  }
+
+  if (subject.isEnum()) {
+    let declaration: i32 = enumDeclOf(an, subject.structName);
+    let missing: i32 = unhandledMember(an, node, declaration);
+    if (missing != NO_NODE) {
+      let message: *Buf = Buf.new();
+      message.add("match on '");
+      message.add(subject.structName);
+      message.add("' does not handle '");
+      message.add(subject.structName);
+      message.push('.');
+      message.add(an.ast.nodes[missing].text);
+      message.push('\'');
+      analyzerFail2(an, node, message.data, "add an arm for it, or an 'else' arm");
+    }
+    return;
+  }
+
+  analyzerFail2(an, node, quoted("match on ", subject.toText(), " needs an 'else' arm"),
+                "no list of arms can cover every value of an integer");
+}

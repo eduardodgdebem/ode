@@ -16,11 +16,10 @@ import {
   fail,
 } from "./support/diagnostics";
 import {
-  TextList, STDERR_INHERIT, runCommand, stemOf, withSuffix, readFile,
-  writeFile,
+  TextList, StderrMode, runCommand, stemOf, withSuffix, readFile, writeFile,
 } from "./support/system";
 import { TokenList } from "./syntax/token";
-import { NK_PROGRAM, NK_IMPORT, Ast } from "./syntax/ast";
+import { NodeKind, Ast } from "./syntax/ast";
 import { tokenize } from "./syntax/lexer";
 import { Parser } from "./syntax/parser";
 import { parseModuleInto } from "./syntax/statements";
@@ -98,7 +97,7 @@ export fn loadProgram(ast: *Ast, root: i32, path: *i8, tokens: *TokenList): void
   let item: i32 = 0;
   while (item < ast.nodes[root].itemCount) {
     let statement: i32 = ast.nodes[root].items[item];
-    if (ast.nodes[statement].kind == NK_IMPORT) {
+    if (ast.nodes[statement].kind == NodeKind.Import) {
       loadImport(ast, root, statement);
     }
     item = item + 1;
@@ -173,7 +172,7 @@ fn main(argc: i32, argv: **i8): i32 {
   }
 
   let ast: *Ast = Ast.new();
-  let root: i32 = ast.add(NK_PROGRAM, 0, 0);
+  let root: i32 = ast.add(NodeKind.Program, 0, 0);
 
   loadProgram(ast, root, path, tokens);
 
@@ -233,14 +232,14 @@ fn main(argc: i32, argv: **i8): i32 {
   assemble.add("-c").add(irPath).add("-o").add(objectPath);
   assemble.add("-Wno-override-module");
 
-  if (runCommand(assemble, null, null, STDERR_INHERIT) != 0) {
+  if (runCommand(assemble, null, null, StderrMode.Inherit) != 0) {
     fail("assembling failed");
   }
 
   let link: *TextList = ccCommand();
   link.add(objectPath).add("-o").add(output);
 
-  if (runCommand(link, null, null, STDERR_INHERIT) != 0) {
+  if (runCommand(link, null, null, StderrMode.Inherit) != 0) {
     fail("linking failed");
   }
 

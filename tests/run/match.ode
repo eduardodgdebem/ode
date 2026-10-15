@@ -1,0 +1,117 @@
+// match: choosing a block by value, on enums, integers and characters.
+
+enum Shape { Circle, Square, Triangle }
+
+fn sides(shape: Shape): i32 {
+  // Every member is handled, so no `else` is needed.
+  match (shape) {
+    Shape.Circle => {
+      return 0;
+    }
+    Shape.Square => {
+      return 4;
+    }
+    Shape.Triangle => {
+      return 3;
+    }
+  }
+  return -1;
+}
+
+fn isRound(shape: Shape): bool {
+  match (shape) {
+    Shape.Circle => {
+      return true;
+    }
+    else => {
+      return false;
+    }
+  }
+  return false;
+}
+
+fn classify(c: i8): *i8 {
+  match (c) {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => {
+      return "digit";
+    }
+    ' ', '\t', '\n' => {
+      return "space";
+    }
+    else => {
+      return "other";
+    }
+  }
+  return "";
+}
+
+fn describe(n: i64): *i8 {
+  match (n) {
+    0 => {
+      return "zero";
+    }
+    -1 => {
+      return "minus one";
+    }
+    3000000000 => {
+      return "three billion";
+    }
+    else => {
+      return "something else";
+    }
+  }
+  return "";
+}
+
+fn main(): i32 {
+  print(sides(Shape.Circle));
+  print(sides(Shape.Square));
+  print(sides(Shape.Triangle));
+  print(isRound(Shape.Circle));
+  print(isRound(Shape.Triangle));
+
+  print(classify('7'));
+  print(classify('\t'));
+  print(classify('x'));
+
+  print(describe(0 as i64));
+  print(describe(-1 as i64));
+  print(describe(3000000000 as i64));
+  print(describe(42 as i64));
+
+  // Arms that fall through to code after the match, inside a loop, with
+  // break and continue acting on the loop.
+  let total: i32 = 0;
+  let i: i32 = 0;
+  while (i < 10) {
+    i = i + 1;
+    match (i % 3) {
+      0 => {
+        continue;
+      }
+      1 => {
+        total = total + i;
+      }
+      else => {
+        if (i > 7) {
+          break;
+        }
+      }
+    }
+    total = total + 100;
+  }
+  print(total);
+
+  // A u8 above 127.
+  let byte: u8 = 200 as u8;
+  match (byte) {
+    200 => {
+      print("two hundred");
+    }
+    else => {
+      print("not two hundred");
+    }
+  }
+
+  return 0;
+}

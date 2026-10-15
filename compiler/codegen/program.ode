@@ -7,10 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { Buf, textEquals, intToText } from "../support/text";
-import {
-  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_UNARY, NK_CAST,
-  NK_SIZEOF, NK_STRING, NK_CHAR, NK_BOOL, NK_NULL,
-} from "../syntax/ast";
+import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
 import { analyzerParseType } from "../semantics/analyzer";
@@ -118,36 +115,39 @@ fn genFunction(e: *Emitter, node: i32): void {
 // A global's initialiser becomes an LLVM constant initialiser, so it is
 // folded here rather than being computed at run time.
 fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
-  let kind: i32 = e.ast.nodes[node].kind;
+  let kind: NodeKind = e.ast.nodes[node].kind;
 
-  if (kind == NK_STRING) {
+  if (kind == NodeKind.String) {
     return internString(e, e.ast.nodes[node].text,
                         e.ast.nodes[node].textLength);
   }
-  if (kind == NK_NULL) {
+  if (kind == NodeKind.Null) {
     return "null";
   }
-  if (kind == NK_CAST) {
+  if (kind == NodeKind.FieldAccess) {
+    return intToText(e.an.values[node]);
+  }
+  if (kind == NodeKind.Cast) {
     return genConstant(e, e.ast.nodes[node].a, type);
   }
-  if (kind == NK_UNARY) {
+  if (kind == NodeKind.Unary) {
     let inner: *i8 = genConstant(e, e.ast.nodes[node].a, type);
     let out: *Buf = Buf.new();
     out.push('-');
     out.add(inner);
     return out.take();
   }
-  if (kind == NK_SIZEOF) {
+  if (kind == NodeKind.Sizeof) {
     return intToText(sizeOfType(e, analyzerParseType(e.an,
                                                      e.ast.nodes[node].a)) as i64);
   }
-  if (kind == NK_BOOL) {
+  if (kind == NodeKind.Bool) {
     if (textEquals(e.ast.nodes[node].text, "true")) {
       return "true";
     }
     return "false";
   }
-  if (kind == NK_CHAR) {
+  if (kind == NodeKind.Char) {
     let value: i32 = e.ast.nodes[node].text[0] as i32;
     if (value < 0) {
       value = value + 256;
@@ -225,7 +225,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   index = 0;
   while (index < count) {
     let statement: i32 = e.ast.nodes[program].items[index];
-    if (e.ast.nodes[statement].kind == NK_EXTERN &&
+    if (e.ast.nodes[statement].kind == NodeKind.Extern &&
         !declared.has(e.an.linkNames[statement])) {
       declared.add(e.an.linkNames[statement]);
       emitSignature(e, e.head, statement, "declare");
@@ -237,7 +237,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   index = 0;
   while (index < count) {
     let statement: i32 = e.ast.nodes[program].items[index];
-    if (e.ast.nodes[statement].kind == NK_VARDECL) {
+    if (e.ast.nodes[statement].kind == NodeKind.VarDecl) {
       genGlobal(e, statement);
     }
     index = index + 1;
@@ -246,16 +246,16 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   index = 0;
   while (index < count) {
     let statement: i32 = e.ast.nodes[program].items[index];
-    if (e.ast.nodes[statement].kind == NK_FN) {
+    if (e.ast.nodes[statement].kind == NodeKind.Fn) {
       genFunction(e, statement);
     }
 
     // A struct's methods are functions like any other once named.
-    if (e.ast.nodes[statement].kind == NK_STRUCT) {
+    if (e.ast.nodes[statement].kind == NodeKind.Struct) {
       let member: i32 = 0;
       while (member < e.ast.nodes[statement].itemCount) {
         let method: i32 = e.ast.nodes[statement].items[member];
-        if (e.ast.nodes[method].kind == NK_FN) {
+        if (e.ast.nodes[method].kind == NodeKind.Fn) {
           genFunction(e, method);
         }
         member = member + 1;

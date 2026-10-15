@@ -8,10 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { Buf } from "../support/text";
-import {
-  TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
-  TY_BOOL, TY_VOID, TY_STRUCT, Type,
-} from "../semantics/types";
+import { TypeKind, Type } from "../semantics/types";
 import { Emitter } from "./emitter";
 
 export fn llvmTypeName(type: Type): *i8 {
@@ -19,22 +16,28 @@ export fn llvmTypeName(type: Type): *i8 {
   if (type.isPointer() || type.isNull()) {
     return "ptr";
   }
+  if (type.kind == TypeKind.Enum) {
+    return "i32";
+  }
 
-  if (type.kind == TY_STRUCT) {
+  if (type.kind == TypeKind.Struct) {
     let name: *Buf = Buf.new();
     name.push('%');
     name.add(type.structName);
     return name.take();
   }
 
-  if (type.kind == TY_I8 || type.kind == TY_U8) { return "i8"; }
-  if (type.kind == TY_I16 || type.kind == TY_U16) { return "i16"; }
-  if (type.kind == TY_I32 || type.kind == TY_U32) { return "i32"; }
-  if (type.kind == TY_I64 || type.kind == TY_U64) { return "i64"; }
-  if (type.kind == TY_F32) { return "float"; }
-  if (type.kind == TY_F64) { return "double"; }
-  if (type.kind == TY_BOOL) { return "i1"; }
-  if (type.kind == TY_VOID) { return "void"; }
+  match (type.kind) {
+    TypeKind.I8, TypeKind.U8 => { return "i8"; }
+    TypeKind.I16, TypeKind.U16 => { return "i16"; }
+    TypeKind.I32, TypeKind.U32 => { return "i32"; }
+    TypeKind.I64, TypeKind.U64 => { return "i64"; }
+    TypeKind.F32 => { return "float"; }
+    TypeKind.F64 => { return "double"; }
+    TypeKind.Bool => { return "i1"; }
+    TypeKind.Void => { return "void"; }
+    else => {}
+  }
 
   return "void";
 }
@@ -44,7 +47,7 @@ fn alignOfType(e: *Emitter, type: Type): i32 {
     return 8;
   }
 
-  if (type.kind == TY_STRUCT) {
+  if (type.kind == TypeKind.Struct) {
     let structIndex: i32 = e.an.structs.indexOf(type.structName);
     let widest: i32 = 1;
     let index: i32 = 0;
@@ -61,7 +64,7 @@ fn alignOfType(e: *Emitter, type: Type): i32 {
     return widest;
   }
 
-  if (type.kind == TY_BOOL) { return 1; }
+  if (type.kind == TypeKind.Bool) { return 1; }
 
   let bits: i32 = type.bitWidth();
   if (bits == 0) {
@@ -85,7 +88,7 @@ export fn sizeOfType(e: *Emitter, type: Type): i32 {
     return 8;
   }
 
-  if (type.kind == TY_STRUCT) {
+  if (type.kind == TypeKind.Struct) {
     let structIndex: i32 = e.an.structs.indexOf(type.structName);
     let offset: i32 = 0;
     let index: i32 = 0;
@@ -101,17 +104,20 @@ export fn sizeOfType(e: *Emitter, type: Type): i32 {
   }
 
   // An i1 occupies a whole byte once it is stored.
-  if (type.kind == TY_BOOL) { return 1; }
-  if (type.kind == TY_VOID) { return 0; }
+  if (type.kind == TypeKind.Bool) { return 1; }
+  if (type.kind == TypeKind.Void) { return 0; }
 
   return type.bitWidth() / 8;
 }
 
 export fn zeroValue(type: Type): *i8 {
   if (type.isPointer()) { return "null"; }
-  if (type.kind == TY_STRUCT) { return "zeroinitializer"; }
-  if (type.kind == TY_BOOL) { return "false"; }
-  if (type.kind == TY_F32 || type.kind == TY_F64) { return "0.0"; }
+  match (type.kind) {
+    TypeKind.Struct => { return "zeroinitializer"; }
+    TypeKind.Bool => { return "false"; }
+    TypeKind.F32, TypeKind.F64 => { return "0.0"; }
+    else => {}
+  }
 
   return "0";
 }

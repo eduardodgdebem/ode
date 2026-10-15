@@ -1,0 +1,13 @@
+fn main(): i32 {
+  let n: i32 = 2;
+  let m: i32 = 3;
+  match (n) {
+    m => {
+      return 1;
+    }
+    else => {
+      return 0;
+    }
+  }
+  return 0;
+}

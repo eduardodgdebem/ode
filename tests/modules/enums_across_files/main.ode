@@ -1,0 +1,21 @@
+// An enum is imported like a struct, and its members and matches work under
+// an alias. lib.ode has a private enum of the same name as one here.
+
+import { Level as Severity, describe } from "./lib";
+
+enum Mode { Fast, Slow }
+
+fn main(): i32 {
+  let s: Severity = Severity.Warning;
+  print(describe(s));
+  match (s) {
+    Severity.Info => {
+      print("info");
+    }
+    Severity.Warning, Severity.Error => {
+      print("worth a look");
+    }
+  }
+  print(Mode.Slow as i32);
+  return 0;
+}

@@ -28,12 +28,12 @@ import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED,
 } from "../support/diagnostics";
 import {
-  TextList, STDERR_INHERIT, runCommand, environment, currentDirectory,
-  joinPath, withSuffix, parentDirectory, fileExists, isExecutable,
-  absolutePath, readBytes, writeBytes, sameBytes, makeDirectories, removeTree,
-  moveFile, readFile,
+  TextList, StderrMode, runCommand, environment, currentDirectory, joinPath,
+  withSuffix, parentDirectory, fileExists, isExecutable, absolutePath,
+  readBytes, writeBytes, sameBytes, makeDirectories, removeTree, moveFile,
+  readFile,
 } from "../support/system";
-import { NK_PROGRAM, Ast } from "../syntax/ast";
+import { NodeKind, Ast } from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
 import { MODULE_COUNT, modulePath } from "../semantics/modules";
 import { quoted } from "../semantics/analyzer";
@@ -121,7 +121,7 @@ fn hashInputs(ws: *Workspace): Inputs {
   }
 
   let ast: *Ast = Ast.new();
-  let root: i32 = ast.add(NK_PROGRAM, 0, 0);
+  let root: i32 = ast.add(NodeKind.Program, 0, 0);
   loadProgram(ast, root, ws.entry, tokenize(source));
   FAILED = false;
 
@@ -268,7 +268,7 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
 
   let command: *TextList = TextList.new().add(ws.compiler);
   command.add("-o").add(target).add(ws.entry);
-  if (runCommand(command, null, null, STDERR_INHERIT) != 0) {
+  if (runCommand(command, null, null, StderrMode.Inherit) != 0) {
     complain("the compiler did not build");
     return 1;
   }
@@ -329,7 +329,7 @@ fn commandBootstrap(ws: *Workspace): i32 {
 
     let command: *TextList = TextList.new().add(from);
     command.add("-o").add(to).add(ws.entry);
-    if (runCommand(command, null, null, STDERR_INHERIT) != 0) {
+    if (runCommand(command, null, null, StderrMode.Inherit) != 0) {
       complain("a bootstrap stage did not build");
       return 1;
     }
@@ -377,7 +377,7 @@ fn commandSeed(ws: *Workspace): i32 {
   let ir: *Buf = Buf.new();
   let command: *TextList = TextList.new().add(ws.output);
   command.add("--emit-llvm").add(ws.entry);
-  if (runCommand(command, null, ir, STDERR_INHERIT) != 0) {
+  if (runCommand(command, null, ir, StderrMode.Inherit) != 0) {
     complain("the compiler could not emit its own IR");
     return 1;
   }

@@ -1,0 +1,5 @@
+enum Color { Red, Green, Red }
+
+fn main(): i32 {
+  return 0;
+}

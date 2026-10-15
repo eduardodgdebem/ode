@@ -1,80 +1,88 @@
 // ---------------------------------------------------------------------------
 // Tokens.
 //
-// Kinds are plain integer globals rather than an enum, and they are grouped in
-// tens so a new operator can be added without renumbering the delimiters.
+// A token is its kind, its text, and where it starts.
 // ---------------------------------------------------------------------------
 
 import { malloc, realloc } from "../support/libc";
+import { Type } from "../semantics/types";
 
+export enum TokenKind {
+  // Not a token: the state before the first one has been read.
+  None,
+  End,
+  Ident,
+  Number,
+  String,
+  Char,
+  Bool,
+  Type,
+  Let,
+  If,
+  Else,
+  Fn,
+  Extern,
+  Struct,
+  Sizeof,
+  Return,
+  While,
+  Break,
+  Continue,
+  Print,
+  As,
+  Import,
+  Export,
+  Null,
+  Enum,
+  Match,
+  Assign,
+  Plus,
+  Minus,
+  Star,
+  Slash,
+  Percent,
+  Not,
+  Amp,
+  Pipe,
+  Caret,
+  Shl,
+  Shr,
+  AndAnd,
+  OrOr,
+  Eq,
+  Ne,
+  Lt,
+  Le,
+  Gt,
+  Ge,
+  PlusAssign,
+  MinusAssign,
+  StarAssign,
+  SlashAssign,
+  PercentAssign,
+  LParen,
+  RParen,
+  LBrace,
+  RBrace,
+  LBracket,
+  RBracket,
+  Dot,
+  Semicolon,
+  Comma,
+  Colon,
+  // `=>`, between a match arm's patterns and its body.
+  Arrow,
+}
 // Not a token: the state before the first one has been read.
-export let TK_NONE: i32 = -1;
 
-export let TK_END: i32 = 0;
-export let TK_IDENT: i32 = 1;
-export let TK_NUMBER: i32 = 2;
-export let TK_STRING: i32 = 3;
-export let TK_CHAR: i32 = 4;
-export let TK_BOOL: i32 = 5;
-export let TK_TYPE: i32 = 6;
 
-export let TK_LET: i32 = 10;
-export let TK_IF: i32 = 11;
-export let TK_ELSE: i32 = 12;
-export let TK_FN: i32 = 13;
-export let TK_EXTERN: i32 = 14;
-export let TK_STRUCT: i32 = 15;
-export let TK_SIZEOF: i32 = 16;
-export let TK_RETURN: i32 = 17;
-export let TK_WHILE: i32 = 18;
-export let TK_BREAK: i32 = 19;
-export let TK_CONTINUE: i32 = 20;
-export let TK_PRINT: i32 = 21;
-export let TK_AS: i32 = 22;
-export let TK_IMPORT: i32 = 23;
-export let TK_EXPORT: i32 = 24;
-export let TK_NULL: i32 = 25;
 
-export let TK_ASSIGN: i32 = 30;
-export let TK_PLUS: i32 = 31;
-export let TK_MINUS: i32 = 32;
-export let TK_STAR: i32 = 33;
-export let TK_SLASH: i32 = 34;
-export let TK_PERCENT: i32 = 35;
-export let TK_NOT: i32 = 36;
-export let TK_AMP: i32 = 37;
-export let TK_PIPE: i32 = 38;
-export let TK_CARET: i32 = 39;
-export let TK_SHL: i32 = 40;
-export let TK_SHR: i32 = 41;
-export let TK_ANDAND: i32 = 42;
-export let TK_OROR: i32 = 43;
-export let TK_EQ: i32 = 44;
-export let TK_NE: i32 = 45;
-export let TK_LT: i32 = 46;
-export let TK_LE: i32 = 47;
-export let TK_GT: i32 = 48;
-export let TK_GE: i32 = 49;
 
-export let TK_PLUS_ASSIGN: i32 = 50;
-export let TK_MINUS_ASSIGN: i32 = 51;
-export let TK_STAR_ASSIGN: i32 = 52;
-export let TK_SLASH_ASSIGN: i32 = 53;
-export let TK_PERCENT_ASSIGN: i32 = 54;
 
-export let TK_LPAREN: i32 = 60;
-export let TK_RPAREN: i32 = 61;
-export let TK_LBRACE: i32 = 62;
-export let TK_RBRACE: i32 = 63;
-export let TK_LBRACKET: i32 = 64;
-export let TK_RBRACKET: i32 = 65;
-export let TK_DOT: i32 = 66;
-export let TK_SEMICOLON: i32 = 67;
-export let TK_COMMA: i32 = 68;
-export let TK_COLON: i32 = 69;
+
 
 export struct Token {
-  kind: i32,
+  kind: TokenKind,
   // The token's own text, owned. A number keeps its digits and a string keeps
   // its decoded contents; the parser is what turns either into a value.
   text: *i8,
@@ -99,7 +107,7 @@ export struct TokenList {
     return list;
   }
 
-  fn add(self: *TokenList, kind: i32, text: *i8, length: i64,
+  fn add(self: *TokenList, kind: TokenKind, text: *i8, length: i64,
          line: i32, column: i32): void {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
@@ -127,69 +135,71 @@ export struct TokenList {
   }
 }
 
-export fn kindName(kind: i32): *i8 {
-  if (kind == TK_END) { return "end"; }
-  if (kind == TK_IDENT) { return "ident"; }
-  if (kind == TK_NUMBER) { return "number"; }
-  if (kind == TK_STRING) { return "string"; }
-  if (kind == TK_CHAR) { return "char"; }
-  if (kind == TK_BOOL) { return "bool"; }
-  if (kind == TK_TYPE) { return "type"; }
-
-  if (kind == TK_LET) { return "let"; }
-  if (kind == TK_IF) { return "if"; }
-  if (kind == TK_ELSE) { return "else"; }
-  if (kind == TK_FN) { return "fn"; }
-  if (kind == TK_EXTERN) { return "extern"; }
-  if (kind == TK_STRUCT) { return "struct"; }
-  if (kind == TK_SIZEOF) { return "sizeof"; }
-  if (kind == TK_RETURN) { return "return"; }
-  if (kind == TK_WHILE) { return "while"; }
-  if (kind == TK_BREAK) { return "break"; }
-  if (kind == TK_CONTINUE) { return "continue"; }
-  if (kind == TK_PRINT) { return "print"; }
-  if (kind == TK_AS) { return "as"; }
-  if (kind == TK_IMPORT) { return "import"; }
-  if (kind == TK_EXPORT) { return "export"; }
-  if (kind == TK_NULL) { return "null"; }
-
-  if (kind == TK_ASSIGN) { return "="; }
-  if (kind == TK_PLUS) { return "+"; }
-  if (kind == TK_MINUS) { return "-"; }
-  if (kind == TK_STAR) { return "*"; }
-  if (kind == TK_SLASH) { return "/"; }
-  if (kind == TK_PERCENT) { return "%"; }
-  if (kind == TK_NOT) { return "!"; }
-  if (kind == TK_AMP) { return "&"; }
-  if (kind == TK_PIPE) { return "|"; }
-  if (kind == TK_CARET) { return "^"; }
-  if (kind == TK_SHL) { return "<<"; }
-  if (kind == TK_SHR) { return ">>"; }
-  if (kind == TK_ANDAND) { return "&&"; }
-  if (kind == TK_OROR) { return "||"; }
-  if (kind == TK_EQ) { return "=="; }
-  if (kind == TK_NE) { return "!="; }
-  if (kind == TK_LT) { return "<"; }
-  if (kind == TK_LE) { return "<="; }
-  if (kind == TK_GT) { return ">"; }
-  if (kind == TK_GE) { return ">="; }
-
-  if (kind == TK_PLUS_ASSIGN) { return "+="; }
-  if (kind == TK_MINUS_ASSIGN) { return "-="; }
-  if (kind == TK_STAR_ASSIGN) { return "*="; }
-  if (kind == TK_SLASH_ASSIGN) { return "/="; }
-  if (kind == TK_PERCENT_ASSIGN) { return "%="; }
-
-  if (kind == TK_LPAREN) { return "("; }
-  if (kind == TK_RPAREN) { return ")"; }
-  if (kind == TK_LBRACE) { return "{"; }
-  if (kind == TK_RBRACE) { return "}"; }
-  if (kind == TK_LBRACKET) { return "["; }
-  if (kind == TK_RBRACKET) { return "]"; }
-  if (kind == TK_DOT) { return "."; }
-  if (kind == TK_SEMICOLON) { return ";"; }
-  if (kind == TK_COMMA) { return ","; }
-  if (kind == TK_COLON) { return ":"; }
+export fn kindName(kind: TokenKind): *i8 {
+  match (kind) {
+    TokenKind.End => { return "end"; }
+    TokenKind.Ident => { return "ident"; }
+    TokenKind.Number => { return "number"; }
+    TokenKind.String => { return "string"; }
+    TokenKind.Char => { return "char"; }
+    TokenKind.Bool => { return "bool"; }
+    TokenKind.Type => { return "type"; }
+    TokenKind.Let => { return "let"; }
+    TokenKind.If => { return "if"; }
+    TokenKind.Else => { return "else"; }
+    TokenKind.Fn => { return "fn"; }
+    TokenKind.Extern => { return "extern"; }
+    TokenKind.Struct => { return "struct"; }
+    TokenKind.Sizeof => { return "sizeof"; }
+    TokenKind.Return => { return "return"; }
+    TokenKind.While => { return "while"; }
+    TokenKind.Break => { return "break"; }
+    TokenKind.Continue => { return "continue"; }
+    TokenKind.Print => { return "print"; }
+    TokenKind.As => { return "as"; }
+    TokenKind.Import => { return "import"; }
+    TokenKind.Export => { return "export"; }
+    TokenKind.Null => { return "null"; }
+    TokenKind.Enum => { return "enum"; }
+    TokenKind.Match => { return "match"; }
+    TokenKind.Assign => { return "="; }
+    TokenKind.Plus => { return "+"; }
+    TokenKind.Minus => { return "-"; }
+    TokenKind.Star => { return "*"; }
+    TokenKind.Slash => { return "/"; }
+    TokenKind.Percent => { return "%"; }
+    TokenKind.Not => { return "!"; }
+    TokenKind.Amp => { return "&"; }
+    TokenKind.Pipe => { return "|"; }
+    TokenKind.Caret => { return "^"; }
+    TokenKind.Shl => { return "<<"; }
+    TokenKind.Shr => { return ">>"; }
+    TokenKind.AndAnd => { return "&&"; }
+    TokenKind.OrOr => { return "||"; }
+    TokenKind.Eq => { return "=="; }
+    TokenKind.Ne => { return "!="; }
+    TokenKind.Lt => { return "<"; }
+    TokenKind.Le => { return "<="; }
+    TokenKind.Gt => { return ">"; }
+    TokenKind.Ge => { return ">="; }
+    TokenKind.PlusAssign => { return "+="; }
+    TokenKind.MinusAssign => { return "-="; }
+    TokenKind.StarAssign => { return "*="; }
+    TokenKind.SlashAssign => { return "/="; }
+    TokenKind.PercentAssign => { return "%="; }
+    TokenKind.LParen => { return "("; }
+    TokenKind.RParen => { return ")"; }
+    TokenKind.LBrace => { return "{"; }
+    TokenKind.RBrace => { return "}"; }
+    TokenKind.LBracket => { return "["; }
+    TokenKind.RBracket => { return "]"; }
+    TokenKind.Dot => { return "."; }
+    TokenKind.Semicolon => { return ";"; }
+    TokenKind.Comma => { return ","; }
+    TokenKind.Colon => { return ":"; }
+    TokenKind.Arrow => { return "=>"; }
+    else => {}
+  }
 
   return "?";
 }

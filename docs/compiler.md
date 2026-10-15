@@ -76,8 +76,8 @@ files, and a method has to be written inside its struct.
 
 Nodes live in one arena and refer to each other by index rather than by
 pointer, because the arena moves when it grows and a held pointer would
-dangle. There are no sum types, so every node is the same struct with a kind
-tag: `a`, `b` and `c` are the fixed children and mean different things per
+dangle. Enums cannot carry data, so every node is the same struct with a
+`NodeKind`: `a`, `b` and `c` are the fixed children and mean different things per
 kind -- `syntax/ast.ode` lists them -- and `items` is the child list that only
 some kinds use. A struct's items are its fields and its methods.
 
@@ -139,8 +139,10 @@ The compiler can only use what the language supports, and a feature added to
 the compiler is usable by its own source only once the seed has it. Today
 that means:
 
-- No function pointers, so dispatch is `if`/`else if` chains on kind tags.
-- No sum types, so a node is one struct with a kind and generic children.
+- No function pointers, so dispatch on a kind is a `match`, not a table of
+  handlers.
+- No enums with data, so a node is one struct with a `NodeKind` and generic
+  children.
 - No implicit conversions, so widths change through `as`.
 - No variadic `extern`, so there is no printf and numbers are formatted by
   hand.

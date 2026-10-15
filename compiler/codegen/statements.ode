@@ -7,17 +7,11 @@
 // code still forms valid IR.
 // ---------------------------------------------------------------------------
 
-import { realloc, strlen } from "../support/libc";
-import { Buf } from "../support/text";
+import { malloc, realloc, strlen } from "../support/libc";
+import { Buf, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
-import {
-  NO_NODE, NK_BLOCK, NK_VARDECL, NK_ASSIGN, NK_IF, NK_WHILE, NK_BREAK,
-  NK_CONTINUE, NK_EXTERN, NK_STRUCT, NK_RETURN, NK_PRINT, NK_EXPRSTMT,
-} from "../syntax/ast";
-import {
-  TY_I8, TY_U8, TY_I16, TY_U16, TY_I32, TY_U32, TY_I64, TY_U64, TY_F32, TY_F64,
-  TY_BOOL, Type,
-} from "../semantics/types";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import {
   Emitter, freshLabel, emitLine, emitLabel, emitBranch, emitCondBranch,
@@ -37,22 +31,25 @@ fn printFormat(type: Type): *i8 {
   if (type.isPointer()) {
     // `*i8` is Ode's string type, so it prints as text. Any other pointer
     // prints as an address.
-    if (type.kind == TY_I8 && type.pointerDepth == 1) {
+    if (type.kind == TypeKind.I8 && type.pointerDepth == 1) {
       return "%s\n";
     }
     return "%p\n";
   }
 
-  if (type.kind == TY_BOOL || type.kind == TY_I8 || type.kind == TY_I16 ||
-      type.kind == TY_I32) {
+  if (type.kind == TypeKind.Bool || type.kind == TypeKind.I8 || type.kind == TypeKind.I16 ||
+      type.kind == TypeKind.I32 || type.kind == TypeKind.Enum) {
     return "%d\n";
   }
-  if (type.kind == TY_U8 || type.kind == TY_U16 || type.kind == TY_U32) {
+  if (type.kind == TypeKind.U8 || type.kind == TypeKind.U16 || type.kind == TypeKind.U32) {
     return "%u\n";
   }
-  if (type.kind == TY_I64) { return "%lld\n"; }
-  if (type.kind == TY_U64) { return "%llu\n"; }
-  if (type.kind == TY_F32 || type.kind == TY_F64) { return "%f\n"; }
+  match (type.kind) {
+    TypeKind.I64 => { return "%lld\n"; }
+    TypeKind.U64 => { return "%llu\n"; }
+    TypeKind.F32, TypeKind.F64 => { return "%f\n"; }
+    else => {}
+  }
 
   failAt(0, 0, "unsupported type for print statement");
   return "";
@@ -69,10 +66,10 @@ fn genPrint(e: *Emitter, node: i32): void {
   let argType: Type = type;
   if (!type.isPointer()) {
     if (type.isBool() || (type.isInteger() && type.bitWidth() < 32)) {
-      argType = Type.make(TY_I32, 0);
+      argType = Type.make(TypeKind.I32, 0);
       value = emitCast(e, value, type, argType);
-    } else if (type.kind == TY_F32) {
-      argType = Type.make(TY_F64, 0);
+    } else if (type.kind == TypeKind.F32) {
+      argType = Type.make(TypeKind.F64, 0);
       value = emitCast(e, value, type, argType);
     }
   }
@@ -92,15 +89,24 @@ fn genPrint(e: *Emitter, node: i32): void {
 }
 
 export fn genStatement(e: *Emitter, node: i32): void {
-  let kind: i32 = e.ast.nodes[node].kind;
+  let kind: NodeKind = e.ast.nodes[node].kind;
 
   // A struct declaration produced its type up front, and a nested function
   // declaration is not reachable here.
-  if (kind == NK_STRUCT || kind == NK_EXTERN) {
+  if (kind == NodeKind.Struct || kind == NodeKind.Extern) {
     return;
   }
 
-  if (kind == NK_BLOCK) {
+  if (kind == NodeKind.Enum) {
+    return;
+  }
+
+  if (kind == NodeKind.Match) {
+    genMatch(e, node);
+    return;
+  }
+
+  if (kind == NodeKind.Block) {
     emitterEnterScope(e);
     let index: i32 = 0;
     while (index < e.ast.nodes[node].itemCount) {
@@ -111,7 +117,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NK_VARDECL) {
+  if (kind == NodeKind.VarDecl) {
     let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
     let value: *i8 = genExpr(e, e.ast.nodes[node].b);
 
@@ -126,7 +132,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NK_ASSIGN) {
+  if (kind == NodeKind.Assign) {
     let target: i32 = e.ast.nodes[node].a;
     let type: Type = typeOfNode(e, target);
     let value: *i8 = genExpr(e, e.ast.nodes[node].b);
@@ -134,17 +140,17 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NK_EXPRSTMT) {
+  if (kind == NodeKind.ExprStmt) {
     genExpr(e, e.ast.nodes[node].a);
     return;
   }
 
-  if (kind == NK_PRINT) {
+  if (kind == NodeKind.Print) {
     genPrint(e, node);
     return;
   }
 
-  if (kind == NK_RETURN) {
+  if (kind == NodeKind.Return) {
     if (e.ast.nodes[node].a == NO_NODE) {
       emitLine(e, "ret void");
     } else {
@@ -162,7 +168,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NK_IF) {
+  if (kind == NodeKind.If) {
     let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
     let thenLabel: *i8 = freshLabel(e);
     let elseLabel: *i8 = freshLabel(e);
@@ -188,7 +194,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NK_WHILE) {
+  if (kind == NodeKind.While) {
     let condLabel: *i8 = freshLabel(e);
     let bodyLabel: *i8 = freshLabel(e);
     let doneLabel: *i8 = freshLabel(e);
@@ -218,14 +224,14 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NK_BREAK) {
+  if (kind == NodeKind.Break) {
     emitBranch(e, e.loopBreak[e.loopCount - 1]);
     // Anything written after this needs a block of its own to live in.
     emitLabel(e, freshLabel(e));
     return;
   }
 
-  if (kind == NK_CONTINUE) {
+  if (kind == NodeKind.Continue) {
     emitBranch(e, e.loopContinue[e.loopCount - 1]);
     emitLabel(e, freshLabel(e));
     return;
@@ -233,4 +239,89 @@ export fn genStatement(e: *Emitter, node: i32): void {
 
   failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
          "unsupported statement in code generation");
+}
+
+// A pattern's value as LLVM spells it for an integer of `bits` bits: in the
+// signed range, so that `255` matched against a u8 is written as -1.
+fn switchConstant(value: i64, bits: i32): *i8 {
+  if (bits >= 64) {
+    return intToText(value);
+  }
+
+  let span: i64 = 1 as i64 << bits as i64;
+  let wrapped: i64 = value % span;
+  if (wrapped < 0 as i64) {
+    wrapped = wrapped + span;
+  }
+  if (wrapped >= span / 2 as i64) {
+    wrapped = wrapped - span;
+  }
+
+  return intToText(wrapped);
+}
+
+// A match is LLVM's `switch`: one comparison table, a block per arm, and the
+// `else` arm -- or, for an enum match that handles every member, the end --
+// as the default.
+fn genMatch(e: *Emitter, node: i32): void {
+  let subject: i32 = e.ast.nodes[node].a;
+  let type: Type = typeOfNode(e, subject);
+  let typeName: *i8 = llvmTypeName(type);
+  let value: *i8 = genExpr(e, subject);
+
+  let done: *i8 = freshLabel(e);
+  let fallback: *i8 = done;
+  let armCount: i32 = e.ast.nodes[node].itemCount;
+  let labels: **i8 = malloc(sizeof(*i8) as i64 * (armCount + 1) as i64) as **i8;
+
+  let arm: i32 = 0;
+  while (arm < armCount) {
+    labels[arm] = freshLabel(e);
+    if (e.ast.nodes[e.ast.nodes[node].items[arm]].extra == 1) {
+      fallback = labels[arm];
+    }
+    arm = arm + 1;
+  }
+
+  let line: *Buf = Buf.new();
+  line.add("switch ");
+  line.add(typeName);
+  line.push(' ');
+  line.add(value);
+  line.add(", label %");
+  line.add(fallback);
+  line.add(" [");
+
+  arm = 0;
+  while (arm < armCount) {
+    let armNode: i32 = e.ast.nodes[node].items[arm];
+    let pattern: i32 = 0;
+    while (pattern < e.ast.nodes[armNode].itemCount) {
+      let patternNode: i32 = e.ast.nodes[armNode].items[pattern];
+      line.push(' ');
+      line.add(typeName);
+      line.push(' ');
+      line.add(switchConstant(e.an.values[patternNode], type.bitWidth()));
+      line.add(", label %");
+      line.add(labels[arm]);
+      pattern = pattern + 1;
+    }
+    arm = arm + 1;
+  }
+  line.add(" ]");
+
+  if (!e.terminated) {
+    emitLine(e, line.data);
+    e.terminated = true;
+  }
+
+  arm = 0;
+  while (arm < armCount) {
+    emitLabel(e, labels[arm]);
+    genStatement(e, e.ast.nodes[e.ast.nodes[node].items[arm]].a);
+    emitBranch(e, done);
+    arm = arm + 1;
+  }
+
+  emitLabel(e, done);
 }

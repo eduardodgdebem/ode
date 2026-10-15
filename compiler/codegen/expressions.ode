@@ -10,15 +10,11 @@
 import { malloc, strlen } from "../support/libc";
 import { Buf, textEquals, intToText } from "../support/text";
 import { failAt } from "../support/diagnostics";
-import {
-  NO_NODE, NK_CALL, NK_BINARY, NK_UNARY, NK_CAST, NK_FIELDACCESS, NK_INDEX,
-  NK_STRUCTLIT, NK_SIZEOF, NK_NUMBER, NK_STRING, NK_CHAR, NK_BOOL, NK_IDENT,
-  NK_METHODCALL, NK_NULL,
-} from "../syntax/ast";
-import { TY_I64, TY_BOOL, Type } from "../semantics/types";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { TypeKind, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
 import { textHasDot } from "../semantics/expressions";
-import { RECV_NONE, RECV_ADDRESS, RECV_LOAD } from "../semantics/methods";
+import { ReceiverMode } from "../semantics/methods";
 import {
   Emitter, freshTemp, freshLabel, emitLine, emitLabel, emitBranch,
   emitCondBranch, variableAddress, internString,
@@ -65,6 +61,14 @@ export fn emitStore(e: *Emitter, type: Type, value: *i8, address: *i8): void {
 export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
   if (from.equals(to)) {
     return value;
+  }
+
+  // An enum is an i32 underneath, so it converts as one.
+  if (from.isEnum()) {
+    return emitCast(e, value, Type.make(TypeKind.I32, 0), to);
+  }
+  if (to.isEnum()) {
+    return emitCast(e, value, from, Type.make(TypeKind.I32, 0));
   }
 
   let target: *i8 = llvmTypeName(to);
@@ -140,12 +144,12 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
 }
 
 fn isAddressable(e: *Emitter, node: i32): bool {
-  let kind: i32 = e.ast.nodes[node].kind;
+  let kind: NodeKind = e.ast.nodes[node].kind;
 
-  if (kind == NK_IDENT || kind == NK_FIELDACCESS || kind == NK_INDEX) {
+  if (kind == NodeKind.Ident || kind == NodeKind.FieldAccess || kind == NodeKind.Index) {
     return true;
   }
-  if (kind == NK_UNARY) {
+  if (kind == NodeKind.Unary) {
     return textEquals(e.ast.nodes[node].text, "*");
   }
 
@@ -153,13 +157,13 @@ fn isAddressable(e: *Emitter, node: i32): bool {
 }
 
 export fn genAddress(e: *Emitter, node: i32): *i8 {
-  let kind: i32 = e.ast.nodes[node].kind;
+  let kind: NodeKind = e.ast.nodes[node].kind;
 
-  if (kind == NK_IDENT) {
+  if (kind == NodeKind.Ident) {
     return variableAddress(e, node);
   }
 
-  if (kind == NK_FIELDACCESS) {
+  if (kind == NodeKind.FieldAccess) {
     let object: i32 = e.ast.nodes[node].a;
     let objectType: Type = typeOfNode(e, object);
 
@@ -189,14 +193,14 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
     return emitAssign(e, line.data);
   }
 
-  if (kind == NK_INDEX) {
+  if (kind == NodeKind.Index) {
     let base: i32 = e.ast.nodes[node].a;
     let baseType: Type = typeOfNode(e, base);
     let pointer: *i8 = genExpr(e, base);
 
     let indexNode: i32 = e.ast.nodes[node].b;
     let offset: *i8 = emitCast(e, genExpr(e, indexNode),
-                               typeOfNode(e, indexNode), Type.make(TY_I64, 0));
+                               typeOfNode(e, indexNode), Type.make(TypeKind.I64, 0));
 
     let line: *Buf = Buf.new();
     line.add("getelementptr inbounds ");
@@ -210,7 +214,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
   }
 
   // For `*p` the address to read or write is simply the value of `p`.
-  if (kind == NK_UNARY) {
+  if (kind == NodeKind.Unary) {
     return genExpr(e, e.ast.nodes[node].a);
   }
 
@@ -227,7 +231,7 @@ fn genShortCircuit(e: *Emitter, node: i32): *i8 {
 
   let slot: *i8 = emitAssign(e, "alloca i1");
   let left: *i8 = genExpr(e, e.ast.nodes[node].a);
-  emitStore(e, Type.make(TY_BOOL, 0), left, slot);
+  emitStore(e, Type.make(TypeKind.Bool, 0), left, slot);
 
   let rightLabel: *i8 = freshLabel(e);
   let doneLabel: *i8 = freshLabel(e);
@@ -240,17 +244,17 @@ fn genShortCircuit(e: *Emitter, node: i32): *i8 {
 
   emitLabel(e, rightLabel);
   let right: *i8 = genExpr(e, e.ast.nodes[node].b);
-  emitStore(e, Type.make(TY_BOOL, 0), right, slot);
+  emitStore(e, Type.make(TypeKind.Bool, 0), right, slot);
   emitBranch(e, doneLabel);
 
   emitLabel(e, doneLabel);
 
-  return emitLoad(e, Type.make(TY_BOOL, 0), slot);
+  return emitLoad(e, Type.make(TypeKind.Bool, 0), slot);
 }
 
 fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
                         leftType: Type, rightType: Type): *i8 {
-  let i64Type: Type = Type.make(TY_I64, 0);
+  let i64Type: Type = Type.make(TypeKind.I64, 0);
 
   // p - q: a byte distance scaled down to a count of elements.
   if (leftType.isPointer() && rightType.isPointer()) {
@@ -459,20 +463,20 @@ fn genCall(e: *Emitter, node: i32): *i8 {
 // A method call is a call with the receiver, when there is one, put in front
 // of the arguments as `self`.
 fn genMethodCall(e: *Emitter, node: i32): *i8 {
-  let mode: i8 = e.an.receivers[node];
-  if (mode == RECV_NONE) {
+  let mode: ReceiverMode = e.an.receivers[node];
+  if (mode == ReceiverMode.None) {
     return genCallWith(e, node, e.ast.nodes[node].b, "", "");
   }
 
   let object: i32 = e.ast.nodes[node].a;
   let objectType: Type = typeOfNode(e, object);
 
-  if (mode == RECV_ADDRESS) {
+  if (mode == ReceiverMode.Address) {
     return genCallWith(e, node, e.ast.nodes[node].b, "ptr",
                        genAddress(e, object));
   }
 
-  if (mode == RECV_LOAD) {
+  if (mode == ReceiverMode.Load) {
     let pointee: Type = objectType.pointee();
     let value: *i8 = emitLoad(e, pointee, genExpr(e, object));
     return genCallWith(e, node, e.ast.nodes[node].b, llvmTypeName(pointee),
@@ -596,18 +600,18 @@ export fn genNumberLiteral(e: *Emitter, node: i32): *i8 {
 }
 
 export fn genExpr(e: *Emitter, node: i32): *i8 {
-  let kind: i32 = e.ast.nodes[node].kind;
+  let kind: NodeKind = e.ast.nodes[node].kind;
 
-  if (kind == NK_NUMBER) { return genNumberLiteral(e, node); }
+  if (kind == NodeKind.Number) { return genNumberLiteral(e, node); }
 
-  if (kind == NK_BOOL) {
+  if (kind == NodeKind.Bool) {
     if (textEquals(e.ast.nodes[node].text, "true")) {
       return "true";
     }
     return "false";
   }
 
-  if (kind == NK_CHAR) {
+  if (kind == NodeKind.Char) {
     let value: i32 = e.ast.nodes[node].text[0] as i32;
     if (value < 0) {
       value = value + 256;
@@ -619,38 +623,46 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
     return intToText(value as i64);
   }
 
-  if (kind == NK_NULL) {
+  if (kind == NodeKind.Null) {
     return "null";
   }
 
-  if (kind == NK_STRING) {
+  if (kind == NodeKind.String) {
     return internString(e, e.ast.nodes[node].text,
                         e.ast.nodes[node].textLength);
   }
 
-  if (kind == NK_IDENT) {
+  if (kind == NodeKind.Ident) {
     return emitLoad(e, typeOfNode(e, node),
                     variableAddress(e, node));
   }
 
-  if (kind == NK_BINARY) { return genBinary(e, node); }
-  if (kind == NK_UNARY) { return genUnary(e, node); }
-  if (kind == NK_CALL) { return genCall(e, node); }
-  if (kind == NK_METHODCALL) { return genMethodCall(e, node); }
-  if (kind == NK_STRUCTLIT) { return genStructLiteral(e, node); }
+  match (kind) {
+    NodeKind.Binary => { return genBinary(e, node); }
+    NodeKind.Unary => { return genUnary(e, node); }
+    NodeKind.Call => { return genCall(e, node); }
+    NodeKind.MethodCall => { return genMethodCall(e, node); }
+    NodeKind.StructLit => { return genStructLiteral(e, node); }
+    else => {}
+  }
 
-  if (kind == NK_CAST) {
+  if (kind == NodeKind.Cast) {
     let from: Type = typeOfNode(e, e.ast.nodes[node].a);
     let to: Type = typeOfNode(e, node);
     return emitCast(e, genExpr(e, e.ast.nodes[node].a), from, to);
   }
 
-  if (kind == NK_SIZEOF) {
+  if (kind == NodeKind.Sizeof) {
     let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
     return intToText(sizeOfType(e, type) as i64);
   }
 
-  if (kind == NK_FIELDACCESS) {
+  // `Color.Red` is a constant the analyzer already worked out.
+  if (kind == NodeKind.FieldAccess && e.an.isConstant[node] != 0 as i8) {
+    return intToText(e.an.values[node]);
+  }
+
+  if (kind == NodeKind.FieldAccess) {
     let object: i32 = e.ast.nodes[node].a;
     let objectType: Type = typeOfNode(e, object);
 
@@ -675,7 +687,7 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
     return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
   }
 
-  if (kind == NK_INDEX) {
+  if (kind == NodeKind.Index) {
     return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
   }
 

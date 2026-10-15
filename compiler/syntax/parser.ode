@@ -9,12 +9,8 @@
 import { malloc } from "../support/libc";
 import { Buf } from "../support/text";
 import { report, fail } from "../support/diagnostics";
-import {
-  TK_END, TK_IDENT, TK_TYPE, TK_LET, TK_IF, TK_FN, TK_EXTERN, TK_STRUCT,
-  TK_RETURN, TK_WHILE, TK_BREAK, TK_CONTINUE, TK_PRINT, TK_IMPORT, TK_EXPORT,
-  TK_STAR, TK_LBRACE, TK_RBRACE, TK_SEMICOLON, Token, TokenList,
-} from "./token";
-import { NK_TYPE, NK_ERROR, Ast } from "./ast";
+import { TokenKind, Token, TokenList } from "./token";
+import { NodeKind, Ast } from "./ast";
 
 export struct Parser {
   tokens: *TokenList,
@@ -42,7 +38,7 @@ export struct Parser {
     return self.tokens.at(self.pos + 1);
   }
 
-  fn kind(self: *Parser): i32 {
+  fn kind(self: *Parser): TokenKind {
     return self.current().kind;
   }
 
@@ -59,7 +55,7 @@ export struct Parser {
     message.add(expected);
     message.add("' but got '");
 
-    if (token.kind == TK_END) {
+    if (token.kind == TokenKind.End) {
       message.add("end of file");
     } else {
       message.addBytes(token.text, token.length);
@@ -71,7 +67,7 @@ export struct Parser {
 
   fn errorNode(self: *Parser): i32 {
     let token: *Token = self.current();
-    return self.ast.add(NK_ERROR, token.line, token.column);
+    return self.ast.add(NodeKind.Error, token.line, token.column);
   }
 
   // Recovery is per statement: everything up to the next `;` or the start of
@@ -81,16 +77,16 @@ export struct Parser {
   fn synchronize(self: *Parser): void {
     let depth: i32 = 0;
 
-    while (self.kind() != TK_END) {
-      let kind: i32 = self.kind();
+    while (self.kind() != TokenKind.End) {
+      let kind: TokenKind = self.kind();
 
-      if (kind == TK_LBRACE) {
+      if (kind == TokenKind.LBrace) {
         depth = depth + 1;
         self.advance();
         continue;
       }
 
-      if (kind == TK_RBRACE) {
+      if (kind == TokenKind.RBrace) {
         // At depth zero this closes the block being parsed, which is the
         // caller's to consume.
         if (depth == 0) {
@@ -105,7 +101,7 @@ export struct Parser {
       }
 
       if (depth == 0) {
-        if (kind == TK_SEMICOLON) {
+        if (kind == TokenKind.Semicolon) {
           self.advance();
           return;
         }
@@ -118,7 +114,7 @@ export struct Parser {
     }
   }
 
-  fn expect(self: *Parser, kind: i32, name: *i8): *Token {
+  fn expect(self: *Parser, kind: TokenKind, name: *i8): *Token {
     // The offending token is left where it is. Consuming it would throw away
     // the very thing recovery needs to see -- a `}` swallowed here would leave
     // the parser inside a block that has already ended.
@@ -136,21 +132,24 @@ export struct Parser {
 
 // True for a token that can only begin a statement, which is where a
 // recovering parser can pick the file back up.
-export fn startsStatement(kind: i32): bool {
-  if (kind == TK_FN || kind == TK_EXTERN || kind == TK_STRUCT) {
+export fn startsStatement(kind: TokenKind): bool {
+  if (kind == TokenKind.Fn || kind == TokenKind.Extern || kind == TokenKind.Struct) {
     return true;
   }
-  if (kind == TK_IMPORT || kind == TK_EXPORT) {
+  if (kind == TokenKind.Import || kind == TokenKind.Export) {
     return true;
   }
-  if (kind == TK_LET || kind == TK_IF || kind == TK_WHILE) {
+  if (kind == TokenKind.Enum || kind == TokenKind.Match) {
     return true;
   }
-  if (kind == TK_RETURN || kind == TK_PRINT) {
+  if (kind == TokenKind.Let || kind == TokenKind.If || kind == TokenKind.While) {
+    return true;
+  }
+  if (kind == TokenKind.Return || kind == TokenKind.Print) {
     return true;
   }
 
-  return kind == TK_BREAK || kind == TK_CONTINUE;
+  return kind == TokenKind.Break || kind == TokenKind.Continue;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,21 +163,21 @@ export fn parseType(parser: *Parser): i32 {
   let startColumn: i32 = start.column;
   let depth: i32 = 0;
 
-  while (parser.kind() == TK_STAR) {
+  while (parser.kind() == TokenKind.Star) {
     depth = depth + 1;
     parser.advance();
   }
 
-  if (parser.kind() != TK_TYPE && parser.kind() != TK_IDENT) {
+  if (parser.kind() != TokenKind.Type && parser.kind() != TokenKind.Ident) {
     parser.fail("type");
     // Same reason: the token that is not a type is the one recovery reads.
-    return parser.ast.add(NK_TYPE, startLine, startColumn);
+    return parser.ast.add(NodeKind.Type, startLine, startColumn);
   }
 
   let name: *Token = parser.current();
   parser.advance();
 
-  let node: i32 = parser.ast.add(NK_TYPE, startLine, startColumn);
+  let node: i32 = parser.ast.add(NodeKind.Type, startLine, startColumn);
   parser.ast.setText(node, name);
   parser.ast.nodes[node].extra = depth;
 

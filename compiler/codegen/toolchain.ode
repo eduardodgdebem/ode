@@ -12,8 +12,7 @@
 
 import { Buf } from "../support/text";
 import {
-  TextList, STDERR_DISCARD, runCommand, environment, setEnvironment,
-  fileExists,
+  TextList, StderrMode, runCommand, environment, setEnvironment, fileExists,
 } from "../support/system";
 import { isSpace } from "../syntax/lexer";
 
@@ -41,7 +40,7 @@ export fn sysroot(): *i8 {
   if (SYSROOT == null && fileExists("/usr/bin/xcrun")) {
     let output: *Buf = Buf.new();
     let command: *TextList = TextList.new().add("xcrun").add("--show-sdk-path");
-    if (runCommand(command, null, output, STDERR_DISCARD) == 0) {
+    if (runCommand(command, null, output, StderrMode.Discard) == 0) {
       // The path comes back with a newline after it.
       while (output.length > 0 as i64 &&
              isSpace(output.data[output.length - 1 as i64])) {

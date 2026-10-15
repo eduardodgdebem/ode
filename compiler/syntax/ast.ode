@@ -12,51 +12,58 @@
 
 import { malloc, realloc } from "../support/libc";
 import { Token } from "./token";
+import { Type } from "../semantics/types";
 
 export let NO_NODE: i32 = -1;
 
-export let NK_PROGRAM: i32 = 1;
-export let NK_BLOCK: i32 = 2;
-export let NK_VARDECL: i32 = 3;
-export let NK_ASSIGN: i32 = 4;
-export let NK_IF: i32 = 5;
-export let NK_WHILE: i32 = 6;
-export let NK_BREAK: i32 = 7;
-export let NK_CONTINUE: i32 = 8;
-export let NK_FN: i32 = 9;
-export let NK_EXTERN: i32 = 10;
-export let NK_STRUCT: i32 = 11;
-export let NK_FIELD: i32 = 12;
-export let NK_CALL: i32 = 13;
-export let NK_RETURN: i32 = 14;
-export let NK_PRINT: i32 = 15;
-export let NK_EXPRSTMT: i32 = 16;
-export let NK_BINARY: i32 = 17;
-export let NK_UNARY: i32 = 18;
-export let NK_CAST: i32 = 19;
-export let NK_FIELDACCESS: i32 = 20;
-export let NK_INDEX: i32 = 21;
-export let NK_STRUCTLIT: i32 = 22;
-export let NK_FINIT: i32 = 23;
-export let NK_SIZEOF: i32 = 24;
-export let NK_NUMBER: i32 = 25;
-export let NK_STRING: i32 = 26;
-export let NK_CHAR: i32 = 27;
-export let NK_BOOL: i32 = 28;
-export let NK_IDENT: i32 = 29;
-export let NK_TYPE: i32 = 30;
-export let NK_PARAMS: i32 = 31;
-export let NK_PARAM: i32 = 32;
-export let NK_ARGS: i32 = 33;
-// Stands in for a construct that did not parse.
-export let NK_ERROR: i32 = 34;
-export let NK_IMPORT: i32 = 35;
-export let NK_IMPORTNAME: i32 = 36;
-export let NK_METHODCALL: i32 = 37;
-export let NK_NULL: i32 = 38;
+export enum NodeKind {
+  Program,
+  Block,
+  VarDecl,
+  Assign,
+  If,
+  While,
+  Break,
+  Continue,
+  Fn,
+  Extern,
+  Struct,
+  Field,
+  Call,
+  Return,
+  Print,
+  ExprStmt,
+  Binary,
+  Unary,
+  Cast,
+  FieldAccess,
+  Index,
+  StructLit,
+  FieldInit,
+  Sizeof,
+  Number,
+  String,
+  Char,
+  Bool,
+  Ident,
+  Type,
+  Params,
+  Param,
+  Args,
+  // Stands in for a construct that did not parse.
+  Error,
+  Import,
+  ImportName,
+  MethodCall,
+  Null,
+  Enum,
+  EnumMember,
+  Match,
+  Arm,
+}
 
 struct Node {
-  kind: i32,
+  kind: NodeKind,
   line: i32,
   column: i32,
   // A name, an operator's spelling, or a literal's decoded text.
@@ -84,11 +91,14 @@ struct Node {
   //   sizeof   a=type
   //   importname a=alias, an ident, when the name is renamed with `as`
   //   methodcall a=receiver, or the struct's name b=args
+  //   enummember a=value, when one is written
+  //   match    a=subject, items=arms
+  //   arm      a=body,    items=patterns, none for the `else` arm
   a: i32,
   b: i32,
   c: i32,
   // Pointer depth, for a type node. For an import, the module it loads, once
-  // the driver has found it.
+  // the driver has found it. For a match arm, 1 when it is the `else` arm.
   extra: i32,
   // Child indices, for program, block, struct, structlit, params, args and
   // import. A struct's items are its fields and then, mixed in, its methods.
@@ -119,7 +129,7 @@ export struct Ast {
     return ast;
   }
 
-  fn add(self: *Ast, kind: i32, line: i32, column: i32): i32 {
+  fn add(self: *Ast, kind: NodeKind, line: i32, column: i32): i32 {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.nodes = realloc(self.nodes as *i8,
@@ -173,69 +183,78 @@ export struct Ast {
   }
 }
 
-export fn nodeKindName(kind: i32): *i8 {
-  if (kind == NK_PROGRAM) { return "program"; }
-  if (kind == NK_BLOCK) { return "block"; }
-  if (kind == NK_VARDECL) { return "vardecl"; }
-  if (kind == NK_ASSIGN) { return "assign"; }
-  if (kind == NK_IF) { return "if"; }
-  if (kind == NK_WHILE) { return "while"; }
-  if (kind == NK_BREAK) { return "break"; }
-  if (kind == NK_CONTINUE) { return "continue"; }
-  if (kind == NK_FN) { return "fn"; }
-  if (kind == NK_EXTERN) { return "extern"; }
-  if (kind == NK_STRUCT) { return "struct"; }
-  if (kind == NK_FIELD) { return "field"; }
-  if (kind == NK_CALL) { return "call"; }
-  if (kind == NK_RETURN) { return "return"; }
-  if (kind == NK_PRINT) { return "print"; }
-  if (kind == NK_EXPRSTMT) { return "exprstmt"; }
-  if (kind == NK_BINARY) { return "binary"; }
-  if (kind == NK_UNARY) { return "unary"; }
-  if (kind == NK_CAST) { return "cast"; }
-  if (kind == NK_FIELDACCESS) { return "fieldaccess"; }
-  if (kind == NK_INDEX) { return "index"; }
-  if (kind == NK_STRUCTLIT) { return "structlit"; }
-  if (kind == NK_FINIT) { return "finit"; }
-  if (kind == NK_SIZEOF) { return "sizeof"; }
-  if (kind == NK_NUMBER) { return "number"; }
-  if (kind == NK_STRING) { return "string"; }
-  if (kind == NK_CHAR) { return "char"; }
-  if (kind == NK_BOOL) { return "bool"; }
-  if (kind == NK_IDENT) { return "ident"; }
-  if (kind == NK_TYPE) { return "type"; }
-  if (kind == NK_PARAMS) { return "params"; }
-  if (kind == NK_PARAM) { return "param"; }
-  if (kind == NK_ARGS) { return "args"; }
-  if (kind == NK_ERROR) { return "error"; }
-  if (kind == NK_IMPORT) { return "import"; }
-  if (kind == NK_IMPORTNAME) { return "importname"; }
-  if (kind == NK_METHODCALL) { return "methodcall"; }
-  if (kind == NK_NULL) { return "null"; }
+export fn nodeKindName(kind: NodeKind): *i8 {
+  match (kind) {
+    NodeKind.Program => { return "program"; }
+    NodeKind.Block => { return "block"; }
+    NodeKind.VarDecl => { return "vardecl"; }
+    NodeKind.Assign => { return "assign"; }
+    NodeKind.If => { return "if"; }
+    NodeKind.While => { return "while"; }
+    NodeKind.Break => { return "break"; }
+    NodeKind.Continue => { return "continue"; }
+    NodeKind.Fn => { return "fn"; }
+    NodeKind.Extern => { return "extern"; }
+    NodeKind.Struct => { return "struct"; }
+    NodeKind.Field => { return "field"; }
+    NodeKind.Call => { return "call"; }
+    NodeKind.Return => { return "return"; }
+    NodeKind.Print => { return "print"; }
+    NodeKind.ExprStmt => { return "exprstmt"; }
+    NodeKind.Binary => { return "binary"; }
+    NodeKind.Unary => { return "unary"; }
+    NodeKind.Cast => { return "cast"; }
+    NodeKind.FieldAccess => { return "fieldaccess"; }
+    NodeKind.Index => { return "index"; }
+    NodeKind.StructLit => { return "structlit"; }
+    NodeKind.FieldInit => { return "finit"; }
+    NodeKind.Sizeof => { return "sizeof"; }
+    NodeKind.Number => { return "number"; }
+    NodeKind.String => { return "string"; }
+    NodeKind.Char => { return "char"; }
+    NodeKind.Bool => { return "bool"; }
+    NodeKind.Ident => { return "ident"; }
+    NodeKind.Type => { return "type"; }
+    NodeKind.Params => { return "params"; }
+    NodeKind.Param => { return "param"; }
+    NodeKind.Args => { return "args"; }
+    NodeKind.Error => { return "error"; }
+    NodeKind.Import => { return "import"; }
+    NodeKind.ImportName => { return "importname"; }
+    NodeKind.MethodCall => { return "methodcall"; }
+    NodeKind.Null => { return "null"; }
+    NodeKind.Enum => { return "enum"; }
+    NodeKind.EnumMember => { return "enummember"; }
+    NodeKind.Match => { return "match"; }
+    NodeKind.Arm => { return "arm"; }
+  }
 
   return "?";
 }
 
 // True for the kinds whose text is worth printing in a dump.
-export fn nodeCarriesText(kind: i32): bool {
-  if (kind == NK_VARDECL || kind == NK_FN || kind == NK_EXTERN) {
+export fn nodeCarriesText(kind: NodeKind): bool {
+  if (kind == NodeKind.VarDecl || kind == NodeKind.Fn || kind == NodeKind.Extern) {
     return true;
   }
-  if (kind == NK_STRUCT || kind == NK_FIELD || kind == NK_CALL) {
+  if (kind == NodeKind.Struct || kind == NodeKind.Field || kind == NodeKind.Call) {
     return true;
   }
-  if (kind == NK_BINARY || kind == NK_UNARY || kind == NK_FIELDACCESS) {
+  if (kind == NodeKind.Binary || kind == NodeKind.Unary || kind == NodeKind.FieldAccess) {
     return true;
   }
-  if (kind == NK_STRUCTLIT || kind == NK_FINIT || kind == NK_PARAM) {
+  if (kind == NodeKind.StructLit || kind == NodeKind.FieldInit || kind == NodeKind.Param) {
     return true;
   }
-  if (kind == NK_NUMBER || kind == NK_STRING || kind == NK_CHAR) {
+  if (kind == NodeKind.Number || kind == NodeKind.String || kind == NodeKind.Char) {
     return true;
   }
-  if (kind == NK_IMPORT || kind == NK_IMPORTNAME || kind == NK_METHODCALL) {
+  if (kind == NodeKind.Import || kind == NodeKind.ImportName || kind == NodeKind.MethodCall) {
+    return true;
+  }
+  if (kind == NodeKind.Enum || kind == NodeKind.EnumMember) {
     return true;
   }
 
-  return kind == NK_BOOL || kind == NK_IDENT || kind == NK_TYPE;
+  return kind == NodeKind.Bool || kind == NodeKind.Ident || kind == NodeKind.Type;
 }

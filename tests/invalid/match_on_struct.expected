@@ -1,0 +1,1 @@
+match_on_struct.ode:7:3: error: cannot match on 'Point': match works on enums, integers and characters
