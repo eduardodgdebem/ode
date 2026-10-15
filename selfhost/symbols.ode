@@ -7,9 +7,7 @@
 // shadows an outer one for free.
 // ---------------------------------------------------------------------------
 
-import {
-  malloc, realloc, nullText, Buf, bufNew, bufAdd, textEquals, report,
-} from "./prelude";
+import { malloc, realloc, nullText, Buf, textEquals, report } from "./prelude";
 import { Type } from "./type";
 
 export let SYM_VAR: i32 = 1;
@@ -34,119 +32,120 @@ export struct SymbolTable {
   scopeStarts: *i32,
   scopeCount: i32,
   scopeCapacity: i32,
-}
 
-export fn symbolTableNew(): *SymbolTable {
-  let table: *SymbolTable = malloc(sizeof(SymbolTable) as i64) as *SymbolTable;
-  table.capacity = 64;
-  table.count = 0;
-  table.items = malloc(sizeof(Symbol) as i64 * table.capacity as i64) as *Symbol;
-  table.scopeCapacity = 16;
-  table.scopeCount = 0;
-  table.scopeStarts =
-      malloc(sizeof(i32) as i64 * table.scopeCapacity as i64) as *i32;
-
-  symbolEnterScope(table);
-
-  return table;
-}
-
-export fn symbolEnterScope(table: *SymbolTable): void {
-  if (table.scopeCount == table.scopeCapacity) {
-    table.scopeCapacity = table.scopeCapacity * 2;
+  fn new(): *SymbolTable {
+    let table: *SymbolTable = malloc(sizeof(SymbolTable) as i64) as *SymbolTable;
+    table.capacity = 64;
+    table.count = 0;
+    table.items = malloc(sizeof(Symbol) as i64 * table.capacity as i64) as *Symbol;
+    table.scopeCapacity = 16;
+    table.scopeCount = 0;
     table.scopeStarts =
-        realloc(table.scopeStarts as *i8,
-                sizeof(i32) as i64 * table.scopeCapacity as i64) as *i32;
+        malloc(sizeof(i32) as i64 * table.scopeCapacity as i64) as *i32;
+
+    table.enterScope();
+
+    return table;
   }
 
-  table.scopeStarts[table.scopeCount] = table.count;
-  table.scopeCount = table.scopeCount + 1;
-}
-
-export fn symbolExitScope(table: *SymbolTable): void {
-  if (table.scopeCount == 0) {
-    return;
-  }
-
-  table.scopeCount = table.scopeCount - 1;
-  table.count = table.scopeStarts[table.scopeCount];
-}
-
-// Innermost first, so a shadowing declaration wins.
-// Undoes the scopes an abandoned statement left open.
-export fn symbolTruncateScopes(table: *SymbolTable, depth: i32): void {
-  while (table.scopeCount > depth) {
-    symbolExitScope(table);
-  }
-}
-
-export fn symbolFind(table: *SymbolTable, name: *i8): i32 {
-  let index: i32 = table.count - 1;
-
-  while (index >= 0) {
-    if (textEquals(table.items[index].name, name)) {
-      return index;
+  fn enterScope(self: *SymbolTable): void {
+    if (self.scopeCount == self.scopeCapacity) {
+      self.scopeCapacity = self.scopeCapacity * 2;
+      self.scopeStarts =
+          realloc(self.scopeStarts as *i8,
+                  sizeof(i32) as i64 * self.scopeCapacity as i64) as *i32;
     }
-    index = index - 1;
+
+    self.scopeStarts[self.scopeCount] = self.count;
+    self.scopeCount = self.scopeCount + 1;
   }
 
-  return -1;
-}
-
-// Only the innermost scope, which is what a redeclaration check needs: the
-// same name in an enclosing scope is shadowing, not a conflict.
-fn symbolFindInScope(table: *SymbolTable, name: *i8): i32 {
-  let start: i32 = table.scopeStarts[table.scopeCount - 1];
-  let index: i32 = table.count - 1;
-
-  while (index >= start) {
-    if (textEquals(table.items[index].name, name)) {
-      return index;
+  fn exitScope(self: *SymbolTable): void {
+    if (self.scopeCount == 0) {
+      return;
     }
-    index = index - 1;
+
+    self.scopeCount = self.scopeCount - 1;
+    self.count = self.scopeStarts[self.scopeCount];
   }
 
-  return -1;
+  // Innermost first, so a shadowing declaration wins.
+  // Undoes the scopes an abandoned statement left open.
+  fn truncateScopes(self: *SymbolTable, depth: i32): void {
+    while (self.scopeCount > depth) {
+      self.exitScope();
+    }
+  }
+
+  fn find(self: *SymbolTable, name: *i8): i32 {
+    let index: i32 = self.count - 1;
+
+    while (index >= 0) {
+      if (textEquals(self.items[index].name, name)) {
+        return index;
+      }
+      index = index - 1;
+    }
+
+    return -1;
+  }
+
+  // Only the innermost scope, which is what a redeclaration check needs: the
+  // same name in an enclosing scope is shadowing, not a conflict.
+  fn findInScope(self: *SymbolTable, name: *i8): i32 {
+    let start: i32 = self.scopeStarts[self.scopeCount - 1];
+    let index: i32 = self.count - 1;
+
+    while (index >= start) {
+      if (textEquals(self.items[index].name, name)) {
+        return index;
+      }
+      index = index - 1;
+    }
+
+    return -1;
+  }
+
+  fn declare(self: *SymbolTable, name: *i8, kind: i32, type: Type,
+             params: *Type, paramCount: i32, line: i32,
+             column: i32): void {
+    if (self.findInScope(name) >= 0) {
+      let message: *Buf = Buf.new();
+      message.add("symbol '");
+      message.add(name);
+      message.add("' already declared in this scope");
+      report(line, column, message.data);
+      return;
+    }
+
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = realloc(self.items as *i8,
+                           sizeof(Symbol) as i64 * self.capacity as i64) as
+          *Symbol;
+    }
+
+    let index: i32 = self.count;
+    self.items[index].name = name;
+    self.items[index].kind = kind;
+    self.items[index].type = type;
+    self.items[index].params = params;
+    self.items[index].paramCount = paramCount;
+    self.items[index].linkName = nullText();
+    self.count = index + 1;
+  }
+
+  // Pushes a symbol already checked for conflicts, as it was declared.
+  fn push(self: *SymbolTable, symbol: Symbol): void {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = realloc(self.items as *i8,
+                           sizeof(Symbol) as i64 * self.capacity as i64) as
+          *Symbol;
+    }
+
+    self.items[self.count] = symbol;
+    self.count = self.count + 1;
+  }
 }
 
-export fn symbolDeclare(table: *SymbolTable, name: *i8, kind: i32, type: Type,
-                 params: *Type, paramCount: i32, line: i32,
-                 column: i32): void {
-  if (symbolFindInScope(table, name) >= 0) {
-    let message: *Buf = bufNew();
-    bufAdd(message, "symbol '");
-    bufAdd(message, name);
-    bufAdd(message, "' already declared in this scope");
-    report(line, column, message.data);
-    return;
-  }
-
-  if (table.count == table.capacity) {
-    table.capacity = table.capacity * 2;
-    table.items = realloc(table.items as *i8,
-                          sizeof(Symbol) as i64 * table.capacity as i64) as
-        *Symbol;
-  }
-
-  let index: i32 = table.count;
-  table.items[index].name = name;
-  table.items[index].kind = kind;
-  table.items[index].type = type;
-  table.items[index].params = params;
-  table.items[index].paramCount = paramCount;
-  table.items[index].linkName = nullText();
-  table.count = index + 1;
-}
-
-// Pushes a symbol already checked for conflicts, as it was declared.
-export fn declareSymbolCopy(table: *SymbolTable, symbol: Symbol): void {
-  if (table.count == table.capacity) {
-    table.capacity = table.capacity * 2;
-    table.items = realloc(table.items as *i8,
-                          sizeof(Symbol) as i64 * table.capacity as i64) as
-        *Symbol;
-  }
-
-  table.items[table.count] = symbol;
-  table.count = table.count + 1;
-}

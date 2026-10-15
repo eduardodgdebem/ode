@@ -6,13 +6,13 @@
 // so a change here needs the same change on the C++ side.
 // ---------------------------------------------------------------------------
 
-import { Buf, bufPush, bufAddBytes, bufAdd, bufAddInt } from "./prelude";
+import { Buf } from "./prelude";
 import {
   TK_END, TK_IDENT, TK_NUMBER, TK_STRING, TK_CHAR, TK_BOOL, TK_TYPE, Token,
-  TokenList, tokenAt, kindName,
+  TokenList, kindName,
 } from "./token";
 import { NO_NODE, NK_TYPE, Ast, nodeKindName, nodeCarriesText } from "./ast";
-import { TY_NONE, Type, typeToText } from "./type";
+import { TY_NONE, Type } from "./type";
 
 // Text is escaped rather than written raw so that a literal newline or NUL
 // inside a string cannot break the line-per-node format.
@@ -23,19 +23,19 @@ fn dumpEscaped(out: *Buf, text: *i8, length: i64): void {
     let character: i8 = text[index];
 
     if (character == '\\') {
-      bufAdd(out, "\\\\");
+      out.add("\\\\");
     } else if (character == '\n') {
-      bufAdd(out, "\\n");
+      out.add("\\n");
     } else if (character == '\t') {
-      bufAdd(out, "\\t");
+      out.add("\\t");
     } else if (character == '\r') {
-      bufAdd(out, "\\r");
+      out.add("\\r");
     } else if (character == '\'') {
-      bufAdd(out, "\\'");
+      out.add("\\'");
     } else if (character == 0 as i8) {
-      bufAdd(out, "\\0");
+      out.add("\\0");
     } else {
-      bufPush(out, character);
+      out.push(character);
     }
 
     index = index + 1 as i64;
@@ -46,7 +46,7 @@ export fn dumpTokens(list: *TokenList, out: *Buf): void {
   let index: i32 = 0;
 
   while (index < list.count) {
-    let token: *Token = tokenAt(list, index);
+    let token: *Token = list.at(index);
 
     // The end token is the parser's sentinel, not part of the source, and the
     // C++ lexer does not produce one.
@@ -55,22 +55,22 @@ export fn dumpTokens(list: *TokenList, out: *Buf): void {
       continue;
     }
 
-    bufAddInt(out, token.line as i64);
-    bufPush(out, ':');
-    bufAddInt(out, token.column as i64);
-    bufPush(out, ' ');
-    bufAdd(out, kindName(token.kind));
+    out.addInt(token.line as i64);
+    out.push(':');
+    out.addInt(token.column as i64);
+    out.push(' ');
+    out.add(kindName(token.kind));
 
     // An operator's text is its own name, so printing both says nothing.
     if (token.kind == TK_IDENT || token.kind == TK_NUMBER ||
         token.kind == TK_STRING || token.kind == TK_CHAR ||
         token.kind == TK_BOOL || token.kind == TK_TYPE) {
-      bufAdd(out, " '");
-      bufAddBytes(out, token.text, token.length);
-      bufPush(out, '\'');
+      out.add(" '");
+      out.addBytes(token.text, token.length);
+      out.push('\'');
     }
 
-    bufPush(out, '\n');
+    out.push('\n');
     index = index + 1;
   }
 }
@@ -85,48 +85,48 @@ export fn nullTypes(): *Type {
 // `types` is the analyzer's resolved-type table, or null to dump the tree on
 // its own. A node the analyzer never typed prints without an annotation.
 export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
-            out: *Buf): void {
+                   out: *Buf): void {
   if (index == NO_NODE) {
     return;
   }
 
   let level: i32 = 0;
   while (level < depth) {
-    bufAdd(out, "  ");
+    out.add("  ");
     level = level + 1;
   }
 
   let kind: i32 = ast.nodes[index].kind;
-  bufAdd(out, nodeKindName(kind));
+  out.add(nodeKindName(kind));
 
   if (nodeCarriesText(kind)) {
-    bufAdd(out, " '");
+    out.add(" '");
     dumpEscaped(out, ast.nodes[index].text, ast.nodes[index].textLength);
-    bufPush(out, '\'');
+    out.push('\'');
   }
 
   if (ast.nodes[index].exported) {
-    bufAdd(out, " export");
+    out.add(" export");
   }
 
   if (kind == NK_TYPE) {
-    bufAdd(out, " depth=");
-    bufAddInt(out, ast.nodes[index].extra as i64);
+    out.add(" depth=");
+    out.addInt(ast.nodes[index].extra as i64);
   }
 
-  bufPush(out, ' ');
-  bufAddInt(out, ast.nodes[index].line as i64);
-  bufPush(out, ':');
-  bufAddInt(out, ast.nodes[index].column as i64);
+  out.push(' ');
+  out.addInt(ast.nodes[index].line as i64);
+  out.push(':');
+  out.addInt(ast.nodes[index].column as i64);
 
   if (types != nullTypes()) {
     if (types[index].kind != TY_NONE) {
-      bufAdd(out, " : ");
-      bufAdd(out, typeToText(types[index]));
+      out.add(" : ");
+      out.add(types[index].toText());
     }
   }
 
-  bufPush(out, '\n');
+  out.push('\n');
 
   dumpNode(ast, types, ast.nodes[index].a, depth + 1, out);
   dumpNode(ast, types, ast.nodes[index].b, depth + 1, out);

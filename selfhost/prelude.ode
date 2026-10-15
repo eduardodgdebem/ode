@@ -71,99 +71,99 @@ export struct Buf {
   data: *i8,
   length: i64,
   capacity: i64,
+
+  fn new(): *Buf {
+    let buffer: *Buf = malloc(sizeof(Buf) as i64) as *Buf;
+    buffer.capacity = 64 as i64;
+    buffer.length = 0 as i64;
+    buffer.data = malloc(buffer.capacity);
+    buffer.data[0] = 0 as i8;
+
+    return buffer;
+  }
+
+  fn reserve(self: *Buf, extra: i64): void {
+    // One spare byte is always kept for the terminator.
+    let needed: i64 = self.length + extra + 1 as i64;
+
+    if (needed <= self.capacity) {
+      return;
+    }
+
+    while (self.capacity < needed) {
+      self.capacity = self.capacity * 2 as i64;
+    }
+
+    self.data = realloc(self.data, self.capacity);
+  }
+
+  fn push(self: *Buf, character: i8): void {
+    self.reserve(1 as i64);
+    self.data[self.length] = character;
+    self.length = self.length + 1 as i64;
+    self.data[self.length] = 0 as i8;
+  }
+
+  // Appends a known number of bytes, which is the only way to carry text that
+  // contains a NUL -- a `'\0'` literal, or a string with one written into it.
+  fn addBytes(self: *Buf, text: *i8, count: i64): void {
+    self.reserve(count);
+    memcpy(self.data + self.length, text, count);
+    self.length = self.length + count;
+    self.data[self.length] = 0 as i8;
+  }
+
+  fn add(self: *Buf, text: *i8): void {
+    self.addBytes(text, strlen(text));
+  }
+
+  // Decimal, written out by hand because printf cannot be declared.
+  fn addInt(self: *Buf, value: i64): void {
+    if (value == 0 as i64) {
+      self.push('0');
+      return;
+    }
+
+    let rest: i64 = value;
+    if (rest < 0 as i64) {
+      self.push('-');
+      rest = 0 as i64 - rest;
+    }
+
+    // At most 20 digits fit in an i64, and they come out backwards.
+    let digits: *i8 = malloc(24 as i64);
+    let count: i32 = 0;
+
+    while (rest > 0 as i64) {
+      digits[count] = ('0' as i64 + rest % 10 as i64) as i8;
+      rest = rest / 10 as i64;
+      count = count + 1;
+    }
+
+    while (count > 0) {
+      count = count - 1;
+      self.push(digits[count]);
+    }
+
+    free(digits);
+  }
+
+  fn free(self: *Buf): void {
+    free(self.data);
+    free(self as *i8);
+  }
+
+  // Detaches the text so it outlives the buffer.
+  fn take(self: *Buf): *i8 {
+    let text: *i8 = self.data;
+    free(self as *i8);
+
+    return text;
+  }
 }
 
 fn nullBuf(): *Buf {
   return 0 as i64 as *Buf;
-}
-
-export fn bufNew(): *Buf {
-  let buffer: *Buf = malloc(sizeof(Buf) as i64) as *Buf;
-  buffer.capacity = 64 as i64;
-  buffer.length = 0 as i64;
-  buffer.data = malloc(buffer.capacity);
-  buffer.data[0] = 0 as i8;
-
-  return buffer;
-}
-
-fn bufReserve(buffer: *Buf, extra: i64): void {
-  // One spare byte is always kept for the terminator.
-  let needed: i64 = buffer.length + extra + 1 as i64;
-
-  if (needed <= buffer.capacity) {
-    return;
-  }
-
-  while (buffer.capacity < needed) {
-    buffer.capacity = buffer.capacity * 2 as i64;
-  }
-
-  buffer.data = realloc(buffer.data, buffer.capacity);
-}
-
-export fn bufPush(buffer: *Buf, character: i8): void {
-  bufReserve(buffer, 1 as i64);
-  buffer.data[buffer.length] = character;
-  buffer.length = buffer.length + 1 as i64;
-  buffer.data[buffer.length] = 0 as i8;
-}
-
-// Appends a known number of bytes, which is the only way to carry text that
-// contains a NUL -- a `'\0'` literal, or a string with one written into it.
-export fn bufAddBytes(buffer: *Buf, text: *i8, count: i64): void {
-  bufReserve(buffer, count);
-  memcpy(buffer.data + buffer.length, text, count);
-  buffer.length = buffer.length + count;
-  buffer.data[buffer.length] = 0 as i8;
-}
-
-export fn bufAdd(buffer: *Buf, text: *i8): void {
-  bufAddBytes(buffer, text, strlen(text));
-}
-
-// Decimal, written out by hand because printf cannot be declared.
-export fn bufAddInt(buffer: *Buf, value: i64): void {
-  if (value == 0 as i64) {
-    bufPush(buffer, '0');
-    return;
-  }
-
-  let rest: i64 = value;
-  if (rest < 0 as i64) {
-    bufPush(buffer, '-');
-    rest = 0 as i64 - rest;
-  }
-
-  // At most 20 digits fit in an i64, and they come out backwards.
-  let digits: *i8 = malloc(24 as i64);
-  let count: i32 = 0;
-
-  while (rest > 0 as i64) {
-    digits[count] = ('0' as i64 + rest % 10 as i64) as i8;
-    rest = rest / 10 as i64;
-    count = count + 1;
-  }
-
-  while (count > 0) {
-    count = count - 1;
-    bufPush(buffer, digits[count]);
-  }
-
-  free(digits);
-}
-
-fn bufFree(buffer: *Buf): void {
-  free(buffer.data);
-  free(buffer as *i8);
-}
-
-// Detaches the text so it outlives the buffer.
-export fn bufTake(buffer: *Buf): *i8 {
-  let text: *i8 = buffer.data;
-  free(buffer as *i8);
-
-  return text;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,10 +192,10 @@ export fn textSlice(text: *i8, start: i64, count: i64): *i8 {
 }
 
 export fn intToText(value: i64): *i8 {
-  let buffer: *Buf = bufNew();
-  bufAddInt(buffer, value);
+  let buffer: *Buf = Buf.new();
+  buffer.addInt(value);
 
-  return bufTake(buffer);
+  return buffer.take();
 }
 
 // ---------------------------------------------------------------------------
@@ -216,12 +216,23 @@ struct Diagnostic {
   column: i32,
 }
 
-struct Diagnostics {
+export struct Diagnostics {
   items: *Diagnostic,
   count: i32,
   capacity: i32,
   // Everything reported, including any past the limit that was not kept.
   total: i32,
+
+  fn new(): *Diagnostics {
+    let bag: *Diagnostics = malloc(sizeof(Diagnostics) as i64) as *Diagnostics;
+    bag.capacity = DIAG_LIMIT;
+    bag.count = 0;
+    bag.total = 0;
+    bag.items =
+        malloc(sizeof(Diagnostic) as i64 * bag.capacity as i64) as *Diagnostic;
+
+    return bag;
+  }
 }
 
 // Past this many the list stops being useful and starts being noise.
@@ -230,17 +241,6 @@ let DIAG_LIMIT: i32 = 20;
 export let DIAGS: *Diagnostics = 0 as i64 as *Diagnostics;
 // Raised by the construct that failed, lowered by whatever recovers from it.
 export let FAILED: bool = false;
-
-export fn diagnosticsNew(): *Diagnostics {
-  let bag: *Diagnostics = malloc(sizeof(Diagnostics) as i64) as *Diagnostics;
-  bag.capacity = DIAG_LIMIT;
-  bag.count = 0;
-  bag.total = 0;
-  bag.items =
-      malloc(sizeof(Diagnostic) as i64 * bag.capacity as i64) as *Diagnostic;
-
-  return bag;
-}
 
 export fn report(line: i32, column: i32, message: *i8): void {
   // The first message about a construct is the one worth keeping; anything
@@ -268,37 +268,37 @@ export fn hasErrors(): bool {
 
 // Prints everything recorded, in the same shape the C++ compiler uses.
 export fn printDiagnostics(): void {
-  let out: *Buf = bufNew();
+  let out: *Buf = Buf.new();
   let index: i32 = 0;
 
   while (index < DIAGS.count) {
-    bufAdd(out, DIAGS.items[index].path);
+    out.add(DIAGS.items[index].path);
 
     // A line of 0 means the position is unknown, which whole-program checks
     // report; those name the file alone.
     if (DIAGS.items[index].line > 0) {
-      bufPush(out, ':');
-      bufAddInt(out, DIAGS.items[index].line as i64);
-      bufPush(out, ':');
-      bufAddInt(out, DIAGS.items[index].column as i64);
+      out.push(':');
+      out.addInt(DIAGS.items[index].line as i64);
+      out.push(':');
+      out.addInt(DIAGS.items[index].column as i64);
     }
 
-    bufAdd(out, ": error: ");
-    bufAdd(out, DIAGS.items[index].message);
-    bufPush(out, '\n');
+    out.add(": error: ");
+    out.add(DIAGS.items[index].message);
+    out.push('\n');
     index = index + 1;
   }
 
   // A single error reads better on its own; a count is only worth printing
   // once there is more than one thing to count.
   if (DIAGS.total > DIAGS.count) {
-    bufAddInt(out, DIAGS.total as i64);
-    bufAdd(out, " errors generated, showing the first ");
-    bufAddInt(out, DIAGS.count as i64);
-    bufAdd(out, ".\n");
+    out.addInt(DIAGS.total as i64);
+    out.add(" errors generated, showing the first ");
+    out.addInt(DIAGS.count as i64);
+    out.add(".\n");
   } else if (DIAGS.total > 1) {
-    bufAddInt(out, DIAGS.total as i64);
-    bufAdd(out, " errors generated.\n");
+    out.addInt(DIAGS.total as i64);
+    out.add(" errors generated.\n");
   }
 
   writeBuf(STDERR, out);
@@ -317,26 +317,26 @@ export fn failAt(line: i32, column: i32, message: *i8): void {
     return;
   }
 
-  let out: *Buf = bufNew();
-  bufAdd(out, SOURCE_PATH);
-  bufPush(out, ':');
-  bufAddInt(out, line as i64);
-  bufPush(out, ':');
-  bufAddInt(out, column as i64);
-  bufAdd(out, ": error: ");
-  bufAdd(out, message);
-  bufPush(out, '\n');
+  let out: *Buf = Buf.new();
+  out.add(SOURCE_PATH);
+  out.push(':');
+  out.addInt(line as i64);
+  out.push(':');
+  out.addInt(column as i64);
+  out.add(": error: ");
+  out.add(message);
+  out.push('\n');
 
   writeText(STDERR, out.data);
   exit(1);
 }
 
 export fn fail(message: *i8): void {
-  let out: *Buf = bufNew();
-  bufAdd(out, SOURCE_PATH);
-  bufAdd(out, ": error: ");
-  bufAdd(out, message);
-  bufPush(out, '\n');
+  let out: *Buf = Buf.new();
+  out.add(SOURCE_PATH);
+  out.add(": error: ");
+  out.add(message);
+  out.push('\n');
 
   writeText(STDERR, out.data);
   exit(1);

@@ -30,6 +30,14 @@ does not matter, within a file or across files: signatures, globals and
 struct names are all hoisted before any body is checked, and the modules
 import from each other in cycles freely.
 
+The compiler's data structures are structs with methods -- `Buf`,
+`TokenList`, `Ast`, `Lexer`, `Parser`, `Type`, `StructTable`, `SymbolTable`,
+`NameSet` -- so text is built with `out.add(...)` and tokens consumed with
+`parser.expect(...)`. The passes themselves -- `parseX`, `checkX`, `genX` --
+stay free functions taking the parser, analyzer or emitter: they are spread
+over several files, and a method has to be written inside its struct, which
+lives in one.
+
 Until the language had `import`, these files were concatenated into one in
 name order, which is what their old numeric prefixes were for. The seed in
 `bootstrap/ode.ll` has to understand any feature the sources use, so it was

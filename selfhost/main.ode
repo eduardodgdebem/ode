@@ -8,14 +8,13 @@
 
 import {
   malloc, strlen, remove, STDOUT, STDERR, nullText, isNullText, writeText,
-  writeBuf, Buf, bufNew, bufPush, bufAdd, bufTake, textEquals, textSlice,
-  DIAGS, FAILED, diagnosticsNew, report, hasErrors, printDiagnostics, fail,
-  runProgram, readFile, writeFile,
+  writeBuf, Buf, textEquals, textSlice, Diagnostics, DIAGS, FAILED, report,
+  hasErrors, printDiagnostics, fail, runProgram, readFile, writeFile,
 } from "./prelude";
 import { TokenList } from "./token";
 import { tokenize } from "./lexer";
-import { NK_PROGRAM, NK_IMPORT, Ast, astNew, astAdd } from "./ast";
-import { parserNew } from "./parser";
+import { NK_PROGRAM, NK_IMPORT, Ast } from "./ast";
+import { Parser } from "./parser";
 import { parseModuleInto } from "./parser_stmt";
 import {
   realpath, moduleAdd, moduleFind, modulePath, resolveImportPath,
@@ -64,7 +63,7 @@ fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
 
   let tokens: *TokenList = tokenize(source);
   ast.currentModule = module;
-  parseModuleInto(parserNew(tokens, ast), program);
+  parseModuleInto(Parser.new(tokens, ast), program);
 
   return module;
 }
@@ -86,10 +85,10 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
   }
 
   if (isNullText(source)) {
-    let message: *Buf = bufNew();
-    bufAdd(message, "cannot find module '");
-    bufAdd(message, ast.nodes[item].text);
-    bufPush(message, '\'');
+    let message: *Buf = Buf.new();
+    message.add("cannot find module '");
+    message.add(ast.nodes[item].text);
+    message.push('\'');
     SOURCE_PATH = importer;
     report(ast.nodes[item].line, ast.nodes[item].column, message.data);
     FAILED = false;
@@ -100,11 +99,11 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
 }
 
 fn withSuffix(base: *i8, suffix: *i8): *i8 {
-  let out: *Buf = bufNew();
-  bufAdd(out, base);
-  bufAdd(out, suffix);
+  let out: *Buf = Buf.new();
+  out.add(base);
+  out.add(suffix);
 
-  return bufTake(out);
+  return out.take();
 }
 
 fn main(argc: i32, argv: **i8): i32 {
@@ -153,7 +152,7 @@ fn main(argc: i32, argv: **i8): i32 {
   }
 
   SOURCE_PATH = path;
-  DIAGS = diagnosticsNew();
+  DIAGS = Diagnostics.new();
 
   let source: *i8 = readFile(path);
   if (isNullText(source)) {
@@ -161,7 +160,7 @@ fn main(argc: i32, argv: **i8): i32 {
   }
 
   let tokens: *TokenList = tokenize(source);
-  let out: *Buf = bufNew();
+  let out: *Buf = Buf.new();
 
   if (wantTokens) {
     dumpTokens(tokens, out);
@@ -169,15 +168,15 @@ fn main(argc: i32, argv: **i8): i32 {
     return 0;
   }
 
-  let ast: *Ast = astNew();
-  let root: i32 = astAdd(ast, NK_PROGRAM, 0, 0);
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NK_PROGRAM, 0, 0);
 
   let real: *i8 = realpath(path, nullText());
   if (isNullText(real)) {
     real = path;
   }
   moduleAdd(path, real);
-  parseModuleInto(parserNew(tokens, ast), root);
+  parseModuleInto(Parser.new(tokens, ast), root);
 
   // Imports are followed breadth first. A loaded file's declarations land on
   // the end of the program's list, so walking the list to its end reaches

@@ -24,15 +24,15 @@
 // ---------------------------------------------------------------------------
 
 import {
-  malloc, realloc, memcpy, strlen, nullText, isNullText, Buf, bufNew, bufPush,
-  bufAdd, bufAddInt, bufTake, textEquals, textSlice, FAILED, report,
+  malloc, realloc, memcpy, strlen, nullText, isNullText, Buf, textEquals,
+  textSlice, FAILED, report,
 } from "./prelude";
 import {
-  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_STRUCTLIT, NK_TYPE,
-  NK_IMPORT, NK_METHODCALL, NK_IDENT,
+  NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_STRUCTLIT, NK_IDENT,
+  NK_TYPE, NK_IMPORT, NK_METHODCALL,
 } from "./ast";
 import { TY_NONE, typeKindFromName } from "./type";
-import { Symbol, SymbolTable, symbolDeclare } from "./symbols";
+import { Symbol, SymbolTable } from "./symbols";
 import { Analyzer } from "./analyzer";
 import { SOURCE_PATH, stemOf } from "./main";
 
@@ -119,10 +119,10 @@ fn directoryOf(path: *i8): *i8 {
 // spec is taken from the importing file's directory, the way TypeScript reads
 // one, and the `.ode` may be left off.
 export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
-  let out: *Buf = bufNew();
+  let out: *Buf = Buf.new();
 
   if (spec[0] != '/') {
-    bufAdd(out, directoryOf(importer));
+    out.add(directoryOf(importer));
   }
 
   // A leading `./` says nothing the directory does not already say, and
@@ -131,13 +131,13 @@ export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
   while (rest[0] == '.' && rest[1] == '/') {
     rest = rest + 2;
   }
-  bufAdd(out, rest);
+  out.add(rest);
 
   if (!textEndsWith(rest, ".ode")) {
-    bufAdd(out, ".ode");
+    out.add(".ode");
   }
 
-  return bufTake(out);
+  return out.take();
 }
 
 // ---------------------------------------------------------------------------
@@ -148,69 +148,69 @@ export struct NameSet {
   items: **i8,
   count: i32,
   capacity: i32,
-}
 
-export fn nameSetNew(): *NameSet {
-  let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
-  set.capacity = 64;
-  set.count = 0;
-  set.items = malloc(sizeof(*i8) as i64 * set.capacity as i64) as **i8;
+  fn new(): *NameSet {
+    let set: *NameSet = malloc(sizeof(NameSet) as i64) as *NameSet;
+    set.capacity = 64;
+    set.count = 0;
+    set.items = malloc(sizeof(*i8) as i64 * set.capacity as i64) as **i8;
 
-  return set;
-}
+    return set;
+  }
 
-export fn nameSetHas(set: *NameSet, name: *i8): bool {
-  let index: i32 = 0;
+  fn has(self: *NameSet, name: *i8): bool {
+    let index: i32 = 0;
 
-  while (index < set.count) {
-    if (textEquals(set.items[index], name)) {
-      return true;
+    while (index < self.count) {
+      if (textEquals(self.items[index], name)) {
+        return true;
+      }
+      index = index + 1;
     }
-    index = index + 1;
+
+    return false;
   }
 
-  return false;
-}
+  fn add(self: *NameSet, name: *i8): void {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = realloc(self.items as *i8,
+                           sizeof(*i8) as i64 * self.capacity as i64) as **i8;
+    }
 
-export fn nameSetAdd(set: *NameSet, name: *i8): void {
-  if (set.count == set.capacity) {
-    set.capacity = set.capacity * 2;
-    set.items = realloc(set.items as *i8,
-                        sizeof(*i8) as i64 * set.capacity as i64) as **i8;
+    self.items[self.count] = name;
+    self.count = self.count + 1;
   }
 
-  set.items[set.count] = name;
-  set.count = set.count + 1;
-}
+  // `name` if nobody has it yet, and otherwise a name qualified by the module.
+  // The qualified form contains a `.`, which no identifier can, so it cannot
+  // collide with anything written in a source file.
+  fn claim(self: *NameSet, module: i32, name: *i8): *i8 {
+    let chosen: *i8 = name;
 
-// `name` if nobody has it yet, and otherwise a name qualified by the module.
-// The qualified form contains a `.`, which no identifier can, so it cannot
-// collide with anything written in a source file.
-fn claimName(set: *NameSet, module: i32, name: *i8): *i8 {
-  let chosen: *i8 = name;
+    if (self.has(chosen)) {
+      let qualified: *Buf = Buf.new();
+      qualified.add(stemOf(modulePath(module)));
+      qualified.push('.');
+      qualified.add(name);
+      chosen = qualified.take();
+    }
 
-  if (nameSetHas(set, chosen)) {
-    let qualified: *Buf = bufNew();
-    bufAdd(qualified, stemOf(modulePath(module)));
-    bufPush(qualified, '.');
-    bufAdd(qualified, name);
-    chosen = bufTake(qualified);
+    // Two files with one stem, `a/util.ode` and `b/util.ode`, need the module
+    // number to tell them apart.
+    if (self.has(chosen)) {
+      let numbered: *Buf = Buf.new();
+      numbered.add(stemOf(modulePath(module)));
+      numbered.addInt(module as i64);
+      numbered.push('.');
+      numbered.add(name);
+      chosen = numbered.take();
+    }
+
+    self.add(chosen);
+
+    return chosen;
   }
-
-  // Two files with one stem, `a/util.ode` and `b/util.ode`, need the module
-  // number to tell them apart.
-  if (nameSetHas(set, chosen)) {
-    let numbered: *Buf = bufNew();
-    bufAdd(numbered, stemOf(modulePath(module)));
-    bufAddInt(numbered, module as i64);
-    bufPush(numbered, '.');
-    bufAdd(numbered, name);
-    chosen = bufTake(numbered);
-  }
-
-  nameSetAdd(set, chosen);
-
-  return chosen;
 }
 
 fn isValueDecl(kind: i32): bool {
@@ -245,8 +245,8 @@ fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
 
 fn assignLinkNames(an: *Analyzer, program: i32): void {
   let count: i32 = an.ast.nodes[program].itemCount;
-  let values: *NameSet = nameSetNew();
-  let structs: *NameSet = nameSetNew();
+  let values: *NameSet = NameSet.new();
+  let structs: *NameSet = NameSet.new();
 
   // An extern is a symbol some other object file defines, so its name is not
   // this compiler's to change. Several files may declare the same one.
@@ -256,8 +256,8 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
     if (an.ast.nodes[item].kind == NK_EXTERN) {
       let name: *i8 = an.ast.nodes[item].text;
       an.linkNames[item] = name;
-      if (!nameSetHas(values, name)) {
-        nameSetAdd(values, name);
+      if (!values.has(name)) {
+        values.add(name);
       }
     }
     index = index + 1;
@@ -274,7 +274,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
 
       if (an.ast.nodes[item].module == module) {
         if (kind == NK_FN || kind == NK_VARDECL) {
-          an.linkNames[item] = claimName(values, module, name);
+          an.linkNames[item] = values.claim(module, name);
         }
 
         // A struct declared twice in one file has to keep one name, or the
@@ -284,7 +284,7 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
           if (first != item) {
             an.linkNames[item] = an.linkNames[first];
           } else {
-            an.linkNames[item] = claimName(structs, module, name);
+            an.linkNames[item] = structs.claim(module, name);
           }
         }
       }
@@ -308,12 +308,12 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
         let method: i32 = an.ast.nodes[item].items[member];
 
         if (an.ast.nodes[method].kind == NK_FN) {
-          let name: *Buf = bufNew();
-          bufAdd(name, an.linkNames[item]);
-          bufPush(name, '.');
-          bufAdd(name, an.ast.nodes[method].text);
+          let name: *Buf = Buf.new();
+          name.add(an.linkNames[item]);
+          name.push('.');
+          name.add(an.ast.nodes[method].text);
           an.linkNames[method] =
-              claimName(values, an.ast.nodes[item].module, bufTake(name));
+              values.claim(an.ast.nodes[item].module, name.take());
         }
 
         member = member + 1;
@@ -369,20 +369,20 @@ fn checkImports(an: *Analyzer, program: i32): void {
         }
 
         if (asStruct == NO_NODE && asValue == NO_NODE) {
-          let message: *Buf = bufNew();
-          bufAdd(message, "module '");
-          bufAdd(message, an.ast.nodes[item].text);
-          bufAdd(message, "' has no export named '");
-          bufAdd(message, text);
-          bufPush(message, '\'');
+          let message: *Buf = Buf.new();
+          message.add("module '");
+          message.add(an.ast.nodes[item].text);
+          message.add("' has no export named '");
+          message.add(text);
+          message.push('\'');
           importFail(an, importName, message.data);
         } else if (!exported) {
-          let message: *Buf = bufNew();
-          bufPush(message, '\'');
-          bufAdd(message, text);
-          bufAdd(message, "' is not exported from '");
-          bufAdd(message, an.ast.nodes[item].text);
-          bufPush(message, '\'');
+          let message: *Buf = Buf.new();
+          message.push('\'');
+          message.add(text);
+          message.add("' is not exported from '");
+          message.add(an.ast.nodes[item].text);
+          message.push('\'');
           importFail(an, importName, message.data);
         }
 
@@ -498,12 +498,12 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
         // declares is left for the analyzer's own "unknown type".
         let elsewhere: i32 = findStructAnywhere(an, program, name);
         if (elsewhere != NO_NODE) {
-          let message: *Buf = bufNew();
-          bufAdd(message, "type '");
-          bufAdd(message, name);
-          bufAdd(message, "' is declared in '");
-          bufAdd(message, modulePath(an.ast.nodes[elsewhere].module));
-          bufAdd(message, "' but not imported here");
+          let message: *Buf = Buf.new();
+          message.add("type '");
+          message.add(name);
+          message.add("' is declared in '");
+          message.add(modulePath(an.ast.nodes[elsewhere].module));
+          message.add("' but not imported here");
           importFail(an, node, message.data);
           // Pointed at the real struct anyway, so the error above is the
           // only one this mistake produces.
@@ -538,33 +538,33 @@ export fn linkModules(an: *Analyzer, program: i32): void {
 export struct SymbolList {
   items: *Symbol,
   count: i32,
-}
 
-// The symbols declared since `start`, copied out before their scope closes.
-export fn symbolListCopy(table: *SymbolTable, start: i32): SymbolList {
-  let count: i32 = table.count - start;
-  let items: *Symbol = 0 as i64 as *Symbol;
+  // The symbols declared since `start`, copied out before their scope closes.
+  fn copyFrom(table: *SymbolTable, start: i32): SymbolList {
+    let count: i32 = table.count - start;
+    let items: *Symbol = 0 as i64 as *Symbol;
 
-  if (count > 0) {
-    items = malloc(sizeof(Symbol) as i64 * count as i64) as *Symbol;
-    memcpy(items as *i8, (table.items + start) as *i8,
-           sizeof(Symbol) as i64 * count as i64);
-  }
-
-  return SymbolList { items: items, count: count };
-}
-
-export fn symbolListFind(list: SymbolList, name: *i8): i32 {
-  let index: i32 = 0;
-
-  while (index < list.count) {
-    if (textEquals(list.items[index].name, name)) {
-      return index;
+    if (count > 0) {
+      items = malloc(sizeof(Symbol) as i64 * count as i64) as *Symbol;
+      memcpy(items as *i8, (table.items + start) as *i8,
+             sizeof(Symbol) as i64 * count as i64);
     }
-    index = index + 1;
+
+    return SymbolList { items: items, count: count };
   }
 
-  return -1;
+  fn find(self: SymbolList, name: *i8): i32 {
+    let index: i32 = 0;
+
+    while (index < self.count) {
+      if (textEquals(self.items[index].name, name)) {
+        return index;
+      }
+      index = index + 1;
+    }
+
+    return -1;
+  }
 }
 
 // Binds a module's imported values in the scope its bodies are checked in.
@@ -588,13 +588,12 @@ export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
         // so that its uses do not each report it again as undefined.
         if (declared != NO_NODE) {
           let symbols: SymbolList = an.moduleSymbols[target];
-          let found: i32 = symbolListFind(symbols,
-                                          an.ast.nodes[importName].text);
+          let found: i32 = symbols.find(an.ast.nodes[importName].text);
 
           if (found >= 0) {
             let before: i32 = an.symbols.count;
-            symbolDeclare(an.symbols, importLocalName(an, importName),
-                          symbols.items[found].kind, symbols.items[found].type,
+            an.symbols.declare(importLocalName(an, importName),
+                               symbols.items[found].kind, symbols.items[found].type,
                           symbols.items[found].params,
                           symbols.items[found].paramCount,
                           an.ast.nodes[importName].line,

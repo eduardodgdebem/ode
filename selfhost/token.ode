@@ -88,46 +88,46 @@ export struct TokenList {
   items: *Token,
   count: i32,
   capacity: i32,
+
+  fn new(): *TokenList {
+    let list: *TokenList = malloc(sizeof(TokenList) as i64) as *TokenList;
+    list.capacity = 256;
+    list.count = 0;
+    list.items = malloc(sizeof(Token) as i64 * list.capacity as i64) as *Token;
+
+    return list;
+  }
+
+  fn add(self: *TokenList, kind: i32, text: *i8, length: i64,
+         line: i32, column: i32): void {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = realloc(self.items as *i8,
+                           sizeof(Token) as i64 * self.capacity as i64) as *Token;
+    }
+
+    let index: i32 = self.count;
+    self.items[index].kind = kind;
+    self.items[index].text = text;
+    self.items[index].length = length;
+    self.items[index].line = line;
+    self.items[index].column = column;
+    self.count = self.count + 1;
+  }
+
+  // The parser walks tokens through this rather than by index, so that reading
+  // past the end yields an end token instead of running off the allocation.
+  fn at(self: *TokenList, index: i32): *Token {
+    if (index >= self.count) {
+      return self.items + (self.count - 1);
+    }
+
+    return self.items + index;
+  }
 }
 
 fn nullTokenList(): *TokenList {
   return 0 as i64 as *TokenList;
-}
-
-export fn tokenListNew(): *TokenList {
-  let list: *TokenList = malloc(sizeof(TokenList) as i64) as *TokenList;
-  list.capacity = 256;
-  list.count = 0;
-  list.items = malloc(sizeof(Token) as i64 * list.capacity as i64) as *Token;
-
-  return list;
-}
-
-export fn tokenListAdd(list: *TokenList, kind: i32, text: *i8, length: i64,
-                line: i32, column: i32): void {
-  if (list.count == list.capacity) {
-    list.capacity = list.capacity * 2;
-    list.items = realloc(list.items as *i8,
-                         sizeof(Token) as i64 * list.capacity as i64) as *Token;
-  }
-
-  let index: i32 = list.count;
-  list.items[index].kind = kind;
-  list.items[index].text = text;
-  list.items[index].length = length;
-  list.items[index].line = line;
-  list.items[index].column = column;
-  list.count = list.count + 1;
-}
-
-// The parser walks tokens through this rather than by index, so that reading
-// past the end yields an end token instead of running off the allocation.
-export fn tokenAt(list: *TokenList, index: i32): *Token {
-  if (index >= list.count) {
-    return list.items + (list.count - 1);
-  }
-
-  return list.items + index;
 }
 
 export fn kindName(kind: i32): *i8 {
