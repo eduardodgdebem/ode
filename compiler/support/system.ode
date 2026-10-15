@@ -29,7 +29,7 @@ extern fn close(fd: i32): i32;
 extern fn mkdir(path: *i8, mode: i32): i32;
 extern fn mkdtemp(template: *i8): *i8;
 extern fn rename(from: *i8, to: *i8): i32;
-extern fn isatty(fd: i32): i32;
+export extern fn isatty(fd: i32): i32;
 extern fn fileno(stream: *i8): i32;
 
 // `access` modes.

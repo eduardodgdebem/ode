@@ -12,7 +12,7 @@ import { Builder, fromInt } from "std/text";
 import { failAt } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { Type } from "../semantics/types";
-import { analyzerParseType } from "../semantics/analyzer";
+import { before, analyzerParseType } from "../semantics/analyzer";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,

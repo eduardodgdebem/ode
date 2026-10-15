@@ -1,1 +1,3 @@
 literal_operand_out_of_range.ode:3:27: error: number is out of range for 'i64'
+  let value: i64 = wide + 99999999999999999999;
+                          ^~~~~~~~~~~~~~~~~~~~

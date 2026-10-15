@@ -1,1 +1,3 @@
 syntax_missing_semicolon.ode:4:3: error: expected ';' but got 'return'
+  return 0;
+  ^~~~~~

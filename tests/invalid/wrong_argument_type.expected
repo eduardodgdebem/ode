@@ -1,1 +1,4 @@
-wrong_argument_type.ode:6:18: error: argument 1 of 'twice' has the wrong type: expected 'i32' but got 'bool'
+wrong_argument_type.ode:6:24: error: argument 1 of 'twice' has the wrong type
+  printf("%d\n", twice(true));
+                       ^~~~
+note: expected 'i32' but got 'bool'

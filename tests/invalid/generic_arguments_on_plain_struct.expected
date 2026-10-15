@@ -1,1 +1,3 @@
 generic_arguments_on_plain_struct.ode:6:10: error: struct 'Point' is not generic
+  let p: Point<i32> = Point { x: 1 };
+         ^~~~~

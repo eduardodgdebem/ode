@@ -1,5 +1,16 @@
-method_body_errors.ode:12:3: error: return type of 'Point.third': unknown type 'Unknown'
-method_body_errors.ode:5:5: error: wrong return type: expected 'bool' but got 'i32'
-method_body_errors.ode:9:16: error: struct 'Point' has no field 'missing'
-method_body_errors.ode:13:5: error: wrong return type: expected 'Unknown' but got 'i32'
+method_body_errors.ode:12:3: error: return type of 'Point.third'
+  fn third(self: Point): Unknown {
+  ^~
+note: unknown type 'Unknown'
+method_body_errors.ode:5:12: error: wrong return type
+    return self.x;
+           ^~~~
+note: expected 'bool' but got 'i32'
+method_body_errors.ode:9:17: error: struct 'Point' has no field 'missing'
+    return self.missing;
+                ^~~~~~~
+method_body_errors.ode:13:12: error: wrong return type
+    return self.x;
+           ^~~~
+note: expected 'Unknown' but got 'i32'
 4 errors generated.

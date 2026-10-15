@@ -32,7 +32,7 @@ import { stemOf } from "../support/system";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, typeKindFromName } from "./types";
 import { Symbol, SymbolTable } from "./symbols";
-import { Analyzer } from "./analyzer";
+import { Analyzer, before } from "./analyzer";
 import { markTemplates, instantiateGenerics } from "./generics";
 
 export extern fn realpath(path: *i8, resolved: *i8): *i8;
@@ -85,6 +85,12 @@ export fn moduleDisplayPath(module: i32): *i8 {
   out.add("std");
   out.add(real + strlen(library));
   return out.take();
+}
+
+// Forgets every file loaded, so that another program can be loaded from
+// scratch in the same process -- which is what the tests do.
+export fn resetModules(): void {
+  MODULES = null;
 }
 
 // How many files the program is made of so far.
@@ -175,6 +181,41 @@ export fn resolveImportPath(importer: *i8, spec: *i8): *i8 {
     out.add(".ode");
   }
 
+  return normalizePath(out.take());
+}
+
+// `path` with each `dir/..` and `.` folded away, as far as the text alone
+// allows: `a/b/../c` is `a/c`, while `../a` keeps its `..`, having nothing to
+// fold it into. Diagnostics name a file by this, rather than by the trail of
+// imports that led to it.
+fn normalizePath(path: *i8): *i8 {
+  let parts: *List<*i8> = List<*i8>.new();
+  let start: i64 = 0;
+  let index: i64 = 0;
+  while (true) {
+    if (path[index] == '/' || path[index] == '\0') {
+      let part: *i8 = slice(path, start, index - start);
+      if (equals(part, "..") && parts.count > 0 && !equals(parts.last(), "..") &&
+          !equals(parts.last(), "")) {
+        parts.pop();
+      } else if (!equals(part, ".") && !(equals(part, "") && start > 0)) {
+        parts.push(part);
+      }
+      if (path[index] == '\0') {
+        break;
+      }
+      start = index + 1;
+    }
+    index = index + 1;
+  }
+
+  let out: *Builder = Builder.new();
+  for (part in 0..parts.count) {
+    if (part > 0) {
+      out.push('/');
+    }
+    out.add(parts.at(part));
+  }
   return out.take();
 }
 
@@ -658,7 +699,8 @@ test "which imports are paths and which name the library" {
 test "import paths resolve against the importer or the library" {
   assertEq(resolveImportPath("src/main.ode", "./util"), "src/util.ode");
   assertEq(resolveImportPath("src/main.ode", "./././util.ode"), "src/util.ode");
-  assertEq(resolveImportPath("src/main.ode", "../lib/x"), "src/../lib/x.ode");
+  assertEq(resolveImportPath("src/main.ode", "../lib/x"), "lib/x.ode");
+  assertEq(resolveImportPath("main.ode", "../lib/x"), "../lib/x.ode");
   assertEq(resolveImportPath("src/main.ode", "/abs/x"), "/abs/x.ode");
 
   let saved: *i8 = STD_DIRECTORY;
@@ -668,4 +710,15 @@ test "import paths resolve against the importer or the library" {
   STD_DIRECTORY = null;
   assertEq(resolveImportPath("src/main.ode", "std/list"), null);
   STD_DIRECTORY = saved;
+}
+
+test "normalizePath folds what the text allows" {
+  assertEq(normalizePath("a/b/../c.ode"), "a/c.ode");
+  assertEq(normalizePath("a/./b//c.ode"), "a/b/c.ode");
+  assertEq(normalizePath("compiler/codegen/../semantics/../support/x.ode"),
+           "compiler/support/x.ode");
+  assertEq(normalizePath("../x.ode"), "../x.ode");
+  assertEq(normalizePath("a/../../x.ode"), "../x.ode");
+  assertEq(normalizePath("/a/../x.ode"), "/x.ode");
+  assertEq(normalizePath("x.ode"), "x.ode");
 }

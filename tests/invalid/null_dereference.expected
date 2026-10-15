@@ -1,1 +1,4 @@
-null_dereference.ode:2:20: error: cannot dereference a non-pointer value: got 'null'
+null_dereference.ode:2:20: error: cannot dereference a non-pointer value
+  let value: i32 = *null;
+                   ^
+note: got 'null'

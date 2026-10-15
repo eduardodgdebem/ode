@@ -1,1 +1,3 @@
 for_missing_in.ode:2:10: error: expected 'in' but got 'of'
+  for (i of 0..10) {
+         ^~

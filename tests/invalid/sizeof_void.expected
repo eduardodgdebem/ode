@@ -1,1 +1,3 @@
 sizeof_void.ode:2:18: error: sizeof(void) is not allowed
+  printf("%d\n", sizeof(void) as i32);
+                 ^~~~~~

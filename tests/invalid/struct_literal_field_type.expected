@@ -1,1 +1,4 @@
-struct_literal_field_type.ode:6:22: error: field 'x' of 'Point' has the wrong type: expected 'i32' but got 'bool'
+struct_literal_field_type.ode:6:33: error: field 'x' of 'Point' has the wrong type
+  let point: Point = Point { x: true };
+                                ^~~~
+note: expected 'i32' but got 'bool'

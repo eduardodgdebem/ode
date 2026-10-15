@@ -1,4 +1,13 @@
-method_wrong_arguments.ode:20:4: error: wrong number of arguments to 'Point.shift': expected 1 but got 0
-method_wrong_arguments.ode:21:4: error: argument 1 of 'Point.shift' has the wrong type: expected 'i32' but got 'bool'
-method_wrong_arguments.ode:22:8: error: argument 1 of 'Point.shift' has the wrong type: expected '*Point' but got 'Point'
+method_wrong_arguments.ode:20:5: error: wrong number of arguments to 'Point.shift'
+  p.shift();
+    ^~~~~
+note: expected 1 but got 0
+method_wrong_arguments.ode:21:11: error: argument 1 of 'Point.shift' has the wrong type
+  p.shift(true);
+          ^~~~
+note: expected 'i32' but got 'bool'
+method_wrong_arguments.ode:22:15: error: argument 1 of 'Point.shift' has the wrong type
+  Point.shift(p, 1);
+              ^
+note: expected '*Point' but got 'Point'
 3 errors generated.

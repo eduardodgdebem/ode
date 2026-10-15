@@ -1,1 +1,4 @@
-unknown_type.ode:2:3: error: in declaration of 'value': unknown type 'Missing'
+unknown_type.ode:2:3: error: in declaration of 'value'
+  let value: Missing = 1;
+  ^~~
+note: unknown type 'Missing'

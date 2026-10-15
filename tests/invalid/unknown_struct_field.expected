@@ -1,1 +1,3 @@
-unknown_struct_field.ode:7:23: error: struct 'Point' has no field 'z'
+unknown_struct_field.ode:7:24: error: struct 'Point' has no field 'z'
+  printf("%d\n", point.z);
+                       ^

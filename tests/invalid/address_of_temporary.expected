@@ -1,1 +1,3 @@
 address_of_temporary.ode:2:23: error: cannot take the address of a temporary value
+  let pointer: *i32 = &(1 + 1);
+                      ^

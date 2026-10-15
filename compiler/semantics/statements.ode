@@ -13,8 +13,9 @@ import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
 import { SymbolKind } from "./symbols";
 import {
-  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, gotTwoTypes,
-  quoted, analyzerParseType, analyzerValidateType, analyzerParamTypes,
+  Analyzer, analyzerFail, analyzerFail2, analyzerFailAtValue, expectedButGot,
+  gotType, gotTwoTypes, quoted, analyzerParseType, analyzerValidateType,
+  analyzerParamTypes,
 } from "./analyzer";
 import {
   checkExpr, checkExprAs, checkAssignTarget, isConstantExpr, isNumberLiteral,
@@ -147,7 +148,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
     detail.add(exprType.toText());
     detail.push('\'');
 
-    analyzerFail2(an, node, context.data, detail.data);
+    analyzerFailAtValue(an, an.ast.nodes[node].b, context.data, detail.data);
   }
 
   // Globals were declared during hoisting; all that is left is to confirm the
@@ -186,9 +187,9 @@ fn analyzeAssign(an: *Analyzer, node: i32): void {
   let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, targetType);
 
   if (!targetType.accepts(exprType)) {
-    analyzerFail2(an, node, "type mismatch in assignment",
-                  expectedButGot(targetType.toText(),
-                                 exprType.toText()));
+    analyzerFailAtValue(an, an.ast.nodes[node].b, "type mismatch in assignment",
+                        expectedButGot(targetType.toText(),
+                                       exprType.toText()));
   }
 }
 
@@ -302,9 +303,9 @@ fn analyzeReturn(an: *Analyzer, node: i32): void {
   }
 
   if (!an.currentReturnType.accepts(returned)) {
-    analyzerFail2(an, node, "wrong return type",
-                  expectedButGot(an.currentReturnType.toText(),
-                                 returned.toText()));
+    analyzerFailAtValue(an, an.ast.nodes[node].a, "wrong return type",
+                        expectedButGot(an.currentReturnType.toText(),
+                                       returned.toText()));
   }
 }
 

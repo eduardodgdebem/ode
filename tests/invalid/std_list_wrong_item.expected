@@ -1,1 +1,4 @@
-std_list_wrong_item.ode:5:10: error: argument 1 of 'List<i32>.push' has the wrong type: expected 'i32' but got '*i8'
+std_list_wrong_item.ode:5:16: error: argument 1 of 'List<i32>.push' has the wrong type
+  numbers.push("one");
+               ^~~~~
+note: expected 'i32' but got '*i8'

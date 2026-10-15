@@ -1,3 +1,9 @@
-method_self_wrong_type.ode:4:3: error: 'self' of 'Point.bad' has the wrong type: it must be 'Point' or '*Point'
-method_self_wrong_type.ode:8:3: error: 'self' of 'Point.worse' has the wrong type: it must be 'Point' or '*Point'
+method_self_wrong_type.ode:4:3: error: 'self' of 'Point.bad' has the wrong type
+  fn bad(self: i32): i32 {
+  ^~
+note: it must be 'Point' or '*Point'
+method_self_wrong_type.ode:8:3: error: 'self' of 'Point.worse' has the wrong type
+  fn worse(self: **Point): i32 {
+  ^~
+note: it must be 'Point' or '*Point'
 2 errors generated.

@@ -1,1 +1,4 @@
-match_pattern_not_literal.ode:5:5: error: pattern is not a literal: a match on an integer takes number and character literals
+match_pattern_not_literal.ode:5:5: error: pattern is not a literal
+    m => {
+    ^
+note: a match on an integer takes number and character literals

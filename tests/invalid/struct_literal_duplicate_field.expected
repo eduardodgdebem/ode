@@ -1,1 +1,3 @@
 struct_literal_duplicate_field.ode:7:22: error: field 'x' is initialised twice
+  let point: Point = Point { x: 1, x: 2, y: 3 };
+                     ^~~~~

@@ -1,1 +1,4 @@
-wrong_argument_count.ode:6:18: error: wrong number of arguments to 'sum': expected 2 but got 1
+wrong_argument_count.ode:6:18: error: wrong number of arguments to 'sum'
+  printf("%d\n", sum(1));
+                 ^~~
+note: expected 2 but got 1

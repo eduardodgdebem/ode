@@ -1,1 +1,3 @@
 duplicate_enum.ode:2:1: error: enum 'Color' is declared more than once
+enum Color { Blue }
+^~~~

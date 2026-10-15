@@ -1,1 +1,4 @@
-enum_mixed_enums.ode:6:3: error: type mismatch in declaration of 'c': declared as 'Color' but assigned 'Size'
+enum_mixed_enums.ode:6:18: error: type mismatch in declaration of 'c'
+  let c: Color = Size.Small;
+                 ^~~~
+note: declared as 'Color' but assigned 'Size'

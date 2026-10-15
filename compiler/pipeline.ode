@@ -8,7 +8,7 @@ import { strlen } from "std/c";
 import { readFile, writeFile, exists, removeFile } from "std/fs";
 import { Builder, slice } from "std/text";
 import {
-  SOURCE_PATH, DIAGS, FAILED, report, hasErrors, fail,
+  SOURCE_PATH, DIAGS, FAILED, report, hasErrors, registerSource, fail,
 } from "./support/diagnostics";
 import {
   TextList, StderrMode, runCommand, environment, joinPath, withSuffix,
@@ -23,6 +23,7 @@ import {
   realpath, moduleAdd, moduleDisplayPath, moduleFind, modulePath,
   STD_DIRECTORY, isPathImport, isStdImport, resolveImportPath,
 } from "./semantics/modules";
+import { before } from "./semantics/analyzer";
 import { ccCommand } from "./codegen/toolchain";
 
 // Reads, lexes and parses one file onto the end of `program`. The lexer stops
@@ -32,6 +33,7 @@ export fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
               source: *i8): i32 {
   let module: i32 = moduleAdd(path, real);
   SOURCE_PATH = moduleDisplayPath(module);
+  registerSource(SOURCE_PATH, source);
 
   // A file that did not lex is not parsed: the parser would only report the
   // holes the lexer left.
@@ -94,12 +96,15 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
 // declarations land on the end of the program's list, so walking the list to
 // its end reaches every file's imports, and a file asked for twice is found
 // by its real path.
-export fn loadProgram(ast: *Ast, root: i32, path: *i8, tokens: *TokenList): void {
+export fn loadProgram(ast: *Ast, root: i32, path: *i8, source: *i8): void {
   let real: *i8 = realpath(path, null);
   if (real == null) {
     real = path;
   }
   moduleAdd(path, real);
+  registerSource(path, source);
+  SOURCE_PATH = path;
+  let tokens: *TokenList = tokenize(source);
   // Tokens from a file that did not lex would only parse into more errors.
   if (hasErrors()) {
     SOURCE_PATH = path;

@@ -150,9 +150,7 @@ struct Lexer {
       }
 
       if (character == '\\') {
-        self.advance();
-        let escaped: i8 = self.advance();
-        text.push(escapeValue(escaped, self.line, self.column));
+        text.push(self.readEscape());
         continue;
       }
 
@@ -197,6 +195,29 @@ struct Lexer {
     list.add(TokenKind.String, text, strlen(text), line, column);
   }
 
+  // The byte a backslash escape stands for, reading it from the backslash:
+  // `\n`, `\t`, `\r`, `\0`, `\\`, `\"`, `\'`, or `\x` and two hex digits.
+  fn readEscape(self: *Lexer): i8 {
+    let line: i32 = self.line;
+    let column: i32 = self.column;
+    self.advance();
+    let escaped: i8 = self.advance();
+
+    if (escaped == 'x') {
+      let high: i32 = hexValue(self.peek());
+      let low: i32 = hexValue(self.peekNext());
+      if (high < 0 || low < 0) {
+        lexError(line, column, "\\x must be followed by two hex digits");
+        return 0;
+      }
+      self.advance();
+      self.advance();
+      return (high * 16 + low) as i8;
+    }
+
+    return escapeValue(escaped, line, column);
+  }
+
   fn readChar(self: *Lexer, list: *TokenList): void {
     let line: i32 = self.line;
     let column: i32 = self.column;
@@ -206,8 +227,9 @@ struct Lexer {
     let character: i8 = self.advance();
 
     if (character == '\\') {
-      let escaped: i8 = self.advance();
-      text.push(escapeValue(escaped, line, column));
+      self.pos = self.pos - 1;
+      self.column = self.column - 1;
+      text.push(self.readEscape());
     } else {
       text.push(character);
     }
@@ -371,7 +393,7 @@ fn keywordKind(text: *i8): TokenKind {
   return TokenKind.Ident;
 }
 
-// Decodes the character after a backslash: no \xNN and no unicode yet.
+// Decodes the character after a backslash, other than `x`; no unicode yet.
 fn escapeValue(character: i8, line: i32, column: i32): i8 {
   if (character == 'n') { return '\n'; }
   if (character == 't') { return '\t'; }
@@ -383,6 +405,19 @@ fn escapeValue(character: i8, line: i32, column: i32): i8 {
 
   lexError(line, column, "unknown escape sequence");
   return character;
+}
+
+fn hexValue(character: i8): i32 {
+  if (character >= '0' && character <= '9') {
+    return (character - '0') as i32;
+  }
+  if (character >= 'a' && character <= 'f') {
+    return (character - 'a') as i32 + 10;
+  }
+  if (character >= 'A' && character <= 'F') {
+    return (character - 'A') as i32 + 10;
+  }
+  return -1;
 }
 
 // Records a lexer error and carries on: each is a mistake of its own, so every
@@ -559,4 +594,12 @@ test "a block string loses the indentation it shares" {
 test "a raw string that does not start a line is not dedented" {
   let tokens: *TokenList = tokenize("`  kept\n  as is`");
   assertEq(tokens.at(0).text, "  kept\n  as is");
+}
+
+test "hex escapes give any byte" {
+  let tokens: *TokenList = tokenize("\"\\x1b[0m\" '\\xff' '\\x41'");
+  assertEq(tokens.at(0).text[0], 27);
+  assertEq(slice(tokens.at(0).text, 1, 3), "[0m");
+  assertEq(tokens.at(1).text[0] as u8, 255);
+  assertEq(tokens.at(2).text[0], 'A');
 }

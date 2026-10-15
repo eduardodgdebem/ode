@@ -1,1 +1,3 @@
-call_struct_field_not_function.ode:7:11: error: 'hits' is not a function
+call_struct_field_not_function.ode:7:12: error: 'hits' is not a function
+  return c.hits(1);
+           ^~~~

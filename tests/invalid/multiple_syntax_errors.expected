@@ -1,4 +1,10 @@
 multiple_syntax_errors.ode:5:3: error: expected ';' but got 'return'
+  return a;
+  ^~~~~~
 multiple_syntax_errors.ode:11:1: error: expected ';' but got '}'
+}
+^
 multiple_syntax_errors.ode:15:3: error: expected ';' but got 'return'
+  return 0;
+  ^~~~~~
 3 errors generated.

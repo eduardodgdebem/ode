@@ -16,8 +16,8 @@ import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type, fitsIn, parseMagnitude } from "./types";
 import { SymbolKind } from "./symbols";
 import {
-  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, gotTwoTypes,
-  quoted, analyzerParseType, analyzerValidateType,
+  Analyzer, analyzerFail, analyzerFail2, analyzerFailAtValue, expectedButGot,
+  gotType, gotTwoTypes, quoted, analyzerParseType, analyzerValidateType,
 } from "./analyzer";
 import { checkMethodCall } from "./methods";
 import { checkEnumMember } from "./enums";
@@ -279,9 +279,9 @@ fn checkArgumentTypes(an: *Analyzer, node: i32, name: *i8, args: i32,
       context.add(name);
       context.add("' has the wrong type");
 
-      analyzerFail2(an, node, context.data,
-                    expectedButGot(paramType.toText(),
-                                   argType.toText()));
+      analyzerFailAtValue(an, argument, context.data,
+                          expectedButGot(paramType.toText(),
+                                         argType.toText()));
     }
   }
 }
@@ -834,9 +834,9 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
       context.add(name);
       context.add("' has the wrong type");
 
-      analyzerFail2(an, node, context.data,
-                    expectedButGot(fieldType.toText(),
-                                   valueType.toText()));
+      analyzerFailAtValue(an, an.ast.nodes[init].a, context.data,
+                          expectedButGot(fieldType.toText(),
+                                         valueType.toText()));
     }
 
     index = index + 1;

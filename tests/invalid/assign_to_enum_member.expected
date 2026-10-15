@@ -1,1 +1,3 @@
 assign_to_enum_member.ode:4:3: error: left-hand side of assignment is not assignable
+  Color.Red = Color.Blue;
+  ^~~~~

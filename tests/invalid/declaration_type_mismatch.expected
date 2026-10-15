@@ -1,1 +1,4 @@
-declaration_type_mismatch.ode:2:3: error: type mismatch in declaration of 'wrong': declared as 'bool' but assigned 'i32'
+declaration_type_mismatch.ode:2:21: error: type mismatch in declaration of 'wrong'
+  let wrong: bool = 1;
+                    ^
+note: declared as 'bool' but assigned 'i32'

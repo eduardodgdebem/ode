@@ -1,1 +1,4 @@
-arithmetic_type_mismatch.ode:4:26: error: arithmetic operators require same type operands: got 'i32' and 'i64'
+arithmetic_type_mismatch.ode:4:26: error: arithmetic operators require same type operands
+  let value: i64 = small + wide;
+                         ^
+note: got 'i32' and 'i64'

@@ -1,1 +1,3 @@
 main.ode:1:10: error: symbol 'twice' already declared in this scope
+import { twice } from "./lib";
+         ^~~~~

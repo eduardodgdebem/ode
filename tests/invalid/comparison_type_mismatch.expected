@@ -1,1 +1,4 @@
-comparison_type_mismatch.ode:4:27: error: comparison operators require same type operands: got 'i32' and 'i64'
+comparison_type_mismatch.ode:4:27: error: comparison operators require same type operands
+  let value: bool = small < wide;
+                          ^
+note: got 'i32' and 'i64'

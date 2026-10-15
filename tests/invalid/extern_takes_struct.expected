@@ -1,1 +1,4 @@
-extern_takes_struct.ode:5:1: error: extern 'plot' takes a struct by value: take a pointer instead
+extern_takes_struct.ode:5:1: error: extern 'plot' takes a struct by value
+extern fn plot(point: Point): void;
+^~~~~~
+note: take a pointer instead

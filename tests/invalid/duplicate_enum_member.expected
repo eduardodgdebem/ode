@@ -1,1 +1,3 @@
 duplicate_enum_member.ode:1:26: error: enum 'Color' declares member 'Red' twice
+enum Color { Red, Green, Red }
+                         ^~~

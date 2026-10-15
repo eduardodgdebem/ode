@@ -1,1 +1,3 @@
 main.ode:1:10: error: module './lib' has no export named 'shout'
+import { shout } from "./lib";
+         ^~~~~

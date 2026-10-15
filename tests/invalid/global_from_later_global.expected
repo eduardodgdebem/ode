@@ -1,1 +1,4 @@
-global_from_later_global.ode:1:1: error: initialiser of global 'FIRST' is not constant: 'SECOND' is declared after it
+global_from_later_global.ode:1:1: error: initialiser of global 'FIRST' is not constant
+let FIRST: i32 = SECOND + 1;
+^~~
+note: 'SECOND' is declared after it

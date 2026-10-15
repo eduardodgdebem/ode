@@ -1,1 +1,4 @@
-return_without_value.ode:2:3: error: return without a value: this function returns 'i32'
+return_without_value.ode:2:3: error: return without a value
+  return;
+  ^~~~~~
+note: this function returns 'i32'

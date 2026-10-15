@@ -1,1 +1,4 @@
-arithmetic_on_bool.ode:2:26: error: arithmetic requires numeric operands: got 'bool'
+arithmetic_on_bool.ode:2:26: error: arithmetic requires numeric operands
+  let value: bool = true + false;
+                         ^
+note: got 'bool'

@@ -1,1 +1,3 @@
 order_function_values.ode:10:9: error: cannot order function values
+  if (a < b) {
+        ^

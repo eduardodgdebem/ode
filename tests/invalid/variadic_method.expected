@@ -1,1 +1,4 @@
-variadic_method.ode:4:3: error: method 'Log.write' takes '...': only an extern can take a variable number of arguments
+variadic_method.ode:4:3: error: method 'Log.write' takes '...'
+  fn write(self: Log, format: *i8, ...): void {}
+  ^~
+note: only an extern can take a variable number of arguments

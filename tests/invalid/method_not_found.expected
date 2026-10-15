@@ -1,1 +1,3 @@
-method_not_found.ode:20:11: error: struct 'Point' has no method 'product'
+method_not_found.ode:20:12: error: struct 'Point' has no method 'product'
+  return p.product();
+           ^~~~~~~

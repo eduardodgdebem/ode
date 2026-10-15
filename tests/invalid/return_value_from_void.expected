@@ -1,1 +1,4 @@
-return_value_from_void.ode:2:3: error: returning a value from a void function: got 'i32'
+return_value_from_void.ode:2:3: error: returning a value from a void function
+  return 1;
+  ^~~~~~
+note: got 'i32'

@@ -1,1 +1,3 @@
 break_outside_for_scope.ode:4:3: error: break used outside of a loop
+  break;
+  ^~~~~

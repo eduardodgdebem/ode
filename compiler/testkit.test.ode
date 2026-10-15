@@ -1,0 +1,62 @@
+// ---------------------------------------------------------------------------
+// The test kit itself.
+// ---------------------------------------------------------------------------
+
+import {
+  errorsIn, errorsInFiles, irOf, treeOf, typeOf, mentions, Files, outputOf,
+} from "./testkit";
+
+test "a clean program has no errors" {
+  assertEq(errorsIn("fn main(): i32 { return 0; }"), "");
+}
+
+test "errors are listed with their position and note" {
+  assertEq(errorsIn("fn main(): i32 { return true; }"),
+           "1:25: wrong return type: expected 'i32' but got 'bool'\n");
+}
+
+test "every lexer error is listed, and the file is not parsed" {
+  assertEq(errorsIn("fn main(): i32 { $ return 0 # }"),
+           "1:18: unexpected character\n1:29: unexpected character\n");
+}
+
+test "two snippets in one test do not see each other" {
+  assertEq(errorsIn("fn main(): i32 { return 1; } fn helper(): void {}"), "");
+  assertEq(errorsIn("fn main(): i32 { return helper(); }"),
+           "1:25: undefined function 'helper'\n");
+}
+
+test "typeOf reads the type checking gives an expression" {
+  assertEq(typeOf("let a: i64 = 1;", "a + 1"), "i64");
+  assertEq(typeOf("", "'x'"), "i8");
+  assertEq(typeOf("let p: *i32 = null;", "p + 1"), "*i32");
+}
+
+test "the tree and the IR can be inspected" {
+  assert(mentions(treeOf("fn main(): i32 { return 7; }"), "return"));
+  assert(mentions(irOf("fn main(): i32 { return 7; }"), "ret i32 7"));
+}
+
+test "a program is built and run" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+
+    fn main(): i32 {
+      printf("%d\n", 6 * 7);
+      return 3;
+    }
+  `), "42\nexit 3\n");
+}
+
+test "a program that does not compile gives its errors instead" {
+  assertEq(outputOf("fn main(): i32 { return x; }"),
+           "1:25: undefined variable 'x'\n");
+}
+
+test "a program of several files" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", "export fn seven(): i32 { return 7; }\n");
+  files.add("main.ode", "import { seven } from \"./lib\";\nfn main(): i32 { return seven() + nope; }\n");
+  assertEq(errorsInFiles(files, "main.ode"), "2:35: undefined variable 'nope'\n");
+  files.release();
+}

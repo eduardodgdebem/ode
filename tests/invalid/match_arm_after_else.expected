@@ -1,1 +1,3 @@
 match_arm_after_else.ode:9:5: error: an arm after 'else' can never be reached
+    Color.Red => {
+    ^~~~~

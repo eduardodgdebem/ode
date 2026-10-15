@@ -36,7 +36,6 @@ import {
   moveFile,
 } from "../support/system";
 import { NodeKind, Ast } from "../syntax/ast";
-import { tokenize } from "../syntax/lexer";
 import { moduleCount, modulePath, STD_DIRECTORY } from "../semantics/modules";
 import { quoted } from "../semantics/analyzer";
 import { hexDigit } from "../codegen/emitter";
@@ -122,7 +121,7 @@ fn hashInputs(ws: *Workspace): Inputs {
 
   let ast: *Ast = Ast.new();
   let root: i32 = ast.add(NodeKind.Program, 0, 0);
-  loadProgram(ast, root, ws.entry, tokenize(source));
+  loadProgram(ast, root, ws.entry, source);
   FAILED = false;
 
   let lines: i32 = 0;

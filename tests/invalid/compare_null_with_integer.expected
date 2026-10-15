@@ -1,1 +1,4 @@
-compare_null_with_integer.ode:3:13: error: equality operators require same type operands: got 'i32' and 'null'
+compare_null_with_integer.ode:3:13: error: equality operators require same type operands
+  if (count == null) {
+            ^~
+note: got 'i32' and 'null'

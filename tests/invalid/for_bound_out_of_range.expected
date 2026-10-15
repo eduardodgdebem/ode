@@ -1,1 +1,3 @@
 for_bound_out_of_range.ode:3:13: error: number is out of range for 'u8'
+  for (i in -1..limit) {
+            ^

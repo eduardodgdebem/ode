@@ -1,4 +1,13 @@
-assert_argument_counts.ode:2:3: error: wrong number of arguments to 'assert': expected a condition and, optionally, a message
-assert_argument_counts.ode:3:3: error: wrong number of arguments to 'assert': expected a condition and, optionally, a message
-assert_argument_counts.ode:4:3: error: wrong number of arguments to 'assertEq': expected the actual value and the expected one
+assert_argument_counts.ode:2:3: error: wrong number of arguments to 'assert'
+  assert();
+  ^~~~~~
+note: expected a condition and, optionally, a message
+assert_argument_counts.ode:3:3: error: wrong number of arguments to 'assert'
+  assert(true, "message", 3);
+  ^~~~~~
+note: expected a condition and, optionally, a message
+assert_argument_counts.ode:4:3: error: wrong number of arguments to 'assertEq'
+  assertEq(1);
+  ^~~~~~~~
+note: expected the actual value and the expected one
 3 errors generated.

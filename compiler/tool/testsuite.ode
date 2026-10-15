@@ -161,7 +161,7 @@ struct Suite {
   }
 }
 
-fn colour(code: *i8): *i8 {
+export fn colour(code: *i8): *i8 {
   let out: *Builder = Builder.new();
   out.push(27);
   out.push('[');

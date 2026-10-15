@@ -14,7 +14,9 @@ import { free } from "std/c";
 import { alloc, grow } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals } from "std/text";
-import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
+import {
+  SOURCE_PATH, FAILED, report, reportWithNote, failAt,
+} from "../support/diagnostics";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { TypeKind, Type, typeKindFromName, StructTable } from "./types";
 import { SymbolKind, SymbolTable } from "./symbols";
@@ -160,14 +162,47 @@ export fn analyzerFail(an: *Analyzer, node: i32, message: *i8): void {
   report(an.ast.nodes[node].line, an.ast.nodes[node].column, message);
 }
 
+// A failure with a note saying more: what was expected, what to do instead.
 export fn analyzerFail2(an: *Analyzer, node: i32, context: *i8,
                         detail: *i8): void {
-  let message: *Builder = Builder.new();
-  message.add(context);
-  message.add(": ");
-  message.add(detail);
+  SOURCE_PATH = moduleDisplayPath(an.ast.nodes[node].module);
+  reportWithNote(an.ast.nodes[node].line, an.ast.nodes[node].column, context,
+                 detail);
+}
 
-  analyzerFail(an, node, message.data);
+// A failure about a value, pointed at where the value starts. A binary
+// expression is recorded at its operator, so `a + b` is followed down to `a`.
+export fn analyzerFailAtValue(an: *Analyzer, value: i32, context: *i8,
+                              detail: *i8): void {
+  analyzerFail2(an, expressionStart(an, value), context, detail);
+}
+
+// The node an expression's text starts with.
+fn expressionStart(an: *Analyzer, node: i32): i32 {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  let start: i32 = node;
+  if (kind == NodeKind.Binary || kind == NodeKind.Cast ||
+      kind == NodeKind.Index || kind == NodeKind.FieldAccess ||
+      kind == NodeKind.MethodCall || kind == NodeKind.CallValue) {
+    let left: i32 = an.ast.nodes[node].a;
+    if (left != NO_NODE) {
+      start = expressionStart(an, left);
+    }
+  }
+
+  // Whichever comes first: a field access is recorded at its name, after
+  // the object it is read from.
+  if (before(an, node, start)) {
+    return node;
+  }
+  return start;
+}
+
+export fn before(an: *Analyzer, a: i32, b: i32): bool {
+  if (an.ast.nodes[a].line != an.ast.nodes[b].line) {
+    return an.ast.nodes[a].line < an.ast.nodes[b].line;
+  }
+  return an.ast.nodes[a].column < an.ast.nodes[b].column;
 }
 
 // "expected 'a' but got 'b'"-shaped detail, which several checks want.

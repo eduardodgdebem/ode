@@ -1,1 +1,3 @@
 nested_struct.ode:2:3: error: 'struct' declarations are only allowed at the top level of the program
+  struct Local { x: i32, }
+  ^~~~~~

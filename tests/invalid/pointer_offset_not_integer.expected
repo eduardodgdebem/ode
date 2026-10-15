@@ -1,1 +1,4 @@
-pointer_offset_not_integer.ode:4:29: error: pointer arithmetic requires an integer offset: got 'bool'
+pointer_offset_not_integer.ode:4:29: error: pointer arithmetic requires an integer offset
+  let moved: *i32 = pointer + true;
+                            ^
+note: got 'bool'

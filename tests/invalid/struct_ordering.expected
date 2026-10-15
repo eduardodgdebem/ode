@@ -1,1 +1,4 @@
-struct_ordering.ode:7:20: error: cannot order struct 'Point' values: compare their fields instead
+struct_ordering.ode:7:20: error: cannot order struct 'Point' values
+  printf("%d\n", a < b);
+                   ^
+note: compare their fields instead

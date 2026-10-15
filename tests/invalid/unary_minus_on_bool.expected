@@ -1,1 +1,4 @@
-unary_minus_on_bool.ode:2:21: error: unary minus requires a numeric operand: got 'bool'
+unary_minus_on_bool.ode:2:21: error: unary minus requires a numeric operand
+  let value: bool = -true;
+                    ^
+note: got 'bool'

@@ -1,1 +1,4 @@
-field_access_on_non_struct.ode:3:23: error: cannot read field 'x': 'i32' is not a struct
+field_access_on_non_struct.ode:3:24: error: cannot read field 'x'
+  printf("%d\n", value.x);
+                       ^
+note: 'i32' is not a struct

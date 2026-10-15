@@ -1,1 +1,3 @@
 duplicate_declaration.ode:3:3: error: symbol 'value' already declared in this scope
+  let value: i32 = 2;
+  ^~~
