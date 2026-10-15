@@ -640,3 +640,33 @@ export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
     index = index + 1;
   }
 }
+
+test "which imports are paths and which name the library" {
+  assert(isPathImport("./lib"));
+  assert(isPathImport("../lib"));
+  assert(isPathImport("/abs/lib"));
+  assert(!isPathImport("std/list"));
+  assert(!isPathImport("lib"));
+  assert(!isPathImport(".hidden"));
+  assert(!isPathImport("..lib"));
+  assert(isStdImport("std/list"));
+  assert(!isStdImport("std"));
+  assert(!isStdImport("stdlib/list"));
+  assert(!isStdImport("./std/list"));
+}
+
+test "import paths resolve against the importer or the library" {
+  assertEq(resolveImportPath("src/main.ode", "./util"), "src/util.ode");
+  assertEq(resolveImportPath("src/main.ode", "./././util.ode"), "src/util.ode");
+  assertEq(resolveImportPath("src/main.ode", "../lib/x"), "src/../lib/x.ode");
+  assertEq(resolveImportPath("src/main.ode", "/abs/x"), "/abs/x.ode");
+
+  let saved: *i8 = STD_DIRECTORY;
+  STD_DIRECTORY = "/opt/ode/std";
+  assertEq(resolveImportPath("src/main.ode", "std/list"), "/opt/ode/std/list.ode");
+  assertEq(resolveImportPath("src/main.ode", "lib/list"), null);
+  STD_DIRECTORY = null;
+  assertEq(resolveImportPath("src/main.ode", "std/list"), null);
+  STD_DIRECTORY = saved;
+}
+

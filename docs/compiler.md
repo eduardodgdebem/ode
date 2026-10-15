@@ -30,12 +30,17 @@ guesses.
 
 ## Source layout
 
+The compiler is built on the [standard library](std.md), as any Ode program
+can be: `std/c` for the C library, `std/mem` for allocation, `std/list` for
+its lists, `std/text` for building and comparing text, and `std/fs` for
+files. What std does not cover -- processes, pipes, directories -- is in
+`support/`.
+
 | Path | Holds |
 |---|---|
 | `main.ode` | the driver: arguments, loading the program, running the phases |
-| `support/libc.ode` | the C library functions the compiler uses, declared by hand |
-| `support/list.ode` | `List<T>`, the growable array most of the compiler's lists are |
-| `support/text.ode` | `Buf`, the growable buffer, and helpers on C strings |
+| `support/libc.ode` | the standard file descriptors |
+| `support/text.ode` | writing text and builders to a descriptor |
 | `support/diagnostics.ode` | collecting and printing errors; fatal failure |
 | `support/system.ode` | running programs, pipes, files, paths, directories |
 | `syntax/token.ode` | token kinds, `Token`, `TokenList` |
@@ -73,10 +78,10 @@ order does not matter, within a file or across files: signatures, globals and
 struct names are hoisted before any body is checked, and modules import from
 each other in cycles freely.
 
-The compiler's data structures are structs with methods -- `Buf`, `TokenList`,
+The compiler's data structures are structs with methods -- `Builder`, `TokenList`,
 `Ast`, `Lexer`, `Parser`, `Type`, `StructTable`, `SymbolTable`, `Analyzer`,
 `Emitter` -- so text is built with `out.add(...)` and tokens consumed with
-`parser.expect(...)`. Their growable parts are one generic `List<T>`:
+`parser.expect(...)`. Their growable parts are std's `List<T>`:
 locals, scopes and loop labels in the emitter, the symbol table's scope
 stack, names, argument lists, modules and function signatures. The passes themselves, `parseX`, `checkX` and `genX`,
 are free functions taking the parser, analyzer or emitter: they span several
