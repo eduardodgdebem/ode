@@ -2,3 +2,8 @@ build
 .cache
 *.o
 *.ll
+
+# The bootstrap seed is generated IR, so the *.ll rule above would drop it --
+# but it is the only thing a fresh checkout has to build the compiler from,
+# and without it the repository cannot be built at all.
+!bootstrap/ode.ll

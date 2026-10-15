@@ -264,22 +264,24 @@ no multi-line string literals — a string may not cross a newline.
 
 `tests/run_tests.sh` compiles, links and runs every `examples/*.ode` against a
 recorded stdout, and checks every `tests/invalid/*.ode` against the diagnostic
-it must produce. `ctest` runs it as `regression`, and `--update` re-records
-every expectation in one pass.
+it must produce, and `--update` re-records every expectation in one pass.
 
 What it does not do is test any component in isolation. There are no unit
 tests for the lexer, the parser, the analyzer or codegen, so a fault is
-located by bisecting a failing program rather than by a failing assertion. For
-the self-hosting port, where two compilers need diffing against each other,
-that will start to matter.
+located by bisecting a failing program rather than by a failing assertion.
 
-### 8.2 Linking shells out to `clang++`
+The compiler is self-hosting, so `selfhost/bootstrap.sh` is the other half of
+the check: a compiler that miscompiles itself stops reproducing itself, and
+the fixed-point comparison catches that even when every test still passes.
 
-`Linker::link` builds a `clang++` command and calls `std::system`, so `clang++`
-must be on `PATH`. The paths are now single-quoted, so a space or a shell
-metacharacter in one no longer re-splits the command or gets executed, but
-running a shell at all is still more than the job needs; `posix_spawn` would
-remove both the shell and the `PATH` lookup.
+### 8.2 Assembling and linking shell out to `clang`
+
+The compiler emits textual LLVM IR and then runs `clang` twice -- once to
+assemble the `.ll` into a `.o`, once to link it -- so `clang` must be on
+`PATH`. Both runs go through `fork` and `execvp` rather than a shell, so a
+path holding a space or a metacharacter needs no quoting and cannot be
+re-split or executed. What is left is that the compiler has no backend of its
+own: it depends on `clang` to turn IR into a binary.
 
 ### 8.3 Intermediates are always written
 

@@ -1,0 +1,195 @@
+// ---------------------------------------------------------------------------
+// Driver.
+//
+// Reads a file, runs the phases, writes textual LLVM IR, and links it with
+// clang. The dump flags exist so selfhost/difftest.sh can compare each phase
+// against the C++ compiler.
+// ---------------------------------------------------------------------------
+
+let SOURCE_PATH: *i8 = "<none>";
+
+// Ode has no adjacent string literal concatenation, so this is one line.
+let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n";
+
+// `path` without its directory and extension, which is what a bare `ode1
+// foo.ode` names its output.
+fn stemOf(path: *i8): *i8 {
+  let length: i64 = strlen(path);
+  let start: i64 = 0 as i64;
+  let end: i64 = length;
+
+  let index: i64 = 0 as i64;
+  while (index < length) {
+    if (path[index] == '/') {
+      start = index + 1 as i64;
+    }
+    if (path[index] == '.') {
+      end = index;
+    }
+    index = index + 1 as i64;
+  }
+
+  if (end <= start) {
+    end = length;
+  }
+
+  return textSlice(path, start, end - start);
+}
+
+fn withSuffix(base: *i8, suffix: *i8): *i8 {
+  let out: *Buf = bufNew();
+  bufAdd(out, base);
+  bufAdd(out, suffix);
+
+  return bufTake(out);
+}
+
+fn main(argc: i32, argv: **i8): i32 {
+  let wantTokens: bool = false;
+  let wantAst: bool = false;
+  let wantTypes: bool = false;
+  let emitOnly: bool = false;
+  let keepIntermediates: bool = true;
+  let path: *i8 = nullText();
+  let output: *i8 = nullText();
+
+  let index: i32 = 1;
+  while (index < argc) {
+    let argument: *i8 = argv[index];
+
+    if (textEquals(argument, "--dump-tokens")) {
+      wantTokens = true;
+    } else if (textEquals(argument, "--dump-ast")) {
+      wantAst = true;
+    } else if (textEquals(argument, "--dump-types")) {
+      wantTypes = true;
+    } else if (textEquals(argument, "--emit-llvm")) {
+      emitOnly = true;
+    } else if (textEquals(argument, "--no-intermediates")) {
+      keepIntermediates = false;
+    } else if (textEquals(argument, "-o")) {
+      index = index + 1;
+      if (index >= argc) {
+        writeText(STDERR, USAGE);
+        return 2;
+      }
+      output = argv[index];
+    } else if (argument[0] == '-') {
+      writeText(STDERR, USAGE);
+      return 2;
+    } else {
+      path = argument;
+    }
+
+    index = index + 1;
+  }
+
+  if (isNullText(path)) {
+    writeText(STDERR, USAGE);
+    return 2;
+  }
+
+  SOURCE_PATH = path;
+  DIAGS = diagnosticsNew();
+
+  let source: *i8 = readFile(path);
+  if (isNullText(source)) {
+    fail("cannot open input file");
+  }
+
+  let tokens: *TokenList = tokenize(source);
+  let out: *Buf = bufNew();
+
+  if (wantTokens) {
+    dumpTokens(tokens, out);
+    writeBuf(STDOUT, out);
+    return 0;
+  }
+
+  let ast: *Ast = astNew();
+  let parser: *Parser = parserNew(tokens, ast);
+  let root: i32 = parseProgram(parser);
+
+  // A tree with a hole in it says nothing trustworthy about types, so the
+  // syntax errors are reported on their own rather than alongside whatever
+  // the analyzer would invent from the wreckage.
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  if (wantAst) {
+    dumpNode(ast, nullTypes(), root, 0, out);
+    writeBuf(STDOUT, out);
+    return 0;
+  }
+
+  let an: *Analyzer = analyzerNew(ast);
+  analyze(an, root);
+
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  if (wantTypes) {
+    dumpNode(ast, an.types, root, 0, out);
+    writeBuf(STDOUT, out);
+    return 0;
+  }
+
+  let emitter: *Emitter = emitterNew(ast, an);
+  let module: *i8 = genProgram(emitter, root);
+
+  if (emitOnly) {
+    writeText(STDOUT, module);
+    return 0;
+  }
+
+  if (isNullText(output)) {
+    output = stemOf(path);
+  }
+
+  // The intermediates hang off the executable rather than the input, so that
+  // -o keeps a whole build in one directory.
+  let irPath: *i8 = withSuffix(output, ".ll");
+  if (!writeFile(irPath, module)) {
+    fail("cannot write the LLVM IR");
+  }
+
+  let objectPath: *i8 = withSuffix(output, ".o");
+
+  // Assembling and linking are two runs of clang, which is what leaves a `.o`
+  // beside the `.ll` -- the two things worth looking at when codegen
+  // misbehaves.
+  let assemble: **i8 = malloc(sizeof(*i8) as i64 * 7 as i64) as **i8;
+  assemble[0] = "clang";
+  assemble[1] = "-c";
+  assemble[2] = irPath;
+  assemble[3] = "-o";
+  assemble[4] = objectPath;
+  assemble[5] = "-Wno-override-module";
+  assemble[6] = 0 as i64 as *i8;
+
+  if (runProgram(assemble) != 0) {
+    fail("assembling failed");
+  }
+
+  let link: **i8 = malloc(sizeof(*i8) as i64 * 5 as i64) as **i8;
+  link[0] = "clang";
+  link[1] = objectPath;
+  link[2] = "-o";
+  link[3] = output;
+  link[4] = 0 as i64 as *i8;
+
+  if (runProgram(link) != 0) {
+    fail("linking failed");
+  }
+
+  if (!keepIntermediates) {
+    remove(irPath);
+    remove(objectPath);
+  }
+
+  return 0;
+}

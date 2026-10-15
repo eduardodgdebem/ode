@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "ode",
+      "camelcase": "Ode",
+      "scope": "source.ode",
+      "path": ".",
+      "file-types": ["ode"],
+      "highlights": ["queries/highlights.scm"],
+      "injection-regex": "^ode$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for the Ode language"
+  }
+}

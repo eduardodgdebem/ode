@@ -1,0 +1,348 @@
+// ---------------------------------------------------------------------------
+// Types.
+//
+// A value type is a base kind plus a pointer depth: `i32` is {I32, 0}, `*i32`
+// is {I32, 1}, `**i8` is {I8, 2}. Structs carry their name as well.
+//
+// Types are passed by value. Ode allows that between its own functions, so
+// these read the way the C++ `Type` class does.
+// ---------------------------------------------------------------------------
+
+// Not a type: the entry for a node that is not an expression.
+let TY_NONE: i32 = 0;
+
+let TY_I8: i32 = 1;
+let TY_U8: i32 = 2;
+let TY_I16: i32 = 3;
+let TY_U16: i32 = 4;
+let TY_I32: i32 = 5;
+let TY_U32: i32 = 6;
+let TY_I64: i32 = 7;
+let TY_U64: i32 = 8;
+let TY_F32: i32 = 9;
+let TY_F64: i32 = 10;
+let TY_BOOL: i32 = 11;
+let TY_VOID: i32 = 12;
+let TY_STRUCT: i32 = 13;
+
+let MAX_U64: u64 = 18446744073709551615 as u64;
+
+struct Type {
+  kind: i32,
+  pointerDepth: i32,
+  // Only meaningful when kind is TY_STRUCT.
+  structName: *i8,
+}
+
+fn typeMake(kind: i32, pointerDepth: i32): Type {
+  return Type { kind: kind, pointerDepth: pointerDepth,
+                structName: nullText() };
+}
+
+fn typeStruct(name: *i8, pointerDepth: i32): Type {
+  return Type { kind: TY_STRUCT, pointerDepth: pointerDepth,
+                structName: name };
+}
+
+fn typeIsPointer(type: Type): bool {
+  return type.pointerDepth > 0;
+}
+
+fn typeIsStruct(type: Type): bool {
+  return !typeIsPointer(type) && type.kind == TY_STRUCT;
+}
+
+fn typeIsVoid(type: Type): bool {
+  return !typeIsPointer(type) && type.kind == TY_VOID;
+}
+
+fn typeIsBool(type: Type): bool {
+  return !typeIsPointer(type) && type.kind == TY_BOOL;
+}
+
+fn typeIsInteger(type: Type): bool {
+  if (typeIsPointer(type)) {
+    return false;
+  }
+
+  return type.kind >= TY_I8 && type.kind <= TY_U64;
+}
+
+fn typeIsFloat(type: Type): bool {
+  if (typeIsPointer(type)) {
+    return false;
+  }
+
+  return type.kind == TY_F32 || type.kind == TY_F64;
+}
+
+fn typeIsNumeric(type: Type): bool {
+  return typeIsInteger(type) || typeIsFloat(type);
+}
+
+// Unsigned kinds use zero-extension, unsigned division and unsigned
+// comparisons; everything else is treated as signed.
+fn typeIsSigned(type: Type): bool {
+  if (!typeIsInteger(type)) {
+    return false;
+  }
+
+  if (type.kind == TY_U8 || type.kind == TY_U16) {
+    return false;
+  }
+
+  return type.kind != TY_U32 && type.kind != TY_U64;
+}
+
+// Zero for anything without a width of its own: bool, void, structs.
+fn typeBitWidth(type: Type): i32 {
+  if (type.kind == TY_I8 || type.kind == TY_U8) { return 8; }
+  if (type.kind == TY_I16 || type.kind == TY_U16) { return 16; }
+  if (type.kind == TY_I32 || type.kind == TY_U32) { return 32; }
+  if (type.kind == TY_F32) { return 32; }
+  if (type.kind == TY_I64 || type.kind == TY_U64) { return 64; }
+  if (type.kind == TY_F64) { return 64; }
+
+  return 0;
+}
+
+fn typePointee(type: Type): Type {
+  return Type { kind: type.kind, pointerDepth: type.pointerDepth - 1,
+                structName: type.structName };
+}
+
+fn typePointerTo(type: Type): Type {
+  return Type { kind: type.kind, pointerDepth: type.pointerDepth + 1,
+                structName: type.structName };
+}
+
+fn typeEquals(a: Type, b: Type): bool {
+  if (a.kind != b.kind || a.pointerDepth != b.pointerDepth) {
+    return false;
+  }
+
+  // Only a struct has a name, and two structs are the same type only when
+  // they are the same declaration.
+  if (a.kind != TY_STRUCT) {
+    return true;
+  }
+
+  return textEquals(a.structName, b.structName);
+}
+
+fn typeBaseName(type: Type): *i8 {
+  if (type.kind == TY_I8) { return "i8"; }
+  if (type.kind == TY_U8) { return "u8"; }
+  if (type.kind == TY_I16) { return "i16"; }
+  if (type.kind == TY_U16) { return "u16"; }
+  if (type.kind == TY_I32) { return "i32"; }
+  if (type.kind == TY_U32) { return "u32"; }
+  if (type.kind == TY_I64) { return "i64"; }
+  if (type.kind == TY_U64) { return "u64"; }
+  if (type.kind == TY_F32) { return "f32"; }
+  if (type.kind == TY_F64) { return "f64"; }
+  if (type.kind == TY_BOOL) { return "bool"; }
+  if (type.kind == TY_VOID) { return "void"; }
+  if (type.kind == TY_STRUCT) { return type.structName; }
+
+  return "unknown";
+}
+
+fn typeToText(type: Type): *i8 {
+  let out: *Buf = bufNew();
+
+  let depth: i32 = 0;
+  while (depth < type.pointerDepth) {
+    bufPush(out, '*');
+    depth = depth + 1;
+  }
+
+  bufAdd(out, typeBaseName(type));
+
+  return bufTake(out);
+}
+
+// Returns TY_NONE when the name is not a built-in type keyword. `usize` is a
+// second spelling of u64.
+fn typeKindFromName(name: *i8): i32 {
+  if (textEquals(name, "i8")) { return TY_I8; }
+  if (textEquals(name, "u8")) { return TY_U8; }
+  if (textEquals(name, "i16")) { return TY_I16; }
+  if (textEquals(name, "u16")) { return TY_U16; }
+  if (textEquals(name, "i32")) { return TY_I32; }
+  if (textEquals(name, "u32")) { return TY_U32; }
+  if (textEquals(name, "i64")) { return TY_I64; }
+  if (textEquals(name, "u64")) { return TY_U64; }
+  if (textEquals(name, "usize")) { return TY_U64; }
+  if (textEquals(name, "f32")) { return TY_F32; }
+  if (textEquals(name, "f64")) { return TY_F64; }
+  if (textEquals(name, "bool")) { return TY_BOOL; }
+  if (textEquals(name, "void")) { return TY_VOID; }
+
+  return TY_NONE;
+}
+
+// ---------------------------------------------------------------------------
+// Integer literal range checking. There is no `~` operator, so the maxima are
+// built by shifting rather than by complementing zero.
+// ---------------------------------------------------------------------------
+
+fn unsignedMax(bits: i32): u64 {
+  if (bits >= 64) {
+    return MAX_U64;
+  }
+
+  return (1 as u64 << bits as u64) - 1 as u64;
+}
+
+fn signedMax(bits: i32): u64 {
+  if (bits >= 64) {
+    return MAX_U64 / 2 as u64;
+  }
+
+  return (1 as u64 << (bits - 1) as u64) - 1 as u64;
+}
+
+// The lexer folds a leading `-` into a number token where the position allows
+// it, so a literal carries its own sign. A negative one only fits a signed
+// type, and reaches one further from zero than the positive maximum does.
+fn fitsIn(magnitude: u64, negative: bool, type: Type): bool {
+  let bits: i32 = typeBitWidth(type);
+
+  if (!typeIsSigned(type)) {
+    if (negative) {
+      return false;
+    }
+    return magnitude <= unsignedMax(bits);
+  }
+
+  let max: u64 = signedMax(bits);
+  if (negative) {
+    return magnitude <= max + 1 as u64;
+  }
+
+  return magnitude <= max;
+}
+
+// Reads decimal digits into a u64, reporting overflow through `overflowed`
+// rather than wrapping.
+fn parseMagnitude(text: *i8, start: i64, length: i64,
+                  overflowed: *bool): u64 {
+  let value: u64 = 0 as u64;
+  let index: i64 = start;
+  *overflowed = false;
+
+  while (index < length) {
+    let digit: u64 = (text[index] as i64 - '0' as i64) as u64;
+
+    if (value > (MAX_U64 - digit) / 10 as u64) {
+      *overflowed = true;
+      return 0 as u64;
+    }
+
+    value = value * 10 as u64 + digit;
+    index = index + 1 as i64;
+  }
+
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// Struct layouts. Field order is declaration order, which is also the order of
+// the LLVM struct's elements, so a field's position here is its GEP index.
+// ---------------------------------------------------------------------------
+
+struct FieldDef {
+  name: *i8,
+  type: Type,
+}
+
+struct StructLayout {
+  name: *i8,
+  fields: *FieldDef,
+  count: i32,
+  capacity: i32,
+}
+
+struct StructTable {
+  items: *StructLayout,
+  count: i32,
+  capacity: i32,
+}
+
+fn structTableNew(): *StructTable {
+  let table: *StructTable = malloc(sizeof(StructTable) as i64) as *StructTable;
+  table.capacity = 16;
+  table.count = 0;
+  table.items =
+      malloc(sizeof(StructLayout) as i64 * table.capacity as i64) as
+          *StructLayout;
+
+  return table;
+}
+
+// Returns -1 when no struct of that name has been declared.
+fn structIndexOf(table: *StructTable, name: *i8): i32 {
+  let index: i32 = 0;
+
+  while (index < table.count) {
+    if (textEquals(table.items[index].name, name)) {
+      return index;
+    }
+    index = index + 1;
+  }
+
+  return -1;
+}
+
+fn structTableAdd(table: *StructTable, name: *i8): i32 {
+  if (table.count == table.capacity) {
+    table.capacity = table.capacity * 2;
+    table.items =
+        realloc(table.items as *i8,
+                sizeof(StructLayout) as i64 * table.capacity as i64) as
+            *StructLayout;
+  }
+
+  let index: i32 = table.count;
+  table.items[index].name = name;
+  table.items[index].count = 0;
+  table.items[index].capacity = 4;
+  table.items[index].fields =
+      malloc(sizeof(FieldDef) as i64 * 4 as i64) as *FieldDef;
+  table.count = table.count + 1;
+
+  return index;
+}
+
+// Returns -1 when the struct has no such field.
+fn structFieldIndex(table: *StructTable, structIndex: i32,
+                    name: *i8): i32 {
+  let index: i32 = 0;
+
+  while (index < table.items[structIndex].count) {
+    if (textEquals(table.items[structIndex].fields[index].name, name)) {
+      return index;
+    }
+    index = index + 1;
+  }
+
+  return -1;
+}
+
+fn structAddField(table: *StructTable, structIndex: i32, name: *i8,
+                  type: Type): void {
+  if (table.items[structIndex].count == table.items[structIndex].capacity) {
+    table.items[structIndex].capacity =
+        table.items[structIndex].capacity * 2;
+    table.items[structIndex].fields =
+        realloc(table.items[structIndex].fields as *i8,
+                sizeof(FieldDef) as i64 *
+                    table.items[structIndex].capacity as i64) as *FieldDef;
+  }
+
+  let index: i32 = table.items[structIndex].count;
+  table.items[structIndex].fields[index].name = name;
+  table.items[structIndex].fields[index].type = type;
+  table.items[structIndex].count = index + 1;
+}
