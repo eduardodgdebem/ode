@@ -11,14 +11,10 @@ struct Node {
   next: *Node,
 }
 
-fn null(): *Node {
-  return 0 as i64 as *Node;
-}
-
 fn makeNode(value: i32): *Node {
   let node: *Node = malloc(sizeof(Node) as i64) as *Node;
   node.value = value;
-  node.next = null();
+  node.next = null;
 
   return node;
 }
@@ -34,7 +30,7 @@ fn sum(head: *Node): i32 {
   let total: i32 = 0;
   let current: *Node = head;
 
-  while (current != null()) {
+  while (current != null) {
     total = total + current.value;
     current = current.next;
   }
@@ -46,7 +42,7 @@ fn length(head: *Node): i32 {
   let count: i32 = 0;
   let current: *Node = head;
 
-  while (current != null()) {
+  while (current != null) {
     count = count + 1;
     current = current.next;
   }
@@ -57,7 +53,7 @@ fn length(head: *Node): i32 {
 fn release(head: *Node): void {
   let current: *Node = head;
 
-  while (current != null()) {
+  while (current != null) {
     let next: *Node = current.next;
     free(current as *i8);
     current = next;

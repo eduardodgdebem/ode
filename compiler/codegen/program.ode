@@ -9,7 +9,7 @@
 import { Buf, textEquals, intToText } from "../support/text";
 import {
   NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_UNARY, NK_CAST,
-  NK_SIZEOF, NK_STRING, NK_CHAR, NK_BOOL,
+  NK_SIZEOF, NK_STRING, NK_CHAR, NK_BOOL, NK_NULL,
 } from "../syntax/ast";
 import { Type } from "../semantics/types";
 import { NameSet } from "../semantics/modules";
@@ -123,6 +123,9 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   if (kind == NK_STRING) {
     return internString(e, e.ast.nodes[node].text,
                         e.ast.nodes[node].textLength);
+  }
+  if (kind == NK_NULL) {
+    return "null";
   }
   if (kind == NK_CAST) {
     return genConstant(e, e.ast.nodes[node].a, type);

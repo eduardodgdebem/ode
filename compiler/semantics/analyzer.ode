@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, free } from "../support/libc";
-import { nullText, Buf, textEquals } from "../support/text";
+import { Buf, textEquals } from "../support/text";
 import { SOURCE_PATH, FAILED, report, failAt } from "../support/diagnostics";
 import {
   NO_NODE, NK_VARDECL, NK_FN, NK_EXTERN, NK_STRUCT, NK_FIELD, NK_TYPE,
@@ -71,9 +71,9 @@ export struct Analyzer {
     while (index < ast.count) {
       an.types[index] = Type.make(TY_NONE, 0);
       an.isGlobal[index] = 0 as i8;
-      an.linkNames[index] = nullText();
+      an.linkNames[index] = null;
       an.receivers[index] = RECV_NONE;
-      an.structRefs[index] = nullText();
+      an.structRefs[index] = null;
       index = index + 1;
     }
 
@@ -181,14 +181,14 @@ export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
 export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type {
   if (params == NO_NODE || an.ast.nodes[params].kind != NK_PARAMS) {
     *countOut = 0;
-    return 0 as i64 as *Type;
+    return null;
   }
 
   let count: i32 = an.ast.nodes[params].itemCount;
   *countOut = count;
 
   if (count == 0) {
-    return 0 as i64 as *Type;
+    return null;
   }
 
   let types: *Type = malloc(sizeof(Type) as i64 * count as i64) as *Type;
@@ -344,7 +344,7 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
   }
 
   an.isGlobal[node] = 1 as i8;
-  declareTopLevel(an, node, name, SYM_VAR, type, 0 as i64 as *Type, 0);
+  declareTopLevel(an, node, name, SYM_VAR, type, null, 0);
 }
 
 // SymbolTable.declare for a top-level declaration, which also carries its IR

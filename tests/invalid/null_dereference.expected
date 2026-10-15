@@ -1,0 +1,1 @@
+null_dereference.ode:2:20: error: cannot dereference a non-pointer value: got 'null'

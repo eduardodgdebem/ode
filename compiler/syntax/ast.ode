@@ -11,7 +11,6 @@
 // ---------------------------------------------------------------------------
 
 import { malloc, realloc } from "../support/libc";
-import { nullText } from "../support/text";
 import { Token } from "./token";
 
 export let NO_NODE: i32 = -1;
@@ -54,6 +53,7 @@ export let NK_ERROR: i32 = 34;
 export let NK_IMPORT: i32 = 35;
 export let NK_IMPORTNAME: i32 = 36;
 export let NK_METHODCALL: i32 = 37;
+export let NK_NULL: i32 = 38;
 
 struct Node {
   kind: i32,
@@ -130,13 +130,13 @@ export struct Ast {
     self.nodes[index].kind = kind;
     self.nodes[index].line = line;
     self.nodes[index].column = column;
-    self.nodes[index].text = nullText();
+    self.nodes[index].text = null;
     self.nodes[index].textLength = 0 as i64;
     self.nodes[index].a = NO_NODE;
     self.nodes[index].b = NO_NODE;
     self.nodes[index].c = NO_NODE;
     self.nodes[index].extra = 0;
-    self.nodes[index].items = 0 as i64 as *i32;
+    self.nodes[index].items = null;
     self.nodes[index].itemCount = 0;
     self.nodes[index].itemCapacity = 0;
     self.nodes[index].module = self.currentModule;
@@ -211,6 +211,7 @@ export fn nodeKindName(kind: i32): *i8 {
   if (kind == NK_IMPORT) { return "import"; }
   if (kind == NK_IMPORTNAME) { return "importname"; }
   if (kind == NK_METHODCALL) { return "methodcall"; }
+  if (kind == NK_NULL) { return "null"; }
 
   return "?";
 }

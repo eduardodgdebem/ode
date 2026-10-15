@@ -10,7 +10,7 @@
 // matters, because a non-Apple clang ignores SDKROOT entirely.
 // ---------------------------------------------------------------------------
 
-import { nullText, isNullText, Buf } from "../support/text";
+import { Buf } from "../support/text";
 import {
   TextList, STDERR_DISCARD, runCommand, environment, setEnvironment,
   fileExists,
@@ -18,11 +18,11 @@ import {
 import { isSpace } from "../syntax/lexer";
 
 let SYSROOT_PROBED: bool = false;
-let SYSROOT: *i8 = 0 as i64 as *i8;
+let SYSROOT: *i8 = null;
 
 export fn ccProgram(): *i8 {
   let chosen: *i8 = environment("ODE_CC");
-  if (isNullText(chosen)) {
+  if (chosen == null) {
     return "clang";
   }
 
@@ -38,10 +38,10 @@ export fn sysroot(): *i8 {
   SYSROOT_PROBED = true;
   SYSROOT = environment("SDKROOT");
 
-  if (isNullText(SYSROOT) && fileExists("/usr/bin/xcrun")) {
+  if (SYSROOT == null && fileExists("/usr/bin/xcrun")) {
     let output: *Buf = Buf.new();
     let command: *TextList = TextList.new().add("xcrun").add("--show-sdk-path");
-    if (runCommand(command, nullText(), output, STDERR_DISCARD) == 0) {
+    if (runCommand(command, null, output, STDERR_DISCARD) == 0) {
       // The path comes back with a newline after it.
       while (output.length > 0 as i64 &&
              isSpace(output.data[output.length - 1 as i64])) {
@@ -63,7 +63,7 @@ export fn ccCommand(): *TextList {
   let command: *TextList = TextList.new().add(ccProgram());
 
   let sdk: *i8 = sysroot();
-  if (!isNullText(sdk)) {
+  if (sdk != null) {
     command.add("-isysroot").add(sdk);
   }
 
@@ -75,7 +75,7 @@ export fn ccCommand(): *TextList {
 // them has to ask xcrun again.
 export fn shareSysroot(): void {
   let sdk: *i8 = sysroot();
-  if (!isNullText(sdk)) {
+  if (sdk != null) {
     setEnvironment("SDKROOT", sdk);
   }
 }

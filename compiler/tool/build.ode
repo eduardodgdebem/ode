@@ -22,8 +22,7 @@
 
 import { malloc, strlen, STDOUT, STDERR } from "../support/libc";
 import {
-  nullText, isNullText, writeText, Buf, nullBuf, textEquals, textSlice,
-  intToText,
+  writeText, Buf, textEquals, textSlice, intToText,
 } from "../support/text";
 import {
   SOURCE_PATH, Diagnostics, DIAGS, FAILED,
@@ -110,14 +109,14 @@ fn hashInputs(ws: *Workspace): Inputs {
   let hasher: Hasher = Hasher.new();
   hasher.addText(ccProgram());
   let sdk: *i8 = sysroot();
-  if (!isNullText(sdk)) {
+  if (sdk != null) {
     hasher.addText(sdk);
   }
 
   DIAGS = Diagnostics.new();
   SOURCE_PATH = ws.entry;
   let source: *i8 = readFile(ws.entry);
-  if (isNullText(source)) {
+  if (source == null) {
     return Inputs { hash: "", lines: 0, modules: 0 };
   }
 
@@ -131,7 +130,7 @@ fn hashInputs(ws: *Workspace): Inputs {
   while (module < MODULE_COUNT) {
     let bytes: *Buf = readBytes(modulePath(module));
     hasher.addText(modulePath(module));
-    if (bytes != nullBuf()) {
+    if (bytes != null) {
       hasher.addBytes(bytes.data, bytes.length);
 
       let index: i64 = 0 as i64;
@@ -183,18 +182,18 @@ fn shown(ws: *Workspace, path: *i8): *i8 {
 fn findRoot(): *i8 {
   let directory: *i8 = currentDirectory();
 
-  while (!isNullText(directory)) {
+  while (directory != null) {
     if (fileExists(joinPath(directory, "compiler/main.ode")) &&
         fileExists(joinPath(directory, "bootstrap/ode.ll"))) {
       return directory;
     }
     if (textEquals(directory, "/")) {
-      return nullText();
+      return null;
     }
     directory = parentDirectory(directory);
   }
 
-  return nullText();
+  return null;
 }
 
 // The absolute path of the program running now, from how it was invoked: a
@@ -209,8 +208,8 @@ fn findSelf(invokedAs: *i8): *i8 {
   }
 
   let searchPath: *i8 = environment("PATH");
-  if (isNullText(searchPath)) {
-    return nullText();
+  if (searchPath == null) {
+    return null;
   }
 
   let start: i64 = 0 as i64;
@@ -224,14 +223,14 @@ fn findSelf(invokedAs: *i8): *i8 {
         return absolutePath(candidate);
       }
       if (character == 0 as i8) {
-        return nullText();
+        return null;
       }
       start = index + 1 as i64;
     }
     index = index + 1 as i64;
   }
 
-  return nullText();
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +247,7 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
   let inputs: Inputs = hashInputs(ws);
   let stamp: *Buf = readBytes(stampPath(ws));
 
-  if (!force && fileExists(ws.output) && stamp != nullBuf() &&
+  if (!force && fileExists(ws.output) && stamp != null &&
       textEquals(stamp.data, inputs.hash)) {
     let message: *Buf = Buf.new();
     message.add(shown(ws, ws.output));
@@ -262,14 +261,14 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
   let target: *i8 = ws.output;
   let inPlace: bool = false;
   let outputReal: *i8 = absolutePath(ws.output);
-  if (!isNullText(outputReal) && textEquals(outputReal, ws.compiler)) {
+  if (outputReal != null && textEquals(outputReal, ws.compiler)) {
     inPlace = true;
     target = withSuffix(ws.output, ".new");
   }
 
   let command: *TextList = TextList.new().add(ws.compiler);
   command.add("-o").add(target).add(ws.entry);
-  if (runCommand(command, nullText(), nullBuf(), STDERR_INHERIT) != 0) {
+  if (runCommand(command, null, null, STDERR_INHERIT) != 0) {
     complain("the compiler did not build");
     return 1;
   }
@@ -330,7 +329,7 @@ fn commandBootstrap(ws: *Workspace): i32 {
 
     let command: *TextList = TextList.new().add(from);
     command.add("-o").add(to).add(ws.entry);
-    if (runCommand(command, nullText(), nullBuf(), STDERR_INHERIT) != 0) {
+    if (runCommand(command, null, null, STDERR_INHERIT) != 0) {
       complain("a bootstrap stage did not build");
       return 1;
     }
@@ -378,7 +377,7 @@ fn commandSeed(ws: *Workspace): i32 {
   let ir: *Buf = Buf.new();
   let command: *TextList = TextList.new().add(ws.output);
   command.add("--emit-llvm").add(ws.entry);
-  if (runCommand(command, nullText(), ir, STDERR_INHERIT) != 0) {
+  if (runCommand(command, null, ir, STDERR_INHERIT) != 0) {
     complain("the compiler could not emit its own IR");
     return 1;
   }
@@ -407,12 +406,12 @@ fn buildUsage(): i32 {
 }
 
 export fn buildMain(argc: i32, argv: **i8): i32 {
-  let command: *i8 = nullText();
+  let command: *i8 = null;
   let force: bool = false;
   let options: TestOptions = TestOptions {
-    filter: nullText(),
+    filter: null,
     update: false,
-    compiler: nullText(),
+    compiler: null,
   };
 
   let index: i32 = 2;
@@ -433,7 +432,7 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
         options.filter = argv[index];
       } else {
         options.compiler = absolutePath(argv[index]);
-        if (isNullText(options.compiler)) {
+        if (options.compiler == null) {
           complain(quoted("no compiler at ", argv[index], ""));
           return 2;
         }
@@ -441,7 +440,7 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
     } else if (textEquals(argument, "-h") || textEquals(argument, "--help")) {
       writeText(STDOUT, BUILD_USAGE);
       return 0;
-    } else if (argument[0] == '-' || !isNullText(command)) {
+    } else if (argument[0] == '-' || command != null) {
       return buildUsage();
     } else {
       command = argument;
@@ -450,18 +449,18 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
     index = index + 1;
   }
 
-  if (isNullText(command)) {
+  if (command == null) {
     command = "build";
   }
 
   let root: *i8 = findRoot();
-  if (isNullText(root)) {
+  if (root == null) {
     complain("not inside the Ode repository: no compiler/main.ode here or above");
     return 2;
   }
 
   let compiler: *i8 = findSelf(argv[0]);
-  if (isNullText(compiler)) {
+  if (compiler == null) {
     complain("cannot tell where this compiler is; run it by its path");
     return 2;
   }

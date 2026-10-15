@@ -33,6 +33,7 @@ export let TK_PRINT: i32 = 21;
 export let TK_AS: i32 = 22;
 export let TK_IMPORT: i32 = 23;
 export let TK_EXPORT: i32 = 24;
+export let TK_NULL: i32 = 25;
 
 export let TK_ASSIGN: i32 = 30;
 export let TK_PLUS: i32 = 31;
@@ -126,10 +127,6 @@ export struct TokenList {
   }
 }
 
-fn nullTokenList(): *TokenList {
-  return 0 as i64 as *TokenList;
-}
-
 export fn kindName(kind: i32): *i8 {
   if (kind == TK_END) { return "end"; }
   if (kind == TK_IDENT) { return "ident"; }
@@ -154,6 +151,7 @@ export fn kindName(kind: i32): *i8 {
   if (kind == TK_AS) { return "as"; }
   if (kind == TK_IMPORT) { return "import"; }
   if (kind == TK_EXPORT) { return "export"; }
+  if (kind == TK_NULL) { return "null"; }
 
   if (kind == TK_ASSIGN) { return "="; }
   if (kind == TK_PLUS) { return "+"; }

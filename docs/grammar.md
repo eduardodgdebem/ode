@@ -80,7 +80,7 @@ cycles.
 - **Cast** → Unary (`as` Type)*
 - **Unary** → (`-` | `+` | `!` | `*` | `&`) Unary | Postfix
 - **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]`)*
-- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
+- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
 - **StructLiteral** → IDENT `{` FieldInit* `}`
 - **FieldInit** → IDENT `:` Expr `,`?
 - **SizeOf** → `sizeof` `(` Type `)`
@@ -187,6 +187,12 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
 - `a[i]` is `*(a + i)`, so indexing works on any pointer and is assignable.
 - Struct declarations may appear in any order and may refer to each other. A
   struct that contains itself *by value* is rejected; go through a pointer.
+- `null` is the pointer that points at nothing. It has a type of its own that
+  every pointer type accepts -- in a declaration, an assignment, an argument,
+  a `return` or a struct field -- and compares with `==` and `!=` against any
+  pointer, from either side. It is not an integer, so `let n: i32 = null;` is
+  an error, and it is not a pointer to anything, so it cannot be
+  dereferenced or offset. `null as *T` names its type explicitly.
 - `.` follows one level of pointer automatically, so `node.next` works whether
   `node` is a `Node` or a `*Node`.
 - A struct literal must initialise every field exactly once, in any order.

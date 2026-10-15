@@ -16,7 +16,7 @@ import { Emitter } from "./emitter";
 
 export fn llvmTypeName(type: Type): *i8 {
   // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.
-  if (type.isPointer()) {
+  if (type.isPointer() || type.isNull()) {
     return "ptr";
   }
 

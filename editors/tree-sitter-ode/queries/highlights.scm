@@ -37,6 +37,7 @@
   (#match? @number.float "\\."))
 
 (boolean_literal) @boolean
+(null_literal) @constant.builtin
 
 (string_literal) @string
 

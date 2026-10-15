@@ -221,6 +221,7 @@ module.exports = grammar({
       $.string_literal,
       $.char_literal,
       $.boolean_literal,
+      $.null_literal,
     ),
 
     binary_expression: $ => {
@@ -320,6 +321,8 @@ module.exports = grammar({
     number_literal: _ => /[0-9]+(\.[0-9]+)?/,
 
     boolean_literal: _ => choice('true', 'false'),
+
+    null_literal: _ => 'null',
 
     string_literal: $ => seq(
       '"',

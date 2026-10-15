@@ -1,0 +1,1 @@
+null_to_integer.ode:2:3: error: type mismatch in declaration of 'count': declared as 'i32' but assigned 'null'
