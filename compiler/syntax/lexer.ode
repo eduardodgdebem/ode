@@ -400,3 +400,20 @@ export fn tokenize(source: *i8): *TokenList {
 
   return list;
 }
+
+test "the lexer prefers the longest operator" {
+  let tokens: *TokenList = tokenize("a <<= ... .. b");
+  assertEq(tokens.at(0).kind, TokenKind.Ident);
+  assertEq(tokens.at(1).kind, TokenKind.Shl);
+  assertEq(tokens.at(2).kind, TokenKind.Assign);
+  assertEq(tokens.at(3).kind, TokenKind.Ellipsis);
+  assertEq(tokens.at(4).kind, TokenKind.DotDot);
+  assertEq(tokens.at(5).text, "b");
+}
+
+test "character escapes decode to their byte" {
+  let tokens: *TokenList = tokenize("'\\n' '\\0' \"a\\tb\"");
+  assertEq(tokens.at(0).text[0], '\n');
+  assertEq(tokens.at(1).length, 1);
+  assertEq(tokens.at(2).text, "a\tb");
+}

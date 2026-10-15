@@ -93,6 +93,12 @@
 
 "sizeof" @function.builtin
 
+(test_declaration "test" @keyword)
+
+((call_expression
+  function: (identifier) @function.builtin)
+ (#any-of? @function.builtin "assert" "assertEq"))
+
 (variadic) @punctuation.special
 
 ; ---------------------------------------------------------------------------

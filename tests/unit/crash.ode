@@ -1,0 +1,12 @@
+// A test that crashes fails alone; the ones after it still run. A file of
+// tests needs no main.
+
+extern fn abort(): void;
+
+test "a crash fails only this test" {
+  abort();
+}
+
+test "the next test still runs" {
+  assertEq(2 + 2, 4);
+}

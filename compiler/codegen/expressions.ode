@@ -22,6 +22,7 @@ import {
   emitCondBranch, variableAddress, llvmName, internString,
 } from "./emitter";
 import { llvmTypeName, zeroValue } from "./layout";
+import { genAssert, genAssertEq } from "./testing";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];
@@ -60,7 +61,7 @@ export fn emitStore(e: *Emitter, type: Type, value: *i8, address: *i8): void {
   emitLine(e, line.data);
 }
 
-fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
+export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
   if (from.equals(to)) {
     return value;
   }
@@ -505,6 +506,13 @@ fn genUnary(e: *Emitter, node: i32): *i8 {
 // up again: the call's own type is the return type, and every argument was
 // required to have exactly its parameter's type.
 fn genCall(e: *Emitter, node: i32): *i8 {
+  if (e.an.callTargets[node] == CallTarget.Assert) {
+    return genAssert(e, node);
+  }
+  if (e.an.callTargets[node] == CallTarget.AssertEq) {
+    return genAssertEq(e, node);
+  }
+
   // A variable holding a function is loaded, and the call goes through it.
   if (e.an.callTargets[node] == CallTarget.Value) {
     let callee: *i8 = emitLoad(e, codePointer(), variableAddress(e, node));

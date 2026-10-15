@@ -1,0 +1,5 @@
+export enum Shape { Circle, Square }
+
+export struct Box {
+  side: i32,
+}

@@ -414,3 +414,50 @@ main.ode`) and the files it imports come along. Two files may each have a
 private declaration of the same name without colliding.
 [`examples/modules.ode`](../examples/modules.ode) and the files under
 `examples/modules/` show all of it.
+
+## Tests
+
+Tests live in the file they test, as in Zig and Rust. A `test` block at the
+top level is a test: a name, then a body like a `void` function's.
+
+```rust
+fn add(a: i32, b: i32): i32 {
+  return a + b;
+}
+
+test "add sums two numbers" {
+  assertEq(add(2, 2), 4);
+  assert(add(-1, 1) == 0, "opposites cancel");
+}
+```
+
+`ode test file.ode` runs every test in the file and in the files it imports;
+a second argument runs only the tests whose name contains it. A plain build
+leaves tests out entirely, unchecked, so they cost the program nothing. A
+file of tests needs no `main`, and a test may call the file's private
+functions, `main` included.
+
+```
+$ ode test math.ode
+test add sums two numbers ... ok
+math.ode:12:3: assertEq failed
+  actual:   4
+  expected: 5
+test a broken one ... FAILED
+
+1 passed; 1 failed
+```
+
+Two checks are built in, and work in any code, not only in tests:
+
+- `assert(cond)` and `assert(cond, message)` stop when `cond` is false.
+- `assertEq(actual, expected)` stops when the two differ, and shows both.
+  They compare as `==` does — a literal takes the other side's type — except
+  that two strings compare by their text.
+
+A failed check reports where it was, on stderr, and exits with status 1.
+Each test runs in a process of its own, so that ends one test, and so does a
+crash: the tests after it still run. `test` is only a keyword where a string
+follows it, and `assert` and `assertEq` are only built in while the program
+declares no function of that name.
+

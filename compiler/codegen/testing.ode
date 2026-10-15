@@ -1,0 +1,282 @@
+// ---------------------------------------------------------------------------
+// Emitting tests and the built-in checks.
+//
+// A failed check writes where it was and why to stderr, through dprintf, and
+// ends the process with status 1. Under `ode test` every test runs in a
+// process of its own (see the runner in semantics/testing.ode), so that ends
+// the one test rather than the run -- and a crash ends it the same way.
+// ---------------------------------------------------------------------------
+
+import { strlen } from "../support/libc";
+import { Buf, textEquals } from "../support/text";
+import { NodeKind } from "../syntax/ast";
+import { TypeKind, Type } from "../semantics/types";
+import { modulePath, NameSet } from "../semantics/modules";
+import { RUNNER_MODULE } from "../semantics/testing";
+import {
+  Emitter, freshLabel, emitLine, emitLabel, emitCondBranch, llvmName,
+  internString,
+} from "./emitter";
+import { llvmTypeName } from "./layout";
+import { typeOfNode, emitAssign, emitCast, genExpr } from "./expressions";
+
+// `path:line:column` of `node`, as a string constant.
+fn location(e: *Emitter, node: i32): *i8 {
+  let text: *Buf = Buf.new();
+  text.add(modulePath(e.ast.nodes[node].module));
+  text.push(':');
+  text.addInt(e.ast.nodes[node].line as i64);
+  text.push(':');
+  text.addInt(e.ast.nodes[node].column as i64);
+
+  return internString(e, text.data, text.length);
+}
+
+// Writes `format` and the arguments in `args` (each `, type value`) to
+// stderr, and ends the process. The block is closed afterwards.
+fn emitFailure(e: *Emitter, format: *i8, args: *Buf): void {
+  e.usesChecks = true;
+
+  let line: *Buf = Buf.new();
+  line.add("call i32 (i32, ptr, ...) @dprintf(i32 2, ptr ");
+  line.add(internString(e, format, strlen(format)));
+  line.add(args.data);
+  line.push(')');
+  emitAssign(e, line.data);
+
+  emitLine(e, "call void @exit(i32 1)");
+  emitLine(e, "unreachable");
+  e.terminated = true;
+}
+
+// `assert(cond)` and `assert(cond, message)`. The message is only evaluated
+// when the condition fails.
+export fn genAssert(e: *Emitter, node: i32): *i8 {
+  let args: i32 = e.ast.nodes[node].a;
+  let condition: *i8 = genExpr(e, e.ast.nodes[args].items[0]);
+
+  let passed: *i8 = freshLabel(e);
+  let failed: *i8 = freshLabel(e);
+  emitCondBranch(e, condition, passed, failed);
+  emitLabel(e, failed);
+
+  let values: *Buf = Buf.new();
+  values.add(", ptr ");
+  values.add(location(e, node));
+
+  if (e.ast.nodes[args].itemCount == 2) {
+    values.add(", ptr ");
+    values.add(genExpr(e, e.ast.nodes[args].items[1]));
+    emitFailure(e, "%s: assertion failed: %s\n", values);
+  } else {
+    emitFailure(e, "%s: assertion failed\n", values);
+  }
+
+  emitLabel(e, passed);
+  return "";
+}
+
+fn isText(type: Type): bool {
+  return type.kind == TypeKind.I8 && type.pointerDepth == 1;
+}
+
+// Whether two values of these types are equal, as an i1: as `==` decides,
+// but by the text for two strings.
+fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
+             rightType: Type): *i8 {
+  let line: *Buf = Buf.new();
+
+  if (isText(leftType) && isText(rightType)) {
+    e.usesChecks = true;
+    line.add("call i1 @ode.textEquals(ptr ");
+    line.add(left);
+    line.add(", ptr ");
+    line.add(right);
+    line.push(')');
+    return emitAssign(e, line.data);
+  }
+
+  if (leftType.isFloat()) {
+    line.add("fcmp oeq ");
+  } else {
+    line.add("icmp eq ");
+  }
+  // `null` has no type of its own to compare as, but the other side does.
+  let type: Type = leftType;
+  if (type.isNull()) {
+    type = rightType;
+  }
+  line.add(llvmTypeName(type));
+  line.push(' ');
+  line.add(left);
+  line.add(", ");
+  line.add(right);
+
+  return emitAssign(e, line.data);
+}
+
+// Adds `value` to `args` in the form its printf conversion wants, and
+// returns that conversion.
+fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Buf): *i8 {
+  if (type.isBool()) {
+    let line: *Buf = Buf.new();
+    line.add("select i1 ");
+    line.add(value);
+    line.add(", ptr ");
+    line.add(internString(e, "true", 4));
+    line.add(", ptr ");
+    line.add(internString(e, "false", 5));
+    args.add(", ptr ");
+    args.add(emitAssign(e, line.data));
+    return "%s";
+  }
+
+  if (isText(type)) {
+    args.add(", ptr ");
+    args.add(value);
+    return "\"%s\"";
+  }
+
+  if (type.isPointer() || type.isNull() || type.isFunction()) {
+    args.add(", ptr ");
+    args.add(value);
+    return "%p";
+  }
+
+  if (type.isFloat()) {
+    args.add(", double ");
+    args.add(emitCast(e, value, type, Type.make(TypeKind.F64, 0)));
+    return "%g";
+  }
+
+  if (type.isSigned() || type.isEnum()) {
+    args.add(", i64 ");
+    args.add(emitCast(e, value, type, Type.make(TypeKind.I64, 0)));
+    return "%lld";
+  }
+
+  args.add(", i64 ");
+  args.add(emitCast(e, value, type, Type.make(TypeKind.U64, 0)));
+  return "%llu";
+}
+
+// `assertEq(actual, expected)`: a failure shows both values.
+export fn genAssertEq(e: *Emitter, node: i32): *i8 {
+  let args: i32 = e.ast.nodes[node].a;
+  let actualNode: i32 = e.ast.nodes[args].items[0];
+  let expectedNode: i32 = e.ast.nodes[args].items[1];
+  let actualType: Type = typeOfNode(e, actualNode);
+  let expectedType: Type = typeOfNode(e, expectedNode);
+
+  let actual: *i8 = genExpr(e, actualNode);
+  let expected: *i8 = genExpr(e, expectedNode);
+  let equal: *i8 = genEquals(e, actual, actualType, expected, expectedType);
+
+  let passed: *i8 = freshLabel(e);
+  let failed: *i8 = freshLabel(e);
+  emitCondBranch(e, equal, passed, failed);
+  emitLabel(e, failed);
+
+  let values: *Buf = Buf.new();
+  values.add(", ptr ");
+  values.add(location(e, node));
+
+  let format: *Buf = Buf.new();
+  format.add("%s: assertEq failed\n  actual:   ");
+  format.add(formatValue(e, actual, actualType, values));
+  format.add("\n  expected: ");
+  format.add(formatValue(e, expected, expectedType, values));
+  format.push('\n');
+  emitFailure(e, format.data, values);
+
+  emitLabel(e, passed);
+  return "";
+}
+
+// What the checks call, unless the program declared it already, and the
+// string comparison assertEq uses.
+export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
+  if (!e.usesChecks) {
+    return;
+  }
+
+  if (!declared.has("dprintf")) {
+    e.head.add("declare i32 @dprintf(i32, ptr, ...)\n");
+  }
+  if (!declared.has("exit")) {
+    e.head.add("declare void @exit(i32)\n");
+  }
+  if (!declared.has("strcmp")) {
+    e.head.add("declare i32 @strcmp(ptr, ptr)\n");
+  }
+
+  // Equal when both are the same pointer, or neither is null and their
+  // text matches.
+  e.body.add("define private i1 @ode.textEquals(ptr %a, ptr %b) {\n");
+  e.body.add("entry:\n");
+  e.body.add("  %same = icmp eq ptr %a, %b\n");
+  e.body.add("  br i1 %same, label %yes, label %check\n");
+  e.body.add("check:\n");
+  e.body.add("  %aNull = icmp eq ptr %a, null\n");
+  e.body.add("  %bNull = icmp eq ptr %b, null\n");
+  e.body.add("  %either = or i1 %aNull, %bNull\n");
+  e.body.add("  br i1 %either, label %no, label %compare\n");
+  e.body.add("compare:\n");
+  e.body.add("  %order = call i32 @strcmp(ptr %a, ptr %b)\n");
+  e.body.add("  %equal = icmp eq i32 %order, 0\n");
+  e.body.add("  ret i1 %equal\n");
+  e.body.add("yes:\n");
+  e.body.add("  ret i1 true\n");
+  e.body.add("no:\n");
+  e.body.add("  ret i1 false\n");
+  e.body.add("}\n\n");
+}
+
+// The program's `main` under `ode test`: it hands every test, by name, to the
+// runner. The program's own `main` was renamed out of the way; see llvmName.
+export fn emitTestMain(e: *Emitter, program: i32, tests: *Buf, names: *Buf,
+                       count: i32): void {
+  let runner: *i8 = null;
+  for (index in 0..e.ast.nodes[program].itemCount) {
+    let item: i32 = e.ast.nodes[program].items[index];
+    if (e.ast.nodes[item].kind == NodeKind.Fn &&
+        e.ast.nodes[item].module == RUNNER_MODULE &&
+        textEquals(e.ast.nodes[item].text, "runTests")) {
+      runner = e.an.linkNames[item];
+    }
+  }
+
+  let table: *Buf = Buf.new();
+  table.push('[');
+  table.addInt(count as i64);
+  table.add(" x ptr] ");
+
+  e.head.add("@ode.test.names = private constant ");
+  e.head.add(table.data);
+  if (count == 0) {
+    e.head.add("zeroinitializer\n");
+  } else {
+    e.head.push('[');
+    e.head.add(names.data);
+    e.head.add("]\n");
+  }
+
+  e.head.add("@ode.test.functions = private constant ");
+  e.head.add(table.data);
+  if (count == 0) {
+    e.head.add("zeroinitializer\n");
+  } else {
+    e.head.push('[');
+    e.head.add(tests.data);
+    e.head.add("]\n");
+  }
+
+  e.body.add("define i32 @main(i32 %argc, ptr %argv) {\nentry:\n");
+  e.body.add("  %status = call i32 ");
+  e.body.add(llvmName('@', runner));
+  e.body.add("(i32 ");
+  e.body.addInt(count as i64);
+  e.body.add(", ptr @ode.test.names, ptr @ode.test.functions, ");
+  e.body.add("i32 %argc, ptr %argv)\n");
+  e.body.add("  ret i32 %status\n}\n\n");
+}

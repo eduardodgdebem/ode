@@ -45,6 +45,7 @@ module.exports = grammar({
       $.extern_declaration,
       $.struct_declaration,
       $.enum_declaration,
+      $.test_declaration,
       $._statement,
     ),
 
@@ -94,6 +95,13 @@ module.exports = grammar({
       field('parameters', $.parameter_list),
       ':',
       field('return_type', $.type),
+      field('body', $.block),
+    ),
+
+    // `test` is only a keyword when a string follows it.
+    test_declaration: $ => seq(
+      'test',
+      field('name', $.string_literal),
       field('body', $.block),
     ),
 

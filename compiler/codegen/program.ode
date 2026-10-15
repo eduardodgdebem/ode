@@ -14,6 +14,7 @@ import { analyzerParseType } from "../semantics/analyzer";
 import { isTemplate } from "../semantics/generics";
 import { sizeOf } from "../semantics/layout";
 import { globalDeclOf } from "../semantics/constants";
+import { TEST_MODE } from "../semantics/testing";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
   declareLocal, llvmName, internString,
@@ -21,6 +22,7 @@ import {
 import { llvmTypeName, zeroValue } from "./layout";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { genStatement } from "./statements";
+import { emitCheckSupport, emitTestMain } from "./testing";
 
 fn emitSignature(e: *Emitter, out: *Buf, node: i32, keyword: *i8): void {
   let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
@@ -256,11 +258,36 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
     }
   }
 
+  // Under `ode test`, each test is a function, listed for the runner by its
+  // address and its name.
+  let tests: *Buf = Buf.new();
+  let testNames: *Buf = Buf.new();
+  let testCount: i32 = 0;
+
   for (index in 0..count) {
     let statement: i32 = e.ast.nodes[program].items[index];
     // A generic is compiled as its instances, which are items of their own.
     if (isTemplate(e.an, statement)) {
       continue;
+    }
+
+    if (e.ast.nodes[statement].kind == NodeKind.Test && TEST_MODE) {
+      let name: *Buf = Buf.new();
+      name.add("ode.test.");
+      name.addInt(testCount as i64);
+      e.an.linkNames[statement] = name.take();
+      genFunction(e, statement);
+
+      if (testCount > 0) {
+        tests.add(", ");
+        testNames.add(", ");
+      }
+      tests.add("ptr ");
+      tests.add(llvmName('@', e.an.linkNames[statement]));
+      testNames.add("ptr ");
+      testNames.add(internString(e, e.ast.nodes[statement].text,
+                                 e.ast.nodes[statement].textLength));
+      testCount = testCount + 1;
     }
 
     if (e.ast.nodes[statement].kind == NodeKind.Fn) {
@@ -277,6 +304,11 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
       }
     }
   }
+
+  if (TEST_MODE) {
+    emitTestMain(e, program, tests, testNames, testCount);
+  }
+  emitCheckSupport(e, declared);
 
   let module: *Buf = Buf.new();
   module.addBytes(e.head.data, e.head.length);

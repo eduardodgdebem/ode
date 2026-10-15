@@ -406,3 +406,21 @@ export struct StructTable {
     self.items[structIndex].count = index + 1;
   }
 }
+
+test "fitsIn knows each type's range" {
+  assert(fitsIn(127, false, Type.make(TypeKind.I8, 0)));
+  assert(!fitsIn(128, false, Type.make(TypeKind.I8, 0)));
+  assert(fitsIn(128, true, Type.make(TypeKind.I8, 0)));
+  assert(!fitsIn(1, true, Type.make(TypeKind.U8, 0)));
+  assert(fitsIn(255, false, Type.make(TypeKind.U8, 0)));
+  assert(fitsIn(MAX_U64, false, Type.make(TypeKind.U64, 0)));
+}
+
+test "parseMagnitude reports overflow" {
+  let overflowed: bool = false;
+  assertEq(parseMagnitude("18446744073709551615", 0, 20, &overflowed),
+           MAX_U64);
+  assert(!overflowed);
+  parseMagnitude("18446744073709551616", 0, 20, &overflowed);
+  assert(overflowed);
+}

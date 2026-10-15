@@ -1,0 +1,5 @@
+test a crash fails only this test ... CRASHED (signal 6)
+test the next test still runs ... ok
+
+1 passed; 1 failed
+exit 1

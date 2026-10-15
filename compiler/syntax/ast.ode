@@ -68,6 +68,8 @@ export enum NodeKind {
   TypeParams,
   TypeParam,
   // The `<i64>` of a generic call, `max<i64>(a, b)`.
+  // `test "name" { ... }`, laid out like a fn.
+  Test,
   TypeArgs,
 }
 
@@ -84,6 +86,7 @@ struct Node {
   //   if       a=cond   b=then   c=else
   //   while    a=cond   b=body
   //   fn       a=type   b=params c=body
+  //   test     a=type   b=params c=body, all a void fn's, and its name
   //   extern   a=type   b=params
   //   field    a=type
   //   param    a=type
@@ -234,6 +237,7 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     NodeKind.Params => { return "params"; }
     NodeKind.Param => { return "param"; }
     NodeKind.Args => { return "args"; }
+    NodeKind.Test => { return "test"; }
     NodeKind.Error => { return "error"; }
     NodeKind.Import => { return "import"; }
     NodeKind.ImportName => { return "importname"; }
