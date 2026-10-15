@@ -7,6 +7,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
+import { List } from "std/list";
 import { Builder, equals, copy, slice } from "std/text";
 import { failAt } from "../support/diagnostics";
 import { TokenKind, TokenList, kindName } from "./token";
@@ -156,6 +157,37 @@ struct Lexer {
 
     let count: i64 = text.length;
     list.add(TokenKind.String, text.take(), count, line, column);
+  }
+
+  // `...`: a string written as it is, across lines if need be. Nothing in
+  // it is an escape. `${` is rejected rather than kept as text: anyone used
+  // to template literals would read it as interpolation, which Ode does not
+  // have. A string whose opening backtick ends its line is a block; see
+  // dedent.
+  fn readRawString(self: *Lexer, list: *TokenList): void {
+    let line: i32 = self.line;
+    let column: i32 = self.column;
+    self.advance();
+
+    let raw: *Builder = Builder.new();
+    while (self.peek() != '`') {
+      if (self.atEnd()) {
+        failAt(line, column, "unterminated string literal");
+      }
+      if (self.peek() == '$' && self.peekNext() == '{') {
+        failAt(self.line, self.column,
+               "a string cannot interpolate: `${` has no meaning in Ode");
+      }
+      raw.push(self.advance());
+    }
+    self.advance();
+
+    let text: *i8 = raw.take();
+    if (text[0] == '\n') {
+      text = dedent(text + 1);
+    }
+
+    list.add(TokenKind.String, text, strlen(text), line, column);
   }
 
   fn readChar(self: *Lexer, list: *TokenList): void {
@@ -362,6 +394,73 @@ fn foldsNegative(lastKind: TokenKind): bool {
   return lastKind == TokenKind.Return;
 }
 
+// A block of text, written indented to match the code around it, as the text
+// it stands for: the indentation every non-blank line shares is removed, and
+// so is a last line holding nothing but the indentation of the closing
+// delimiter. The text then ends with the newline before it.
+//
+//   let program: *i8 = `
+//     fn main(): i32 {
+//       return 0;
+//     }
+//   `;                       // "fn main(): i32 {\n  return 0;\n}\n"
+fn dedent(text: *i8): *i8 {
+  let lines: *List<*i8> = List<*i8>.new();
+  let start: i64 = 0;
+  let index: i64 = 0;
+  while (true) {
+    if (text[index] == '\n' || text[index] == '\0') {
+      lines.push(slice(text, start, index - start));
+      if (text[index] == '\0') {
+        break;
+      }
+      start = index + 1;
+    }
+    index = index + 1;
+  }
+
+  // The closing delimiter's own line.
+  let closing: bool = lines.count > 1 && isBlank(lines.last());
+  if (closing) {
+    lines.pop();
+  }
+
+  let indent: i64 = -1;
+  for (line in 0..lines.count) {
+    let text: *i8 = lines.at(line);
+    if (!isBlank(text)) {
+      let width: i64 = 0;
+      while (text[width] == ' ' || text[width] == '\t') {
+        width = width + 1;
+      }
+      if (indent < 0 || width < indent) {
+        indent = width;
+      }
+    }
+  }
+
+  let out: *Builder = Builder.new();
+  for (line in 0..lines.count) {
+    let text: *i8 = lines.at(line);
+    if (!isBlank(text)) {
+      out.add(text + indent);
+    }
+    if (line < lines.count - 1 || closing) {
+      out.push('\n');
+    }
+  }
+
+  return out.take();
+}
+
+fn isBlank(text: *i8): bool {
+  let index: i64 = 0;
+  while (text[index] == ' ' || text[index] == '\t') {
+    index = index + 1;
+  }
+  return text[index] == '\0';
+}
+
 export fn tokenize(source: *i8): *TokenList {
   let lexer: *Lexer = Lexer.new(source);
   let list: *TokenList = TokenList.new();
@@ -386,6 +485,8 @@ export fn tokenize(source: *i8): *TokenList {
       lexer.readNumber(list);
     } else if (character == '"') {
       lexer.readString(list);
+    } else if (character == '`') {
+      lexer.readRawString(list);
     } else if (character == '\'') {
       lexer.readChar(list);
     } else {
@@ -417,4 +518,23 @@ test "character escapes decode to their byte" {
   assertEq(tokens.at(0).text[0], '\n');
   assertEq(tokens.at(1).length, 1);
   assertEq(tokens.at(2).text, "a\tb");
+}
+
+test "a raw string keeps everything as written" {
+  let tokens: *TokenList = tokenize("`a\\n \"b\" 'c'`");
+  assertEq(tokens.at(0).kind, TokenKind.String);
+  assertEq(tokens.at(0).text, "a\\n \"b\" 'c'");
+}
+
+test "a block string loses the indentation it shares" {
+  assertEq(dedent("    fn main() {\n      return;\n    }\n  "),
+           "fn main() {\n  return;\n}\n");
+  assertEq(dedent("  a\n\n    b\n"), "a\n\n  b\n");
+  assertEq(dedent("  one line"), "one line");
+  assertEq(dedent(""), "");
+}
+
+test "a raw string that does not start a line is not dedented" {
+  let tokens: *TokenList = tokenize("`  kept\n  as is`");
+  assertEq(tokens.at(0).text, "  kept\n  as is");
 }

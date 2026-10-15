@@ -41,8 +41,8 @@ import { moduleCount, modulePath, STD_DIRECTORY } from "../semantics/modules";
 import { quoted } from "../semantics/analyzer";
 import { hexDigit } from "../codegen/emitter";
 import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
+import { loadProgram } from "../pipeline";
 import { TestOptions, commandTest } from "./testsuite";
-import { loadProgram } from "../main";
 
 let BUILD_USAGE: *i8 = "usage: ode build [build | test | bootstrap | seed] [--force] [--filter <text>] [--update] [--ode <compiler>]\n\n  build       build build/ode from compiler/main.ode (the default)\n  test        build, then run the regression suite\n  bootstrap   build, then rebuild twice and require a fixed point\n  seed        build, then refresh bootstrap/ode.ll\n\n  --force           build even when nothing has changed\n  --filter <text>   test: run only the cases whose name contains <text>\n  --update          test: rewrite the expectations from what happens now\n  --ode <compiler>  test: test this compiler instead of building one\n";
 

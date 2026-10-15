@@ -669,4 +669,3 @@ test "import paths resolve against the importer or the library" {
   assertEq(resolveImportPath("src/main.ode", "std/list"), null);
   STD_DIRECTORY = saved;
 }
-

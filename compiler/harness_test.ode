@@ -1,0 +1,28 @@
+// ---------------------------------------------------------------------------
+// The harness itself: that it compiles, runs and reports as the driver does.
+// ---------------------------------------------------------------------------
+
+import { errorsIn, outputOf, irOf, mentions } from "./harness";
+
+test "harness: a clean program has no errors" {
+  assertEq(errorsIn("fn main(): i32 { return 0; }"), "");
+}
+
+test "harness: errors are reported as the compiler prints them" {
+  assertEq(errorsIn("fn main(): i32 { return true; }"),
+           "test.ode:1:18: error: wrong return type: expected 'i32' but got 'bool'\n");
+}
+
+test "harness: a lexer error ends only its own compile" {
+  assertEq(errorsIn("fn main(): i32 { return 0; } $"),
+           "test.ode:1:30: error: unexpected character\n");
+}
+
+test "harness: a program runs and its output is returned" {
+  assertEq(outputOf("import { printf } from \"std/c\"; fn main(): i32 { printf(\"%d\\n\", 6 * 7); return 3; }"),
+           "42\nexit 3\n");
+}
+
+test "harness: the IR can be inspected" {
+  assert(mentions(irOf("fn main(): i32 { return 7; }"), "ret i32 7"));
+}

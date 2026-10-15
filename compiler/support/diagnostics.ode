@@ -78,6 +78,11 @@ export fn hasErrors(): bool {
 // Prints everything recorded as `file:line:column: error: message`, which
 // most editors can jump to.
 export fn printDiagnostics(): void {
+  writeBuilder(STDERR, formatDiagnostics());
+}
+
+// Everything recorded, as printDiagnostics prints it.
+fn formatDiagnostics(): *Builder {
   let out: *Builder = Builder.new();
   let index: i32 = 0;
 
@@ -111,7 +116,7 @@ export fn printDiagnostics(): void {
     out.add(" errors generated.\n");
   }
 
-  writeBuilder(STDERR, out);
+  return out;
 }
 
 // ---------------------------------------------------------------------------

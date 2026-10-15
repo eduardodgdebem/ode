@@ -1,0 +1,186 @@
+// ---------------------------------------------------------------------------
+// The test harness: compiles snippets of Ode, from tests inside the compiler,
+// and reports what came of them.
+//
+//   test "a mismatch is reported" {
+//     assertEq(errorsIn("fn main(): i32 { return true; }"),
+//              "test.ode:1:18: error: wrong return type: expected 'i32' but got 'bool'\n");
+//   }
+//
+//   test "a loop counts" {
+//     assertEq(outputOf(PRELUDE, "for (i in 0..3) { printf(\"%d\", i); }"), "012");
+//   }
+//
+// Each compile runs the real pipeline in a child process of its own, so the
+// compiler's global state starts fresh every time, and a compile that ends
+// the process -- the lexer stops at its first error -- is reported rather
+// than ending the test. A snippet is written to a scratch directory as
+// test.ode, which is what its diagnostics are reported against.
+// ---------------------------------------------------------------------------
+
+import { exit } from "std/c";
+import { alloc, release } from "std/mem";
+import { readFile, writeFile } from "std/fs";
+import { Builder, contains } from "std/text";
+import { STDOUT } from "./support/libc";
+import { writeText } from "./support/text";
+import {
+  SOURCE_PATH, Diagnostics, DIAGS, hasErrors, printDiagnostics, fail,
+} from "./support/diagnostics";
+import {
+  TextList, StderrMode, runCommand, runInChild, environment, changeDirectory,
+  joinPath, parentDirectory, makeDirectories, removeTree, makeTempDirectory,
+} from "./support/system";
+import { NodeKind, Ast } from "./syntax/ast";
+import { tokenize } from "./syntax/lexer";
+import { STD_DIRECTORY } from "./semantics/modules";
+import { Analyzer, analyze } from "./semantics/analyzer";
+import { Emitter } from "./codegen/emitter";
+import { genProgram } from "./codegen/program";
+import { loadProgram, buildExecutable } from "./pipeline";
+
+enum Goal {
+  // Check the program, and stop there.
+  Errors,
+  // Emit its IR to stdout.
+  Ir,
+  // Build it into `program`.
+  Executable,
+}
+
+// What the child compiles. Fork gives it a copy of these, set just before.
+let JOB_DIRECTORY: *i8 = null;
+let JOB_ENTRY: *i8 = null;
+let JOB_GOAL: Goal = Goal.Errors;
+
+// A scratch directory of source files, for programs of more than one file.
+struct Files {
+  directory: *i8,
+
+  fn new(): *Files {
+    let files: *Files = alloc<Files>(1);
+    files.directory = makeTempDirectory("ode-harness");
+    assert(files.directory != null, "cannot make a scratch directory");
+    return files;
+  }
+
+  fn add(self: *Files, name: *i8, source: *i8): *Files {
+    let path: *i8 = joinPath(self.directory, name);
+    makeDirectories(parentDirectory(path));
+    assert(writeFile(path, source), "cannot write a scratch file");
+    return self;
+  }
+
+  // The diagnostics compiling `entry` produces, as the compiler prints them,
+  // or "" when it compiles.
+  fn errors(self: *Files, entry: *i8): *i8 {
+    let out: *Builder = Builder.new();
+    compileIn(self.directory, entry, Goal.Errors, out);
+    return out.take();
+  }
+
+  // What the program entered at `entry` prints when run, stdout and stderr
+  // together, followed by `exit N` when it does not exit with 0 -- or, if it
+  // does not compile, the diagnostics.
+  fn output(self: *Files, entry: *i8): *i8 {
+    let out: *Builder = Builder.new();
+    if (compileIn(self.directory, entry, Goal.Executable, out) != 0) {
+      return out.take();
+    }
+
+    let run: *TextList = TextList.new().add(joinPath(self.directory, "program"));
+    let status: i32 = runCommand(run, self.directory, out, StderrMode.Merge);
+    if (status != 0) {
+      out.add("exit ");
+      out.addInt(status as i64);
+      out.push('\n');
+    }
+    return out.take();
+  }
+
+  fn ir(self: *Files, entry: *i8): *i8 {
+    let out: *Builder = Builder.new();
+    compileIn(self.directory, entry, Goal.Ir, out);
+    return out.take();
+  }
+
+  fn release(self: *Files): void {
+    removeTree(self.directory);
+  }
+}
+
+// The diagnostics compiling `source` produces, or "" when it compiles.
+export fn errorsIn(source: *i8): *i8 {
+  let files: *Files = Files.new().add("test.ode", source);
+  let errors: *i8 = files.errors("test.ode");
+  files.release();
+  return errors;
+}
+
+// What `source` prints when run; see Files.output.
+export fn outputOf(source: *i8): *i8 {
+  let files: *Files = Files.new().add("test.ode", source);
+  let output: *i8 = files.output("test.ode");
+  files.release();
+  return output;
+}
+
+// The LLVM IR `source` compiles to.
+export fn irOf(source: *i8): *i8 {
+  let files: *Files = Files.new().add("test.ode", source);
+  let ir: *i8 = files.ir("test.ode");
+  files.release();
+  return ir;
+}
+
+// Whether `text` holds `part`, for checking a piece of a long output.
+export fn mentions(text: *i8, part: *i8): bool {
+  return contains(text, part);
+}
+
+fn compileIn(directory: *i8, entry: *i8, goal: Goal, out: *Builder): i32 {
+  JOB_DIRECTORY = directory;
+  JOB_ENTRY = entry;
+  JOB_GOAL = goal;
+  return runInChild(compileJob, out);
+}
+
+// The child's side: the driver's pipeline, run on JOB_ENTRY.
+fn compileJob(): void {
+  changeDirectory(JOB_DIRECTORY);
+  STD_DIRECTORY = environment("ODE_STD");
+  SOURCE_PATH = JOB_ENTRY;
+  DIAGS = Diagnostics.new();
+
+  let source: *i8 = readFile(JOB_ENTRY);
+  if (source == null) {
+    fail("cannot open input file");
+  }
+
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  loadProgram(ast, root, JOB_ENTRY, tokenize(source));
+  if (hasErrors()) {
+    printDiagnostics();
+    exit(1);
+  }
+
+  let an: *Analyzer = Analyzer.new(ast);
+  analyze(an, root);
+  if (hasErrors()) {
+    printDiagnostics();
+    exit(1);
+  }
+
+  if (JOB_GOAL == Goal.Errors) {
+    return;
+  }
+
+  let module: *i8 = genProgram(Emitter.new(ast, an), root);
+  if (JOB_GOAL == Goal.Ir) {
+    writeText(STDOUT, module);
+    return;
+  }
+
+  buildExecutable(module, "program", false);
+}

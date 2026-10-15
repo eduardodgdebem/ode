@@ -112,11 +112,11 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
   return Type.make(TypeKind.Void, 0);
 }
 
-// Whether `ode test` runs the tests written in `module`: those of the file
-// being tested and of the files it imports, but a standard library file's
-// only when it is the one being tested.
+// Whether `ode test` runs the tests written in `module`: those of what is
+// being tested and of the files it imports -- but not the standard
+// library's, unless the library is what is being tested.
 export fn runsTestsOf(module: i32): bool {
-  return module == 0 || (!isLibraryModule(module) && !isLibraryModule(0));
+  return module == 0 || !isLibraryModule(module) || isLibraryModule(0);
 }
 
 // The module `ode test` adds to the program, once it has been loaded.

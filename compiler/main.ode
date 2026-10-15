@@ -9,154 +9,35 @@
 // buildtool.ode.
 // ---------------------------------------------------------------------------
 
-import { strlen } from "std/c";
-import { readFile, writeFile, exists, removeFile } from "std/fs";
-import { Builder, equals, slice } from "std/text";
+import { readFile } from "std/fs";
+import { Builder, equals } from "std/text";
 import { STDOUT, STDERR } from "./support/libc";
 import { writeText, writeBuilder } from "./support/text";
 import {
-  SOURCE_PATH, Diagnostics, DIAGS, FAILED, report, hasErrors, printDiagnostics,
-  fail,
+  SOURCE_PATH, Diagnostics, DIAGS, hasErrors, printDiagnostics, fail,
 } from "./support/diagnostics";
 import {
-  TextList, StderrMode, runCommand, environment, joinPath, stemOf, withSuffix,
-  parentDirectory, isExecutable, absolutePath, removeTree, makeTempDirectory,
+  TextList, StderrMode, runCommand, setEnvironment, joinPath, stemOf,
+  removeTree, isDirectory, findSources, makeTempDirectory,
 } from "./support/system";
 import { TokenList } from "./syntax/token";
 import { NodeKind, Ast } from "./syntax/ast";
 import { tokenize } from "./syntax/lexer";
-import { Parser } from "./syntax/parser";
-import { parseModuleInto } from "./syntax/statements";
 import { dumpTokens, dumpNode } from "./syntax/dump";
-import {
-  realpath, moduleAdd, moduleDisplayPath, moduleFind, modulePath,
-  STD_DIRECTORY, isPathImport, isStdImport, resolveImportPath,
-} from "./semantics/modules";
+import { STD_DIRECTORY } from "./semantics/modules";
 import { Analyzer, analyze } from "./semantics/analyzer";
 import { TEST_MODE, RUNNER_MODULE, runnerSource } from "./semantics/testing";
 import { Emitter } from "./codegen/emitter";
 import { genProgram } from "./codegen/program";
-import { ccCommand } from "./codegen/toolchain";
+import {
+  loadModule, loadProgram, loadFiles, buildExecutable, findStdDirectory,
+} from "./pipeline";
 import { buildMain } from "./tool/build";
 
 // Ode has no adjacent string literal concatenation, so this is one line.
-let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode test <input.ode> [filter]   runs the tests in a program\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
+let USAGE: *i8 = "usage: ode [-o <path>] [--no-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>\n       ode test <input.ode | directory> [filter]   runs the tests in a program, or in every file under a directory\n       ode build [build | test | bootstrap | seed] [options]   (ode build --help)\n";
 
-// Reads, lexes and parses one file onto the end of `program`. The lexer stops
-// the compile at its first error, so a file that cannot be lexed ends the run
-// here.
-fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
-              source: *i8): i32 {
-  let module: i32 = moduleAdd(path, real);
-  SOURCE_PATH = moduleDisplayPath(module);
-
-  let tokens: *TokenList = tokenize(source);
-  ast.currentModule = module;
-  parseModuleInto(Parser.new(tokens, ast), program);
-
-  return module;
-}
-
-// Finds the file an import names, loading it the first time any file asks.
-fn loadImport(ast: *Ast, program: i32, item: i32): void {
-  let importer: *i8 = modulePath(ast.nodes[item].module);
-  let spec: *i8 = ast.nodes[item].text;
-  let path: *i8 = resolveImportPath(importer, spec);
-  let real: *i8 = null;
-  if (path != null) {
-    real = realpath(path, null);
-  }
-  let source: *i8 = null;
-
-  if (real != null) {
-    let loaded: i32 = moduleFind(real);
-    if (loaded >= 0) {
-      ast.nodes[item].extra = loaded;
-      return;
-    }
-    source = readFile(path);
-  }
-
-  if (source == null) {
-    let message: *Builder = Builder.new();
-    message.add("cannot find module '");
-    message.add(spec);
-    message.push('\'');
-    // Why, when it is not just a missing file.
-    if (!isPathImport(spec) && !isStdImport(spec)) {
-      message.add(": a file is imported by its path, such as './");
-      message.add(spec);
-      message.add("', and a library module as 'std/...'");
-    } else if (!isPathImport(spec) && STD_DIRECTORY == null) {
-      message.add(": the standard library was not found; set ODE_STD to its directory");
-    }
-    SOURCE_PATH = moduleDisplayPath(ast.nodes[item].module);
-    report(ast.nodes[item].line, ast.nodes[item].column, message.data);
-    FAILED = false;
-    return;
-  }
-
-  ast.nodes[item].extra = loadModule(ast, program, path, real, source);
-}
-
-// Parses the file at `path`, whose tokens are `tokens`, and every file it
-// imports, onto `root`. Imports are followed breadth first: a loaded file's
-// declarations land on the end of the program's list, so walking the list to
-// its end reaches every file's imports, and a file asked for twice is found
-// by its real path.
-export fn loadProgram(ast: *Ast, root: i32, path: *i8, tokens: *TokenList): void {
-  let real: *i8 = realpath(path, null);
-  if (real == null) {
-    real = path;
-  }
-  moduleAdd(path, real);
-  parseModuleInto(Parser.new(tokens, ast), root);
-
-  let item: i32 = 0;
-  while (item < ast.nodes[root].itemCount) {
-    let statement: i32 = ast.nodes[root].items[item];
-    if (ast.nodes[statement].kind == NodeKind.Import) {
-      loadImport(ast, root, statement);
-    }
-    item = item + 1;
-  }
-  SOURCE_PATH = path;
-}
-
-// Writes `module` beside `output` and turns it into the executable `output`.
-// Assembling and linking are two runs of the C compiler, which is what leaves
-// a `.o` beside the `.ll` -- the two things worth looking at when codegen
-// misbehaves.
-fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): void {
-  let irPath: *i8 = withSuffix(output, ".ll");
-  if (!writeFile(irPath, module)) {
-    fail("cannot write the LLVM IR");
-  }
-
-  let objectPath: *i8 = withSuffix(output, ".o");
-
-  let assemble: *TextList = ccCommand();
-  assemble.add("-c").add(irPath).add("-o").add(objectPath);
-  assemble.add("-Wno-override-module");
-
-  if (runCommand(assemble, null, null, StderrMode.Inherit) != 0) {
-    fail("assembling failed");
-  }
-
-  let link: *TextList = ccCommand();
-  link.add(objectPath).add("-o").add(output);
-
-  if (runCommand(link, null, null, StderrMode.Inherit) != 0) {
-    fail("linking failed");
-  }
-
-  if (!keepIntermediates) {
-    removeFile(irPath);
-    removeFile(objectPath);
-  }
-}
-
-// `ode test <input.ode> [filter]`: builds the program with its tests and a
+// `ode test <input.ode | directory> [filter]`: builds the program with its tests and a
 // runner for its `main`, in a scratch directory, and runs it. The exit status
 // is the runner's: 0 when every test that ran passed.
 fn testMain(argc: i32, argv: **i8): i32 {
@@ -167,17 +48,32 @@ fn testMain(argc: i32, argv: **i8): i32 {
   let path: *i8 = argv[2];
 
   TEST_MODE = true;
+  // The tests run elsewhere -- some compile programs of their own -- and
+  // need this run's standard library too.
+  if (STD_DIRECTORY != null) {
+    setEnvironment("ODE_STD", STD_DIRECTORY);
+  }
   SOURCE_PATH = path;
   DIAGS = Diagnostics.new();
 
-  let source: *i8 = readFile(path);
-  if (source == null) {
-    fail("cannot open input file");
-  }
-
   let ast: *Ast = Ast.new();
   let root: i32 = ast.add(NodeKind.Program, 0, 0);
-  loadProgram(ast, root, path, tokenize(source));
+
+  // A directory is tested whole: every file in it, at any depth, and what
+  // they import.
+  if (isDirectory(path)) {
+    let files: *TextList = findSources(path);
+    if (files.size() == 0) {
+      fail("no .ode files to test here");
+    }
+    loadFiles(ast, root, files);
+  } else {
+    let source: *i8 = readFile(path);
+    if (source == null) {
+      fail("cannot open input file");
+    }
+    loadProgram(ast, root, path, tokenize(source));
+  }
   RUNNER_MODULE = loadModule(ast, root, "ode:testing", "ode:testing",
                              runnerSource());
   SOURCE_PATH = path;
@@ -201,7 +97,7 @@ fn testMain(argc: i32, argv: **i8): i32 {
   if (directory == null) {
     fail("cannot make a scratch directory");
   }
-  let program: *i8 = joinPath(directory, stemOf(path));
+  let program: *i8 = joinPath(directory, "tests");
   buildExecutable(module, program, false);
 
   let run: *TextList = TextList.new();
@@ -213,68 +109,6 @@ fn testMain(argc: i32, argv: **i8): i32 {
 
   removeTree(directory);
   return status;
-}
-
-// The path this program was run as: argv[0] itself when it holds a `/`,
-// otherwise the first match on PATH, which is how a shell found it.
-fn executablePath(argv0: *i8): *i8 {
-  for (index in 0..strlen(argv0)) {
-    if (argv0[index] == '/') {
-      return absolutePath(argv0);
-    }
-  }
-
-  let search: *i8 = environment("PATH");
-  if (search == null) {
-    return null;
-  }
-
-  let start: i64 = 0;
-  let index: i64 = 0;
-  while (true) {
-    if (search[index] == ':' || search[index] == '\0') {
-      let candidate: *i8 = joinPath(slice(search, start, index - start),
-                                    argv0);
-      if (isExecutable(candidate)) {
-        return absolutePath(candidate);
-      }
-      if (search[index] == '\0') {
-        return null;
-      }
-      start = index + 1;
-    }
-    index = index + 1;
-  }
-
-  return null;
-}
-
-// The standard library: ODE_STD if set, otherwise `std` beside the
-// directory the compiler was run from -- build/ode finds the repository's
-// std/ -- or `lib/ode/std` there, where an install would put it.
-fn findStdDirectory(argv0: *i8): *i8 {
-  let configured: *i8 = environment("ODE_STD");
-  if (configured != null) {
-    return configured;
-  }
-
-  let executable: *i8 = executablePath(argv0);
-  if (executable == null) {
-    return null;
-  }
-  let bin: *i8 = parentDirectory(executable);
-  let candidates: *TextList = TextList.new();
-  candidates.add(joinPath(bin, "../std"));
-  candidates.add(joinPath(bin, "../lib/ode/std"));
-  candidates.add(joinPath(bin, "std"));
-
-  for (index in 0..candidates.size()) {
-    if (exists(joinPath(candidates.at(index), "list.ode"))) {
-      return absolutePath(candidates.at(index));
-    }
-  }
-
-  return null;
 }
 
 fn main(argc: i32, argv: **i8): i32 {

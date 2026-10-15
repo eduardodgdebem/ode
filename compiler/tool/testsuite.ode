@@ -33,8 +33,8 @@ import { fail } from "../support/diagnostics";
 import {
   TextList, StderrMode, runCommand, setEnvironment, isTerminal, joinPath,
   withSuffix, parentDirectory, isExecutable, readBytes, writeBytes, sameBytes,
-  makeDirectories, removeTree, copyTree, listDirectory, splitLines,
-  makeTempDirectory,
+  makeDirectories, removeTree, copyTree, isDirectory, listDirectory,
+  splitLines, makeTempDirectory,
 } from "../support/system";
 import { moduleCount } from "../semantics/modules";
 import { Workspace, complain, commandBuild } from "./build";
@@ -198,10 +198,6 @@ fn writeIndented(text: *Builder): void {
 
 fn withoutExtension(name: *i8): *i8 {
   return slice(name, 0, strlen(name) - 4);
-}
-
-fn isDirectory(path: *i8): bool {
-  return exists(joinPath(path, "."));
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +399,7 @@ fn runCompilerTests(suite: *Suite): void {
 
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "compiler/main.ode"));
+  run.add(joinPath(suite.ws.root, "compiler"));
   if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
     suite.pass("unit", "compiler");
     return;
@@ -413,7 +409,7 @@ fn runCompilerTests(suite: *Suite): void {
   writeIndented(output);
 }
 
-// The standard library's tests, a file at a time.
+// The standard library's tests, all of them in one run.
 fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
   suite.unitCount = suite.unitCount + 1;
 
@@ -429,7 +425,7 @@ fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
   writeIndented(output);
 }
 
-// A directory is not a source file, to compile or to test.
+// A directory is not a source file to compile; to test, it needs one.
 fn checkDirectoryInput(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let compile: *TextList = TextList.new().add(suite.compiler);
@@ -439,11 +435,13 @@ fn checkDirectoryInput(suite: *Suite): bool {
     return false;
   }
 
+  let empty: *i8 = joinPath(suite.work, "empty-directory");
+  makeDirectories(empty);
   output = Builder.new();
   let test: *TextList = TextList.new().add(suite.compiler).add("test");
-  test.add(joinPath(suite.ws.root, "compiler"));
+  test.add(empty);
   return runCommand(test, suite.work, output, StderrMode.Merge) == 1 &&
-         contains(output.data, "cannot open input file");
+         contains(output.data, "no .ode files to test here");
 }
 
 // `ode test` with no file, or one that is not there, says so and fails.
@@ -585,13 +583,8 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     runCompilerTests(suite);
   }
 
-  let library: *i8 = joinPath(ws.root, "std");
-  names = listDirectory(library);
-  for (index in 0..names.size()) {
-    let file: *i8 = names.at(index);
-    if (endsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
-      runLibraryTests(suite, joinPath(library, file), withoutExtension(file));
-    }
+  if (suite.selected("std")) {
+    runLibraryTests(suite, joinPath(ws.root, "std"), "std");
   }
 
   if (suite.selected("output-flag")) {
