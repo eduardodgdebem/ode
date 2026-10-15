@@ -1,0 +1,209 @@
+// ---------------------------------------------------------------------------
+// What the parser rejects, and where.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../support/problems";
+import { Diagnostic } from "../support/diagnostics";
+import { problemsIn } from "../testkit";
+
+test "for missing in" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      for (i of 0..10) {
+      }
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).facts.other, "of");
+}
+
+test "function without body" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn broken(): i32;
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 17);
+  assertEq(found.at(0).facts.other, ";");
+}
+
+test "match missing arrow" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let n: i32 = 1;
+      match (n) {
+        1 {
+          return 1;
+        }
+      }
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 7);
+  assertEq(found.at(0).facts.other, "{");
+}
+
+test "multiple syntax errors" {
+  let found: *List<Diagnostic> = problemsIn(`
+    // A missing semicolon in three separate functions. Recovery resumes at the
+    // next statement, so each one is found in the same run.
+    fn first(): i32 {
+      let a: i32 = 1
+      return a;
+    }
+
+    fn second(): i32 {
+      let b: i32 = 2;
+      return b
+    }
+
+    fn main(): i32 {
+      printf("%d\n", first() + second())
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 5);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.other, "return");
+  assertEq(found.at(1).problem, Problem.UnexpectedToken);
+  assertEq(found.at(1).line, 11);
+  assertEq(found.at(1).column, 1);
+  assertEq(found.at(1).facts.other, "}");
+  assertEq(found.at(2).problem, Problem.UnexpectedToken);
+  assertEq(found.at(2).line, 15);
+  assertEq(found.at(2).column, 3);
+  assertEq(found.at(2).facts.other, "return");
+}
+
+test "nested extern" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      extern fn puts(text: *i8): i32;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAtTopLevel);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "extern");
+}
+
+test "nested function" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      fn helper(): i32 {
+        return 7;
+      }
+
+      return helper();
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAtTopLevel);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "fn");
+}
+
+test "nested struct" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      struct Local { x: i32, }
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAtTopLevel);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "struct");
+}
+
+test "syntax missing return type" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main() {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 11);
+  assertEq(found.at(0).facts.other, "{");
+}
+
+test "syntax missing semicolon" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.other, "return");
+}
+
+test "syntax unclosed block" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      return 0;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).facts.other, "end of file");
+}
+
+test "test inside function" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      test "nested" {
+      }
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAtTopLevel);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "test");
+}
+
+test "test without body" {
+  let found: *List<Diagnostic> = problemsIn(`
+    test "no body";
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 15);
+  assertEq(found.at(0).facts.other, ";");
+}

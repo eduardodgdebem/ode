@@ -1,9 +1,0 @@
-struct Point {
-  x: i32,
-}
-
-extern fn origin(): Point;
-
-fn main(): i32 {
-  return 0;
-}

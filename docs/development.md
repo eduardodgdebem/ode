@@ -40,57 +40,68 @@ own configuration names.
 
 ## Testing
 
-```bash
-./build/ode build test                  # builds first, then tests what it built
-./build/ode build test --filter struct  # only the cases whose name matches
-./build/ode build test --ode <path>     # test some other compiler instead
+Most tests are unit tests, written in Ode beside the code they test, in
+`*.test.ode` files next to the compiler's sources. They run the phases
+in-process -- each test is a process of its own, so the compiler's state is
+fresh -- and ask what was decided, never how it was worded:
+
+```rust
+test "a return of the wrong type" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      return true;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongReturnType);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 10);
+}
 ```
 
-The suite works in a temporary directory, so the repository stays clean, and
-exits non-zero if anything differs. Its cases:
+Every diagnostic is a `Problem` with `Facts` -- the names, types and counts
+it is about -- and `describe()` in `compiler/support/problems.ode` is the only
+place one becomes words, so changing how errors read changes no test but the
+few that test the rendering itself. `compiler/testkit.ode` has the tools:
+
+| Tool | Gives |
+|---|---|
+| `problemsIn(source)` | the problems checking finds, each with its `Problem`, position and `Facts` |
+| `problemsInFiles(files, entry)` | the same, for a program of several files in a scratch `Files` directory |
+| `typeOf(setup, expression)` | the `Type` checking settles on |
+| `parse(source)` | the tree, to walk its nodes |
+| `irOf(source)` | the LLVM IR of a clean snippet |
+| `outputOf(source)`, `outputOfFiles(files, entry)` | what a program prints when built and run -- the slow ones, which link with clang |
+
+```bash
+./build/ode test compiler            # every test in the compiler
+./build/ode test compiler lexer      # the ones whose name says lexer
+./build/ode test std                 # the standard library's
+```
+
+`ode build test` runs both, and then what only the binary can show:
 
 | Directory | What a case is | Compared against |
 |---|---|---|
-| `tests/run/` | a program that compiles and runs | the `<name>.out` beside it |
-| `examples/` | the same, for the showcase programs | `tests/examples/<name>.out` |
-| `tests/invalid/` | a program that must be rejected | the `<name>.expected` beside it |
-| `tests/modules/` | a directory of files entered at `main.ode` | `tests/modules/<name>.expected` |
-| `tests/unit/` | a file of tests, run by `ode test` | the `<name>.out` beside it, with the exit status |
+| `examples/` | a showcase program, built and run | `tests/examples/<name>.out` |
+| `tests/runner/` | a file of tests, run through `ode test` | the `<name>.out` beside it, with the exit status |
 
-A module case is compared against its diagnostics if it fails to compile and
-against what it prints if it runs. Four more checks exercise the driver's
-flags: `-o`, `--keep-intermediates`, an output path holding shell
-metacharacters, and running with no input.
-
-The suite also runs the compiler's own tests -- the `test` blocks in
-`compiler/` -- with `ode test compiler/main.ode`, and each standard library
-file's with `ode test std/<name>.ode`, and fails if any does. It points
-`ODE_STD` at the repository's `std/`, so whichever compiler is under test
-uses it. Failures a library function must stop on -- reading past the end
-of a list, say -- are tests in `tests/unit/std_failures.ode` that are meant
-to fail, so their recorded output is the check. To
-run them alone, or only some:
+The runner cases test `ode test` itself, failing tests and crashes
+included; `tests/runner/std_failures.ode` holds the library calls that must
+stop the program, whose recorded failures are the check. A few more checks
+exercise the driver: `-o`, `--keep-intermediates`, an output path holding
+shell metacharacters, no input, and a directory as input.
 
 ```bash
-./build/ode test compiler/main.ode          # every test in the compiler
-./build/ode test compiler/main.ode lexer    # the ones whose name says lexer
+./build/ode build test                  # builds first, then tests what it built
+./build/ode build test --filter math    # only the cases whose name matches
+./build/ode build test --ode <path>     # test some other compiler instead
+./build/ode build test --update         # re-record the .out files; read the diff
 ```
 
-Adding a case is dropping a file in, then recording what it does with
-`--update`.
-
-### Re-baselining
-
-After a deliberate change to the language, regenerate every expectation in one
-command and read the diff before committing it:
-
-```bash
-./build/ode build test --update
-```
-
-`git diff tests/` is then the exact list of behaviour that changed. A case
-that should be rejected but has started compiling is still reported as a
-failure rather than being silently re-recorded.
+The suite works in a temporary directory, so the repository stays clean, and
+exits non-zero if anything differs. It points `ODE_STD` at the repository's
+`std/`, so whichever compiler is under test uses it.
 
 ## The bootstrap
 

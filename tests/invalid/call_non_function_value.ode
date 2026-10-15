@@ -1,4 +1,0 @@
-fn main(): i32 {
-  let values: *i32 = null;
-  return values[0](1);
-}

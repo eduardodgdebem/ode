@@ -1,5 +1,0 @@
-fn main(): i32 {
-  assert(true, 42);
-
-  return 0;
-}

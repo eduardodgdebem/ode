@@ -1,7 +1,0 @@
-let BASE: i32 = 10;
-
-enum Code { First = BASE, Second }
-
-fn main(): i32 {
-  return 0;
-}

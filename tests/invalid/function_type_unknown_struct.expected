@@ -1,4 +1,0 @@
-function_type_unknown_struct.ode:2:3: error: in declaration of 'f'
-  let f: fn(Missing): i32 = null;
-  ^~~
-note: unknown type 'Missing'

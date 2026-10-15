@@ -1,3 +1,0 @@
-sub/lib.ode:6:16: error: expected 'number, string, character, boolean, identifier, or '('' but got ';'
-  let x: i32 = ;
-               ^

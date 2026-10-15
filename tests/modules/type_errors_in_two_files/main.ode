@@ -1,6 +1,0 @@
-import { broken } from "./sub/lib";
-
-fn main(): i32 {
-  let flag: bool = 1;
-  return broken();
-}

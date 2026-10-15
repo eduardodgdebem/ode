@@ -1,4 +1,0 @@
-call_function_value_wrong_arguments.ode:7:12: error: argument 1 of 'f' has the wrong type
-  return f(true) + f(1, 2);
-           ^~~~
-note: expected 'i32' but got 'bool'

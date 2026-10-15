@@ -1,5 +1,0 @@
-import { List } from "collections/list";
-
-fn main(): i32 {
-  return 0;
-}

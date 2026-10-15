@@ -1,4 +1,0 @@
-null_to_integer.ode:2:20: error: type mismatch in declaration of 'count'
-  let count: i32 = null;
-                   ^~~~
-note: declared as 'i32' but assigned 'null'

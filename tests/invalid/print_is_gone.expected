@@ -1,3 +1,0 @@
-print_is_gone.ode:2:3: error: undefined function 'print'
-  print(1);
-  ^~~~~

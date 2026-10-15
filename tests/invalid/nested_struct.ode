@@ -1,5 +1,0 @@
-fn main(): i32 {
-  struct Local { x: i32, }
-
-  return 0;
-}

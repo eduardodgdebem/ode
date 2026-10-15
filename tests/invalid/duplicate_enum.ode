@@ -1,6 +1,0 @@
-enum Color { Red }
-enum Color { Blue }
-
-fn main(): i32 {
-  return 0;
-}

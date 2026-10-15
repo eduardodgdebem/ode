@@ -1,4 +1,0 @@
-enum_arithmetic.ode:4:28: error: arithmetic requires numeric operands
-  let c: Color = Color.Red + Color.Green;
-                           ^
-note: got 'Color'

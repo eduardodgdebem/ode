@@ -1,0 +1,93 @@
+// ---------------------------------------------------------------------------
+// assert and assertEq: what checking rejects.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../support/problems";
+import { Diagnostic } from "../support/diagnostics";
+import { problemsIn } from "../testkit";
+
+test "assert argument counts" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      assert();
+      assert(true, "message", 3);
+      assertEq(1);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.AssertArguments);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(1).problem, Problem.AssertArguments);
+  assertEq(found.at(1).line, 3);
+  assertEq(found.at(1).column, 3);
+  assertEq(found.at(2).problem, Problem.AssertEqArguments);
+  assertEq(found.at(2).line, 4);
+  assertEq(found.at(2).column, 3);
+}
+
+test "assert eq mismatch" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let wide: i64 = 1;
+      let small: i32 = 1;
+      assertEq(wide, small);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AssertEqTypes);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 3);
+}
+
+test "assert eq struct" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+    }
+
+    fn main(): i32 {
+      let p: Point = Point { x: 1 };
+      assertEq(p, p);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AssertEqType);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 3);
+}
+
+test "assert message not text" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      assert(true, 42);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AssertMessageNotText);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+}
+
+test "assert not boolean" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      assert(1);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AssertNotBool);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+}

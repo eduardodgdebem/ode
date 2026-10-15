@@ -382,7 +382,7 @@ export fn removeTree(path: *i8): void {
 }
 
 // Copies what is inside `from` into `to`, which must exist.
-export fn copyTree(from: *i8, to: *i8): bool {
+fn copyTree(from: *i8, to: *i8): bool {
   let contents: *i8 = joinPath(from, ".");
   return runCommand(TextList.new().add("cp").add("-R").add(contents).add(to),
                     null, null, StderrMode.Inherit) == 0;

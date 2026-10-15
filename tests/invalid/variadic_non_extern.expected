@@ -1,4 +1,0 @@
-variadic_non_extern.ode:1:1: error: function 'sum' takes '...'
-fn sum(count: i32, ...): i32 {
-^~
-note: only an extern can take a variable number of arguments

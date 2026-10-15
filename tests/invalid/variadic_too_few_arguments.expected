@@ -1,4 +1,0 @@
-variadic_too_few_arguments.ode:4:3: error: wrong number of arguments to 'printf'
-  printf();
-  ^~~~~~
-note: expected at least 1 but got 0

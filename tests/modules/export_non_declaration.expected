@@ -1,3 +1,0 @@
-main.ode:1:8: error: expected 'declaration' but got 'while'
-export while (true) {}
-       ^~~~~

@@ -1,4 +1,0 @@
-method_on_non_struct.ode:3:16: error: cannot call method 'abs'
-  return count.abs();
-               ^~~
-note: 'i32' is not a struct

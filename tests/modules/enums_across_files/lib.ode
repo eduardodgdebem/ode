@@ -1,7 +1,0 @@
-enum Mode { A, B, C, D }
-
-export enum Level { Info, Warning, Error }
-
-export fn describe(level: Level): i32 {
-  return (level as i32) * 10 + Mode.D as i32;
-}

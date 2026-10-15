@@ -1,3 +1,0 @@
-for_variable_outside_loop.ode:4:10: error: undefined variable 'i'
-  return i;
-         ^

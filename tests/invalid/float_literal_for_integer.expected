@@ -1,4 +1,0 @@
-float_literal_for_integer.ode:2:20: error: type mismatch in declaration of 'count'
-  let count: i16 = 1.5;
-                   ^~~
-note: declared as 'i16' but assigned 'f32'

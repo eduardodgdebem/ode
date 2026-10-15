@@ -1,4 +1,0 @@
-variadic_as_value.ode:4:27: error: cannot use 'printf' as a value
-  let say: fn(*i8): i32 = printf;
-                          ^~~~~~
-note: it takes '...', which a function type cannot say

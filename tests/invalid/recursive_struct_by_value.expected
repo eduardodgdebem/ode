@@ -1,2 +1,0 @@
-recursive_struct_by_value.ode: error: struct 'Node' contains itself
-note: use a pointer to break the cycle

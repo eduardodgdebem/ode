@@ -1,4 +1,0 @@
-wrong_return_type.ode:2:10: error: wrong return type
-  return true;
-         ^~~~
-note: expected 'i32' but got 'bool'

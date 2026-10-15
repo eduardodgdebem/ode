@@ -1,0 +1,38 @@
+// ---------------------------------------------------------------------------
+// Imports and exports: what checking rejects.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../support/problems";
+import { Diagnostic } from "../support/diagnostics";
+import { problemsIn } from "../testkit";
+
+test "import bare name" {
+  let found: *List<Diagnostic> = problemsIn(`
+    import { List } from "collections/list";
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ImportNotAPath);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).facts.name, "collections/list");
+}
+
+test "import unknown std module" {
+  let found: *List<Diagnostic> = problemsIn(`
+    import { Missing } from "std/missing";
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ModuleNotFound);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).facts.name, "std/missing");
+}

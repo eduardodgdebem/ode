@@ -1,4 +1,0 @@
-function_used_as_variable.ode:7:20: error: type mismatch in declaration of 'value'
-  let value: i32 = helper;
-                   ^~~~~~
-note: declared as 'i32' but assigned 'fn(): i32'

@@ -1,4 +1,0 @@
-pointer_method_on_temporary.ode:19:19: error: cannot call 'Point.shift' on a temporary value
-  Point.new(1, 2).shift(5);
-                  ^~~~~
-note: it takes 'self' by pointer, so store the value first

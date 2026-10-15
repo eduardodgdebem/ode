@@ -1,3 +1,0 @@
-struct_literal_unknown_field.ode:6:22: error: struct 'Point' has no field 'z'
-  let point: Point = Point { x: 1, z: 2 };
-                     ^~~~~

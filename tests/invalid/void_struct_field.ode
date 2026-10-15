@@ -1,7 +1,0 @@
-struct Point {
-  x: void,
-}
-
-fn main(): i32 {
-  return 0;
-}

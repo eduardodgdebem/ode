@@ -1,4 +1,0 @@
-generic_infinite_instances.ode:1:1: error: generic 'Nest' keeps asking for bigger instances of itself
-struct Nest<T> {
-^~~~~~
-note: an instance's body uses one with more type arguments around them

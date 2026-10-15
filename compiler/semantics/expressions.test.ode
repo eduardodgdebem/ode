@@ -1,0 +1,653 @@
+// ---------------------------------------------------------------------------
+// Expressions -- operators, casts, numbers, fields: what checking rejects.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../support/problems";
+import { Diagnostic } from "../support/diagnostics";
+import { problemsIn } from "../testkit";
+
+test "add two pointers" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1;
+      let pointer: *i32 = &value;
+      let sum: *i32 = pointer + pointer;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AddPointers);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 27);
+}
+
+test "address of temporary" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let pointer: *i32 = &(1 + 1);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AddressOfTemporary);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 23);
+}
+
+test "arithmetic on bool" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: bool = true + false;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ArithmeticNotNumeric);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 26);
+}
+
+test "arithmetic type mismatch" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let small: i32 = 1;
+      let wide: i64 = 2;
+      let value: i64 = small + wide;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ArithmeticTypes);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 26);
+}
+
+test "compare bool" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: bool = true < false;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.OrderBoolOrVoid);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 26);
+}
+
+test "compare null with integer" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let count: i32 = 0;
+      if (count == null) {
+        return 1;
+      }
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.EqualityTypes);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 13);
+}
+
+test "comparison type mismatch" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let small: i32 = 1;
+      let wide: i64 = 2;
+      let value: bool = small < wide;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ComparisonTypes);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 27);
+}
+
+test "dereference non pointer" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1;
+      printf("%d\n", *value);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DereferenceNonPointer);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 18);
+}
+
+test "enum arithmetic" {
+  let found: *List<Diagnostic> = problemsIn(`
+    enum Color { Red, Green, Blue }
+
+    fn main(): i32 {
+      let c: Color = Color.Red + Color.Green;
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ArithmeticNotNumeric);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 28);
+}
+
+test "equality type mismatch" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: bool = 1 == true;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.EqualityTypes);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 23);
+}
+
+test "field access on non struct" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1;
+      printf("%d\n", value.x);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 24);
+  assertEq(found.at(0).facts.name, "x");
+}
+
+test "for bound out of range" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let limit: u8 = 10 as u8;
+      for (i in -1..limit) {
+      }
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NumberOutOfRange);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 13);
+}
+
+test "for variable outside loop" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      for (i in 0..3) {
+      }
+      return i;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedVariable);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).facts.name, "i");
+}
+
+test "generic instance type error" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Box<T> {
+      value: T,
+    }
+
+    fn identity<T>(x: T): T {
+      return x;
+    }
+
+    fn twice<T>(x: T): T {
+      return x + x;
+    }
+
+    fn main(): i32 {
+      let ok: i32 = twice<i32>(2);
+      let bad: bool = twice<bool>(true);
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ArithmeticNotNumeric);
+  assertEq(found.at(0).line, 10);
+  assertEq(found.at(0).column, 12);
+}
+
+test "index non pointer" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1;
+      printf("%d\n", value[0]);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.IndexNonPointer);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 23);
+}
+
+test "index not integer" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let text: *i8 = "ode";
+      printf("%d\n", text[true]);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.IndexNotInteger);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 22);
+}
+
+test "integer literal out of range" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 99999999999;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NumberOutOfRange);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 20);
+}
+
+test "invalid cast" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1 };
+      let value: i32 = point as i32;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.InvalidCast);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 26);
+}
+
+test "literal argument out of range" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn store(value: u8): void {}
+
+    fn main(): i32 {
+      store(300);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NumberOutOfRange);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 9);
+}
+
+test "literal operand out of range" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let wide: i64 = 5;
+      let value: i64 = wide + 99999999999999999999;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NumberOutOfRange);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 27);
+}
+
+test "logical not on int" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: bool = !1;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotNotBool);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 21);
+}
+
+test "logical operator on ints" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: bool = 1 && 2;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.LogicalNotBool);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 23);
+}
+
+test "match pattern out of range" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let byte: u8 = 1 as u8;
+      match (byte) {
+        300 => {
+          return 1;
+        }
+        else => {
+          return 0;
+        }
+      }
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NumberOutOfRange);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 5);
+}
+
+test "negative literal unsigned" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let byte: u8 = -1;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NumberOutOfRange);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 18);
+}
+
+test "null arithmetic" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let p: *i32 = null + 1;
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ArithmeticTypes);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 22);
+}
+
+test "null dereference" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = *null;
+      return value;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DereferenceNonPointer);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 20);
+}
+
+test "order function values" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn a(): i32 {
+      return 1;
+    }
+
+    fn b(): i32 {
+      return 2;
+    }
+
+    fn main(): i32 {
+      if (a < b) {
+        return 1;
+      }
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.OrderFunctions);
+  assertEq(found.at(0).line, 10);
+  assertEq(found.at(0).column, 9);
+}
+
+test "pointer offset not integer" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1;
+      let pointer: *i32 = &value;
+      let moved: *i32 = pointer + true;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.PointerOffsetNotInteger);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 29);
+}
+
+test "sizeof void" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      printf("%d\n", sizeof(void) as i32);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.SizeofVoid);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 18);
+}
+
+test "struct equality" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point { x: i32, }
+
+    fn main(): i32 {
+      let a: Point = Point { x: 1 };
+      let b: Point = Point { x: 1 };
+
+      printf("%d\n", a == b);
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.CompareStructs);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 20);
+  assertEq(found.at(0).facts.name, "Point");
+}
+
+test "struct literal duplicate field" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+      y: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1, x: 2, y: 3 };
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.FieldInitialisedTwice);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 22);
+  assertEq(found.at(0).facts.name, "x");
+}
+
+test "struct literal field type" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: true };
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.FieldWrongType);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 33);
+  assertEq(found.at(0).facts.name, "x");
+  assertEq(found.at(0).facts.other, "Point");
+}
+
+test "struct literal missing field" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+      y: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1 };
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.FieldMissing);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 22);
+  assertEq(found.at(0).facts.name, "y");
+  assertEq(found.at(0).facts.other, "Point");
+}
+
+test "struct literal unknown field" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1, z: 2 };
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NoSuchField);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 22);
+  assertEq(found.at(0).facts.name, "Point");
+  assertEq(found.at(0).facts.other, "z");
+}
+
+test "struct ordering" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point { x: i32, }
+
+    fn main(): i32 {
+      let a: Point = Point { x: 1 };
+      let b: Point = Point { x: 2 };
+
+      printf("%d\n", a < b);
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.OrderStructs);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 20);
+  assertEq(found.at(0).facts.name, "Point");
+}
+
+test "unary minus on bool" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: bool = -true;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnaryMinusNotNumeric);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 21);
+}
+
+test "undefined variable" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      printf("%d\n", missing);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedVariable);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 18);
+  assertEq(found.at(0).facts.name, "missing");
+}
+
+test "unknown struct field" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1 };
+      printf("%d\n", point.z);
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NoSuchField);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 24);
+  assertEq(found.at(0).facts.name, "Point");
+  assertEq(found.at(0).facts.other, "z");
+}

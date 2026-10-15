@@ -238,7 +238,7 @@ beyond `printf`, no time, no processes beyond `exit`, and no error values:
 a function that can fail returns null, false or a fallback, and one that
 must not -- an index out of range, running out of memory -- stops the
 program. A test cannot say that it expects to stop; such a test lives in
-`tests/unit/`, where its recorded failure is what is checked.
+`tests/runner/`, where its recorded failure is what is checked.
 
 ## 7. Codegen and runtime
 
@@ -270,22 +270,23 @@ that implies.
 
 No block comments, no nesting.
 
-### 7.5 Limited string escapes
+### 7.5 No unicode escapes
 
-`\n`, `\t`, `\r`, `\0`, `\\`, `\"` and `\'`. No `\xNN`, no unicode escapes, and
-no multi-line string literals — a string may not cross a newline.
+Strings and characters take `\n`, `\t`, `\r`, `\0`, `\\`, `\"`, `\'` and
+`\xNN`, and a backtick string spans lines with no escapes at all. There is no
+`\u{...}`: text is bytes, and a character outside ASCII is written as the
+bytes that encode it.
 
 ## 8. Tooling
 
-### 8.1 Testing is end-to-end only
+### 8.1 A test cannot expect to fail
 
-`ode build test` compiles, links and runs every `examples/*.ode` against a
-recorded stdout, and checks every `tests/invalid/*.ode` against the diagnostic
-it must produce, and `--update` re-records every expectation in one pass.
-
-What it does not do is test any component in isolation. There are no unit
-tests for the lexer, the parser, the analyzer or codegen, so a fault is
-located by bisecting a failing program rather than by a failing assertion.
+Tests are written beside the code they test and run in-process, and a check
+reports a Problem rather than a sentence, so tests do not depend on how
+anything is worded. What a test cannot say is that the code under it should
+stop the program -- an index out of range, a failed assert -- since that
+ends the test; such cases live in `tests/runner/`, where a recorded failure
+is what is checked.
 
 The compiler is self-hosting, so `ode build bootstrap` is the other half of
 the check: a compiler that miscompiles itself stops reproducing itself, and

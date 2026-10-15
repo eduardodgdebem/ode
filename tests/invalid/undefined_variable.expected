@@ -1,3 +1,0 @@
-undefined_variable.ode:2:18: error: undefined variable 'missing'
-  printf("%d\n", missing);
-                 ^~~~~~~

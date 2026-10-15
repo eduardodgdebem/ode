@@ -1,0 +1,285 @@
+// ---------------------------------------------------------------------------
+// Calls and function values: what checking rejects.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../support/problems";
+import { Diagnostic } from "../support/diagnostics";
+import { problemsIn } from "../testkit";
+
+test "call a variable" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let value: i32 = 1;
+      printf("%d\n", value());
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAFunction);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 18);
+  assertEq(found.at(0).facts.name, "value");
+}
+
+test "call function value wrong arguments" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn square(x: i32): i32 {
+      return x * x;
+    }
+
+    fn main(): i32 {
+      let f: fn(i32): i32 = square;
+      return f(true) + f(1, 2);
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongArgumentType);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 12);
+  assertEq(found.at(0).facts.name, "f");
+}
+
+test "call non function value" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      let values: *i32 = null;
+      return values[0](1);
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.CannotCall);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 19);
+}
+
+test "call struct field not function" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Counter {
+      hits: i32,
+    }
+
+    fn main(): i32 {
+      let c: Counter = Counter { hits: 0 };
+      return c.hits(1);
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAFunction);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).column, 12);
+  assertEq(found.at(0).facts.name, "hits");
+}
+
+test "method wrong arguments" {
+  let found: *List<Diagnostic> = problemsIn(`
+    struct Point {
+      x: i32,
+      y: i32,
+
+      fn new(x: i32, y: i32): Point {
+        return Point { x: x, y: y };
+      }
+
+      fn sum(self: Point): i32 {
+        return self.x + self.y;
+      }
+
+      fn shift(self: *Point, by: i32): void {
+        self.x = self.x + by;
+      }
+    }
+
+    fn main(): i32 {
+      let p: Point = Point.new(1, 2);
+      p.shift();
+      p.shift(true);
+      Point.shift(p, 1);
+      return 0;
+    }
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.WrongArgumentCount);
+  assertEq(found.at(0).line, 20);
+  assertEq(found.at(0).column, 5);
+  assertEq(found.at(0).facts.name, "Point.shift");
+  assertEq(found.at(1).problem, Problem.WrongArgumentType);
+  assertEq(found.at(1).line, 21);
+  assertEq(found.at(1).column, 11);
+  assertEq(found.at(1).facts.name, "Point.shift");
+  assertEq(found.at(2).problem, Problem.WrongArgumentType);
+  assertEq(found.at(2).line, 22);
+  assertEq(found.at(2).column, 15);
+  assertEq(found.at(2).facts.name, "Point.shift");
+}
+
+test "print is gone" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      print(1);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedFunction);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "print");
+}
+
+test "std list wrong item" {
+  let found: *List<Diagnostic> = problemsIn(`
+    import { List } from "std/list";
+
+    fn main(): i32 {
+      let numbers: *List<i32> = List<i32>.new();
+      numbers.push("one");
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongArgumentType);
+  assertEq(found.at(0).line, 5);
+  assertEq(found.at(0).column, 16);
+  assertEq(found.at(0).facts.name, "List<i32>.push");
+}
+
+test "undefined function" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      printf("%d\n", missing());
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedFunction);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 18);
+  assertEq(found.at(0).facts.name, "missing");
+}
+
+test "variadic as value" {
+  let found: *List<Diagnostic> = problemsIn(`
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let say: fn(*i8): i32 = printf;
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.VariadicAsValue);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 27);
+  assertEq(found.at(0).facts.name, "printf");
+}
+
+test "variadic struct argument" {
+  let found: *List<Diagnostic> = problemsIn(`
+    extern fn printf(format: *i8, ...): i32;
+
+    struct Point {
+      x: i32,
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1 };
+      printf("%d\n", point);
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.VariadicArgument);
+  assertEq(found.at(0).line, 9);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "printf");
+}
+
+test "variadic too few arguments" {
+  let found: *List<Diagnostic> = problemsIn(`
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      printf();
+
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.TooFewArguments);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "printf");
+}
+
+test "variadic void argument" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn nothing(): void {
+      return;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", nothing());
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.VariadicArgument);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).facts.name, "printf");
+}
+
+test "wrong argument count" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn sum(a: i32, b: i32): i32 {
+      return a + b;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", sum(1));
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongArgumentCount);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 18);
+  assertEq(found.at(0).facts.name, "sum");
+}
+
+test "wrong argument type" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn twice(value: i32): i32 {
+      return value * 2;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", twice(true));
+
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongArgumentType);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 24);
+  assertEq(found.at(0).facts.name, "twice");
+}

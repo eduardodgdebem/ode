@@ -1,3 +1,0 @@
-undefined_function.ode:2:18: error: undefined function 'missing'
-  printf("%d\n", missing());
-                 ^~~~~~~

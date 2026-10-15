@@ -1,4 +1,0 @@
-call_non_function_value.ode:3:19: error: cannot call a value of type 'i32'
-  return values[0](1);
-                  ^
-note: only functions and function values can be called

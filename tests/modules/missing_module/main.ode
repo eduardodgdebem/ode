@@ -1,5 +1,0 @@
-import { nothing } from "./nowhere";
-
-fn main(): i32 {
-  return 0;
-}

@@ -1,4 +1,0 @@
-for_bounds_not_integers.ode:2:3: error: for loop bounds must be integers
-  for (i in 0.5..10.0) {
-  ^~~
-note: got 'f32'

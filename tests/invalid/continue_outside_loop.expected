@@ -1,3 +1,0 @@
-continue_outside_loop.ode:2:3: error: continue used outside of a loop
-  continue;
-  ^~~~~~~~

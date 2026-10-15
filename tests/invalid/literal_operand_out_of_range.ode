@@ -1,6 +1,0 @@
-fn main(): i32 {
-  let wide: i64 = 5;
-  let value: i64 = wide + 99999999999999999999;
-
-  return 0;
-}

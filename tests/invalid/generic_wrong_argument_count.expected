@@ -1,7 +1,0 @@
-generic_wrong_argument_count.ode:10:10: error: struct 'Box' takes 1 type argument but got 2
-  let b: Box<i32, bool> = Box<i32> { value: 1 };
-         ^~~
-generic_wrong_argument_count.ode:11:10: error: function 'identity' takes 1 type argument but got 2
-  return identity<i32, i32>(1);
-         ^~~~~~~~
-2 errors generated.

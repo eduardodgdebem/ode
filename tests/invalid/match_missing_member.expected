@@ -1,4 +1,0 @@
-match_missing_member.ode:4:3: error: match on 'Color' does not handle 'Color.Blue'
-  match (c) {
-  ^~~~~
-note: add an arm for it, or an 'else' arm

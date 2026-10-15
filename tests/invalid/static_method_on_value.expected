@@ -1,4 +1,0 @@
-static_method_on_value.ode:20:20: error: 'Point.new' has no 'self' parameter
-  let q: Point = p.new(3, 4);
-                   ^~~
-note: call it on the struct instead: 'Point.new(...)'

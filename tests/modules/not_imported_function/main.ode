@@ -1,5 +1,0 @@
-import { first } from "./lib";
-
-fn main(): i32 {
-  return first() + second();
-}

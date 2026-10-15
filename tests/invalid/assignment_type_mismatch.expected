@@ -1,4 +1,0 @@
-assignment_type_mismatch.ode:3:11: error: type mismatch in assignment
-  value = true;
-          ^~~~
-note: expected 'i32' but got 'bool'

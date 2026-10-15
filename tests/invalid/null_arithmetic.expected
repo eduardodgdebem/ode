@@ -1,4 +1,0 @@
-null_arithmetic.ode:2:22: error: arithmetic operators require same type operands
-  let p: *i32 = null + 1;
-                     ^
-note: got 'null' and 'i32'

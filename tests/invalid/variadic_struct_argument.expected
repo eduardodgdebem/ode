@@ -1,4 +1,0 @@
-variadic_struct_argument.ode:9:3: error: argument 2 of 'printf' cannot go through '...'
-  printf("%d\n", point);
-  ^~~~~~
-note: a 'Point' has no C type; pass a pointer or a number

@@ -1,3 +1,0 @@
-enum_unknown_member.ode:4:24: error: enum 'Color' has no member 'Purple'
-  let c: Color = Color.Purple;
-                       ^~~~~~

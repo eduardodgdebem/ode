@@ -1,4 +1,0 @@
-variadic_void_argument.ode:6:3: error: argument 2 of 'printf' cannot go through '...'
-  printf("%d\n", nothing());
-  ^~~~~~
-note: a 'void' has no C type; pass a pointer or a number

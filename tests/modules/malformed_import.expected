@@ -1,7 +1,0 @@
-main.ode:1:12: error: expected '}' but got 'b'
-import { a b } from "./lib";
-           ^
-main.ode:2:14: error: expected 'from' but got './lib'
-import { c } "./lib";
-             ^~~~~~~
-2 errors generated.

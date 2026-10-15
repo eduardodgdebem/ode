@@ -1,7 +1,0 @@
-fn main(): i32 {
-  let small: i32 = 1;
-  let big: i64 = 10 as i64;
-  for (i in small..big) {
-  }
-  return 0;
-}

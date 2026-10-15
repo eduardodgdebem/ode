@@ -1,3 +1,0 @@
-struct_literal_missing_field.ode:7:22: error: field 'y' of 'Point' is missing
-  let point: Point = Point { x: 1 };
-                     ^~~~~

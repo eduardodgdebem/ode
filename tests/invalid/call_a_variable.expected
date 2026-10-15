@@ -1,3 +1,0 @@
-call_a_variable.ode:3:18: error: 'value' is not a function
-  printf("%d\n", value());
-                 ^~~~~

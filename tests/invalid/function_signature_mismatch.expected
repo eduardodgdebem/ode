@@ -1,9 +1,0 @@
-function_signature_mismatch.ode:6:25: error: type mismatch in declaration of 'f'
-  let f: fn(i64): i32 = square;
-                        ^~~~~~
-note: declared as 'fn(i64): i32' but assigned 'fn(i32): i32'
-function_signature_mismatch.ode:7:26: error: type mismatch in declaration of 'g'
-  let g: fn(i32): bool = square;
-                         ^~~~~~
-note: declared as 'fn(i32): bool' but assigned 'fn(i32): i32'
-2 errors generated.

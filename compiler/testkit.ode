@@ -200,7 +200,7 @@ export fn outputOf(source: *i8): *i8 {
 }
 
 // outputOf, for the program entered at `entry` among `files`.
-fn outputOfFiles(files: *Files, entry: *i8): *i8 {
+export fn outputOfFiles(files: *Files, entry: *i8): *i8 {
   JOB_DIRECTORY = files.directory;
   JOB_ENTRY = entry;
   let out: *Builder = Builder.new();

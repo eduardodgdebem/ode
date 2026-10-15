@@ -1,5 +1,0 @@
-fn main(): i32 {
-  let value: bool = -true;
-
-  return 0;
-}

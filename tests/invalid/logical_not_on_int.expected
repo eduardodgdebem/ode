@@ -1,4 +1,0 @@
-logical_not_on_int.ode:2:21: error: logical NOT requires boolean operand
-  let value: bool = !1;
-                    ^
-note: got 'i32'

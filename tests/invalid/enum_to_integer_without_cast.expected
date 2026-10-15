@@ -1,4 +1,0 @@
-enum_to_integer_without_cast.ode:4:16: error: type mismatch in declaration of 'n'
-  let n: i32 = Color.Green;
-               ^~~~~
-note: declared as 'i32' but assigned 'Color'

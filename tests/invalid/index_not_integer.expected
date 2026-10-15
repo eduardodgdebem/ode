@@ -1,4 +1,0 @@
-index_not_integer.ode:3:22: error: index must be an integer
-  printf("%d\n", text[true]);
-                     ^
-note: got 'bool'

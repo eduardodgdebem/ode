@@ -1,9 +1,0 @@
-main.ode:4:20: error: type mismatch in declaration of 'flag'
-  let flag: bool = 1;
-                   ^
-note: declared as 'bool' but assigned 'i32'
-sub/lib.ode:2:10: error: wrong return type
-  return true;
-         ^~~~
-note: expected 'i32' but got 'bool'
-2 errors generated.

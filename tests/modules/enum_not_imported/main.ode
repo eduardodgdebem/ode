@@ -1,7 +1,0 @@
-// An enum declared in a file that is loaded but not imported here.
-import { Box } from "./shapes";
-
-fn main(): i32 {
-  let box: Box = Box { side: 2 };
-  return Shape.Square as i32;
-}
