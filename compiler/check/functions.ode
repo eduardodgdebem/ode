@@ -5,10 +5,10 @@
 // function type:
 //
 //     fn add(a: i32, b: i32): i32 { ... }
-//     let op: fn(i32, i32): i32 = add;
-//     print(op(1, 2));
+//     let op: (i32, i32) => i32 = add;
+//     printf("%d\n", op(1, 2));
 //
-// A function type is written `fn(i32, i32): i32`. Two are the same type when
+// A function type is written `(i32, i32) => i32`. Two are the same type when
 // their parameter and return types are, so the signature written out is the
 // type's name, and a table maps it back to the types it is made of.
 //
@@ -28,7 +28,7 @@ import { FAILED, internalError } from "../diagnostics/report";
 import { TypeKind, Type } from "../types/types";
 
 export struct Signature {
-  // `fn(i32, *i8): bool`, which is also the type's name.
+  // `(i32, *i8) => bool`, which is also the type's name.
   text: *i8,
   params: *Type,
   count: i32,
@@ -53,7 +53,7 @@ export enum CallTarget {
 
 fn signatureText(params: *Type, count: i32, result: Type): *i8 {
   let out: *Builder = Builder.new();
-  out.add("fn(");
+  out.add("(");
 
   for (index in 0..count) {
     if (index > 0) {
@@ -62,7 +62,7 @@ fn signatureText(params: *Type, count: i32, result: Type): *i8 {
     out.add(params[index].toText());
   }
 
-  out.add("): ");
+  out.add(") => ");
   out.add(result.toText());
 
   return out.take();
@@ -100,7 +100,7 @@ export fn signatureIndex(an: *Analyzer, type: Type): i64 {
   return -1;
 }
 
-// `fn(i32, i32): i32`, written in a type position.
+// `(i32, i32) => i32`, written in a type position.
 export fn parseFunctionType(an: *Analyzer, node: i32): Type {
   let count: i32 = an.ast.nodes[node].itemCount;
   let params: *Type = null as *Type;

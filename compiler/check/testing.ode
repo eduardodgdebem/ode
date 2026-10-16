@@ -162,7 +162,7 @@ export fn runnerSource(): *i8 {
   out.add("extern fn printf(format: *i8, ...): i32;\n");
   out.add("extern fn strstr(text: *i8, part: *i8): *i8;\n");
   out.add("\n");
-  out.add("export fn runTests(count: i32, names: **i8, tests: *fn(): void,\n");
+  out.add("export fn runTests(count: i32, names: **i8, tests: *(() => void),\n");
   out.add("                   argc: i32, argv: **i8): i32 {\n");
   out.add("  let filter: *i8 = null;\n");
   out.add("  if (argc > 1) {\n");
@@ -181,7 +181,7 @@ export fn runnerSource(): *i8 {
   out.add("    fflush(null);\n");
   out.add("    let child: i32 = fork();\n");
   out.add("    if (child == 0) {\n");
-  out.add("      let test: fn(): void = tests[index];\n");
+  out.add("      let test: () => void = tests[index];\n");
   out.add("      test();\n");
   out.add("      exit(0);\n");
   out.add("    }\n");

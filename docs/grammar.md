@@ -103,8 +103,8 @@ cycles.
 
 ## Types
 
-- **Type** → `*`* (BaseType | IDENT TypeArgs? | FnType)
-- **FnType** → `fn` `(` (Type (`,` Type)*)? `)` `:` Type
+- **Type** → `*`* (BaseType | IDENT TypeArgs? | FnType | `(` FnType `)`)
+- **FnType** → `(` (DeclaredType (`,` DeclaredType)*)? `)` `=>` DeclaredType
 - **BaseType** → IntType | FloatType | `bool` | `void`
 - **IntType** → `i8` | `u8` | `i16` | `u16` | `i32` | `u32` | `i64` | `u64` | `usize`
 - **FloatType** → `f32` | `f64`
@@ -112,6 +112,13 @@ cycles.
 `usize` is a spelling of `u64`. A leading `*` makes a pointer, and pointers
 nest: `*i8` is a pointer to `i8`, `**i8` a pointer to that. An IDENT in type
 position names a struct.
+
+A function type's result runs to the end of the type: `(i32) => i32 | E` is
+a function that may fail with `E`, and `(i32) => (i32) => i32` one that
+returns a function. A function type in parentheses is that type, which is
+how one is made a pointer, `*((i32) => i32)`, or the value of a union,
+`((i32) => i32) | E`. `*(i32) => i32`, which could be read either way, is an
+error.
 
 ---
 
@@ -210,7 +217,7 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
 - Struct declarations may appear in any order and may refer to each other. A
   struct that contains itself *by value* is rejected; go through a pointer.
 - A function's name used other than to call it is a value of its function
-  type, written `fn(T1, T2): R`. Two function types are the same when their
+  type, written `(T1, T2) => R`. Two function types are the same when their
   parameter and result types are. A function value is called like a function
   -- through a variable, a struct field (`ops.run(x)`, when the struct has no
   method of that name), or any expression (`table[i](x)`) -- compares with

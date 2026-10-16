@@ -204,8 +204,8 @@ test "function signature mismatch" {
       `)
       .returning("i32")
       .run(`
-        let f: fn(i64): i32 = square;
-        let g: fn(i32): bool = square;
+        let f: (i64) => i32 = square;
+        let g: (i32) => bool = square;
         return 0;
       `);
   assertEq(found.count, 2);

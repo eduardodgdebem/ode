@@ -151,7 +151,7 @@ export fn startsStatement(kind: TokenKind): bool {
 // Types.
 // ---------------------------------------------------------------------------
 
-// Type -> '*'* (BaseType | IDENT TypeArgs? | FnType)
+// Type -> '*'* (BaseType | IDENT TypeArgs? | FnType | '(' FnType ')')
 export fn parseType(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let startLine: i32 = start.line;
@@ -163,8 +163,15 @@ export fn parseType(parser: *Parser): i32 {
     parser.advance();
   }
 
-  // FnType -> 'fn' '(' (Type (',' Type)*)? ')' ':' Type
+  if (parser.kind() == TokenKind.LParen) {
+    return parseFnType(parser, depth, startLine, startColumn);
+  }
+
+  // `fn(i32): i32`, the way function types used to be written. It is
+  // refused, but read all the same, so it costs one error rather than the
+  // rest of the declaration.
   if (parser.kind() == TokenKind.Fn) {
+    report(Problem.OldFunctionType, startLine, startColumn, Facts.none());
     let node: i32 = parser.ast.add(NodeKind.FnType, startLine, startColumn);
     parser.ast.nodes[node].extra = depth;
     parser.advance();
@@ -204,6 +211,48 @@ export fn parseType(parser: *Parser): i32 {
   if (name.kind == TokenKind.Ident && parser.kind() == TokenKind.Lt) {
     parseTypeArgs(parser, node);
   }
+
+  return node;
+}
+
+// FnType -> '(' (DeclaredType (',' DeclaredType)*)? ')' '=>' DeclaredType
+//
+// The result runs to the end of the type, as in TypeScript: `(i32) => i32 | E`
+// is a function that can fail, and a union holding a function is written
+// `((i32) => i32) | E`. A function type in parentheses with no `=>` after it
+// is just that type, which is how a pointer to a function is written:
+// `*((i32) => i32)`. Without them, `*(i32) => i32` could as well be a
+// function taking a pointer, so it is refused rather than read one way.
+fn parseFnType(parser: *Parser, depth: i32, line: i32, column: i32): i32 {
+  let node: i32 = parser.ast.add(NodeKind.FnType, line, column);
+  parser.ast.nodes[node].extra = depth;
+  parser.expect(TokenKind.LParen, "(");
+
+  if (parser.kind() != TokenKind.RParen) {
+    while (true) {
+      parser.ast.addItem(node, parseDeclaredType(parser));
+      if (parser.kind() != TokenKind.Comma || FAILED) {
+        break;
+      }
+      parser.advance();
+    }
+  }
+  parser.expect(TokenKind.RParen, ")");
+
+  if (parser.kind() != TokenKind.Arrow && parser.ast.nodes[node].itemCount == 1 &&
+      !FAILED) {
+    let inner: i32 = parser.ast.nodes[node].items[0];
+    if (parser.ast.nodes[inner].kind == NodeKind.FnType) {
+      parser.ast.nodes[inner].extra = parser.ast.nodes[inner].extra + depth;
+      return inner;
+    }
+  }
+
+  if (depth > 0 && parser.kind() == TokenKind.Arrow) {
+    report(Problem.PointerToFunctionType, line, column, Facts.none());
+  }
+  parser.expect(TokenKind.Arrow, "=>");
+  parser.ast.nodes[node].a = parseDeclaredType(parser);
 
   return node;
 }
@@ -307,7 +356,7 @@ export fn looksLikeTypeArgs(parser: *Parser): bool {
       TokenKind.Gt => { depth = depth - 1; }
       TokenKind.Shr => { depth = depth - 2; }
       TokenKind.Type, TokenKind.Ident, TokenKind.Star, TokenKind.Comma,
-      TokenKind.Fn, TokenKind.LParen, TokenKind.RParen, TokenKind.Colon => {}
+      TokenKind.LParen, TokenKind.RParen, TokenKind.Arrow, TokenKind.Pipe => {}
       else => {
         return false;
       }

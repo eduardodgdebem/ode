@@ -39,7 +39,7 @@ test "call function value wrong arguments" {
       `)
       .returning("i32")
       .run(`
-        let f: fn(i32): i32 = square;
+        let f: (i32) => i32 = square;
         return f(true) + f(1, 2);
       `);
   assertEq(found.count, 1);
@@ -182,7 +182,7 @@ test "variadic as value" {
       `)
       .returning("i32")
       .run(`
-        let say: fn(*i8): i32 = printf;
+        let say: (*i8) => i32 = printf;
 
         return 0;
       `);
@@ -298,4 +298,89 @@ test "wrong argument type" {
   assertEq(found.at(0).line, 1);
   assertEq(found.at(0).column, 22);
   assertEq(found.at(0).facts.name, "twice");
+}
+
+let FALLIBLE: *i8 = `
+  error enum Bad { Oops }
+
+  fn half(n: i32): i32 | Bad {
+    if (n % 2 == 0) {
+      return n / 2;
+    }
+    return Bad.Oops;
+  }
+
+  fn square(x: i32): i32 {
+    return x * x;
+  }
+`;
+
+test "a function that can fail has a function type that can" {
+  let scope: *Scope = Scope.new().declare(FALLIBLE)
+      .local("h", "(i32) => i32 | Bad")
+      .local("maybe", "((i32) => i32) | Bad");
+  assertEq(scope.check("half").type.toText(), "(i32) => i32 | Bad");
+  assertEq(scope.check("h(4)").type.toText(), "i32 | Bad");
+  assertEq(scope.check("maybe").type.toText(), "((i32) => i32) | Bad");
+  assert(scope.check("h == half").clean());
+}
+
+test "a function that can fail is not one that cannot, nor the other way" {
+  let found: *List<Diagnostic> = Scope.new().declare(FALLIBLE)
+      .run(`
+        let sure: (i32) => i32 = half;
+        let unsure: (i32) => i32 | Bad = square;
+      `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).facts.expected.toText(), "(i32) => i32");
+  assertEq(found.at(0).facts.got.toText(), "(i32) => i32 | Bad");
+  assertEq(found.at(1).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(1).facts.got.toText(), "(i32) => i32");
+}
+
+test "an error from a function value is handled like any other" {
+  let scope: *Scope = Scope.new().declare(FALLIBLE)
+      .local("h", "(i32) => i32 | Bad");
+  assert(scope.returning("i32 | Bad").run("return try h(3);").count == 0);
+  assert(Scope.new().declare(FALLIBLE).local("h", "(i32) => i32 | Bad")
+      .returning("i32").run("return h(3) ?? 0;").count == 0);
+
+  let dropped: *List<Diagnostic> = Scope.new().declare(FALLIBLE)
+      .local("h", "(i32) => i32 | Bad")
+      .run("h(3);");
+  assertEq(dropped.count, 1);
+  assertEq(dropped.at(0).problem, Problem.UnhandledError);
+
+  let unpassed: *List<Diagnostic> = Scope.new().declare(FALLIBLE)
+      .local("h", "(i32) => i32 | Bad")
+      .returning("i32")
+      .run("return try h(3);");
+  assertEq(unpassed.count, 1);
+  assertEq(unpassed.at(0).problem, Problem.ErrorNotReturned);
+}
+
+test "a parameter of a function type may be fallible too" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        error enum Bad { Oops }
+
+        fn orZero(value: i32 | Bad): i32 {
+          return value ?? 0;
+        }
+
+        fn wrong(value: i32): i32 {
+          return value;
+        }
+      `)
+      .run(`
+        let f: (i32 | Bad) => i32 = orZero;
+        let g: (i32 | Bad) => i32 = wrong;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).facts.got.toText(), "(i32) => i32");
 }

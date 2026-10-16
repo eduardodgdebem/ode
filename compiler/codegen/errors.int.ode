@@ -269,3 +269,38 @@ test "a function returning on every path gives its error back" {
     }
   `), "3\nfailed\nexit 1\n");
 }
+
+test "a function that can fail is passed, kept and called as a value" {
+  assertEq(outputOf(program(`
+    fn sum(first: *i8, second: *i8, read: (*i8) => i64 | ParseError): i64 | ParseError {
+      return try read(first) + try read(second);
+    }
+
+    fn main(): i32 {
+      printf("%ld\n", sum("40", "2", parse) ?? -1);
+      let failed: i64 = sum("40", "x", parse) catch (e) {
+        printf("sum: %s\n", nameOf(e));
+        return 0;
+      };
+      printf("%ld\n", failed);
+      return 0;
+    }
+  `)), "42\nsum: NotANumber\n");
+
+  assertEq(outputOf(program(`
+    struct Field {
+      name: *i8,
+      read: (*i8) => i64 | ParseError | RangeError,
+    }
+
+    fn main(): i32 {
+      let field: Field = Field { name: "age", read: percent };
+      printf("%ld\n", field.read("25") ?? -1);
+      let shown: i64 | ParseError | RangeError = field.read("250");
+      if (shown is RangeError) {
+        printf("%s: %s\n", field.name, nameOf(shown));
+      }
+      return 0;
+    }
+  `)), "25\nage: TooLarge\n");
+}
