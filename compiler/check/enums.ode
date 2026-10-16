@@ -31,7 +31,7 @@ import { analyzeStatement } from "./statements";
 import { memberName } from "../codegen/testing";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import { NO_NODE, NodeKind, negated } from "../syntax/ast";
 import { TypeKind, Type } from "../types/types";
 
 // The declaration of the enum whose IR name is `name`.
@@ -53,8 +53,8 @@ fn integerLiteralValue(an: *Analyzer, node: i32, ok: *bool): i64 {
   let kind: NodeKind = an.ast.nodes[node].kind;
   *ok = true;
 
-  if (kind == NodeKind.Unary && equals(an.ast.nodes[node].text, "-")) {
-    let inner: i64 = integerLiteralValue(an, an.ast.nodes[node].a, ok);
+  if (negated(an.ast, node) != NO_NODE) {
+    let inner: i64 = integerLiteralValue(an, negated(an.ast, node), ok);
     return 0 - inner;
   }
 

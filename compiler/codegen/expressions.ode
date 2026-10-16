@@ -27,7 +27,9 @@ import { llvmTypeName, zeroValue } from "./layout";
 import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
 import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, binaryOf, unaryOf,
+} from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { TypeKind, Type } from "../types/types";
 
@@ -169,8 +171,9 @@ fn isAddressable(e: *Emitter, node: i32): bool {
     let object: i32 = e.ast.nodes[node].a;
     return typeOfNode(e, object).isPointer() || isAddressable(e, object);
   }
-  if (kind == NodeKind.Unary) {
-    return equals(e.ast.nodes[node].text, "*");
+  let syntax: Syntax = e.ast.nodes[node].syntax;
+  if (syntax is Unary) {
+    return syntax.op == UnaryOp.Deref;
   }
 
   return false;
@@ -197,7 +200,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
 
   // For `*p` the address to read or write is simply the value of `p`.
   if (kind == NodeKind.Unary) {
-    return genExpr(e, e.ast.nodes[node].a);
+    return genExpr(e, unaryOf(e.ast, node).operand);
   }
 
   codegenFault(e, node, "expression does not denote an addressable location");
@@ -294,11 +297,11 @@ fn genIndexAddress(e: *Emitter, node: i32): *i8 {
 // `&&` and `||` evaluate their right operand only when the left does not
 // already decide the result, so they branch rather than emitting a bitwise
 // instruction.
-fn genShortCircuit(e: *Emitter, node: i32): *i8 {
-  let isAnd: bool = equals(e.ast.nodes[node].text, "&&");
+fn genShortCircuit(e: *Emitter, binary: Binary): *i8 {
+  let isAnd: bool = binary.op == BinaryOp.And;
 
   let slot: *i8 = emitAlloca(e, "i1");
-  let left: *i8 = genExpr(e, e.ast.nodes[node].a);
+  let left: *i8 = genExpr(e, binary.left);
   emitStore(e, Type.make(TypeKind.Bool, 0), left, slot);
 
   let rightLabel: *i8 = freshLabel(e);
@@ -311,7 +314,7 @@ fn genShortCircuit(e: *Emitter, node: i32): *i8 {
   }
 
   emitLabel(e, rightLabel);
-  let right: *i8 = genExpr(e, e.ast.nodes[node].b);
+  let right: *i8 = genExpr(e, binary.right);
   emitStore(e, Type.make(TypeKind.Bool, 0), right, slot);
   emitBranch(e, doneLabel);
 
@@ -320,7 +323,7 @@ fn genShortCircuit(e: *Emitter, node: i32): *i8 {
   return emitLoad(e, Type.make(TypeKind.Bool, 0), slot);
 }
 
-fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
+fn genPointerArithmetic(e: *Emitter, op: BinaryOp, left: *i8, right: *i8,
                         leftType: Type, rightType: Type): *i8 {
   let i64Type: Type = Type.make(TypeKind.I64, 0);
 
@@ -366,7 +369,7 @@ fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
   offset = emitCast(e, offset, offsetType, i64Type);
 
   // `p - i` is `p + (-i)`.
-  if (equals(e.ast.nodes[node].text, "-")) {
+  if (op == BinaryOp.Subtract) {
     let negation: *Builder = Builder.new();
     negation.add("sub i64 0, ");
     negation.add(offset);
@@ -387,82 +390,93 @@ fn genPointerArithmetic(e: *Emitter, node: i32, left: *i8, right: *i8,
 // The instruction for a binary operator, given the operand type. Integer
 // division, remainder and the comparisons all differ by signedness, and the
 // float forms are different opcodes again.
-fn binaryOpcode(op: *i8, type: Type): *i8 {
+fn binaryOpcode(op: BinaryOp, type: Type): *i8 {
   let float: bool = type.isFloat();
   let signed: bool = type.isSigned();
 
-  if (equals(op, "+")) { if (float) { return "fadd"; } return "add"; }
-  if (equals(op, "-")) { if (float) { return "fsub"; } return "sub"; }
-  if (equals(op, "*")) { if (float) { return "fmul"; } return "mul"; }
-  if (equals(op, "/")) {
-    if (float) { return "fdiv"; }
-    if (signed) { return "sdiv"; }
-    return "udiv";
-  }
-  if (equals(op, "%")) {
-    if (signed) { return "srem"; }
-    return "urem";
-  }
-  if (equals(op, "&")) { return "and"; }
-  if (equals(op, "|")) { return "or"; }
-  if (equals(op, "^")) { return "xor"; }
-  if (equals(op, "<<")) { return "shl"; }
-  if (equals(op, ">>")) {
-    if (signed) { return "ashr"; }
-    return "lshr";
-  }
+  match (op) {
+    BinaryOp.Add => { if (float) { return "fadd"; } return "add"; }
+    BinaryOp.Subtract => { if (float) { return "fsub"; } return "sub"; }
+    BinaryOp.Multiply => { if (float) { return "fmul"; } return "mul"; }
+    BinaryOp.Divide => {
+      if (float) { return "fdiv"; }
+      if (signed) { return "sdiv"; }
+      return "udiv";
+    }
+    BinaryOp.Remainder => {
+      if (signed) { return "srem"; }
+      return "urem";
+    }
+    BinaryOp.BitAnd => { return "and"; }
+    BinaryOp.BitOr => { return "or"; }
+    BinaryOp.BitXor => { return "xor"; }
+    BinaryOp.ShiftLeft => { return "shl"; }
+    BinaryOp.ShiftRight => {
+      if (signed) { return "ashr"; }
+      return "lshr";
+    }
 
-  // The comparisons. A pointer compares as an unsigned integer.
-  if (equals(op, "==")) { if (float) { return "fcmp oeq"; } return "icmp eq"; }
-  if (equals(op, "!=")) { if (float) { return "fcmp one"; } return "icmp ne"; }
-
-  if (equals(op, "<")) {
-    if (float) { return "fcmp olt"; }
-    if (signed) { return "icmp slt"; }
-    return "icmp ult";
+    // The comparisons. A pointer compares as an unsigned integer.
+    BinaryOp.Equal => { if (float) { return "fcmp oeq"; } return "icmp eq"; }
+    BinaryOp.NotEqual => { if (float) { return "fcmp one"; } return "icmp ne"; }
+    BinaryOp.Less => {
+      if (float) { return "fcmp olt"; }
+      if (signed) { return "icmp slt"; }
+      return "icmp ult";
+    }
+    BinaryOp.LessEqual => {
+      if (float) { return "fcmp ole"; }
+      if (signed) { return "icmp sle"; }
+      return "icmp ule";
+    }
+    BinaryOp.Greater => {
+      if (float) { return "fcmp ogt"; }
+      if (signed) { return "icmp sgt"; }
+      return "icmp ugt";
+    }
+    BinaryOp.GreaterEqual => {
+      if (float) { return "fcmp oge"; }
+      if (signed) { return "icmp sge"; }
+      return "icmp uge";
+    }
+    // These branch instead, and never ask for an instruction of their own.
+    BinaryOp.And, BinaryOp.Or, BinaryOp.Coalesce => {
+      return "";
+    }
   }
-  if (equals(op, "<=")) {
-    if (float) { return "fcmp ole"; }
-    if (signed) { return "icmp sle"; }
-    return "icmp ule";
-  }
-  if (equals(op, ">")) {
-    if (float) { return "fcmp ogt"; }
-    if (signed) { return "icmp sgt"; }
-    return "icmp ugt";
-  }
-  if (equals(op, ">=")) {
-    if (float) { return "fcmp oge"; }
-    if (signed) { return "icmp sge"; }
-    return "icmp uge";
-  }
-
-  return "add";
 }
 
-fn genBinary(e: *Emitter, node: i32): *i8 {
-  let op: *i8 = e.ast.nodes[node].text;
+fn isComparison(op: BinaryOp): bool {
+  match (op) {
+    BinaryOp.Equal, BinaryOp.NotEqual, BinaryOp.Less, BinaryOp.LessEqual,
+    BinaryOp.Greater, BinaryOp.GreaterEqual => {
+      return true;
+    }
+    else => {
+      return false;
+    }
+  }
+}
 
-  if (equals(op, "&&") || equals(op, "||")) {
-    return genShortCircuit(e, node);
+fn genBinary(e: *Emitter, node: i32, binary: Binary): *i8 {
+  let op: BinaryOp = binary.op;
+  if (op == BinaryOp.And || op == BinaryOp.Or) {
+    return genShortCircuit(e, binary);
+  }
+  if (op == BinaryOp.Coalesce) {
+    return genCoalesce(e, node, binary);
   }
 
-  let leftNode: i32 = e.ast.nodes[node].a;
-  let rightNode: i32 = e.ast.nodes[node].b;
-  let leftType: Type = typeOfNode(e, leftNode);
-  let rightType: Type = typeOfNode(e, rightNode);
+  let leftType: Type = typeOfNode(e, binary.left);
+  let rightType: Type = typeOfNode(e, binary.right);
 
-  let left: *i8 = genExpr(e, leftNode);
-  let right: *i8 = genExpr(e, rightNode);
+  let left: *i8 = genExpr(e, binary.left);
+  let right: *i8 = genExpr(e, binary.right);
 
-  if (leftType.isPointer() || rightType.isPointer()) {
-    // A comparison of two pointers is an ordinary icmp; everything else is
-    // pointer arithmetic.
-    if (!equals(op, "==") && !equals(op, "!=") &&
-        !equals(op, "<") && !equals(op, "<=") &&
-        !equals(op, ">") && !equals(op, ">=")) {
-      return genPointerArithmetic(e, node, left, right, leftType, rightType);
-    }
+  // A comparison of two pointers is an ordinary icmp; everything else is
+  // pointer arithmetic.
+  if ((leftType.isPointer() || rightType.isPointer()) && !isComparison(op)) {
+    return genPointerArithmetic(e, op, left, right, leftType, rightType);
   }
 
   let line: *Builder = Builder.new();
@@ -477,48 +491,44 @@ fn genBinary(e: *Emitter, node: i32): *i8 {
   return emitAssign(e, line.data);
 }
 
-fn genUnary(e: *Emitter, node: i32): *i8 {
-  let op: *i8 = e.ast.nodes[node].text;
-  let operand: i32 = e.ast.nodes[node].a;
-
-  if (equals(op, "&")) {
-    return genAddress(e, operand);
-  }
-
-  if (equals(op, "*")) {
-    return emitLoad(e, typeOfNode(e, node), genExpr(e, operand));
-  }
-
-  let operandType: Type = typeOfNode(e, operand);
-  let value: *i8 = genExpr(e, operand);
-
-  if (equals(op, "+")) {
-    return value;
-  }
-
-  if (equals(op, "-")) {
-    let line: *Builder = Builder.new();
-    if (operandType.isFloat()) {
-      line.add("fneg ");
-      line.add(llvmTypeName(operandType));
-      line.push(' ');
-      line.add(value);
-    } else {
-      line.add("sub ");
-      line.add(llvmTypeName(operandType));
-      line.add(" 0, ");
-      line.add(value);
+fn genUnary(e: *Emitter, node: i32, unary: Unary): *i8 {
+  let operand: i32 = unary.operand;
+  match (unary.op) {
+    UnaryOp.AddressOf => {
+      return genAddress(e, operand);
     }
-    return emitAssign(e, line.data);
+    UnaryOp.Deref => {
+      return emitLoad(e, typeOfNode(e, node), genExpr(e, operand));
+    }
+    UnaryOp.Plus => {
+      return genExpr(e, operand);
+    }
+    UnaryOp.Negate => {
+      let operandType: Type = typeOfNode(e, operand);
+      let value: *i8 = genExpr(e, operand);
+      let line: *Builder = Builder.new();
+      if (operandType.isFloat()) {
+        line.add("fneg ");
+        line.add(llvmTypeName(operandType));
+        line.push(' ');
+        line.add(value);
+      } else {
+        line.add("sub ");
+        line.add(llvmTypeName(operandType));
+        line.add(" 0, ");
+        line.add(value);
+      }
+      return emitAssign(e, line.data);
+    }
+    // Logical NOT on an i1 is a flip against true.
+    UnaryOp.Not => {
+      let line: *Builder = Builder.new();
+      line.add("xor i1 ");
+      line.add(genExpr(e, operand));
+      line.add(", true");
+      return emitAssign(e, line.data);
+    }
   }
-
-  // Logical NOT on an i1 is a flip against true.
-  let line: *Builder = Builder.new();
-  line.add("xor i1 ");
-  line.add(value);
-  line.add(", true");
-
-  return emitAssign(e, line.data);
 }
 
 // The callee's signature is read off the analyzer's types rather than looked
@@ -785,9 +795,6 @@ fn genValue(e: *Emitter, node: i32): *i8 {
     NodeKind.Is => { return genIs(e, node); }
     else => {}
   }
-  if (kind == NodeKind.Binary && equals(e.ast.nodes[node].text, "??")) {
-    return genCoalesce(e, node);
-  }
 
   if (kind == NodeKind.Number) { return genNumberLiteral(e, node); }
 
@@ -824,8 +831,8 @@ fn genValue(e: *Emitter, node: i32): *i8 {
   }
 
   match (kind) {
-    NodeKind.Binary => { return genBinary(e, node); }
-    NodeKind.Unary => { return genUnary(e, node); }
+    NodeKind.Binary => { return genBinary(e, node, binaryOf(e.ast, node)); }
+    NodeKind.Unary => { return genUnary(e, node, unaryOf(e.ast, node)); }
     NodeKind.Call => { return genCall(e, node); }
     NodeKind.MethodCall => { return genMethodCall(e, node); }
     NodeKind.CallValue => { return genCallValue(e, node); }

@@ -29,6 +29,7 @@
 // ---------------------------------------------------------------------------
 
 import { strlen } from "std/c";
+import { List } from "std/list";
 import { alloc } from "std/mem";
 import { Builder, equals, copy, contains } from "std/text";
 import { Analyzer, analyzerFail } from "../check/analyzer";
@@ -38,7 +39,7 @@ import { FAILED } from "../diagnostics/report";
 import {
   NameSet, findTopLevel, importLocalName, rewriteNodeNames, SymbolList,
 } from "./modules";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import { NO_NODE, NodeKind, syntaxChildren, withChildren } from "../syntax/ast";
 
 // How many rounds of new instances are made before giving up.
 let INSTANTIATION_LIMIT: i32 = 64;
@@ -85,6 +86,10 @@ fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
   markSubtree(an, an.ast.nodes[node].c, marks);
   for (index in 0..an.ast.nodes[node].itemCount) {
     markSubtree(an, an.ast.nodes[node].items[index], marks);
+  }
+  let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
+  for (index in 0..children.count) {
+    markSubtree(an, children.at(index), marks);
   }
 }
 
@@ -133,6 +138,13 @@ fn cloneSubtree(an: *Analyzer, node: i32): i32 {
     let item: i32 = cloneSubtree(an, an.ast.nodes[node].items[index]);
     an.ast.addItem(copy, item);
   }
+
+  let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
+  let copies: *List<i32> = List<i32>.new();
+  for (index in 0..children.count) {
+    copies.push(cloneSubtree(an, children.at(index)));
+  }
+  an.ast.nodes[copy].syntax = withChildren(an.ast.nodes[node].syntax, copies);
 
   return copy;
 }

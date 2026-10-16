@@ -7,8 +7,8 @@ import { memberName } from "../codegen/testing";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED, report } from "../diagnostics/report";
 import { line } from "../driver/options";
-import { NO_NODE, NodeKind } from "./ast";
-import { parseExpr } from "./expressions";
+import { NO_NODE, NodeKind, Binary } from "./ast";
+import { parseExpr, binaryOpOf } from "./expressions";
 import {
   Parser, startsStatement, parseType, parseDeclaredType, parseTypeParams,
 } from "./parser";
@@ -192,18 +192,14 @@ fn parseExprStmt(parser: *Parser): i32 {
     let op: *Token = parser.current();
     let opLine: i32 = op.line;
     let opColumn: i32 = op.column;
-    // The operator's spelling is the compound token without its `=`.
-    let opText: *i8 = slice(op.text, 0, op.length - 1);
     parser.advance();
 
     let value: i32 = parseExpr(parser);
     parser.expect(TokenKind.Semicolon, ";");
 
     let sum: i32 = parser.ast.add(NodeKind.Binary, opLine, opColumn);
-    parser.ast.nodes[sum].text = opText;
-    parser.ast.nodes[sum].textLength = op.length - 1;
-    parser.ast.nodes[sum].a = target;
-    parser.ast.nodes[sum].b = value;
+    parser.ast.nodes[sum].syntax = Binary { op: binaryOpOf(binary), left: target,
+                                            right: value };
 
     let node: i32 = parser.ast.add(NodeKind.Assign, 0, 0);
     parser.ast.nodes[node].a = expr;
