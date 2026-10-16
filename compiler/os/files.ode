@@ -8,10 +8,11 @@
 // arrives exactly as written.
 // ---------------------------------------------------------------------------
 
-import { free, memcmp, strlen, fopen, fclose, fread, fwrite } from "std/c";
+import { free, memcmp, strlen, fopen, fclose, fread, fwrite, ferror } from "std/c";
 import { alloc } from "std/mem";
-import { exists } from "std/fs";
-import { Builder, slice, endsWith } from "std/text";
+import { List } from "std/list";
+import { exists, FileError } from "std/fs";
+import { Builder, equals, slice, endsWith } from "std/text";
 import { TextList, StderrMode, runCommand, environment } from "./process";
 
 extern fn access(path: *i8, mode: i32): i32;
@@ -100,11 +101,14 @@ export fn absolutePath(path: *i8): *i8 {
   return realpath(path, null);
 }
 
-// A file's bytes, NULs included, or a null Builder if it cannot be read.
-export fn readBytes(path: *i8): *Builder {
+// A file's bytes, NULs included.
+export fn readBytes(path: *i8): *Builder | FileError {
   let stream: *i8 = fopen(path, "rb");
   if (stream == null) {
-    return null;
+    if (!exists(path)) {
+      return FileError.NotFound;
+    }
+    return FileError.CannotRead;
   }
 
   let out: *Builder = Builder.new();
@@ -117,21 +121,25 @@ export fn readBytes(path: *i8): *Builder {
     out.addBytes(chunk, count);
   }
   free(chunk);
+  let failed: bool = ferror(stream) != 0;
   fclose(stream);
-
+  if (failed) {
+    return FileError.CannotRead;
+  }
   return out;
 }
 
-export fn writeBytes(path: *i8, data: *Builder): bool {
+export fn writeBytes(path: *i8, data: *Builder): void | FileError {
   let stream: *i8 = fopen(path, "wb");
   if (stream == null) {
-    return false;
+    return FileError.CannotWrite;
   }
 
   let written: i64 = fwrite(data.data, 1, data.length, stream);
-  fclose(stream);
-
-  return written == data.length;
+  if (fclose(stream) != 0 || written != data.length) {
+    return FileError.CannotWrite;
+  }
+  return;
 }
 
 export fn sameBytes(a: *Builder, b: *Builder): bool {
@@ -142,8 +150,9 @@ export fn sameBytes(a: *Builder, b: *Builder): bool {
   return memcmp(a.data, b.data, a.length) == 0;
 }
 
-// Creates `path` and any directory above it that is missing.
-export fn makeDirectories(path: *i8): bool {
+// Creates `path` and any directory above it that is missing. A file in the
+// way, or a directory that may not be written, stops it.
+export fn makeDirectories(path: *i8): void | FileError {
   let length: i64 = strlen(path);
   let index: i64 = 1;
 
@@ -154,26 +163,29 @@ export fn makeDirectories(path: *i8): bool {
     index = index + 1;
   }
 
-  return exists(path);
+  if (!isDirectory(path)) {
+    return FileError.CannotWrite;
+  }
+  return;
 }
 
+// Removes `path` and everything under it; nothing there is not an error.
 export fn removeTree(path: *i8): void {
+  // What is left behind, if anything is, is untidy rather than wrong.
   runCommand(TextList.new().add("rm").add("-rf").add(path), null,
-             null, StderrMode.Inherit);
+             null, StderrMode.Inherit) ?? 0;
 }
 
-// Copies what is inside `from` into `to`, which must exist.
-fn copyTree(from: *i8, to: *i8): bool {
-  let contents: *i8 = joinPath(from, ".");
-  return runCommand(TextList.new().add("cp").add("-R").add(contents).add(to),
-                    null, null, StderrMode.Inherit) == 0;
+export fn moveFile(from: *i8, to: *i8): void | FileError {
+  if (rename(from, to) != 0) {
+    if (!exists(from)) {
+      return FileError.NotFound;
+    }
+    return FileError.CannotWrite;
+  }
+  return;
 }
 
-export fn moveFile(from: *i8, to: *i8): bool {
-  return rename(from, to) == 0;
-}
-
-// The names in a directory, sorted, without `.` and `..`.
 export fn isDirectory(path: *i8): bool {
   return exists(joinPath(path, "."));
 }
@@ -196,10 +208,14 @@ export fn findSources(directory: *i8): *TextList {
   return found;
 }
 
+// The names in a directory, sorted, without `.` and `..`; none for a
+// directory that is not there.
 export fn listDirectory(path: *i8): *TextList {
   let output: *Builder = Builder.new();
+  // ls fails on a missing directory, and prints nothing, which is the
+  // answer: no names.
   runCommand(TextList.new().add("ls").add("-1").add(path), null, output,
-             StderrMode.Discard);
+             StderrMode.Discard) ?? 0;
 
   return splitLines(output);
 }
@@ -224,7 +240,7 @@ export fn splitLines(text: *Builder): *TextList {
 }
 
 // A fresh, empty directory under $TMPDIR, or /tmp without one.
-export fn makeTempDirectory(prefix: *i8): *i8 {
+export fn makeTempDirectory(prefix: *i8): *i8 | FileError {
   let base: *i8 = environment("TMPDIR");
   if (base == null) {
     base = "/tmp";
@@ -234,11 +250,107 @@ export fn makeTempDirectory(prefix: *i8): *i8 {
   template.add(joinPath(base, prefix));
   template.add(".XXXXXX");
 
-  return mkdtemp(template.take());
+  let made: *i8 = mkdtemp(template.take());
+  if (made == null) {
+    return FileError.CannotWrite;
+  }
+  return made;
 }
 
-// ---------------------------------------------------------------------------
-// Files.
-// ---------------------------------------------------------------------------
-
 export extern fn realpath(path: *i8, resolved: *i8): *i8;
+
+// A scratch directory for a test, which the test removes.
+fn scratch(): *i8 {
+  return makeTempDirectory("ode-os-test") catch (e) {
+    assert(false, "cannot make a scratch directory");
+    return "";
+  };
+}
+
+test "paths are joined, split and suffixed" {
+  assertEq(joinPath("a/b", "c.ode"), "a/b/c.ode");
+  assertEq(joinPath("a/b/", "c.ode"), "a/b/c.ode");
+  assertEq(joinPath("", "c.ode"), "c.ode");
+  assertEq(stemOf("dir/main.ode"), "main");
+  assertEq(stemOf("main"), "main");
+  assertEq(stemOf("dir.d/main"), "main");
+  assertEq(stemOf("archive.tar.ode"), "archive.tar");
+  assertEq(withSuffix("out/prog", ".ll"), "out/prog.ll");
+  assertEq(parentDirectory("a/b/c.ode"), "a/b");
+  assertEq(parentDirectory("c.ode"), ".");
+  assertEq(parentDirectory("/c.ode"), "/");
+}
+
+test "bytes are written and read back whole, NULs included" {
+  let directory: *i8 = scratch();
+  let path: *i8 = joinPath(directory, "bytes");
+  let data: *Builder = Builder.new();
+  data.add("before");
+  data.push(0);
+  data.add("after");
+  assert(!(writeBytes(path, data) is FileError));
+
+  let back: *Builder = readBytes(path) ?? Builder.new();
+  assertEq(back.length, 12);
+  assert(sameBytes(back, data));
+  removeTree(directory);
+}
+
+test "what cannot be read or written says why" {
+  let directory: *i8 = scratch();
+  assertEq(readBytes(joinPath(directory, "missing")), FileError.NotFound);
+  assertEq(readBytes(directory), FileError.CannotRead);
+  assertEq(writeBytes(joinPath(directory, "no/such/dir/file"), Builder.new()),
+           FileError.CannotWrite);
+  assertEq(moveFile(joinPath(directory, "missing"), joinPath(directory, "to")),
+           FileError.NotFound);
+  removeTree(directory);
+}
+
+test "directories are made all the way down, unless a file is in the way" {
+  let directory: *i8 = scratch();
+  let deep: *i8 = joinPath(directory, "a/b/c");
+  assert(!(makeDirectories(deep) is FileError));
+  assert(isDirectory(deep));
+  assert(!(makeDirectories(deep) is FileError));
+
+  let file: *i8 = joinPath(directory, "file");
+  assert(!(writeBytes(file, Builder.new()) is FileError));
+  assertEq(makeDirectories(joinPath(file, "inside")), FileError.CannotWrite);
+  assert(!isDirectory(file));
+  removeTree(directory);
+}
+
+test "scratch directories are fresh each time" {
+  let one: *i8 = scratch();
+  let two: *i8 = scratch();
+  assert(!equals(one, two));
+  assert(isDirectory(one) && isDirectory(two));
+  removeTree(one);
+  removeTree(two);
+  assert(!isDirectory(one));
+}
+
+test "sources are found at any depth, and nothing else is" {
+  let directory: *i8 = scratch();
+  assertEq(findSources(directory).size(), 0);
+  assertEq(listDirectory(joinPath(directory, "missing")).size(), 0);
+
+  assert(!(makeDirectories(joinPath(directory, "nested/deeper")) is FileError));
+  let names: *List<*i8> = List<*i8>.new();
+  names.push("top.ode");
+  names.push("nested/inner.ode");
+  names.push("nested/deeper/leaf.ode");
+  names.push("notes.txt");
+  names.push("nested/main.ode.bak");
+  for (index in 0..names.count) {
+    assert(!(writeBytes(joinPath(directory, names.at(index)), Builder.new()) is FileError));
+  }
+
+  let found: *TextList = findSources(directory);
+  assertEq(found.size(), 3);
+  assert(endsWith(found.at(0), "nested/deeper/leaf.ode"));
+  assert(endsWith(found.at(1), "nested/inner.ode"));
+  assert(endsWith(found.at(2), "top.ode"));
+  removeTree(directory);
+}

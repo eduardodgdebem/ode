@@ -432,6 +432,15 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.Bool, 0);
   }
 
+  if ((equals(op, "==") || equals(op, "!=")) && (left.isUnion() || right.isUnion())) {
+    let union: Type = left;
+    if (!left.isUnion()) {
+      union = right;
+    }
+    analyzerFail(an, node, Problem.UnionCompared, Facts.aboutType(union));
+    return Type.make(TypeKind.Bool, 0);
+  }
+
   if (equals(op, "==") || equals(op, "!=")) {
     // `null` compares with any pointer, from either side.
     if (!left.accepts(right) && !right.accepts(left)) {

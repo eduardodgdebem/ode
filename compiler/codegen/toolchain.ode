@@ -13,7 +13,7 @@
 import { exists } from "std/fs";
 import { Builder } from "std/text";
 import {
-  TextList, StderrMode, runCommand, environment, setEnvironment,
+  TextList, StderrMode, runCommand, ran, environment, setEnvironment, command,
 } from "../os/process";
 import { isSpace } from "../syntax/lexer";
 
@@ -41,7 +41,7 @@ export fn sysroot(): *i8 {
   if (SYSROOT == null && exists("/usr/bin/xcrun")) {
     let output: *Builder = Builder.new();
     let command: *TextList = TextList.new().add("xcrun").add("--show-sdk-path");
-    if (runCommand(command, null, output, StderrMode.Discard) == 0) {
+    if (ran(runCommand(command, null, output, StderrMode.Discard))) {
       // The path comes back with a newline after it.
       while (output.length > 0 &&
              isSpace(output.data[output.length - 1])) {

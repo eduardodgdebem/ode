@@ -320,3 +320,23 @@ fn concat(a: *i8, b: *i8, c: *i8): *i8 {
   out.add(c);
   return out.take();
 }
+
+test "past the limit, the count says how many there were" {
+  DIAGS = Diagnostics.new();
+  for (index in 0..22) {
+    FAILED = false;
+    report(Problem.NoMain, 0, 0, Facts.none());
+  }
+  assert(contains(formatDiagnostics(false).take(),
+                  "22 errors generated, showing the first 20.\n"));
+}
+
+test "a diagnostic on a line past the end of its file shows no source" {
+  DIAGS = Diagnostics.new();
+  FAILED = false;
+  registerSource("short.ode", "one line\n");
+  SOURCE_PATH = "short.ode";
+  report(Problem.UnexpectedCharacter, 9, 1, Facts.none());
+  assertEq(formatDiagnostics(false).take(),
+           "short.ode:9:1: error: unexpected character\n");
+}

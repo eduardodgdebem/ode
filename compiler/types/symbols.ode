@@ -11,9 +11,9 @@ import { alloc, grow } from "std/mem";
 import { List } from "std/list";
 import { equals } from "std/text";
 import { Problem, Facts } from "../diagnostics/problems";
-import { report } from "../diagnostics/report";
+import { Diagnostics, DIAGS, FAILED, report } from "../diagnostics/report";
 import { line } from "../driver/options";
-import { Type } from "./types";
+import { TypeKind, Type } from "./types";
 
 export enum SymbolKind {
   Var,
@@ -145,4 +145,48 @@ export struct SymbolTable {
     self.items[self.count] = symbol;
     self.count = self.count + 1;
   }
+}
+
+fn i32Type(): Type {
+  return Type.make(TypeKind.I32, 0);
+}
+
+test "a name is found in the innermost scope that declares it" {
+  DIAGS = Diagnostics.new();
+  let table: *SymbolTable = SymbolTable.new();
+  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 1, 1);
+  table.enterScope();
+  table.declare("x", SymbolKind.Var, Type.make(TypeKind.Bool, 0), null, 0, 2, 1);
+  assert(table.items[table.find("x")].type.isBool());
+  table.exitScope();
+  assert(table.items[table.find("x")].type.equals(i32Type()));
+  assertEq(table.find("missing"), -1);
+}
+
+test "a name is declared once in a scope" {
+  DIAGS = Diagnostics.new();
+  FAILED = false;
+  let table: *SymbolTable = SymbolTable.new();
+  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 1, 1);
+  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 3, 5);
+  assertEq(DIAGS.count(), 1);
+  assertEq(DIAGS.at(0).problem, Problem.AlreadyDeclared);
+  assertEq(DIAGS.at(0).line, 3);
+  assertEq(DIAGS.at(0).facts.name, "x");
+}
+
+test "scopes a failure left open are closed again" {
+  let table: *SymbolTable = SymbolTable.new();
+  let depth: i32 = table.depth();
+  table.enterScope();
+  table.declare("inner", SymbolKind.Var, i32Type(), null, 0, 1, 1);
+  table.enterScope();
+  table.truncateScopes(depth);
+  assertEq(table.depth(), depth);
+  assertEq(table.find("inner"), -1);
+
+  // Closing more than is open leaves the outermost scope in place.
+  table.exitScope();
+  table.exitScope();
+  assertEq(table.depth(), 0);
 }

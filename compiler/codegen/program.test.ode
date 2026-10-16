@@ -1,0 +1,66 @@
+// ---------------------------------------------------------------------------
+// The IR a few constructs compile to, where its shape is the point: what a
+// program prints would not show these going wrong until much later.
+// ---------------------------------------------------------------------------
+
+import { indexOf } from "std/text";
+import { irOf, mentions } from "../testkit/testkit";
+
+test "every local's slot is made once, in the entry block, even in a loop" {
+  let ir: *i8 = irOf(`
+    fn main(): i32 {
+      let total: i64 = 0;
+      for (index in 0..10) {
+        let square: i64 = (index * index) as i64;
+        total = total + square;
+      }
+      return 0;
+    }
+  `);
+  // Every alloca comes before the first branch out of the entry block: one
+  // inside the loop would take more stack on every pass.
+  let firstBranch: i64 = indexOf(ir, "br ");
+  let lastAlloca: i64 = lastIndexOf(ir, "alloca");
+  assert(firstBranch > 0 && lastAlloca > 0);
+  assert(lastAlloca < firstBranch);
+}
+
+test "&& and || only work out their right side when they must" {
+  let ir: *i8 = irOf(`
+    fn check(a: bool, b: bool): bool {
+      return a && b;
+    }
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  // A branch on the left side, rather than an `and` of both.
+  assert(mentions(ir, "br i1"));
+  assert(!mentions(ir, " and i1 "));
+}
+
+test "a function that falls off its end returns a zero value" {
+  let ir: *i8 = irOf(`
+    fn quiet(): i64 {
+      let x: i64 = 1;
+    }
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assert(mentions(ir, "ret i64 0"));
+}
+
+fn lastIndexOf(text: *i8, part: *i8): i64 {
+  let last: i64 = -1;
+  let at: i64 = indexOf(text, part);
+  let offset: i64 = 0;
+  while (at >= 0) {
+    last = offset + at;
+    offset = last + 1;
+    at = indexOf(text + offset, part);
+  }
+  return last;
+}

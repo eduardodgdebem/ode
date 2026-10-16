@@ -50,7 +50,7 @@ Tests are written in Ode, beside the code they test, at three levels:
 
 They ask what was decided, never how it was worded. Every diagnostic is a
 `Problem` with `Facts` -- the names, types and counts it is about -- and
-`describe()` in `compiler/support/problems.ode` is the only place one becomes
+`describe()` in `compiler/diagnostics/problems.ode` is the only place one becomes
 words, so changing how errors read changes no test but the few that test the
 rendering itself.
 
@@ -64,7 +64,7 @@ test "arithmetic needs one type" {
 }
 ```
 
-`compiler/testkit.ode` has the tools. A test runs in a process of its own, so
+`compiler/testkit/testkit.ode` has the tools. A test runs in a process of its own, so
 each starts with the compiler's state fresh:
 
 | Tool | Gives |

@@ -179,6 +179,7 @@ export enum Problem {
   CatchSeveralErrors,
   CatchFallsThrough,
   UnhandledError,
+  UnionCompared,
   IsNotFallible,
   IsNotAnError,
   IsNeverTrue,
@@ -833,6 +834,11 @@ export fn describe(problem: Problem, facts: Facts): Description {
     Problem.UnhandledError => {
       return saysMore(text2("an error from this is ignored: ", typeText(facts.got)),
                       "pass it on with try, give a fallback with ??, or handle it with catch");
+    }
+    Problem.UnionCompared => {
+      return saysMore(text2("a value that may be an error cannot be compared: ",
+                            typeText(facts.got)),
+                      "take its value with ?? or try, or ask which error it holds with is");
     }
     Problem.IsNotFallible => {
       return saysMore("is asks which error a value holds, and this one holds none",

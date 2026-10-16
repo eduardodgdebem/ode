@@ -111,3 +111,26 @@ export fn fail(problem: Problem): void {
 export fn internalError(line: i32, column: i32, what: *i8): void {
   failAt(Problem.Internal, line, column, Facts.about(what));
 }
+
+test "a construct that failed reports once, until it is recovered from" {
+  DIAGS = Diagnostics.new();
+  FAILED = false;
+  report(Problem.UndefinedVariable, 1, 1, Facts.about("a"));
+  report(Problem.UndefinedVariable, 1, 5, Facts.about("b"));
+  assertEq(DIAGS.total, 1);
+  FAILED = false;
+  report(Problem.UndefinedVariable, 2, 1, Facts.about("c"));
+  assertEq(DIAGS.total, 2);
+  assertEq(DIAGS.at(1).facts.name, "c");
+}
+
+test "past the limit, problems are counted but not kept" {
+  DIAGS = Diagnostics.new();
+  for (index in 0..25) {
+    FAILED = false;
+    report(Problem.NoMain, 0, 0, Facts.none());
+  }
+  assertEq(DIAGS.total, 25);
+  assertEq(DIAGS.count(), 20);
+  assert(hasErrors());
+}

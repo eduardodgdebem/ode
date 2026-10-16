@@ -7,11 +7,12 @@ in [development.md](development.md).
 ## The pipeline
 
 ```
-main.ode          read the entry file
+driver/           read the entry file, and run the phases below
 syntax/lexer      source text -> tokens
 syntax/parser     tokens -> nodes in one shared arena, following imports
-semantics/modules give every top-level name its IR name; check imports
-semantics/        resolve names, check every type, record them per node
+link/modules      give every top-level name its IR name; check imports
+link/generics     make each generic's instances
+check/            resolve names, check every type, record them per node
 codegen/          nodes + types -> textual LLVM IR
 codegen/toolchain clang assembles the .ll and links the .o
 ```
@@ -30,48 +31,33 @@ guesses.
 
 ## Source layout
 
-The compiler is built on the [standard library](std.md), as any Ode program
-can be: `std/c` for the C library, `std/mem` for allocation, `std/list` for
-its lists, `std/text` for building and comparing text, and `std/fs` for
-files. What std does not cover -- processes, pipes, directories -- is in
-`support/`.
+The folders follow the phases, in the order a program goes through them,
+with the pieces around them on either side:
 
-| Path | Holds |
+| Folder | Holds |
 |---|---|
-| `main.ode` | the driver: arguments, loading the program, running the phases |
-| `support/libc.ode` | the standard file descriptors |
-| `support/text.ode` | writing text and builders to a descriptor |
-| `support/diagnostics.ode` | collecting and printing errors; fatal failure |
-| `support/system.ode` | running programs, pipes, files, paths, directories |
-| `syntax/token.ode` | token kinds, `Token`, `TokenList` |
-| `syntax/lexer.ode` | the lexer |
-| `syntax/ast.ode` | node kinds and the node arena |
-| `syntax/parser.ode` | the `Parser`, error recovery, and types |
-| `syntax/expressions.ode` | expressions, one function per precedence level |
-| `syntax/statements.ode` | statements, declarations, imports and exports |
-| `syntax/dump.ode` | `--dump-tokens`, `--dump-ast`, `--dump-types` |
-| `semantics/types.ode` | `Type`, and struct layouts |
-| `semantics/symbols.ode` | the scoped symbol table |
-| `semantics/modules.ode` | files as modules: IR names, imports, per-file scopes |
-| `semantics/analyzer.ode` | the analyzer and the passes over the top level |
-| `semantics/expressions.ode` | checking expressions |
-| `semantics/statements.ode` | checking statements and function bodies |
-| `semantics/methods.ode` | methods: registration, calls, bodies |
-| `semantics/enums.ode` | enums and `match` |
-| `semantics/functions.ode` | function types and calls through function values |
-| `semantics/generics.ode` | generics: making each instance, before checking |
-| `semantics/constants.ode` | folding constant globals |
-| `semantics/layout.ode` | sizes and alignment |
-| `semantics/testing.ode` | tests, `assert` and `assertEq`, and the test runner's source |
-| `codegen/emitter.ode` | the emitter's state, lines, labels, locals, constants |
-| `codegen/layout.ode` | LLVM type names and zero values |
-| `codegen/expressions.ode` | emitting expressions |
-| `codegen/statements.ode` | emitting statements |
-| `codegen/program.ode` | functions, globals, and the module as a whole |
-| `codegen/testing.ode` | emitting checks, and the `main` that runs the tests |
-| `codegen/toolchain.ode` | which C compiler and SDK assemble and link |
-| `tool/build.ode` | `ode build`, `bootstrap` and `seed` |
-| `tool/testsuite.ode` | `ode build test` |
+| `main.ode` | the command line, handed to the driver |
+| `driver/` | `compile.ode` (`ode file.ode`), `test.ode` (`ode test`), `options.ode` (what was asked), `pipeline.ode` (loading files and imports, linking an executable), `library.ode` (finding std) |
+| `syntax/` | tokens, the lexer, the AST, the parser -- `expressions.ode` one function per precedence level, `statements.ode` declarations and imports -- and `dump.ode` for the `--dump-*` flags |
+| `link/` | `modules.ode`: files into one program, each with its own scope and IR names; `generics.ode`: each generic's instances, before checking |
+| `types/` | `types.ode` (`Type` and struct layouts), `layout.ode` (sizes and alignment), `symbols.ode` (the scoped symbol table) |
+| `check/` | `analyzer.ode` (the passes over the top level), and a file per family of rules: `expressions`, `statements`, `functions`, `methods`, `enums`, `constants`, `errors` (error enums, unions, `try`, `??`, `catch`, `is`), `testing` (`test`, `assert`, `assertEq`) |
+| `codegen/` | the IR emitter: `emitter.ode` (state, labels, locals), `expressions`, `statements`, `program` (functions and the module), `errors`, `testing`, `layout` (LLVM type names), `toolchain` (which C compiler links) |
+| `diagnostics/` | `problems.ode` (every `Problem`, its `Facts`, and `describe()`, the only place one becomes words), `report.ode` (collecting them), `render.ode` (printing them as Zig does) |
+| `os/` | `process.ode` (running programs, forking, the environment), `files.ode` (paths, directories, scratch space), `output.ode` |
+| `tool/` | `ode build`: building, bootstrapping, the seed, the suite |
+| `testkit/` | the tests' tools; only test files import it, so it is never part of the compiler |
+
+The compiler is built on the [standard library](std.md), as any Ode program
+can be: `std/c`, `std/mem` for allocation, `std/list` for its lists,
+`std/text` for building and comparing text, and `std/fs` for files. What can
+fail says so in its type: reading a file gives `*i8 | FileError`, running a
+program `i32 | ProcessError`, parsing the command line `CompileOptions |
+UsageError`.
+
+Tests sit beside what they test: `test` blocks in a file for its functions,
+`x.test.ode` for a phase on a fragment, `x.int.ode` for whole programs; see
+[development.md](development.md#testing).
 
 Each file exports what the others use and imports what it uses. Declaration
 order does not matter, within a file or across files: signatures, globals and
@@ -114,7 +100,7 @@ needs are built by shifting rather than by complementing zero.
 
 ## Modules
 
-Before the analyzer proper runs, `semantics/modules.ode` keeps the files
+Before the analyzer proper runs, `link/modules.ode` keeps the files
 apart:
 
 - Every top-level declaration gets the name it carries in the IR. The entry

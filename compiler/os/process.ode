@@ -8,10 +8,11 @@
 // expanded.
 // ---------------------------------------------------------------------------
 
-import { free, fopen, fclose, fflush, read, getenv } from "std/c";
+import { free, printf, dprintf, fopen, fclose, fflush, read, exit, abort, getenv } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
-import { Builder } from "std/text";
+import { FileError } from "std/fs";
+import { Builder, contains } from "std/text";
 
 extern fn fork(): i32;
 
@@ -90,7 +91,7 @@ export enum StderrMode {
 // the child's stdout is collected into it instead of going to ours, and so is
 // its stderr under STDERR_MERGE.
 export fn runCommand(command: *TextList, dir: *i8, out: *Builder,
-                     stderrMode: StderrMode): i32 {
+                     stderrMode: StderrMode): i32 | ProcessError {
   let capturing: bool = out != null;
   let fds: *i32 = alloc<i32>(2);
   if (capturing) {
@@ -142,8 +143,8 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Builder,
 // one -- with what it writes to stdout and stderr collected into `out`. The
 // child works on a copy of everything, so whatever `work` changes, or however
 // it ends, the caller's state is untouched. Returns the child's exit status,
-// 0 if `work` returned, or -1 if it died of a signal.
-export fn runInChild(work: fn(): void, out: *Builder): i32 {
+// 0 if `work` returned.
+export fn runInChild(work: fn(): void, out: *Builder): i32 | ProcessError {
   let fds: *i32 = alloc<i32>(2);
   pipe(fds);
 
@@ -185,11 +186,22 @@ fn drain(fds: *i32, out: *Builder): void {
   close(fds[0]);
 }
 
-// The exit status of the child `pid`, or -1 if it could not be started or
-// died of a signal.
-fn waitFor(pid: i32): i32 {
+export error enum ProcessError {
+  // No process could be made: fork failed.
+  CannotStart,
+  // It ended on a signal -- a crash, an abort -- rather than by exiting.
+  Crashed,
+}
+
+// Whether a program run ended by exiting with 0.
+export fn ran(result: i32 | ProcessError): bool {
+  return (result ?? -1) == 0;
+}
+
+// The exit status of the child `pid`.
+fn waitFor(pid: i32): i32 | ProcessError {
   if (pid < 0) {
-    return -1;
+    return ProcessError.CannotStart;
   }
 
   let status: *i32 = alloc<i32>(1);
@@ -197,7 +209,7 @@ fn waitFor(pid: i32): i32 {
 
   // WIFEXITED and WEXITSTATUS are macros in C, so they are written out here.
   if ((*status & 127) != 0) {
-    return -1;
+    return ProcessError.Crashed;
   }
 
   return (*status >> 8) & 255;
@@ -221,8 +233,11 @@ export fn setEnvironment(name: *i8, value: *i8): void {
   setenv(name, value, 1);
 }
 
-export fn changeDirectory(path: *i8): bool {
-  return chdir(path) == 0;
+export fn changeDirectory(path: *i8): void | FileError {
+  if (chdir(path) != 0) {
+    return FileError.NotFound;
+  }
+  return;
 }
 
 export fn currentDirectory(): *i8 {
@@ -241,3 +256,74 @@ export fn isTerminal(fd: i32): bool {
 // ---------------------------------------------------------------------------
 // Paths and files.
 // ---------------------------------------------------------------------------
+
+export fn command(words: *i8, more: *i8): *TextList {
+  let list: *TextList = TextList.new().add(words);
+  if (more != null) {
+    list.add(more);
+  }
+  return list;
+}
+
+test "a program's exit status and output come back" {
+  let out: *Builder = Builder.new();
+  assertEq(runCommand(command("echo", "hello"), null, out, StderrMode.Merge), 0);
+  assertEq(out.data, "hello\n");
+  assertEq(runCommand(command("false", null), null, null, StderrMode.Inherit), 1);
+  assert(!ran(runCommand(command("false", null), null, null, StderrMode.Inherit)));
+  assert(ran(runCommand(command("true", null), null, null, StderrMode.Inherit)));
+}
+
+test "a program that is not there exits 127, as a shell would say" {
+  assertEq(runCommand(command("no-such-program-anywhere", null), null, null,
+                      StderrMode.Discard),
+           127);
+}
+
+test "a program that crashes is told apart from one that fails" {
+  let crash: *TextList = TextList.new().add("sh").add("-c").add("kill -SEGV $$");
+  assertEq(runCommand(crash, null, null, StderrMode.Discard), ProcessError.Crashed);
+  assert(!ran(runCommand(crash, null, null, StderrMode.Discard)));
+}
+
+test "a program runs in the directory it is given" {
+  let out: *Builder = Builder.new();
+  assertEq(runCommand(command("pwd", null), "/", out, StderrMode.Merge), 0);
+  assertEq(out.data, "/\n");
+}
+
+let CHILD_STATUS: i32 = 0;
+
+fn childWork(): void {
+  printf("from the child\n");
+  dprintf(2, "and its stderr\n");
+  if (CHILD_STATUS == 99) {
+    abort();
+  }
+  exit(CHILD_STATUS);
+}
+
+test "work run in a child gives back its output and status, or its crash" {
+  let out: *Builder = Builder.new();
+  CHILD_STATUS = 3;
+  assertEq(runInChild(childWork, out), 3);
+  // Both are caught; their order is the child's buffering, stdout being a
+  // pipe there.
+  assert(contains(out.data, "from the child\n"));
+  assert(contains(out.data, "and its stderr\n"));
+
+  CHILD_STATUS = 99;
+  assertEq(runInChild(childWork, Builder.new()), ProcessError.Crashed);
+}
+
+test "an unset or empty variable has no value" {
+  setEnvironment("ODE_TEST_EMPTY", "");
+  assertEq(environment("ODE_TEST_EMPTY"), null);
+  assertEq(environment("ODE_TEST_NEVER_SET_ANYWHERE"), null);
+  setEnvironment("ODE_TEST_SET", "yes");
+  assertEq(environment("ODE_TEST_SET"), "yes");
+}
+
+test "changing to a directory that is not there says so" {
+  assertEq(changeDirectory("/no/such/directory/here"), FileError.NotFound);
+}

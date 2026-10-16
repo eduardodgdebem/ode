@@ -262,3 +262,12 @@ test "a catch of a void union may fall through, having no value to give" {
   let found: *List<Diagnostic> = errors().run("let n: i64 = parse(\"1\") catch (e) {};");
   assertEq(found.at(0).problem, Problem.CatchFallsThrough);
 }
+
+test "a value that may be an error is not compared directly" {
+  let scope: *Scope = errors().local("result", "i64 | ParseError");
+  let checked: Checked = scope.check("result == 5");
+  assertEq(checked.problem(), Problem.UnionCompared);
+  assertEq(checked.problems.at(0).facts.got.toText(), "i64 | ParseError");
+  assertEq(scope.check("5 != result").problem(), Problem.UnionCompared);
+  assert(scope.check("(result ?? 0) == 5").clean());
+}

@@ -17,7 +17,7 @@ import {
   isPathImport, isStdImport, resolveImportPath,
 } from "../link/modules";
 import { withSuffix, realpath } from "../os/files";
-import { TextList, StderrMode, runCommand } from "../os/process";
+import { TextList, StderrMode, runCommand, ran } from "../os/process";
 import { NodeKind, Ast } from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
 import { Parser } from "../syntax/parser";
@@ -168,14 +168,14 @@ export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): vo
   assemble.add("-c").add(irPath).add("-o").add(objectPath);
   assemble.add("-Wno-override-module");
 
-  if (runCommand(assemble, null, null, StderrMode.Inherit) != 0) {
+  if (!ran(runCommand(assemble, null, null, StderrMode.Inherit))) {
     fail(Problem.AssemblingFailed);
   }
 
   let link: *TextList = ccCommand();
   link.add(objectPath).add("-o").add(output);
 
-  if (runCommand(link, null, null, StderrMode.Inherit) != 0) {
+  if (!ran(runCommand(link, null, null, StderrMode.Inherit))) {
     fail(Problem.LinkingFailed);
   }
 

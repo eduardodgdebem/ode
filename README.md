@@ -72,11 +72,16 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 
 ```
 compiler/          the compiler, written in Ode; main.ode is its entry
-  support/         diagnostics, processes, pipes and directories
+  driver/          the commands: compiling, testing, the pipeline between phases
   syntax/          tokens, lexer, AST, parser
-  semantics/       types, symbols, modules, the type checker
+  link/            files into one program, generics into instances
+  types/           types, sizes, symbols
+  check/           the type checker, a file per family of rules
   codegen/         the LLVM IR emitter, and the C toolchain that links it
+  diagnostics/     problems, their words, and how they are printed
+  os/              processes, files, output
   tool/            `ode build`: building, testing, bootstrapping
+  testkit/         the tools the compiler's own tests use
 std/               the standard library, imported as "std/..."
 bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off

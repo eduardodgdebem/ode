@@ -36,8 +36,8 @@ import {
 } from "../os/files";
 import { STDOUT, STDERR, writeText } from "../os/output";
 import {
-  TextList, StderrMode, runCommand, environment, setEnvironment,
-  currentDirectory,
+  TextList, StderrMode, runCommand, ran, environment, setEnvironment,
+  currentDirectory, command,
 } from "../os/process";
 import { NodeKind, Ast } from "../syntax/ast";
 import { TestOptions, commandTest } from "./testsuite";
@@ -136,7 +136,9 @@ fn hashInputs(ws: *Workspace): Inputs {
 
   let lines: i32 = 0;
   for (module in 0..moduleCount()) {
-    let bytes: *Builder = readBytes(modulePath(module));
+    // A file that cannot be read is hashed by its path alone, so a build is
+    // still attempted, and reports it properly.
+    let bytes: *Builder = readBytes(modulePath(module)) ?? null;
     hasher.addText(modulePath(module));
     if (bytes != null) {
       hasher.addBytes(bytes.data, bytes.length);
@@ -247,10 +249,14 @@ fn stampPath(ws: *Workspace): *i8 {
 }
 
 export fn commandBuild(ws: *Workspace, force: bool): i32 {
-  makeDirectories(parentDirectory(ws.output));
+  makeDirectories(parentDirectory(ws.output)) catch (e) {
+    complain("cannot make the directory the compiler goes in");
+    return 1;
+  };
 
   let inputs: Inputs = hashInputs(ws);
-  let stamp: *Builder = readBytes(stampPath(ws));
+  // No stamp, or one that cannot be read, only means building again.
+  let stamp: *Builder = readBytes(stampPath(ws)) ?? null;
 
   if (!force && exists(ws.output) && stamp != null &&
       equals(stamp.data, inputs.hash)) {
@@ -273,20 +279,22 @@ export fn commandBuild(ws: *Workspace, force: bool): i32 {
 
   let command: *TextList = TextList.new().add(ws.compiler);
   command.add("-o").add(target).add(ws.entry);
-  if (runCommand(command, null, null, StderrMode.Inherit) != 0) {
+  if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
     complain("the compiler did not build");
     return 1;
   }
 
   if (inPlace) {
-    moveFile(target, ws.output);
-    moveFile(withSuffix(target, ".ll"), withSuffix(ws.output, ".ll"));
-    moveFile(withSuffix(target, ".o"), withSuffix(ws.output, ".o"));
+    moveFile(target, ws.output) catch (e) {
+      complain("cannot put the new compiler in place of the old one");
+      return 1;
+    };
   }
 
+  // Without a stamp the next build only builds again; it is not wrong.
   let record: *Builder = Builder.new();
   record.add(inputs.hash);
-  writeBytes(stampPath(ws), record);
+  writeBytes(stampPath(ws), record) catch (e) {};
 
   let message: *Builder = Builder.new();
   message.add("built ");
@@ -329,12 +337,15 @@ fn commandBootstrap(ws: *Workspace): i32 {
     say(message.data);
 
     let directory: *i8 = joinPath(work, fromInt(stage as i64));
-    makeDirectories(directory);
+    makeDirectories(directory) catch (e) {
+      complain("cannot make a directory for a bootstrap stage");
+      return 1;
+    };
     let to: *i8 = joinPath(directory, "ode");
 
     let command: *TextList = TextList.new().add(from);
     command.add("-o").add(to).add(ws.entry);
-    if (runCommand(command, null, null, StderrMode.Inherit) != 0) {
+    if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
       complain("a bootstrap stage did not build");
       return 1;
     }
@@ -343,8 +354,14 @@ fn commandBootstrap(ws: *Workspace): i32 {
     stage = stage + 1;
   }
 
-  let second: *Builder = readBytes(joinPath(work, "1/ode"));
-  let third: *Builder = readBytes(joinPath(work, "2/ode"));
+  let second: *Builder = readBytes(joinPath(work, "1/ode")) catch (e) {
+    complain("cannot read the second stage's compiler");
+    return 1;
+  };
+  let third: *Builder = readBytes(joinPath(work, "2/ode")) catch (e) {
+    complain("cannot read the third stage's compiler");
+    return 1;
+  };
 
   say("");
   if (sameBytes(second, third)) {
@@ -382,16 +399,16 @@ fn commandSeed(ws: *Workspace): i32 {
   let ir: *Builder = Builder.new();
   let command: *TextList = TextList.new().add(ws.output);
   command.add("--emit-llvm").add(ws.entry);
-  if (runCommand(command, null, ir, StderrMode.Inherit) != 0) {
+  if (!ran(runCommand(command, null, ir, StderrMode.Inherit))) {
     complain("the compiler could not emit its own IR");
     return 1;
   }
 
   let seed: *i8 = joinPath(ws.root, "bootstrap/ode.ll");
-  if (!writeBytes(seed, ir)) {
+  writeBytes(seed, ir) catch (e) {
     complain("cannot write bootstrap/ode.ll");
     return 1;
-  }
+  };
 
   let message: *Builder = Builder.new();
   message.add("wrote ");
