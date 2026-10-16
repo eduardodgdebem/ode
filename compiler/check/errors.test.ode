@@ -271,3 +271,14 @@ test "a value that may be an error is not compared directly" {
   assertEq(scope.check("5 != result").problem(), Problem.UnionCompared);
   assert(scope.check("(result ?? 0) == 5").clean());
 }
+
+test "a union is the same whatever order its errors are written in, and however often" {
+  let scope: *Scope = errors()
+      .local("a", "i64 | ParseError | IoError")
+      .local("b", "i64 | IoError | ParseError")
+      .local("c", "i64 | IoError | ParseError | IoError");
+  assertEq(scope.check("a").type.toText(), "i64 | IoError | ParseError");
+  assert(scope.check("b").type.equals(scope.check("a").type));
+  assert(scope.check("c").type.equals(scope.check("a").type));
+  assert(scope.run("a = b; b = c; c = a;").count == 0);
+}
