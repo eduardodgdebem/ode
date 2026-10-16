@@ -70,6 +70,14 @@ for (i in 0..count) {
 with a bare `return;`, and the compiler checks that every `return` matches the
 declared return type.
 
+A function that returns a value — `main` included — must return on every
+path; reaching its closing brace is a compile error. A path ends in a
+`return`, an `if` / `else` or `match` whose every branch does, or a
+`while (true)` that no `break` gets out of. A loop that may run no times, or
+a `catch` that only returns on an error, does not count, and neither does a
+call to `exit`: write the `return` after it. A `void` function may fall off its
+end, and so may a `void | SomeError` one, which then succeeds.
+
 `&&` and `||` short-circuit, so a guard reads naturally:
 
 ```rust

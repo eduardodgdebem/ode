@@ -41,7 +41,7 @@ import { checkExpr, checkExprAs } from "./expressions";
 import { analyzeStatement } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { SymbolKind, Symbol } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
@@ -338,25 +338,89 @@ export fn checkIs(an: *Analyzer, node: i32): Type {
 }
 
 // Whether a statement can never be followed: it returns, breaks or continues
-// on every path.
+// on every path, or loops forever.
 export fn alwaysLeaves(an: *Analyzer, node: i32): bool {
+  return leaves(an, node, true);
+}
+
+// Whether a statement leaves the function on every path: it returns, or
+// loops forever. A break or continue leaves only its loop, after which the
+// function goes on.
+export fn alwaysReturns(an: *Analyzer, node: i32): bool {
+  return leaves(an, node, false);
+}
+
+// alwaysLeaves, with `loopExits` saying whether leaving by break or continue
+// counts.
+fn leaves(an: *Analyzer, node: i32, loopExits: bool): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
-  if (kind == NodeKind.Return || kind == NodeKind.Break ||
-      kind == NodeKind.Continue) {
+  if (kind == NodeKind.Return) {
     return true;
   }
+  if (kind == NodeKind.Break || kind == NodeKind.Continue) {
+    return loopExits;
+  }
   if (kind == NodeKind.Block) {
+    // A block leaves the way the first of its statements that cannot be
+    // followed does; nothing after that one is reached.
     for (index in 0..an.ast.nodes[node].itemCount) {
-      if (alwaysLeaves(an, an.ast.nodes[node].items[index])) {
+      let item: i32 = an.ast.nodes[node].items[index];
+      if (leaves(an, item, loopExits)) {
         return true;
+      }
+      if (alwaysLeaves(an, item)) {
+        return false;
       }
     }
     return false;
   }
   if (kind == NodeKind.If) {
     return an.ast.nodes[node].c != NO_NODE &&
-           alwaysLeaves(an, an.ast.nodes[node].b) &&
-           alwaysLeaves(an, an.ast.nodes[node].c);
+           leaves(an, an.ast.nodes[node].b, loopExits) &&
+           leaves(an, an.ast.nodes[node].c, loopExits);
+  }
+  // A match that checks covers every value, so it leaves when every arm does.
+  if (kind == NodeKind.Match) {
+    for (index in 0..an.ast.nodes[node].itemCount) {
+      let arm: i32 = an.ast.nodes[node].items[index];
+      if (!leaves(an, an.ast.nodes[arm].a, loopExits)) {
+        return false;
+      }
+    }
+    return an.ast.nodes[node].itemCount > 0;
+  }
+  // `while (true)` is never followed, unless a break gets out of it.
+  if (kind == NodeKind.While) {
+    let condition: i32 = an.ast.nodes[node].a;
+    return an.ast.nodes[condition].kind == NodeKind.Bool &&
+           equals(an.ast.nodes[condition].text, "true") &&
+           !breaksOut(an, an.ast.nodes[node].b);
+  }
+  return false;
+}
+
+// Whether `node` holds a break of the loop it is in: one not inside a loop
+// of its own. A break may be anywhere a statement may, in a catch block in
+// the middle of an expression too.
+fn breaksOut(an: *Analyzer, node: i32): bool {
+  if (node == NO_NODE) {
+    return false;
+  }
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  if (kind == NodeKind.Break) {
+    return true;
+  }
+  if (kind == NodeKind.While || kind == NodeKind.For || kind == NodeKind.Fn) {
+    return false;
+  }
+  if (breaksOut(an, an.ast.nodes[node].a) || breaksOut(an, an.ast.nodes[node].b) ||
+      breaksOut(an, an.ast.nodes[node].c)) {
+    return true;
+  }
+  for (index in 0..an.ast.nodes[node].itemCount) {
+    if (breaksOut(an, an.ast.nodes[node].items[index])) {
+      return true;
+    }
   }
   return false;
 }
@@ -445,4 +509,75 @@ test "ruling an error out leaves the rest, or the value alone" {
   let wide: Type = unionOf(i64Type, errorsOf("IoError", "ParseError"));
   assertEq(without(wide, "IoError").toText(), "i64 | ParseError");
   assert(without(without(wide, "IoError"), "ParseError").equals(i64Type));
+}
+
+// A block of `statements`, made by hand.
+fn blockOf(ast: *Ast, statements: *List<i32>): i32 {
+  let block: i32 = ast.add(NodeKind.Block, 1, 1);
+  for (index in 0..statements.count) {
+    ast.addItem(block, statements.at(index));
+  }
+  return block;
+}
+
+// Two statements of these kinds -- `break; return;` -- with nothing in them.
+fn statementsOf(ast: *Ast, first: NodeKind, second: NodeKind): *List<i32> {
+  let statements: *List<i32> = List<i32>.new();
+  statements.push(ast.add(first, 1, 1));
+  statements.push(ast.add(second, 1, 1));
+  return statements;
+}
+
+// `while (condition) body`, its condition `true` or a variable.
+fn loopOf(ast: *Ast, forever: bool, body: i32): i32 {
+  let condition: i32 = ast.add(NodeKind.Ident, 1, 1);
+  ast.nodes[condition].text = "going";
+  if (forever) {
+    ast.nodes[condition].kind = NodeKind.Bool;
+    ast.nodes[condition].text = "true";
+  }
+  let loop: i32 = ast.add(NodeKind.While, 1, 1);
+  ast.nodes[loop].a = condition;
+  ast.nodes[loop].b = body;
+  return loop;
+}
+
+test "a break or continue leaves its loop, but not the function" {
+  let ast: *Ast = Ast.new();
+  let breaks: i32 = blockOf(ast, statementsOf(ast, NodeKind.Break, NodeKind.Return));
+  let continues: i32 = blockOf(ast, statementsOf(ast, NodeKind.Continue, NodeKind.Return));
+  let returns: i32 = blockOf(ast, statementsOf(ast, NodeKind.Return, NodeKind.Break));
+  let an: *Analyzer = Analyzer.new(ast);
+
+  // The return after the break or continue is never reached.
+  assert(alwaysLeaves(an, breaks));
+  assert(!alwaysReturns(an, breaks));
+  assert(alwaysLeaves(an, continues));
+  assert(!alwaysReturns(an, continues));
+  assert(alwaysLeaves(an, returns));
+  assert(alwaysReturns(an, returns));
+}
+
+test "a loop that never ends leaves, unless a break gets out of it" {
+  let ast: *Ast = Ast.new();
+  let empty: *List<i32> = List<i32>.new();
+  let forever: i32 = loopOf(ast, true, blockOf(ast, empty));
+  let whileGoing: i32 = loopOf(ast, false, blockOf(ast, empty));
+
+  let breaks: *List<i32> = List<i32>.new();
+  breaks.push(ast.add(NodeKind.Break, 1, 1));
+  let brokenOut: i32 = loopOf(ast, true, blockOf(ast, breaks));
+
+  // A break of a loop inside it is that loop's.
+  let inner: *List<i32> = List<i32>.new();
+  inner.push(loopOf(ast, false, blockOf(ast, breaks)));
+  let innerBreak: i32 = loopOf(ast, true, blockOf(ast, inner));
+
+  let an: *Analyzer = Analyzer.new(ast);
+  assert(alwaysReturns(an, forever));
+  assert(alwaysLeaves(an, forever));
+  assert(!alwaysReturns(an, whileGoing));
+  assert(!alwaysReturns(an, brokenOut));
+  assert(!alwaysLeaves(an, brokenOut));
+  assert(alwaysReturns(an, innerBreak));
 }

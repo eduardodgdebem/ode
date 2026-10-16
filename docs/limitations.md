@@ -57,9 +57,12 @@ The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
 
 ## 4. Type system
 
-Three entries here were closed: a literal now takes the type its context
-expects, `.` follows any number of pointers, and globals can be built from
-earlier globals and constant arithmetic. What is left:
+Four entries here were closed: a literal now takes the type its context
+expects, `.` follows any number of pointers, globals can be built from
+earlier globals and constant arithmetic, and a function that returns a value
+must return on every path. That last was once deliberate — falling off the
+end yielded a zero — until errors as values made the zero of `i32 | SomeError`
+read as success; it is now a compile error. What is left:
 
 ### 4.1 No implicit conversions between variables
 
@@ -91,12 +94,6 @@ An integer global may be any arithmetic on literals, `sizeof`, enum members
 and globals declared before it, worked out at compile time. A global of any
 other type may only be a literal or an earlier global. And a global is never
 made from one declared after it, which also rules out two made of each other.
-
-### 4.3 No all-paths-return analysis
-
-**Deliberate.** Falling off the end of a non-void function is allowed and
-yields a zero value. Several examples rely on it, including `main` in
-`example2` through `example5`.
 
 ## 5. Diagnostics
 

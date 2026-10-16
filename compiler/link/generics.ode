@@ -13,7 +13,8 @@
 // `List<i32>` and `List<*i8>` are two structs, compiled separately, and a
 // generic costs nothing at run time. The generic itself is never checked or
 // compiled: only its instances are, and an error in its body is reported for
-// each instance it shows up in.
+// each instance it shows up in. What does not depend on the arguments --
+// whether it returns on every path -- is asked of the generic instead, once.
 //
 // This runs after the module links names and before the analyzer proper, so
 // that `List<Point>` written in one file means that file's Point even when
@@ -47,6 +48,14 @@ export fn isTemplate(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
   return (kind == NodeKind.Struct || kind == NodeKind.Fn) &&
          an.ast.nodes[node].extra > 0;
+}
+
+// A struct or function made from a generic. Its name holds a `<`, which no
+// other name can.
+export fn isInstance(an: *Analyzer, node: i32): bool {
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  return (kind == NodeKind.Struct || kind == NodeKind.Fn) &&
+         !isTemplate(an, node) && contains(an.ast.nodes[node].text, "<");
 }
 
 // The type parameters' names of the generic declared at `template`.

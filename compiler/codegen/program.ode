@@ -107,7 +107,10 @@ fn genFunction(e: *Emitter, node: i32): void {
 
   genStatement(e, e.ast.nodes[node].c);
 
-  // Falling off the end of a function is allowed and yields a zero value.
+  // Checking saw to it that a function returning a value returns on every
+  // path, so what reaches here is the end of a void function -- or of a
+  // `void | SomeError` one, succeeding -- or nothing at all: the block after
+  // a `while (true)`, which no branch goes to but LLVM still wants ended.
   if (!e.terminated) {
     if (returnType.isVoid()) {
       emitLine(e, "ret void");

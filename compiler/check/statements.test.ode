@@ -437,3 +437,335 @@ test "wrong return type" {
   assertEq(found.at(0).line, 2);
   assertEq(found.at(0).column, 10);
 }
+
+// ---------------------------------------------------------------------------
+// Returning on every path: a function that returns a value cannot reach its
+// end without a return.
+// ---------------------------------------------------------------------------
+
+// The problems in `declarations`, which can call `parse`, which may fail
+// with a value, and `touch`, which may fail with none.
+fn returnsIn(declarations: *i8): *List<Diagnostic> {
+  return Scope.new()
+      .declare(`
+        error enum ParseError { Empty }
+
+        fn parse(text: *i8): i64 | ParseError {
+          return 0;
+        }
+
+        fn touch(path: *i8): void | ParseError {
+          return;
+        }
+      `)
+      .declare(declarations)
+      .problems();
+}
+
+// The lines returnsIn puts before the declarations it is given.
+let PRELUDE_LINES: i32 = 10;
+
+// Asserts that the `index`th problem found is a MissingReturn about `name`,
+// declared at `line` and `column` of the declarations returnsIn was given.
+fn assertMissingReturn(found: *List<Diagnostic>, index: i64, name: *i8,
+                       line: i32, column: i32): void {
+  assertEq(found.at(index).problem, Problem.MissingReturn);
+  assertEq(found.at(index).facts.name, name);
+  assertEq(found.at(index).line, PRELUDE_LINES + line);
+  assertEq(found.at(index).column, column);
+}
+
+test "a function returning a value may not fall off its end" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn quiet(): i64 {
+      let x: i64 = 1;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "quiet", 1, 1);
+}
+
+test "an if without an else may fall through to the end" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn half(n: i32): i32 {
+      if (n % 2 == 0) {
+        return n / 2;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "half", 1, 1);
+}
+
+test "an if whose branches both return returns" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn sign(n: i32): i32 {
+      if (n < 0) {
+        return -1;
+      } else if (n == 0) {
+        return 0;
+      } else {
+        return 1;
+      }
+    }
+
+    fn nested(n: i32): i32 {
+      {
+        {
+          return n;
+        }
+      }
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "an if whose branches do not both return may fall through" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn sign(n: i32): i32 {
+      if (n < 0) {
+        return -1;
+      } else if (n == 0) {
+        return 0;
+      } else {
+        let x: i32 = 1;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "sign", 1, 1);
+}
+
+test "a return in a nested block that may not run is not enough" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn first(n: i32): i32 {
+      {
+        if (n > 0) {
+          return n;
+        }
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "first", 1, 1);
+}
+
+test "a loop that never ends needs no return after it" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn find(n: i32): i32 {
+      let at: i32 = 0;
+      while (true) {
+        if (at * at >= n) {
+          return at;
+        }
+        // A break of the inner loop is not one of the outer.
+        while (at < 0) {
+          break;
+        }
+        at = at + 1;
+      }
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a loop that never ends but is broken out of may fall through" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn find(n: i32): i32 {
+      let at: i32 = 0;
+      while (true) {
+        if (at * at >= n) {
+          break;
+        }
+        at = at + 1;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "find", 1, 1);
+}
+
+test "a break in a catch block gets out of the loop too" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn total(): i64 {
+      let sum: i64 = 0;
+      while (true) {
+        let n: i64 = parse("1") catch (e) {
+          break;
+        };
+        sum = sum + n;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "total", 1, 1);
+}
+
+test "a loop that may run no times may fall through" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn firstWhile(n: i32): i32 {
+      while (n > 0) {
+        return n;
+      }
+    }
+
+    fn firstFor(n: i32): i32 {
+      for (index in 0..n) {
+        return index;
+      }
+    }
+  `);
+  assertEq(found.count, 2);
+  assertMissingReturn(found, 0, "firstWhile", 1, 1);
+  assertMissingReturn(found, 1, "firstFor", 7, 1);
+}
+
+test "a return after the statement that leaves is never reached" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn odd(n: i32): i32 {
+      while (true) {
+        break;
+        return n;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "odd", 1, 1);
+}
+
+test "a catch block that returns leaves only when there is an error" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn handled(): i32 {
+      touch("x") catch (e) {
+        return 1;
+      };
+    }
+
+    fn valued(): i64 {
+      let n: i64 = parse("1") catch (e) {
+        return 1;
+      };
+      return n;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "handled", 1, 1);
+}
+
+test "a match returns when every arm does" {
+  let found: *List<Diagnostic> = returnsIn(`
+    enum Color { Red, Green }
+
+    fn all(color: Color): i32 {
+      match (color) {
+        Color.Red => { return 1; }
+        Color.Green => { return 2; }
+      }
+    }
+
+    fn some(color: Color): i32 {
+      match (color) {
+        Color.Red => { return 1; }
+        else => {}
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "some", 10, 1);
+}
+
+test "a return in one branch of is narrowing is not enough" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn value(): i64 {
+      let result: i64 | ParseError = parse("1");
+      if (result is ParseError) {
+        return 0;
+      }
+    }
+
+    fn narrowed(): i64 {
+      let result: i64 | ParseError = parse("1");
+      if (result is ParseError) {
+        return 0;
+      }
+      return result;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "value", 1, 1);
+}
+
+test "a function that may fail cannot fall off its end into success" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn half(n: i32): i32 | ParseError {
+      if (n % 2 == 0) {
+        return n / 2;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "half", 1, 1);
+}
+
+test "a void function, or one that may fail with no value, may fall off its end" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn nothing(): void {
+    }
+
+    fn check(n: i32): void | ParseError {
+      if (n < 0) {
+        return ParseError.Empty;
+      }
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a method returns on every path" {
+  let found: *List<Diagnostic> = returnsIn(`
+    struct Counter {
+      hits: i32,
+
+      fn get(self: Counter): i32 {
+        if (self.hits > 0) {
+          return self.hits;
+        }
+      }
+
+      fn reset(self: *Counter): void {
+        self.hits = 0;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertMissingReturn(found, 0, "get", 4, 3);
+}
+
+test "a generic is asked once, whatever its instances" {
+  let found: *List<Diagnostic> = returnsIn(`
+    fn pick<T>(flag: bool, value: T): T {
+      if (flag) {
+        return value;
+      }
+    }
+
+    struct Box<T> {
+      item: T,
+
+      fn get(self: Box<T>): T {
+        if (true) {
+          return self.item;
+        }
+      }
+    }
+
+    fn use(): i64 {
+      let box: Box<i64> = Box<i64> { item: 1 };
+      let other: Box<i32> = Box<i32> { item: 1 };
+      return pick<i64>(true, box.get()) + pick<i32>(true, other.get()) as i64;
+    }
+  `);
+  assertEq(found.count, 2);
+  assertMissingReturn(found, 0, "pick", 1, 1);
+  assertMissingReturn(found, 1, "get", 10, 3);
+}

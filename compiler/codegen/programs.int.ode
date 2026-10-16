@@ -338,6 +338,7 @@ test "expression statements" {
 
       let a:i32 = 3;
       printf("%d\n", a);
+      return 0;
     }
   `),
            "3\n");
@@ -752,6 +753,7 @@ test "if else" {
       }
 
       printf("%d\n", num);
+      return 0;
     }
   `),
            "6\n");
@@ -771,6 +773,7 @@ test "if statement" {
       }
 
       printf("%d\n", num);
+      return 0;
     }
   `),
            "9\n");
@@ -1760,6 +1763,7 @@ test "while loop" {
       }
 
       printf("%d\n", sum);
+      return 0;
     }
   `),
            "10\n");

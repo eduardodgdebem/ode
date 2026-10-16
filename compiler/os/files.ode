@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
 // Paths, files and directories, beyond what std/fs covers: walking and
-// copying trees, scratch directories, bytes that may hold a NUL.
+// removing trees, scratch directories, bytes that may hold a NUL.
 //
 // Where libc would need a struct whose layout differs between platforms --
 // `stat`, `dirent` -- the job is handed to a standard tool instead (`ls`,
-// `cp`, `rm`), run without a shell, so a path with a space or a `$` in it
-// arrives exactly as written.
+// `rm`), run without a shell, so a path with a space or a `$` in it arrives
+// exactly as written.
 // ---------------------------------------------------------------------------
 
 import { free, memcmp, strlen, fopen, fclose, fread, fwrite, ferror } from "std/c";
@@ -24,7 +24,7 @@ let EXISTS: i32 = 0;
 let EXECUTABLE: i32 = 1;
 
 // ---------------------------------------------------------------------------
-// Lists of text: argument vectors, and the lines of a program's output.
+// Paths.
 // ---------------------------------------------------------------------------
 
 export fn joinPath(directory: *i8, name: *i8): *i8 {

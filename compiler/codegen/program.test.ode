@@ -40,10 +40,11 @@ test "&& and || only work out their right side when they must" {
   assert(!mentions(ir, " and i1 "));
 }
 
-test "a function that falls off its end returns a zero value" {
+test "the end of a function after a loop that never ends is still ended" {
   let ir: *i8 = irOf(`
-    fn quiet(): i64 {
-      let x: i64 = 1;
+    fn forever(): i64 {
+      while (true) {
+      }
     }
 
     fn main(): i32 {
