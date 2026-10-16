@@ -713,7 +713,13 @@ fn parseMatchStmt(parser: *Parser): i32 {
       parser.ast.nodes[arm].extra = 1;
     } else {
       while (true) {
-        parser.ast.addItem(arm, parseExpr(parser));
+        // A match on a union names types: `i64`, `*i8` and `Circle` alike.
+        // A built-in type or a pointer can only be a type here.
+        if (parser.kind() == TokenKind.Type || parser.kind() == TokenKind.Star) {
+          parser.ast.addItem(arm, parseType(parser));
+        } else {
+          parser.ast.addItem(arm, parseExpr(parser));
+        }
         if (parser.kind() != TokenKind.Comma) {
           break;
         }

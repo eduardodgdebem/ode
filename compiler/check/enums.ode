@@ -24,6 +24,7 @@
 // ---------------------------------------------------------------------------
 
 import { equals } from "std/text";
+import { analyzeUnionMatch } from "./unions";
 import { Analyzer, analyzerFail } from "./analyzer";
 import { checkExpr, isNumberLiteral, checkLiteralAs } from "./expressions";
 import { analyzeStatement } from "./statements";
@@ -183,6 +184,12 @@ export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
 // Checks one pattern of a match on a value of type `subject`, and records
 // the value it stands for.
 fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
+  // A type names what a union holds, and is no value to match against.
+  let kind: NodeKind = an.ast.nodes[pattern].kind;
+  if (kind == NodeKind.Type || kind == NodeKind.FnType) {
+    analyzerFail(an, pattern, Problem.PatternNotLiteral, Facts.none());
+    return;
+  }
   if (subject.isEnum()) {
     let type: Type = checkExpr(an, pattern);
     if (FAILED) {
@@ -254,6 +261,10 @@ fn matchHandles(an: *Analyzer, node: i32, value: i64): bool {
 export fn analyzeMatch(an: *Analyzer, node: i32): void {
   let subject: Type = checkExpr(an, an.ast.nodes[node].a);
   if (FAILED) {
+    return;
+  }
+  if (subject.isUnion()) {
+    analyzeUnionMatch(an, node, subject);
     return;
   }
 

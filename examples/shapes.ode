@@ -1,7 +1,7 @@
 // Unions: a value that is one of several types. A Shape is a Circle or a
-// Rect, `is` tells which, and inside the `if` the shape is that one. Errors
-// are members of a union like any other, so a function can hand back either
-// a shape or what was wrong with it.
+// Rect; `match` and `is` tell which, and where they have, the shape is that
+// one. Errors are members of a union like any other, so a function can hand
+// back either a shape or what was wrong with it.
 
 import { printf } from "std/c";
 import { List } from "std/list";
@@ -23,10 +23,14 @@ error enum ShapeError {
 }
 
 fn area(shape: Shape): f64 {
-  if (shape is Circle) {
-    return 3.14159 * shape.radius * shape.radius;
+  match (shape) {
+    Circle => {
+      return 3.14159 * shape.radius * shape.radius;
+    }
+    Rect => {
+      return shape.width * shape.height;
+    }
   }
-  return shape.width * shape.height;
 }
 
 fn validated(shape: Shape): Shape | ShapeError {

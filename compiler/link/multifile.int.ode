@@ -670,3 +670,46 @@ test "an alias that is not exported, or not imported, is not seen" {
   assertEq(found.at(1).facts.name, "Count");
   files.release();
 }
+
+test "a match names the types its own file sees, under the names it sees them by" {
+  let files: *Files = Files.new();
+  files.add("shapes.ode", `
+    export struct Circle {
+      radius: i64,
+    }
+
+    export struct Rect {
+      width: i64,
+    }
+
+    export type Shape = Circle | Rect;
+  `);
+  files.add("main.ode", `
+    import { printf } from "std/c";
+    import { Circle as Round, Rect, Shape } from "./shapes";
+
+    // A struct of this file's own with the name the other one is imported
+    // away from.
+    struct Circle {
+      unused: i32,
+    }
+
+    fn describe(shape: Shape): i64 {
+      match (shape) {
+        Round => {
+          return shape.radius;
+        }
+        Rect => {
+          return shape.width * 10;
+        }
+      }
+    }
+
+    fn main(): i32 {
+      printf("%ld %ld\n", describe(Round { radius: 4 }), describe(Rect { width: 2 }));
+      return 0;
+    }
+  `);
+  assertEq(outputOfFiles(files, "main.ode"), "4 20\n");
+  files.release();
+}

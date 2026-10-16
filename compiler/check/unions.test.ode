@@ -160,3 +160,169 @@ test "assertEq compares a union of plain values, and one of structs only to an e
   assertEq(found.at(1).problem, Problem.AssertEqType);
   assertEq(found.at(1).line, 5);
 }
+
+test "a match on a union narrows the variable in each arm" {
+  let found: *List<Diagnostic> = shapes().run(`
+    match (drawing) {
+      Circle => {
+        let circle: Circle = drawing;
+      }
+      Rect, Line => {
+        let other: Line | Rect = drawing;
+      }
+    }
+    match (checked) {
+      Bad => {
+        let bad: Bad = checked;
+      }
+      else => {
+        let fine: Shape = checked;
+      }
+    }
+    match (either) {
+      i64 => {
+        let number: i64 = either;
+      }
+      *i8 => {
+        let text: *i8 = either;
+      }
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "an arm's variable is its own members, and no other" {
+  let found: *List<Diagnostic> = shapes().run(`
+    match (shape) {
+      Circle => {
+        let wrong: Rect = shape;
+      }
+      else => {
+        let alsoWrong: Circle = shape;
+      }
+    }
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).facts.got.toText(), "Circle");
+  assertEq(found.at(1).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(1).line, 6);
+  assertEq(found.at(1).facts.got.toText(), "Rect");
+}
+
+test "a match without else names every member, errors included" {
+  let found: *List<Diagnostic> = shapes().run(`
+    match (checked) {
+      Circle, Rect => {}
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnhandledUnionMember);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).facts.name, "Circle | Rect | Bad");
+  assertEq(found.at(0).facts.other, "Bad");
+}
+
+test "a match names only members, each once, and only types" {
+  let notMember: *List<Diagnostic> = shapes().run(`
+    match (shape) {
+      Line => {}
+      else => {}
+    }
+  `);
+  assertEq(notMember.count, 1);
+  assertEq(notMember.at(0).problem, Problem.IsNeverTrue);
+  assertEq(notMember.at(0).line, 2);
+  assertEq(notMember.at(0).facts.name, "Line");
+
+  let twice: *List<Diagnostic> = shapes().run(`
+    match (shape) {
+      Circle => {}
+      Rect, Circle => {}
+    }
+  `);
+  assertEq(twice.count, 1);
+  assertEq(twice.at(0).problem, Problem.DuplicatePattern);
+  assertEq(twice.at(0).line, 3);
+  assertEq(twice.at(0).column, 9);
+
+  let notType: *List<Diagnostic> = shapes().run(`
+    match (shape) {
+      1 => {}
+      else => {}
+    }
+  `);
+  assertEq(notType.count, 1);
+  assertEq(notType.at(0).problem, Problem.PatternNotType);
+
+  let unknown: *List<Diagnostic> = shapes().run(`
+    match (shape) {
+      Missing => {}
+      else => {}
+    }
+  `);
+  assertEq(unknown.count, 1);
+  assertEq(unknown.at(0).problem, Problem.UnknownType);
+  assertEq(unknown.at(0).facts.name, "Missing");
+
+  let afterElse: *List<Diagnostic> = shapes().run(`
+    match (shape) {
+      else => {}
+      Circle => {}
+    }
+  `);
+  assertEq(afterElse.count, 1);
+  assertEq(afterElse.at(0).problem, Problem.ArmAfterElse);
+}
+
+test "a match that returns in every arm returns" {
+  let found: *List<Diagnostic> = Scope.new().declare(SHAPES)
+      .declare(`
+        fn area(shape: Shape): i64 {
+          match (shape) {
+            Circle => {
+              return shape.radius;
+            }
+            Rect => {
+              return shape.width * shape.height;
+            }
+          }
+        }
+      `)
+      .problems();
+  assertEq(found.count, 0);
+}
+
+test "a match on what is not a variable picks an arm, and narrows nothing" {
+  let found: *List<Diagnostic> = shapes().run(`
+    match (validated(shape)) {
+      Circle => {
+        let wrong: Circle = validated(shape);
+      }
+      else => {}
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+}
+
+test "a type is no pattern in a match on a number or an enum" {
+  let found: *List<Diagnostic> = Scope.new().declare(SHAPES)
+      .local("count", "i64")
+      .run(`
+        match (count) {
+          i64 => {}
+          else => {}
+        }
+        match (count) {
+          Circle => {}
+          else => {}
+        }
+      `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.PatternNotLiteral);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(1).problem, Problem.PatternNotLiteral);
+  assertEq(found.at(1).line, 6);
+}

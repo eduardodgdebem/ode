@@ -428,3 +428,20 @@ test "a type alias is declared at the top level only" {
   assertEq(found.at(0).line, 2);
   assertEq(found.at(0).facts.name, "type");
 }
+
+test "a match arm may name built-in types and pointers" {
+  let tree: Parsed = parse(`
+    fn main(): void {
+      match (value) {
+        i64, *i8 => {}
+        Circle => {}
+      }
+    }
+  `);
+  let switchNode: i32 = statementOf(tree, 0);
+  let first: i32 = tree.ast.nodes[switchNode].items[0];
+  assertEq(tree.kind(tree.ast.nodes[first].items[0]), NodeKind.Type);
+  assertEq(tree.ast.nodes[tree.ast.nodes[first].items[1]].extra, 1);
+  let second: i32 = tree.ast.nodes[switchNode].items[1];
+  assertEq(tree.kind(tree.ast.nodes[second].items[0]), NodeKind.Ident);
+}

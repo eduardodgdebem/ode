@@ -176,6 +176,11 @@ fn pick(e: *Emitter, condition: *i8, ifTrue: *i8, ifFalse: *i8): *i8 {
   return emitAssign(e, line.data);
 }
 
+// A union's code: 0 or below for a value, an error's number above.
+export fn unionCode(e: *Emitter, union: Type, value: *i8): *i8 {
+  return extract(e, union, value, 0);
+}
+
 fn extract(e: *Emitter, union: Type, value: *i8, index: i32): *i8 {
   let line: *Builder = Builder.new();
   line.add("extractvalue ");
@@ -344,8 +349,12 @@ export fn genIs(e: *Emitter, node: i32): *i8 {
   let operand: i32 = e.ast.nodes[node].a;
   let union: Type = typeOfNode(e, operand);
   let code: *i8 = extract(e, union, genExpr(e, operand), 0);
+  return holdsTest(e, union, code, analyzerParseType(e.an, e.ast.nodes[node].b));
+}
 
-  let asked: Type = analyzerParseType(e.an, e.ast.nodes[node].b);
+// Whether a union whose code is `code` holds `asked`: one of its value
+// types, or an error enum.
+export fn holdsTest(e: *Emitter, union: Type, code: *i8, asked: Type): *i8 {
   if (!asked.isEnum() || !holdsError(union, asked.structName)) {
     if (holdsSeveral(union)) {
       return compare(e, "eq", "i32", code, fromInt(valueTag(asked)));

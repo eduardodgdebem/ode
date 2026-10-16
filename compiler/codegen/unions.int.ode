@@ -199,3 +199,50 @@ test "a union is kept in fields and lists, and found in them" {
     }
   `)), "h 9\n3 16 27\n27\nnone\n");
 }
+
+test "a match runs the arm of the member a union holds" {
+  assertEq(outputOf(program(`
+    struct Line {
+      length: i64,
+    }
+
+    fn name(thing: Shape | Line | Bad | i32): *i8 {
+      match (thing) {
+        Circle => {
+          return "circle";
+        }
+        Rect, Line => {
+          return "straight";
+        }
+        Bad => {
+          return nameOf(thing);
+        }
+        i32 => {
+          if (thing > 0) {
+            return "positive";
+          }
+          return "not positive";
+        }
+      }
+    }
+
+    fn total(shape: Shape): i64 {
+      match (shape) {
+        Circle => {
+          return shape.radius;
+        }
+        else => {
+          return shape.width + shape.height;
+        }
+      }
+    }
+
+    fn main(): i32 {
+      printf("%s %s %s\n", name(Circle { radius: 1 }), name(Rect { width: 1, height: 1 }),
+             name(Line { length: 1 }));
+      printf("%s %s %s\n", name(Bad.Huge), name(3), name(-3));
+      printf("%ld %ld\n", total(Circle { radius: 5 }), total(Rect { width: 2, height: 3 }));
+      return 0;
+    }
+  `)), "circle straight straight\nHuge positive not positive\n5 5\n");
+}

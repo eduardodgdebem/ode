@@ -15,7 +15,8 @@ import {
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
   codegenFault,
 } from "./emitter";
-import { compare } from "./errors";
+import { compare, holdsTest, unionCode } from "./errors";
+import { instruction } from "./testing";
 import {
   typeOfNode, emitAssign, emitLoad, emitStore, genAddress, resultTypeOf,
   genExpr,
@@ -193,6 +194,10 @@ fn switchConstant(value: i64, bits: i32): *i8 {
 fn genMatch(e: *Emitter, node: i32): void {
   let subject: i32 = e.ast.nodes[node].a;
   let type: Type = typeOfNode(e, subject);
+  if (type.isUnion()) {
+    genUnionMatch(e, node, type);
+    return;
+  }
   let typeName: *i8 = llvmTypeName(type);
   let value: *i8 = genExpr(e, subject);
 
@@ -245,6 +250,54 @@ fn genMatch(e: *Emitter, node: i32): void {
     emitBranch(e, done);
   }
 
+  emitLabel(e, done);
+}
+
+// A match on a union: each arm in turn asks whether the code is one of the
+// members it names, the way `is` does, and the first that holds runs.
+fn genUnionMatch(e: *Emitter, node: i32, type: Type): void {
+  let value: *i8 = genExpr(e, e.ast.nodes[node].a);
+  let code: *i8 = unionCode(e, type, value);
+
+  let done: *i8 = freshLabel(e);
+  let armCount: i32 = e.ast.nodes[node].itemCount;
+  let labels: **i8 = alloc<*i8>(armCount as i64);
+  for (arm in 0..armCount) {
+    labels[arm] = freshLabel(e);
+  }
+
+  for (arm in 0..armCount) {
+    let armNode: i32 = e.ast.nodes[node].items[arm];
+    if (e.ast.nodes[armNode].extra == 1) {
+      emitBranch(e, labels[arm]);
+      e.terminated = true;
+      break;
+    }
+    let holds: *i8 = "false";
+    for (index in 0..e.ast.nodes[armNode].itemCount) {
+      let pattern: i32 = e.ast.nodes[armNode].items[index];
+      let test: *i8 = holdsTest(e, type, code, e.an.types[pattern]);
+      if (index == 0) {
+        holds = test;
+      } else {
+        holds = instruction(e, "or i1 ", holds, test);
+      }
+    }
+    let next: *i8 = freshLabel(e);
+    emitCondBranch(e, holds, labels[arm], next);
+    emitLabel(e, next);
+  }
+  // Checking saw to it that some arm holds.
+  if (!e.terminated) {
+    emitLine(e, "unreachable");
+    e.terminated = true;
+  }
+
+  for (arm in 0..armCount) {
+    emitLabel(e, labels[arm]);
+    genStatement(e, e.ast.nodes[e.ast.nodes[node].items[arm]].a);
+    emitBranch(e, done);
+  }
   emitLabel(e, done);
 }
 

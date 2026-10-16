@@ -438,6 +438,31 @@ a `Shape | Line` is expected -- but not the other way round until `is` has
 narrowed it. A union of unions is one union of all their members, in no
 particular order: `Shape | Line` is `Circle | Line | Rect`.
 
+`match` takes a union too, one arm per member, and narrows the variable in
+each arm the way `is` does. Without an `else`, every member has to have an
+arm -- so a member added to the union later is an error at every `match`
+that does not handle it:
+
+```rust
+fn area(shape: Shape): f64 {
+  match (shape) {
+    Circle => { return 3.14159 * shape.radius * shape.radius; }
+    Rect => { return shape.width * shape.height; }
+  }
+}
+
+fn describe(value: i64 | *i8 | ParseError): void {
+  match (value) {
+    i64 => { printf("%ld\n", value); }
+    *i8 => { printf("%s\n", value); }
+    ParseError => { printf("%s\n", nameOf(value)); }   // every ParseError
+  }
+}
+```
+
+An arm may name several members, `Circle, Rect => { ... }`, and the
+variable there is the union of them; in `else` it is whatever no arm named.
+
 A union is as big as its largest member and a code saying which member it
 holds; nothing is allocated, and `is` compares that code. Two unions are not
 compared with `==` -- ask with `is`, and compare what it holds.
