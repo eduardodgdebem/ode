@@ -13,7 +13,7 @@ import { alloc } from "std/mem";
 import { equals } from "std/text";
 import {
   Analyzer, analyzerFail, analyzerFailAtValue, quoted, analyzerParseType,
-  analyzerValidateType,
+  analyzerValidateType, throughAlias,
 } from "./analyzer";
 import { isReadyGlobal } from "./constants";
 import { checkEnumMember } from "./enums";
@@ -705,6 +705,7 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   // `Color.Red`: the object is an enum's name rather than a value. A variable
   // of the same name wins, as it would anywhere else a name is read.
   let object: i32 = an.ast.nodes[node].a;
+  an.structRefs[node] = throughAlias(an, an.structRefs[node]);
   let typeName: *i8 = an.structRefs[node];
   if (an.ast.nodes[object].kind == NodeKind.Ident && typeName != null &&
       an.enumNames.has(typeName)) {
@@ -766,6 +767,7 @@ fn checkIndex(an: *Analyzer, node: i32): Type {
 }
 
 fn checkStructLiteral(an: *Analyzer, node: i32): Type {
+  an.ast.nodes[node].text = throughAlias(an, an.ast.nodes[node].text);
   let name: *i8 = an.ast.nodes[node].text;
   let structIndex: i32 = an.structs.indexOf(name);
 

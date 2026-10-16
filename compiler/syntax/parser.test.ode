@@ -389,3 +389,42 @@ test "a lambda's parameters are names" {
   assertEq(found.at(0).column, 24);
   assertEq(found.at(0).facts.name, "parameter name");
 }
+
+test "a type alias names a type, and may be exported" {
+  let tree: Parsed = parse(`
+    type Reader = (*i8) => i64 | ParseError;
+    export type Count = i64;
+  `);
+  let reader: i32 = tree.item(0);
+  assertEq(tree.kind(reader), NodeKind.TypeAlias);
+  assertEq(tree.ast.nodes[reader].text, "Reader");
+  assertEq(tree.kind(tree.ast.nodes[reader].a), NodeKind.FnType);
+
+  let count: i32 = tree.item(1);
+  assertEq(tree.kind(count), NodeKind.TypeAlias);
+  assert(tree.ast.nodes[count].exported);
+}
+
+test "type is still a name wherever no alias follows it" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run(`
+        let type: i32 = 1;
+        type = type + 1;
+      `);
+  assertEq(found.count, 0);
+}
+
+test "a type alias is declared at the top level only" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        fn main(): i32 {
+          type Count = i64;
+          return 0;
+        }
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAtTopLevel);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).facts.name, "type");
+}

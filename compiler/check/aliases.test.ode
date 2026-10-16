@@ -1,0 +1,129 @@
+// ---------------------------------------------------------------------------
+// Type aliases: a second name for a type, which means exactly that type.
+//
+// Each checks a fragment in a Scope that states what it can see, and asserts
+// the type found, or the problems: which, where, and about what.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
+
+let SHAPES: *i8 = `
+  error enum ParseError { Empty }
+  enum Color { Red, Green }
+
+  struct Point {
+    x: i32,
+    y: i32,
+
+    fn new(x: i32, y: i32): Point {
+      return Point { x: x, y: y };
+    }
+  }
+
+  type Count = i64;
+  type Reader = (*i8) => Count | ParseError;
+  type Result = Count | ParseError;
+  type Where = Point;
+  type Hue = Color;
+  type Points = *Where;
+  type Later = Declared;
+
+  struct Declared {
+    value: Count,
+  }
+`;
+
+test "an alias is the type it names, not a new one" {
+  let scope: *Scope = Scope.new().declare(SHAPES)
+      .local("count", "Count")
+      .local("wide", "i64")
+      .local("read", "Reader")
+      .local("result", "Result")
+      .local("points", "Points");
+  assertEq(scope.check("count").type.toText(), "i64");
+  assert(scope.check("count").type.equals(scope.check("wide").type));
+  assertEq(scope.check("read").type.toText(), "(*i8) => i64 | ParseError");
+  assertEq(scope.check("read(\"1\")").type.toText(), "i64 | ParseError");
+  assertEq(scope.check("result").type.toText(), "i64 | ParseError");
+  assertEq(scope.check("points").type.toText(), "*Point");
+  assertEq(scope.check("points[0].y").type.toText(), "i32");
+  assert(scope.run("count = wide; wide = count; result = read(\"2\");").count == 0);
+}
+
+test "an alias may name a type declared after it, and a pointer to an alias is one" {
+  let scope: *Scope = Scope.new().declare(SHAPES)
+      .local("later", "Later")
+      .local("through", "*Count");
+  assertEq(scope.check("later.value").type.toText(), "i64");
+  assertEq(scope.check("through").type.toText(), "*i64");
+}
+
+test "an alias of a struct or an enum stands in for its name" {
+  let scope: *Scope = Scope.new().declare(SHAPES);
+  assertEq(scope.check("Where { x: 1, y: 2 }").type.toText(), "Point");
+  assertEq(scope.check("Where.new(1, 2)").type.toText(), "Point");
+  assertEq(scope.check("Hue.Green").type.toText(), "Color");
+}
+
+test "an alias that comes back to itself is reported once, where it is declared" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        type Self = Self;
+        type First = *Second;
+        type Second = First;
+
+        fn use(value: First): Second {
+          return value;
+        }
+      `)
+      .problems();
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.AliasCycle);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).facts.name, "Self");
+  assertEq(found.at(1).problem, Problem.AliasCycle);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(1).facts.name, "First");
+}
+
+test "an alias of a type that does not exist" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        type Ghost = *Missing;
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnknownType);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).facts.name, "*Missing");
+}
+
+test "an alias's name is taken once among the types" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        enum Color { Red }
+        type Twice = i32;
+        type Twice = i64;
+        type Color = i32;
+        type Point = i32;
+
+        struct Point {
+          x: i32,
+        }
+      `)
+      .problems();
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.DuplicateAlias);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).facts.name, "Twice");
+  assertEq(found.at(1).problem, Problem.DuplicateAlias);
+  assertEq(found.at(1).line, 4);
+  assertEq(found.at(1).facts.name, "Color");
+  assertEq(found.at(2).problem, Problem.DuplicateStruct);
+  assertEq(found.at(2).line, 7);
+  assertEq(found.at(2).facts.name, "Point");
+}

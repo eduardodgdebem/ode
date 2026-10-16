@@ -119,6 +119,23 @@ let ratio: f64 = size as f64 / 3.0;
 
 A narrowing cast truncates: `300 as i8` is 44.
 
+### Type aliases
+
+`type` gives a type a second name:
+
+```rust
+type Count = i64;
+type Reader = (*i8) => i64 | ParseError;
+type Where = Point;
+
+fn total(read: Reader, texts: **i8, count: i32): Count | ParseError { ... }
+let origin: Where = Where { x: 0, y: 0 };
+```
+
+The name means exactly that type, not a new one: a `Count` is an `i64`, and
+the two mix freely. Aliases are declared at the top level, exported and
+imported like structs, and may name a type declared further down.
+
 ## Pointers
 
 `&` takes the address of a variable, `*` reads or writes through a pointer,

@@ -105,8 +105,9 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     return;
   }
 
-  // An enum was registered before anything else was checked.
-  if (kind == NodeKind.Enum) {
+  // An enum was registered before anything else was checked, and an alias
+  // with it.
+  if (kind == NodeKind.Enum || kind == NodeKind.TypeAlias) {
     return;
   }
 

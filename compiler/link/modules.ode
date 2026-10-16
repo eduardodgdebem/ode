@@ -277,9 +277,11 @@ export struct NameSet {
   }
 }
 
-// Structs and enums share one namespace: a type name means one or the other.
+// Structs, enums and aliases share one namespace: a type name means one of
+// them.
 fn isTypeDecl(kind: NodeKind): bool {
-  return kind == NodeKind.Struct || kind == NodeKind.Enum;
+  return kind == NodeKind.Struct || kind == NodeKind.Enum ||
+         kind == NodeKind.TypeAlias;
 }
 
 fn isValueDecl(kind: NodeKind): bool {

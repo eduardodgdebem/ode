@@ -617,3 +617,56 @@ test "type errors in two files" {
   assertEq(found.at(1).path, "sub/lib.ode");
   files.release();
 }
+
+test "an alias is exported and imported like a struct" {
+  let files: *Files = Files.new();
+  files.add("shapes.ode", `
+    export struct Point {
+      x: i32,
+      y: i32,
+    }
+
+    export type Where = Point;
+    export type Measure = (Where, Where) => i32;
+    type Private = i64;
+  `);
+  files.add("main.ode", `
+    import { printf } from "std/c";
+    import { Where, Measure } from "./shapes";
+
+    fn main(): i32 {
+      let a: Where = Where { x: 1, y: 2 };
+      let b: Where = Where { x: 4, y: 6 };
+      let distance: Measure = (from, to) => to.x - from.x + to.y - from.y;
+      printf("%d\n", distance(a, b));
+      return 0;
+    }
+  `);
+  assertEq(outputOfFiles(files, "main.ode"), "7\n");
+  files.release();
+}
+
+test "an alias that is not exported, or not imported, is not seen" {
+  let files: *Files = Files.new();
+  files.add("shapes.ode", `
+    export type Count = i64;
+    type Private = i64;
+  `);
+  files.add("main.ode", `
+    import { Private } from "./shapes";
+
+    fn main(): i32 {
+      let n: Count = 0;
+      return 0;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.NotExported);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).facts.name, "Private");
+  assertEq(found.at(1).problem, Problem.TypeNotImported);
+  assertEq(found.at(1).line, 4);
+  assertEq(found.at(1).facts.name, "Count");
+  files.release();
+}
