@@ -463,6 +463,22 @@ fn describe(value: i64 | *i8 | ParseError): void {
 An arm may name several members, `Circle, Rect => { ... }`, and the
 variable there is the union of them; in `else` it is whatever no arm named.
 
+A field narrows the same way, read along the same path -- through pointers
+and nested fields alike:
+
+```rust
+fn measure(holder: *Holder): f64 {
+  if (holder.shape is Circle) {
+    return holder.shape.radius;
+  }
+  return holder.shape.width * holder.shape.height;
+}
+```
+
+Assigning a narrowed variable or field -- or anything it is part of, such as
+the whole `holder` -- forgets what was found out about it, from there on: it
+may hold any member again until it is asked once more.
+
 A union is as big as its largest member and a code saying which member it
 holds; nothing is allocated, and `is` compares that code. Two unions are not
 compared with `==` -- ask with `is`, and compare what it holds.

@@ -326,3 +326,129 @@ test "a type is no pattern in a match on a number or an enum" {
   assertEq(found.at(1).problem, Problem.PatternNotLiteral);
   assertEq(found.at(1).line, 6);
 }
+
+let HOLDERS: *i8 = `
+  struct Circle {
+    radius: i64,
+  }
+
+  struct Rect {
+    width: i64,
+    height: i64,
+  }
+
+  type Shape = Circle | Rect;
+
+  struct Holder {
+    shape: Shape,
+  }
+
+  struct Outer {
+    inner: Holder,
+  }
+`;
+
+fn holders(): *Scope {
+  return Scope.new().declare(HOLDERS)
+      .local("holder", "Holder")
+      .local("pointer", "*Holder")
+      .local("outer", "Outer")
+      .local("other", "Holder")
+      .local("going", "bool");
+}
+
+test "is narrows a field, through pointers and nested fields alike" {
+  let found: *List<Diagnostic> = holders().run(`
+    if (holder.shape is Circle) {
+      let radius: i64 = holder.shape.radius;
+    } else {
+      let width: i64 = holder.shape.width;
+    }
+    if (pointer.shape is Rect) {
+      let width: i64 = pointer.shape.width;
+    }
+    if (outer.inner.shape is Circle) {
+      let circle: Circle = outer.inner.shape;
+    }
+    if (pointer.shape is Circle) {
+      return;
+    }
+    let height: i64 = pointer.shape.height;
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a match narrows a field in each arm" {
+  let found: *List<Diagnostic> = holders().run(`
+    match (outer.inner.shape) {
+      Circle => {
+        let radius: i64 = outer.inner.shape.radius;
+      }
+      Rect => {
+        let wrong: i64 = outer.inner.shape.radius;
+      }
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NoSuchField);
+  assertEq(found.at(0).line, 6);
+}
+
+test "a narrowed field is that member only where it was narrowed" {
+  let found: *List<Diagnostic> = holders().run(`
+    if (holder.shape is Circle) {
+      let wrong: i64 = holder.shape.width;
+      let elsewhere: i64 = other.shape.radius;
+    }
+    let after: i64 = holder.shape.radius;
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.NoSuchField);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(1).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(1).line, 3);
+  assertEq(found.at(2).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(2).line, 5);
+}
+
+test "assigning a narrowed field takes any member, and forgets what was found" {
+  let found: *List<Diagnostic> = holders().run(`
+    if (holder.shape is Circle) {
+      holder.shape = Rect { width: 1, height: 2 };
+      let radius: i64 = holder.shape.radius;
+    }
+    if (holder.shape is Circle) {
+      if (going) {
+        holder.shape = Rect { width: 1, height: 2 };
+      }
+      let radius: i64 = holder.shape.radius;
+    }
+    if (holder.shape is Circle) {
+      holder = other;
+      let radius: i64 = holder.shape.radius;
+    }
+    if (holder.shape is Circle) {
+      holder.shape.radius = 5;
+      let radius: i64 = holder.shape.radius;
+    }
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(1).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(1).line, 9);
+  assertEq(found.at(2).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(2).line, 13);
+}
+
+test "assigning a narrowed variable forgets what was found too" {
+  let found: *List<Diagnostic> = shapes().run(`
+    if (either is i64) {
+      either = "text";
+      let number: i64 = either;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 3);
+}

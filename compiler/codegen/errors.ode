@@ -224,9 +224,14 @@ export fn genVariable(e: *Emitter, node: i32): *i8 {
 // `shape.radius`, with `shape is Circle`, is read from there. One narrowed to
 // an error is its code.
 export fn narrowedAddress(e: *Emitter, node: i32): *i8 {
-  let type: Type = typeOfNode(e, node);
-  let declared: Type = localTypeOf(e, node);
-  let address: *i8 = variableAddress(e, node);
+  return memberAddress(e, localTypeOf(e, node), typeOfNode(e, node),
+                       variableAddress(e, node));
+}
+
+// Where in a union of type `declared`, kept at `address`, the member `type`
+// that narrowing found it holds is: its code for an error, its value
+// otherwise. A narrower union is kept as the union, at the union's address.
+export fn memberAddress(e: *Emitter, declared: Type, type: Type, address: *i8): *i8 {
   if (!declared.isUnion() || declared.equals(type) || type.isUnion()) {
     return address;
   }

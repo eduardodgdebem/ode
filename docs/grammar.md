@@ -241,6 +241,10 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   or an error enum (all of its errors) that the union holds, once. A local
   variable matched on is narrowed in each arm to the members it names, and in
   `else` to the rest. Without `else`, every member must be named.
+- What `is` and `match` narrow is a path: a variable, or a field of one,
+  `a.b.c`, through pointers alike. Reading the same path where it is narrowed
+  reads the member. Assigning a path, or a path it starts with, forgets every
+  narrowing of it in every open scope, so it holds any member again.
 - A type alias is a second name for a type and means exactly it: `Count`
   and `i64` are one type after `type Count = i64;`. It shares the type
   namespace with structs and enums, is exported and imported like them, may

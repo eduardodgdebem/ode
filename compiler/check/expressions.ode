@@ -19,7 +19,8 @@ import {
 import { isReadyGlobal } from "./constants";
 import { checkEnumMember } from "./enums";
 import {
-  valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs,
+  valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
+  narrowedPath,
 } from "./errors";
 import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
@@ -768,7 +769,20 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  return an.structs.items[structIndex].fields[fieldIndex].type;
+  // A union field `is` or `match` has narrowed, read along the same path.
+  let type: Type = an.structs.items[structIndex].fields[fieldIndex].type;
+  an.narrowedFrom[node] = Type.make(TypeKind.None, 0);
+  if (type.isUnion()) {
+    let path: *i8 = pathOf(an, node);
+    if (path != null) {
+      let narrowed: Type = narrowedPath(an, path);
+      if (narrowed.kind != TypeKind.None && !narrowed.equals(type)) {
+        an.narrowedFrom[node] = type;
+        return narrowed;
+      }
+    }
+  }
+  return type;
 }
 
 fn checkIndex(an: *Analyzer, node: i32): Type {

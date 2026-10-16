@@ -21,7 +21,7 @@ import {
 } from "./emitter";
 import {
   wrapInUnion, genVariable, genTry, genCoalesce, genCatch, genIs,
-  narrowedAddress,
+  narrowedAddress, memberAddress, convertUnion,
 } from "./errors";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
@@ -184,7 +184,11 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
   }
 
   if (kind == NodeKind.FieldAccess) {
-    return genFieldAddress(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
+    let address: *i8 = genFieldAddress(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
+    if (e.an.narrowedFrom[node].kind != TypeKind.None) {
+      return memberAddress(e, e.an.narrowedFrom[node], typeOfNode(e, node), address);
+    }
+    return address;
   }
 
   if (kind == NodeKind.Index) {
@@ -845,8 +849,14 @@ fn genValue(e: *Emitter, node: i32): *i8 {
     return fromInt(e.an.values[node]);
   }
 
+  // A union field narrowed by `is` or `match` is read whole, as declared,
+  // and the member it holds taken out of it.
   if (kind == NodeKind.FieldAccess) {
-    return genFieldValue(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
+    let value: *i8 = genFieldValue(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
+    if (e.an.narrowedFrom[node].kind != TypeKind.None) {
+      return convertUnion(e, value, e.an.narrowedFrom[node], typeOfNode(e, node));
+    }
+    return value;
   }
 
   if (kind == NodeKind.Index) {
