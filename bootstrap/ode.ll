@@ -6,7 +6,7 @@
 %Hasher = type { i64 }
 %Inputs = type { ptr, i32, i32 }
 %Pair = type { i64, i8 }
-%Analyzer = type { ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, i64, ptr, ptr, ptr, ptr, ptr, ptr, i32, i1, i32, i32, i1, i1, %Type, i32, i32, i32 }
+%Analyzer = type { ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, i64, ptr, ptr, ptr, ptr, ptr, ptr, ptr, i32, i1, i32, i32, i1, i1, %Type, i32, i32, i32 }
 %Local = type { ptr, ptr, %Type }
 %Emitter = type { ptr, ptr, ptr, ptr, ptr, i32, i32, i32, i1, i1, i1, %Type, ptr, ptr, ptr, ptr, ptr, ptr }
 %Facts = type { ptr, ptr, %Type, %Type, i64, i64 }
@@ -7546,10 +7546,10 @@ entry:
   %t11 = getelementptr inbounds %Analyzer, ptr %t10, i32 0, i32 2
   store ptr %t9, ptr %t11
   %t12 = load ptr, ptr %t2
-  %t13 = getelementptr inbounds %Analyzer, ptr %t12, i32 0, i32 21
+  %t13 = getelementptr inbounds %Analyzer, ptr %t12, i32 0, i32 22
   store i32 0, ptr %t13
   %t14 = load ptr, ptr %t2
-  %t15 = getelementptr inbounds %Analyzer, ptr %t14, i32 0, i32 22
+  %t15 = getelementptr inbounds %Analyzer, ptr %t14, i32 0, i32 23
   store i1 false, ptr %t15
   %t16 = load ptr, ptr %t2
   call void @Analyzer.growNodeArrays(ptr %t16)
@@ -7582,7 +7582,7 @@ entry:
   store ptr %t34, ptr %t36
   %t37 = load i32, ptr @NO_NODE
   %t38 = load ptr, ptr %t2
-  %t39 = getelementptr inbounds %Analyzer, ptr %t38, i32 0, i32 23
+  %t39 = getelementptr inbounds %Analyzer, ptr %t38, i32 0, i32 24
   store i32 %t37, ptr %t39
   %t40 = call i32 @moduleCount()
   %t41 = sext i32 %t40 to i64
@@ -7591,26 +7591,26 @@ entry:
   %t44 = getelementptr inbounds %Analyzer, ptr %t43, i32 0, i32 7
   store ptr %t42, ptr %t44
   %t45 = load ptr, ptr %t2
-  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 24
+  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 25
   store i32 0, ptr %t46
   %t47 = load ptr, ptr %t2
-  %t48 = getelementptr inbounds %Analyzer, ptr %t47, i32 0, i32 25
+  %t48 = getelementptr inbounds %Analyzer, ptr %t47, i32 0, i32 26
   store i1 false, ptr %t48
   %t49 = load ptr, ptr %t2
-  %t50 = getelementptr inbounds %Analyzer, ptr %t49, i32 0, i32 26
+  %t50 = getelementptr inbounds %Analyzer, ptr %t49, i32 0, i32 27
   store i1 true, ptr %t50
   %t51 = call %Type @Type.make(i32 12, i32 0)
   %t52 = load ptr, ptr %t2
-  %t53 = getelementptr inbounds %Analyzer, ptr %t52, i32 0, i32 27
+  %t53 = getelementptr inbounds %Analyzer, ptr %t52, i32 0, i32 28
   store %Type %t51, ptr %t53
   %t54 = load ptr, ptr %t2
-  %t55 = getelementptr inbounds %Analyzer, ptr %t54, i32 0, i32 28
+  %t55 = getelementptr inbounds %Analyzer, ptr %t54, i32 0, i32 29
   store i32 2147483647, ptr %t55
   %t56 = load ptr, ptr %t2
-  %t57 = getelementptr inbounds %Analyzer, ptr %t56, i32 0, i32 29
+  %t57 = getelementptr inbounds %Analyzer, ptr %t56, i32 0, i32 30
   store i32 0, ptr %t57
   %t58 = load ptr, ptr %t2
-  %t59 = getelementptr inbounds %Analyzer, ptr %t58, i32 0, i32 30
+  %t59 = getelementptr inbounds %Analyzer, ptr %t58, i32 0, i32 31
   store i32 0, ptr %t59
   %t60 = load ptr, ptr %t2
   ret ptr %t60
@@ -7622,8 +7622,8 @@ entry:
   %t6 = alloca i32
   %t15 = alloca i32
   %t18 = alloca i64
-  %t144 = alloca i32
-  %t145 = alloca i32
+  %t155 = alloca i32
+  %t156 = alloca i32
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
   %t2 = getelementptr inbounds %Analyzer, ptr %t1, i32 0, i32 0
@@ -7633,7 +7633,7 @@ entry:
   store i32 %t5, ptr %t6
   %t7 = load i32, ptr %t6
   %t8 = load ptr, ptr %t0
-  %t9 = getelementptr inbounds %Analyzer, ptr %t8, i32 0, i32 21
+  %t9 = getelementptr inbounds %Analyzer, ptr %t8, i32 0, i32 22
   %t10 = load i32, ptr %t9
   %t11 = icmp sle i32 %t7, %t10
   br i1 %t11, label %L0, label %L2
@@ -7641,7 +7641,7 @@ L0:
   ret void
 L2:
   %t12 = load ptr, ptr %t0
-  %t13 = getelementptr inbounds %Analyzer, ptr %t12, i32 0, i32 21
+  %t13 = getelementptr inbounds %Analyzer, ptr %t12, i32 0, i32 22
   %t14 = load i32, ptr %t13
   store i32 %t14, ptr %t15
   %t16 = load i32, ptr %t6
@@ -7702,202 +7702,223 @@ L3:
   %t60 = getelementptr inbounds %Analyzer, ptr %t59, i32 0, i32 20
   store ptr %t58, ptr %t60
   %t61 = load i64, ptr %t18
-  %t62 = call ptr @"alloc<i32>"(i64 %t61)
+  %t62 = call ptr @"alloc<Type>"(i64 %t61)
   %t63 = load ptr, ptr %t0
-  %t64 = getelementptr inbounds %Analyzer, ptr %t63, i32 0, i32 18
+  %t64 = getelementptr inbounds %Analyzer, ptr %t63, i32 0, i32 21
   store ptr %t62, ptr %t64
+  %t65 = load i64, ptr %t18
+  %t66 = call ptr @"alloc<i32>"(i64 %t65)
+  %t67 = load ptr, ptr %t0
+  %t68 = getelementptr inbounds %Analyzer, ptr %t67, i32 0, i32 18
+  store ptr %t66, ptr %t68
   br label %L5
 L4:
-  %t65 = load ptr, ptr %t0
-  %t66 = getelementptr inbounds %Analyzer, ptr %t65, i32 0, i32 3
-  %t67 = load ptr, ptr %t66
-  %t68 = load i64, ptr %t18
-  %t69 = call ptr @"grow<Type>"(ptr %t67, i64 %t68)
-  %t70 = load ptr, ptr %t0
-  %t71 = getelementptr inbounds %Analyzer, ptr %t70, i32 0, i32 3
-  store ptr %t69, ptr %t71
-  %t72 = load ptr, ptr %t0
-  %t73 = getelementptr inbounds %Analyzer, ptr %t72, i32 0, i32 4
-  %t74 = load ptr, ptr %t73
-  %t75 = load i64, ptr %t18
-  %t76 = call ptr @"grow<i8>"(ptr %t74, i64 %t75)
-  %t77 = load ptr, ptr %t0
-  %t78 = getelementptr inbounds %Analyzer, ptr %t77, i32 0, i32 4
-  store ptr %t76, ptr %t78
-  %t79 = load ptr, ptr %t0
-  %t80 = getelementptr inbounds %Analyzer, ptr %t79, i32 0, i32 6
-  %t81 = load ptr, ptr %t80
-  %t82 = load i64, ptr %t18
-  %t83 = call ptr @"grow<*i8>"(ptr %t81, i64 %t82)
-  %t84 = load ptr, ptr %t0
-  %t85 = getelementptr inbounds %Analyzer, ptr %t84, i32 0, i32 6
-  store ptr %t83, ptr %t85
-  %t86 = load ptr, ptr %t0
-  %t87 = getelementptr inbounds %Analyzer, ptr %t86, i32 0, i32 8
-  %t88 = load ptr, ptr %t87
-  %t89 = load i64, ptr %t18
-  %t90 = call ptr @"grow<ReceiverMode>"(ptr %t88, i64 %t89)
-  %t91 = load ptr, ptr %t0
-  %t92 = getelementptr inbounds %Analyzer, ptr %t91, i32 0, i32 8
-  store ptr %t90, ptr %t92
-  %t93 = load ptr, ptr %t0
-  %t94 = getelementptr inbounds %Analyzer, ptr %t93, i32 0, i32 9
-  %t95 = load ptr, ptr %t94
-  %t96 = load i64, ptr %t18
-  %t97 = call ptr @"grow<*i8>"(ptr %t95, i64 %t96)
-  %t98 = load ptr, ptr %t0
-  %t99 = getelementptr inbounds %Analyzer, ptr %t98, i32 0, i32 9
-  store ptr %t97, ptr %t99
-  %t100 = load ptr, ptr %t0
-  %t101 = getelementptr inbounds %Analyzer, ptr %t100, i32 0, i32 10
-  %t102 = load ptr, ptr %t101
-  %t103 = load i64, ptr %t18
-  %t104 = call ptr @"grow<i8>"(ptr %t102, i64 %t103)
-  %t105 = load ptr, ptr %t0
-  %t106 = getelementptr inbounds %Analyzer, ptr %t105, i32 0, i32 10
-  store ptr %t104, ptr %t106
-  %t107 = load ptr, ptr %t0
-  %t108 = getelementptr inbounds %Analyzer, ptr %t107, i32 0, i32 11
-  %t109 = load ptr, ptr %t108
-  %t110 = load i64, ptr %t18
-  %t111 = call ptr @"grow<i64>"(ptr %t109, i64 %t110)
-  %t112 = load ptr, ptr %t0
-  %t113 = getelementptr inbounds %Analyzer, ptr %t112, i32 0, i32 11
-  store ptr %t111, ptr %t113
-  %t114 = load ptr, ptr %t0
-  %t115 = getelementptr inbounds %Analyzer, ptr %t114, i32 0, i32 17
-  %t116 = load ptr, ptr %t115
-  %t117 = load i64, ptr %t18
-  %t118 = call ptr @"grow<i8>"(ptr %t116, i64 %t117)
-  %t119 = load ptr, ptr %t0
-  %t120 = getelementptr inbounds %Analyzer, ptr %t119, i32 0, i32 17
-  store ptr %t118, ptr %t120
-  %t121 = load ptr, ptr %t0
-  %t122 = getelementptr inbounds %Analyzer, ptr %t121, i32 0, i32 19
-  %t123 = load ptr, ptr %t122
-  %t124 = load i64, ptr %t18
-  %t125 = call ptr @"grow<CallTarget>"(ptr %t123, i64 %t124)
-  %t126 = load ptr, ptr %t0
-  %t127 = getelementptr inbounds %Analyzer, ptr %t126, i32 0, i32 19
-  store ptr %t125, ptr %t127
-  %t128 = load ptr, ptr %t0
-  %t129 = getelementptr inbounds %Analyzer, ptr %t128, i32 0, i32 20
-  %t130 = load ptr, ptr %t129
-  %t131 = load i64, ptr %t18
-  %t132 = call ptr @"grow<Type>"(ptr %t130, i64 %t131)
-  %t133 = load ptr, ptr %t0
-  %t134 = getelementptr inbounds %Analyzer, ptr %t133, i32 0, i32 20
-  store ptr %t132, ptr %t134
-  %t135 = load ptr, ptr %t0
-  %t136 = getelementptr inbounds %Analyzer, ptr %t135, i32 0, i32 18
-  %t137 = load ptr, ptr %t136
-  %t138 = load i64, ptr %t18
-  %t139 = call ptr @"grow<i32>"(ptr %t137, i64 %t138)
-  %t140 = load ptr, ptr %t0
-  %t141 = getelementptr inbounds %Analyzer, ptr %t140, i32 0, i32 18
-  store ptr %t139, ptr %t141
+  %t69 = load ptr, ptr %t0
+  %t70 = getelementptr inbounds %Analyzer, ptr %t69, i32 0, i32 3
+  %t71 = load ptr, ptr %t70
+  %t72 = load i64, ptr %t18
+  %t73 = call ptr @"grow<Type>"(ptr %t71, i64 %t72)
+  %t74 = load ptr, ptr %t0
+  %t75 = getelementptr inbounds %Analyzer, ptr %t74, i32 0, i32 3
+  store ptr %t73, ptr %t75
+  %t76 = load ptr, ptr %t0
+  %t77 = getelementptr inbounds %Analyzer, ptr %t76, i32 0, i32 4
+  %t78 = load ptr, ptr %t77
+  %t79 = load i64, ptr %t18
+  %t80 = call ptr @"grow<i8>"(ptr %t78, i64 %t79)
+  %t81 = load ptr, ptr %t0
+  %t82 = getelementptr inbounds %Analyzer, ptr %t81, i32 0, i32 4
+  store ptr %t80, ptr %t82
+  %t83 = load ptr, ptr %t0
+  %t84 = getelementptr inbounds %Analyzer, ptr %t83, i32 0, i32 6
+  %t85 = load ptr, ptr %t84
+  %t86 = load i64, ptr %t18
+  %t87 = call ptr @"grow<*i8>"(ptr %t85, i64 %t86)
+  %t88 = load ptr, ptr %t0
+  %t89 = getelementptr inbounds %Analyzer, ptr %t88, i32 0, i32 6
+  store ptr %t87, ptr %t89
+  %t90 = load ptr, ptr %t0
+  %t91 = getelementptr inbounds %Analyzer, ptr %t90, i32 0, i32 8
+  %t92 = load ptr, ptr %t91
+  %t93 = load i64, ptr %t18
+  %t94 = call ptr @"grow<ReceiverMode>"(ptr %t92, i64 %t93)
+  %t95 = load ptr, ptr %t0
+  %t96 = getelementptr inbounds %Analyzer, ptr %t95, i32 0, i32 8
+  store ptr %t94, ptr %t96
+  %t97 = load ptr, ptr %t0
+  %t98 = getelementptr inbounds %Analyzer, ptr %t97, i32 0, i32 9
+  %t99 = load ptr, ptr %t98
+  %t100 = load i64, ptr %t18
+  %t101 = call ptr @"grow<*i8>"(ptr %t99, i64 %t100)
+  %t102 = load ptr, ptr %t0
+  %t103 = getelementptr inbounds %Analyzer, ptr %t102, i32 0, i32 9
+  store ptr %t101, ptr %t103
+  %t104 = load ptr, ptr %t0
+  %t105 = getelementptr inbounds %Analyzer, ptr %t104, i32 0, i32 10
+  %t106 = load ptr, ptr %t105
+  %t107 = load i64, ptr %t18
+  %t108 = call ptr @"grow<i8>"(ptr %t106, i64 %t107)
+  %t109 = load ptr, ptr %t0
+  %t110 = getelementptr inbounds %Analyzer, ptr %t109, i32 0, i32 10
+  store ptr %t108, ptr %t110
+  %t111 = load ptr, ptr %t0
+  %t112 = getelementptr inbounds %Analyzer, ptr %t111, i32 0, i32 11
+  %t113 = load ptr, ptr %t112
+  %t114 = load i64, ptr %t18
+  %t115 = call ptr @"grow<i64>"(ptr %t113, i64 %t114)
+  %t116 = load ptr, ptr %t0
+  %t117 = getelementptr inbounds %Analyzer, ptr %t116, i32 0, i32 11
+  store ptr %t115, ptr %t117
+  %t118 = load ptr, ptr %t0
+  %t119 = getelementptr inbounds %Analyzer, ptr %t118, i32 0, i32 17
+  %t120 = load ptr, ptr %t119
+  %t121 = load i64, ptr %t18
+  %t122 = call ptr @"grow<i8>"(ptr %t120, i64 %t121)
+  %t123 = load ptr, ptr %t0
+  %t124 = getelementptr inbounds %Analyzer, ptr %t123, i32 0, i32 17
+  store ptr %t122, ptr %t124
+  %t125 = load ptr, ptr %t0
+  %t126 = getelementptr inbounds %Analyzer, ptr %t125, i32 0, i32 19
+  %t127 = load ptr, ptr %t126
+  %t128 = load i64, ptr %t18
+  %t129 = call ptr @"grow<CallTarget>"(ptr %t127, i64 %t128)
+  %t130 = load ptr, ptr %t0
+  %t131 = getelementptr inbounds %Analyzer, ptr %t130, i32 0, i32 19
+  store ptr %t129, ptr %t131
+  %t132 = load ptr, ptr %t0
+  %t133 = getelementptr inbounds %Analyzer, ptr %t132, i32 0, i32 20
+  %t134 = load ptr, ptr %t133
+  %t135 = load i64, ptr %t18
+  %t136 = call ptr @"grow<Type>"(ptr %t134, i64 %t135)
+  %t137 = load ptr, ptr %t0
+  %t138 = getelementptr inbounds %Analyzer, ptr %t137, i32 0, i32 20
+  store ptr %t136, ptr %t138
+  %t139 = load ptr, ptr %t0
+  %t140 = getelementptr inbounds %Analyzer, ptr %t139, i32 0, i32 21
+  %t141 = load ptr, ptr %t140
+  %t142 = load i64, ptr %t18
+  %t143 = call ptr @"grow<Type>"(ptr %t141, i64 %t142)
+  %t144 = load ptr, ptr %t0
+  %t145 = getelementptr inbounds %Analyzer, ptr %t144, i32 0, i32 21
+  store ptr %t143, ptr %t145
+  %t146 = load ptr, ptr %t0
+  %t147 = getelementptr inbounds %Analyzer, ptr %t146, i32 0, i32 18
+  %t148 = load ptr, ptr %t147
+  %t149 = load i64, ptr %t18
+  %t150 = call ptr @"grow<i32>"(ptr %t148, i64 %t149)
+  %t151 = load ptr, ptr %t0
+  %t152 = getelementptr inbounds %Analyzer, ptr %t151, i32 0, i32 18
+  store ptr %t150, ptr %t152
   br label %L5
 L5:
-  %t142 = load i32, ptr %t15
-  %t143 = load i32, ptr %t6
-  store i32 %t142, ptr %t144
+  %t153 = load i32, ptr %t15
+  %t154 = load i32, ptr %t6
+  store i32 %t153, ptr %t155
   br label %L6
 L6:
-  %t146 = load i32, ptr %t144
-  %t147 = icmp slt i32 %t146, %t143
-  br i1 %t147, label %L7, label %L9
+  %t157 = load i32, ptr %t155
+  %t158 = icmp slt i32 %t157, %t154
+  br i1 %t158, label %L7, label %L9
 L7:
-  store i32 %t146, ptr %t145
-  %t148 = call %Type @Type.make(i32 0, i32 0)
-  %t149 = load ptr, ptr %t0
-  %t150 = getelementptr inbounds %Analyzer, ptr %t149, i32 0, i32 3
-  %t151 = load ptr, ptr %t150
-  %t152 = load i32, ptr %t145
-  %t153 = sext i32 %t152 to i64
-  %t154 = getelementptr inbounds %Type, ptr %t151, i64 %t153
-  store %Type %t148, ptr %t154
-  %t155 = load ptr, ptr %t0
-  %t156 = getelementptr inbounds %Analyzer, ptr %t155, i32 0, i32 4
-  %t157 = load ptr, ptr %t156
-  %t158 = load i32, ptr %t145
-  %t159 = sext i32 %t158 to i64
-  %t160 = getelementptr inbounds i8, ptr %t157, i64 %t159
-  store i8 0, ptr %t160
-  %t161 = load ptr, ptr %t0
-  %t162 = getelementptr inbounds %Analyzer, ptr %t161, i32 0, i32 6
-  %t163 = load ptr, ptr %t162
-  %t164 = load i32, ptr %t145
-  %t165 = sext i32 %t164 to i64
-  %t166 = getelementptr inbounds ptr, ptr %t163, i64 %t165
-  store ptr null, ptr %t166
-  %t167 = load ptr, ptr %t0
-  %t168 = getelementptr inbounds %Analyzer, ptr %t167, i32 0, i32 8
-  %t169 = load ptr, ptr %t168
-  %t170 = load i32, ptr %t145
-  %t171 = sext i32 %t170 to i64
-  %t172 = getelementptr inbounds i32, ptr %t169, i64 %t171
-  store i32 0, ptr %t172
-  %t173 = load ptr, ptr %t0
-  %t174 = getelementptr inbounds %Analyzer, ptr %t173, i32 0, i32 9
-  %t175 = load ptr, ptr %t174
-  %t176 = load i32, ptr %t145
-  %t177 = sext i32 %t176 to i64
-  %t178 = getelementptr inbounds ptr, ptr %t175, i64 %t177
-  store ptr null, ptr %t178
-  %t179 = load ptr, ptr %t0
-  %t180 = getelementptr inbounds %Analyzer, ptr %t179, i32 0, i32 10
-  %t181 = load ptr, ptr %t180
-  %t182 = load i32, ptr %t145
-  %t183 = sext i32 %t182 to i64
-  %t184 = getelementptr inbounds i8, ptr %t181, i64 %t183
-  store i8 0, ptr %t184
-  %t185 = load ptr, ptr %t0
-  %t186 = getelementptr inbounds %Analyzer, ptr %t185, i32 0, i32 17
-  %t187 = load ptr, ptr %t186
-  %t188 = load i32, ptr %t145
-  %t189 = sext i32 %t188 to i64
-  %t190 = getelementptr inbounds i8, ptr %t187, i64 %t189
-  store i8 0, ptr %t190
-  %t191 = load ptr, ptr %t0
-  %t192 = getelementptr inbounds %Analyzer, ptr %t191, i32 0, i32 19
-  %t193 = load ptr, ptr %t192
-  %t194 = load i32, ptr %t145
-  %t195 = sext i32 %t194 to i64
-  %t196 = getelementptr inbounds i32, ptr %t193, i64 %t195
-  store i32 0, ptr %t196
-  %t197 = call %Type @Type.make(i32 0, i32 0)
-  %t198 = load ptr, ptr %t0
-  %t199 = getelementptr inbounds %Analyzer, ptr %t198, i32 0, i32 20
-  %t200 = load ptr, ptr %t199
-  %t201 = load i32, ptr %t145
-  %t202 = sext i32 %t201 to i64
-  %t203 = getelementptr inbounds %Type, ptr %t200, i64 %t202
-  store %Type %t197, ptr %t203
-  %t204 = load ptr, ptr %t0
-  %t205 = getelementptr inbounds %Analyzer, ptr %t204, i32 0, i32 11
-  %t206 = load ptr, ptr %t205
-  %t207 = load i32, ptr %t145
-  %t208 = sext i32 %t207 to i64
-  %t209 = getelementptr inbounds i64, ptr %t206, i64 %t208
-  store i64 0, ptr %t209
-  %t210 = load ptr, ptr %t0
-  %t211 = getelementptr inbounds %Analyzer, ptr %t210, i32 0, i32 18
-  %t212 = load ptr, ptr %t211
-  %t213 = load i32, ptr %t145
-  %t214 = sext i32 %t213 to i64
-  %t215 = getelementptr inbounds i32, ptr %t212, i64 %t214
-  store i32 0, ptr %t215
+  store i32 %t157, ptr %t156
+  %t159 = call %Type @Type.make(i32 0, i32 0)
+  %t160 = load ptr, ptr %t0
+  %t161 = getelementptr inbounds %Analyzer, ptr %t160, i32 0, i32 3
+  %t162 = load ptr, ptr %t161
+  %t163 = load i32, ptr %t156
+  %t164 = sext i32 %t163 to i64
+  %t165 = getelementptr inbounds %Type, ptr %t162, i64 %t164
+  store %Type %t159, ptr %t165
+  %t166 = load ptr, ptr %t0
+  %t167 = getelementptr inbounds %Analyzer, ptr %t166, i32 0, i32 4
+  %t168 = load ptr, ptr %t167
+  %t169 = load i32, ptr %t156
+  %t170 = sext i32 %t169 to i64
+  %t171 = getelementptr inbounds i8, ptr %t168, i64 %t170
+  store i8 0, ptr %t171
+  %t172 = load ptr, ptr %t0
+  %t173 = getelementptr inbounds %Analyzer, ptr %t172, i32 0, i32 6
+  %t174 = load ptr, ptr %t173
+  %t175 = load i32, ptr %t156
+  %t176 = sext i32 %t175 to i64
+  %t177 = getelementptr inbounds ptr, ptr %t174, i64 %t176
+  store ptr null, ptr %t177
+  %t178 = load ptr, ptr %t0
+  %t179 = getelementptr inbounds %Analyzer, ptr %t178, i32 0, i32 8
+  %t180 = load ptr, ptr %t179
+  %t181 = load i32, ptr %t156
+  %t182 = sext i32 %t181 to i64
+  %t183 = getelementptr inbounds i32, ptr %t180, i64 %t182
+  store i32 0, ptr %t183
+  %t184 = load ptr, ptr %t0
+  %t185 = getelementptr inbounds %Analyzer, ptr %t184, i32 0, i32 9
+  %t186 = load ptr, ptr %t185
+  %t187 = load i32, ptr %t156
+  %t188 = sext i32 %t187 to i64
+  %t189 = getelementptr inbounds ptr, ptr %t186, i64 %t188
+  store ptr null, ptr %t189
+  %t190 = load ptr, ptr %t0
+  %t191 = getelementptr inbounds %Analyzer, ptr %t190, i32 0, i32 10
+  %t192 = load ptr, ptr %t191
+  %t193 = load i32, ptr %t156
+  %t194 = sext i32 %t193 to i64
+  %t195 = getelementptr inbounds i8, ptr %t192, i64 %t194
+  store i8 0, ptr %t195
+  %t196 = load ptr, ptr %t0
+  %t197 = getelementptr inbounds %Analyzer, ptr %t196, i32 0, i32 17
+  %t198 = load ptr, ptr %t197
+  %t199 = load i32, ptr %t156
+  %t200 = sext i32 %t199 to i64
+  %t201 = getelementptr inbounds i8, ptr %t198, i64 %t200
+  store i8 0, ptr %t201
+  %t202 = load ptr, ptr %t0
+  %t203 = getelementptr inbounds %Analyzer, ptr %t202, i32 0, i32 19
+  %t204 = load ptr, ptr %t203
+  %t205 = load i32, ptr %t156
+  %t206 = sext i32 %t205 to i64
+  %t207 = getelementptr inbounds i32, ptr %t204, i64 %t206
+  store i32 0, ptr %t207
+  %t208 = call %Type @Type.make(i32 0, i32 0)
+  %t209 = load ptr, ptr %t0
+  %t210 = getelementptr inbounds %Analyzer, ptr %t209, i32 0, i32 20
+  %t211 = load ptr, ptr %t210
+  %t212 = load i32, ptr %t156
+  %t213 = sext i32 %t212 to i64
+  %t214 = getelementptr inbounds %Type, ptr %t211, i64 %t213
+  store %Type %t208, ptr %t214
+  %t215 = call %Type @Type.make(i32 0, i32 0)
+  %t216 = load ptr, ptr %t0
+  %t217 = getelementptr inbounds %Analyzer, ptr %t216, i32 0, i32 21
+  %t218 = load ptr, ptr %t217
+  %t219 = load i32, ptr %t156
+  %t220 = sext i32 %t219 to i64
+  %t221 = getelementptr inbounds %Type, ptr %t218, i64 %t220
+  store %Type %t215, ptr %t221
+  %t222 = load ptr, ptr %t0
+  %t223 = getelementptr inbounds %Analyzer, ptr %t222, i32 0, i32 11
+  %t224 = load ptr, ptr %t223
+  %t225 = load i32, ptr %t156
+  %t226 = sext i32 %t225 to i64
+  %t227 = getelementptr inbounds i64, ptr %t224, i64 %t226
+  store i64 0, ptr %t227
+  %t228 = load ptr, ptr %t0
+  %t229 = getelementptr inbounds %Analyzer, ptr %t228, i32 0, i32 18
+  %t230 = load ptr, ptr %t229
+  %t231 = load i32, ptr %t156
+  %t232 = sext i32 %t231 to i64
+  %t233 = getelementptr inbounds i32, ptr %t230, i64 %t232
+  store i32 0, ptr %t233
   br label %L8
 L8:
-  %t216 = load i32, ptr %t144
-  %t217 = add i32 %t216, 1
-  store i32 %t217, ptr %t144
+  %t234 = load i32, ptr %t155
+  %t235 = add i32 %t234, 1
+  store i32 %t235, ptr %t155
   br label %L6
 L9:
-  %t218 = load i32, ptr %t6
-  %t219 = load ptr, ptr %t0
-  %t220 = getelementptr inbounds %Analyzer, ptr %t219, i32 0, i32 21
-  store i32 %t218, ptr %t220
+  %t236 = load i32, ptr %t6
+  %t237 = load ptr, ptr %t0
+  %t238 = getelementptr inbounds %Analyzer, ptr %t237, i32 0, i32 22
+  store i32 %t236, ptr %t238
   ret void
 }
 
@@ -8793,7 +8814,7 @@ L7:
 L9:
   %t48 = load ptr, ptr %t0
   %t49 = load ptr, ptr %t0
-  %t50 = getelementptr inbounds %Analyzer, ptr %t49, i32 0, i32 23
+  %t50 = getelementptr inbounds %Analyzer, ptr %t49, i32 0, i32 24
   %t51 = load i32, ptr %t50
   %t52 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 2
   %t53 = load ptr, ptr %t52
@@ -10014,13 +10035,13 @@ entry:
   store i32 %p1, ptr %t1
   %t2 = load i32, ptr %t1
   %t3 = load ptr, ptr %t0
-  %t4 = getelementptr inbounds %Analyzer, ptr %t3, i32 0, i32 23
+  %t4 = getelementptr inbounds %Analyzer, ptr %t3, i32 0, i32 24
   store i32 %t2, ptr %t4
   %t5 = load ptr, ptr %t0
   %t6 = load i32, ptr %t1
   call void @linkModules(ptr %t5, i32 %t6)
   %t7 = load ptr, ptr %t0
-  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 22
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 23
   %t9 = load i1, ptr %t8
   br i1 %t9, label %L0, label %L2
 L0:
@@ -10463,7 +10484,7 @@ L44:
   %t308 = call ptr @moduleDisplayPath(i32 0)
   store ptr %t308, ptr @SOURCE_PATH
   %t311 = load ptr, ptr %t0
-  %t312 = getelementptr inbounds %Analyzer, ptr %t311, i32 0, i32 26
+  %t312 = getelementptr inbounds %Analyzer, ptr %t311, i32 0, i32 27
   %t313 = load i1, ptr %t312
   store i1 %t313, ptr %t310
   br i1 %t313, label %L55, label %L56
@@ -24443,7 +24464,7 @@ L10:
   call void @analyzerFail(ptr %t38, i32 %t39, i32 132, %Facts %t50)
   store i1 false, ptr @FAILED
   %t51 = load ptr, ptr %t0
-  %t52 = getelementptr inbounds %Analyzer, ptr %t51, i32 0, i32 22
+  %t52 = getelementptr inbounds %Analyzer, ptr %t51, i32 0, i32 23
   store i1 true, ptr %t52
   ret void
 L12:
@@ -28573,7 +28594,7 @@ entry:
   %t5 = getelementptr inbounds %Ast, ptr %t4, i32 0, i32 0
   %t6 = load ptr, ptr %t5
   %t7 = load ptr, ptr %t0
-  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 23
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 24
   %t9 = load i32, ptr %t8
   %t10 = sext i32 %t9 to i64
   %t11 = getelementptr inbounds %Node, ptr %t6, i64 %t10
@@ -28593,7 +28614,7 @@ L1:
   %t21 = getelementptr inbounds %Ast, ptr %t20, i32 0, i32 0
   %t22 = load ptr, ptr %t21
   %t23 = load ptr, ptr %t0
-  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 23
+  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 24
   %t25 = load i32, ptr %t24
   %t26 = sext i32 %t25 to i64
   %t27 = getelementptr inbounds %Node, ptr %t22, i64 %t26
@@ -30069,7 +30090,7 @@ L2:
   br label %L0
 L3:
   %t57 = load ptr, ptr %t3
-  call void @"List<Type>.sort"(ptr %t57, ptr @ode.lambda.35154)
+  call void @"List<Type>.sort"(ptr %t57, ptr @ode.lambda.35187)
   %t58 = call ptr @"List<Type>.new"()
   store ptr %t58, ptr %t59
   %t60 = load ptr, ptr %t3
@@ -31363,7 +31384,7 @@ L3:
   ret %Type %t24
 L5:
   %t25 = load ptr, ptr %t0
-  %t26 = getelementptr inbounds %Analyzer, ptr %t25, i32 0, i32 25
+  %t26 = getelementptr inbounds %Analyzer, ptr %t25, i32 0, i32 26
   %t27 = load i1, ptr %t26
   %t28 = xor i1 %t27, true
   br i1 %t28, label %L6, label %L8
@@ -31391,7 +31412,7 @@ L9:
 L10:
   store i64 %t42, ptr %t41
   %t45 = load ptr, ptr %t0
-  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 27
+  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 28
   %t47 = load %Type, ptr %t46
   %t48 = call i1 @Type.isUnion(%Type %t47)
   %t49 = xor i1 %t48, true
@@ -31399,7 +31420,7 @@ L10:
   br i1 %t49, label %L14, label %L13
 L13:
   %t50 = load ptr, ptr %t0
-  %t51 = getelementptr inbounds %Analyzer, ptr %t50, i32 0, i32 27
+  %t51 = getelementptr inbounds %Analyzer, ptr %t50, i32 0, i32 28
   %t52 = load %Type, ptr %t51
   %t53 = load ptr, ptr %t36
   %t54 = load i64, ptr %t41
@@ -31419,7 +31440,7 @@ L15:
   %t63 = call ptr @"List<*i8>.at"(ptr %t61, i64 %t62)
   %t64 = call %Facts @Facts.about(ptr %t63)
   %t65 = load ptr, ptr %t0
-  %t66 = getelementptr inbounds %Analyzer, ptr %t65, i32 0, i32 27
+  %t66 = getelementptr inbounds %Analyzer, ptr %t65, i32 0, i32 28
   %t67 = load %Type, ptr %t66
   %t68 = call %Facts @Facts.withType(%Facts %t64, %Type %t67)
   call void @analyzerFail(ptr %t59, i32 %t60, i32 138, %Facts %t68)
@@ -32370,55 +32391,190 @@ L2:
   %t23 = load i32, ptr %t22
   store i32 %t23, ptr %t24
   %t27 = load ptr, ptr %t0
-  %t28 = getelementptr inbounds %Analyzer, ptr %t27, i32 0, i32 0
-  %t29 = load ptr, ptr %t28
-  %t30 = getelementptr inbounds %Ast, ptr %t29, i32 0, i32 0
-  %t31 = load ptr, ptr %t30
-  %t32 = load i32, ptr %t24
-  %t33 = sext i32 %t32 to i64
-  %t34 = getelementptr inbounds %Node, ptr %t31, i64 %t33
-  %t35 = getelementptr inbounds %Node, ptr %t34, i32 0, i32 0
-  %t36 = load i32, ptr %t35
-  %t37 = icmp ne i32 %t36, 27
-  store i1 %t37, ptr %t26
-  br i1 %t37, label %L4, label %L3
+  %t28 = load i32, ptr %t24
+  %t29 = call ptr @pathOf(ptr %t27, i32 %t28)
+  %t30 = icmp eq ptr %t29, null
+  store i1 %t30, ptr %t26
+  br i1 %t30, label %L4, label %L3
 L3:
-  %t38 = load ptr, ptr %t0
-  %t39 = getelementptr inbounds %Analyzer, ptr %t38, i32 0, i32 3
-  %t40 = load ptr, ptr %t39
-  %t41 = load i32, ptr %t24
-  %t42 = sext i32 %t41 to i64
-  %t43 = getelementptr inbounds %Type, ptr %t40, i64 %t42
-  %t44 = getelementptr inbounds %Type, ptr %t43, i32 0, i32 0
-  %t45 = load i32, ptr %t44
-  %t46 = icmp eq i32 %t45, 0
-  store i1 %t46, ptr %t26
+  %t31 = load ptr, ptr %t0
+  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 3
+  %t33 = load ptr, ptr %t32
+  %t34 = load i32, ptr %t24
+  %t35 = sext i32 %t34 to i64
+  %t36 = getelementptr inbounds %Type, ptr %t33, i64 %t35
+  %t37 = getelementptr inbounds %Type, ptr %t36, i32 0, i32 0
+  %t38 = load i32, ptr %t37
+  %t39 = icmp eq i32 %t38, 0
+  store i1 %t39, ptr %t26
   br label %L4
 L4:
-  %t47 = load i1, ptr %t26
-  store i1 %t47, ptr %t25
-  br i1 %t47, label %L6, label %L5
+  %t40 = load i1, ptr %t26
+  store i1 %t40, ptr %t25
+  br i1 %t40, label %L6, label %L5
 L5:
-  %t48 = load ptr, ptr %t0
-  %t49 = getelementptr inbounds %Analyzer, ptr %t48, i32 0, i32 3
-  %t50 = load ptr, ptr %t49
-  %t51 = load i32, ptr %t24
-  %t52 = sext i32 %t51 to i64
-  %t53 = getelementptr inbounds %Type, ptr %t50, i64 %t52
-  %t54 = load %Type, ptr %t53
-  %t55 = call i1 @Type.isUnion(%Type %t54)
-  %t56 = xor i1 %t55, true
-  store i1 %t56, ptr %t25
+  %t41 = load ptr, ptr %t0
+  %t42 = getelementptr inbounds %Analyzer, ptr %t41, i32 0, i32 3
+  %t43 = load ptr, ptr %t42
+  %t44 = load i32, ptr %t24
+  %t45 = sext i32 %t44 to i64
+  %t46 = getelementptr inbounds %Type, ptr %t43, i64 %t45
+  %t47 = load %Type, ptr %t46
+  %t48 = call i1 @Type.isUnion(%Type %t47)
+  %t49 = xor i1 %t48, true
+  store i1 %t49, ptr %t25
   br label %L6
 L6:
-  %t57 = load i1, ptr %t25
-  br i1 %t57, label %L7, label %L9
+  %t50 = load i1, ptr %t25
+  br i1 %t50, label %L7, label %L9
 L7:
-  %t58 = load i32, ptr @NO_NODE
-  ret i32 %t58
+  %t51 = load i32, ptr @NO_NODE
+  ret i32 %t51
 L9:
-  %t59 = load i32, ptr %t24
-  ret i32 %t59
+  %t52 = load i32, ptr %t24
+  ret i32 %t52
+}
+
+define ptr @pathOf(ptr %p0, i32 %p1) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t12 = alloca i32
+  %t29 = alloca i32
+  %t30 = alloca i1
+  %t55 = alloca i1
+  %t79 = alloca ptr
+  %t83 = alloca ptr
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  %t2 = load ptr, ptr %t0
+  %t3 = getelementptr inbounds %Analyzer, ptr %t2, i32 0, i32 0
+  %t4 = load ptr, ptr %t3
+  %t5 = getelementptr inbounds %Ast, ptr %t4, i32 0, i32 0
+  %t6 = load ptr, ptr %t5
+  %t7 = load i32, ptr %t1
+  %t8 = sext i32 %t7 to i64
+  %t9 = getelementptr inbounds %Node, ptr %t6, i64 %t8
+  %t10 = getelementptr inbounds %Node, ptr %t9, i32 0, i32 0
+  %t11 = load i32, ptr %t10
+  store i32 %t11, ptr %t12
+  %t13 = load i32, ptr %t12
+  %t14 = icmp eq i32 %t13, 27
+  br i1 %t14, label %L0, label %L2
+L0:
+  %t15 = load ptr, ptr %t0
+  %t16 = getelementptr inbounds %Analyzer, ptr %t15, i32 0, i32 1
+  %t17 = load ptr, ptr %t16
+  %t18 = load ptr, ptr %t0
+  %t19 = getelementptr inbounds %Analyzer, ptr %t18, i32 0, i32 0
+  %t20 = load ptr, ptr %t19
+  %t21 = getelementptr inbounds %Ast, ptr %t20, i32 0, i32 0
+  %t22 = load ptr, ptr %t21
+  %t23 = load i32, ptr %t1
+  %t24 = sext i32 %t23 to i64
+  %t25 = getelementptr inbounds %Node, ptr %t22, i64 %t24
+  %t26 = getelementptr inbounds %Node, ptr %t25, i32 0, i32 3
+  %t27 = load ptr, ptr %t26
+  %t28 = call i32 @SymbolTable.find(ptr %t17, ptr %t27)
+  store i32 %t28, ptr %t29
+  %t31 = load i32, ptr %t29
+  %t32 = icmp slt i32 %t31, 0
+  store i1 %t32, ptr %t30
+  br i1 %t32, label %L4, label %L3
+L3:
+  %t33 = load ptr, ptr %t0
+  %t34 = getelementptr inbounds %Analyzer, ptr %t33, i32 0, i32 1
+  %t35 = load ptr, ptr %t34
+  %t36 = getelementptr inbounds %SymbolTable, ptr %t35, i32 0, i32 0
+  %t37 = load ptr, ptr %t36
+  %t38 = load i32, ptr %t29
+  %t39 = sext i32 %t38 to i64
+  %t40 = getelementptr inbounds %Symbol, ptr %t37, i64 %t39
+  %t41 = getelementptr inbounds %Symbol, ptr %t40, i32 0, i32 1
+  %t42 = load i32, ptr %t41
+  %t43 = icmp ne i32 %t42, 0
+  store i1 %t43, ptr %t30
+  br label %L4
+L4:
+  %t44 = load i1, ptr %t30
+  br i1 %t44, label %L5, label %L7
+L5:
+  ret ptr null
+L7:
+  %t45 = load ptr, ptr %t0
+  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 0
+  %t47 = load ptr, ptr %t46
+  %t48 = getelementptr inbounds %Ast, ptr %t47, i32 0, i32 0
+  %t49 = load ptr, ptr %t48
+  %t50 = load i32, ptr %t1
+  %t51 = sext i32 %t50 to i64
+  %t52 = getelementptr inbounds %Node, ptr %t49, i64 %t51
+  %t53 = getelementptr inbounds %Node, ptr %t52, i32 0, i32 3
+  %t54 = load ptr, ptr %t53
+  ret ptr %t54
+L2:
+  %t56 = load i32, ptr %t12
+  %t57 = icmp ne i32 %t56, 18
+  store i1 %t57, ptr %t55
+  br i1 %t57, label %L9, label %L8
+L8:
+  %t58 = load ptr, ptr %t0
+  %t59 = getelementptr inbounds %Analyzer, ptr %t58, i32 0, i32 10
+  %t60 = load ptr, ptr %t59
+  %t61 = load i32, ptr %t1
+  %t62 = sext i32 %t61 to i64
+  %t63 = getelementptr inbounds i8, ptr %t60, i64 %t62
+  %t64 = load i8, ptr %t63
+  %t65 = icmp ne i8 %t64, 0
+  store i1 %t65, ptr %t55
+  br label %L9
+L9:
+  %t66 = load i1, ptr %t55
+  br i1 %t66, label %L10, label %L12
+L10:
+  ret ptr null
+L12:
+  %t67 = load ptr, ptr %t0
+  %t68 = load ptr, ptr %t0
+  %t69 = getelementptr inbounds %Analyzer, ptr %t68, i32 0, i32 0
+  %t70 = load ptr, ptr %t69
+  %t71 = getelementptr inbounds %Ast, ptr %t70, i32 0, i32 0
+  %t72 = load ptr, ptr %t71
+  %t73 = load i32, ptr %t1
+  %t74 = sext i32 %t73 to i64
+  %t75 = getelementptr inbounds %Node, ptr %t72, i64 %t74
+  %t76 = getelementptr inbounds %Node, ptr %t75, i32 0, i32 5
+  %t77 = load i32, ptr %t76
+  %t78 = call ptr @pathOf(ptr %t67, i32 %t77)
+  store ptr %t78, ptr %t79
+  %t80 = load ptr, ptr %t79
+  %t81 = icmp eq ptr %t80, null
+  br i1 %t81, label %L13, label %L15
+L13:
+  ret ptr null
+L15:
+  %t82 = call ptr @Builder.new()
+  store ptr %t82, ptr %t83
+  %t84 = load ptr, ptr %t83
+  %t85 = load ptr, ptr %t79
+  call void @Builder.add(ptr %t84, ptr %t85)
+  %t86 = load ptr, ptr %t83
+  call void @Builder.push(ptr %t86, i8 46)
+  %t87 = load ptr, ptr %t83
+  %t88 = load ptr, ptr %t0
+  %t89 = getelementptr inbounds %Analyzer, ptr %t88, i32 0, i32 0
+  %t90 = load ptr, ptr %t89
+  %t91 = getelementptr inbounds %Ast, ptr %t90, i32 0, i32 0
+  %t92 = load ptr, ptr %t91
+  %t93 = load i32, ptr %t1
+  %t94 = sext i32 %t93 to i64
+  %t95 = getelementptr inbounds %Node, ptr %t92, i64 %t94
+  %t96 = getelementptr inbounds %Node, ptr %t95, i32 0, i32 3
+  %t97 = load ptr, ptr %t96
+  call void @Builder.add(ptr %t87, ptr %t97)
+  %t98 = load ptr, ptr %t83
+  %t99 = call ptr @Builder.take(ptr %t98)
+  ret ptr %t99
 }
 
 define %Type @declaredTypeOf(ptr %p0, ptr %p1) {
@@ -32454,40 +32610,249 @@ L2:
   ret %Type %t20
 }
 
-define void @narrow(ptr %p0, ptr %p1, %Type %p2) {
+define void @narrow(ptr %p0, i32 %p1, %Type %p2) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca %Type
+  %t6 = alloca ptr
+  %t12 = alloca i32
+  %t24 = alloca %Symbol
+  %t38 = alloca %Type
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store %Type %p2, ptr %t2
+  %t3 = load ptr, ptr %t0
+  %t4 = load i32, ptr %t1
+  %t5 = call ptr @pathOf(ptr %t3, i32 %t4)
+  store ptr %t5, ptr %t6
+  %t7 = load ptr, ptr %t0
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 1
+  %t9 = load ptr, ptr %t8
+  %t10 = load ptr, ptr %t6
+  %t11 = call i32 @SymbolTable.find(ptr %t9, ptr %t10)
+  store i32 %t11, ptr %t12
+  %t13 = load i32, ptr %t12
+  %t14 = icmp sge i32 %t13, 0
+  br i1 %t14, label %L0, label %L2
+L0:
+  %t15 = load ptr, ptr %t0
+  %t16 = getelementptr inbounds %Analyzer, ptr %t15, i32 0, i32 1
+  %t17 = load ptr, ptr %t16
+  %t18 = getelementptr inbounds %SymbolTable, ptr %t17, i32 0, i32 0
+  %t19 = load ptr, ptr %t18
+  %t20 = load i32, ptr %t12
+  %t21 = sext i32 %t20 to i64
+  %t22 = getelementptr inbounds %Symbol, ptr %t19, i64 %t21
+  %t23 = load %Symbol, ptr %t22
+  store %Symbol %t23, ptr %t24
+  %t25 = load %Type, ptr %t2
+  %t26 = getelementptr inbounds %Symbol, ptr %t24, i32 0, i32 2
+  store %Type %t25, ptr %t26
+  %t27 = load ptr, ptr %t0
+  %t28 = getelementptr inbounds %Analyzer, ptr %t27, i32 0, i32 1
+  %t29 = load ptr, ptr %t28
+  %t30 = load %Symbol, ptr %t24
+  call void @SymbolTable.push(ptr %t29, %Symbol %t30)
+  ret void
+L2:
+  %t31 = load ptr, ptr %t0
+  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 3
+  %t33 = load ptr, ptr %t32
+  %t34 = load i32, ptr %t1
+  %t35 = sext i32 %t34 to i64
+  %t36 = getelementptr inbounds %Type, ptr %t33, i64 %t35
+  %t37 = load %Type, ptr %t36
+  store %Type %t37, ptr %t38
+  %t39 = load ptr, ptr %t0
+  %t40 = getelementptr inbounds %Analyzer, ptr %t39, i32 0, i32 21
+  %t41 = load ptr, ptr %t40
+  %t42 = load i32, ptr %t1
+  %t43 = sext i32 %t42 to i64
+  %t44 = getelementptr inbounds %Type, ptr %t41, i64 %t43
+  %t45 = getelementptr inbounds %Type, ptr %t44, i32 0, i32 0
+  %t46 = load i32, ptr %t45
+  %t47 = icmp ne i32 %t46, 0
+  br i1 %t47, label %L3, label %L5
+L3:
+  %t48 = load ptr, ptr %t0
+  %t49 = getelementptr inbounds %Analyzer, ptr %t48, i32 0, i32 21
+  %t50 = load ptr, ptr %t49
+  %t51 = load i32, ptr %t1
+  %t52 = sext i32 %t51 to i64
+  %t53 = getelementptr inbounds %Type, ptr %t50, i64 %t52
+  %t54 = load %Type, ptr %t53
+  store %Type %t54, ptr %t38
+  br label %L5
+L5:
+  %t55 = load ptr, ptr %t0
+  %t56 = getelementptr inbounds %Analyzer, ptr %t55, i32 0, i32 1
+  %t57 = load ptr, ptr %t56
+  %t58 = load ptr, ptr %t6
+  %t59 = insertvalue %Symbol undef, ptr %t58, 0
+  %t60 = insertvalue %Symbol %t59, i32 0, 1
+  %t61 = load %Type, ptr %t2
+  %t62 = insertvalue %Symbol %t60, %Type %t61, 2
+  %t63 = insertvalue %Symbol %t62, ptr null, 3
+  %t64 = insertvalue %Symbol %t63, i32 0, 4
+  %t65 = insertvalue %Symbol %t64, ptr null, 5
+  %t66 = insertvalue %Symbol %t65, i1 false, 6
+  %t67 = load %Type, ptr %t38
+  %t68 = insertvalue %Symbol %t66, %Type %t67, 7
+  call void @SymbolTable.push(ptr %t57, %Symbol %t68)
+  ret void
+}
+
+define %Type @narrowedPath(ptr %p0, ptr %p1) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca ptr
-  %t2 = alloca %Type
-  %t8 = alloca i32
-  %t18 = alloca %Symbol
+  %t7 = alloca i32
   store ptr %p0, ptr %t0
   store ptr %p1, ptr %t1
-  store %Type %p2, ptr %t2
-  %t3 = load ptr, ptr %t0
-  %t4 = getelementptr inbounds %Analyzer, ptr %t3, i32 0, i32 1
-  %t5 = load ptr, ptr %t4
-  %t6 = load ptr, ptr %t1
-  %t7 = call i32 @SymbolTable.find(ptr %t5, ptr %t6)
-  store i32 %t7, ptr %t8
-  %t9 = load ptr, ptr %t0
-  %t10 = getelementptr inbounds %Analyzer, ptr %t9, i32 0, i32 1
-  %t11 = load ptr, ptr %t10
-  %t12 = getelementptr inbounds %SymbolTable, ptr %t11, i32 0, i32 0
+  %t2 = load ptr, ptr %t0
+  %t3 = getelementptr inbounds %Analyzer, ptr %t2, i32 0, i32 1
+  %t4 = load ptr, ptr %t3
+  %t5 = load ptr, ptr %t1
+  %t6 = call i32 @SymbolTable.find(ptr %t4, ptr %t5)
+  store i32 %t6, ptr %t7
+  %t8 = load i32, ptr %t7
+  %t9 = icmp slt i32 %t8, 0
+  br i1 %t9, label %L0, label %L2
+L0:
+  %t10 = call %Type @Type.make(i32 0, i32 0)
+  ret %Type %t10
+L2:
+  %t11 = load ptr, ptr %t0
+  %t12 = getelementptr inbounds %Analyzer, ptr %t11, i32 0, i32 1
   %t13 = load ptr, ptr %t12
-  %t14 = load i32, ptr %t8
-  %t15 = sext i32 %t14 to i64
-  %t16 = getelementptr inbounds %Symbol, ptr %t13, i64 %t15
-  %t17 = load %Symbol, ptr %t16
-  store %Symbol %t17, ptr %t18
-  %t19 = load %Type, ptr %t2
-  %t20 = getelementptr inbounds %Symbol, ptr %t18, i32 0, i32 2
-  store %Type %t19, ptr %t20
-  %t21 = load ptr, ptr %t0
-  %t22 = getelementptr inbounds %Analyzer, ptr %t21, i32 0, i32 1
+  %t14 = getelementptr inbounds %SymbolTable, ptr %t13, i32 0, i32 0
+  %t15 = load ptr, ptr %t14
+  %t16 = load i32, ptr %t7
+  %t17 = sext i32 %t16 to i64
+  %t18 = getelementptr inbounds %Symbol, ptr %t15, i64 %t17
+  %t19 = getelementptr inbounds %Symbol, ptr %t18, i32 0, i32 2
+  %t20 = load %Type, ptr %t19
+  ret %Type %t20
+}
+
+define void @forget(ptr %p0, ptr %p1) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca ptr
+  %t4 = alloca i64
+  %t10 = alloca i32
+  %t11 = alloca i32
+  %t24 = alloca ptr
+  %t25 = alloca i1
+  %t29 = alloca i1
+  %t40 = alloca i1
+  %t41 = alloca i1
+  store ptr %p0, ptr %t0
+  store ptr %p1, ptr %t1
+  %t2 = load ptr, ptr %t1
+  %t3 = call i64 @strlen(ptr %t2)
+  store i64 %t3, ptr %t4
+  %t5 = load ptr, ptr %t0
+  %t6 = getelementptr inbounds %Analyzer, ptr %t5, i32 0, i32 1
+  %t7 = load ptr, ptr %t6
+  %t8 = getelementptr inbounds %SymbolTable, ptr %t7, i32 0, i32 1
+  %t9 = load i32, ptr %t8
+  store i32 0, ptr %t10
+  br label %L0
+L0:
+  %t12 = load i32, ptr %t10
+  %t13 = icmp slt i32 %t12, %t9
+  br i1 %t13, label %L1, label %L3
+L1:
+  store i32 %t12, ptr %t11
+  %t14 = load ptr, ptr %t0
+  %t15 = getelementptr inbounds %Analyzer, ptr %t14, i32 0, i32 1
+  %t16 = load ptr, ptr %t15
+  %t17 = getelementptr inbounds %SymbolTable, ptr %t16, i32 0, i32 0
+  %t18 = load ptr, ptr %t17
+  %t19 = load i32, ptr %t11
+  %t20 = sext i32 %t19 to i64
+  %t21 = getelementptr inbounds %Symbol, ptr %t18, i64 %t20
+  %t22 = getelementptr inbounds %Symbol, ptr %t21, i32 0, i32 0
   %t23 = load ptr, ptr %t22
-  %t24 = load %Symbol, ptr %t18
-  call void @SymbolTable.push(ptr %t23, %Symbol %t24)
+  store ptr %t23, ptr %t24
+  %t26 = load ptr, ptr %t24
+  %t27 = load ptr, ptr %t1
+  %t28 = call i1 @equals(ptr %t26, ptr %t27)
+  store i1 %t28, ptr %t25
+  br i1 %t28, label %L5, label %L4
+L4:
+  %t30 = load ptr, ptr %t24
+  %t31 = load ptr, ptr %t1
+  %t32 = call i1 @startsWith(ptr %t30, ptr %t31)
+  store i1 %t32, ptr %t29
+  br i1 %t32, label %L6, label %L7
+L6:
+  %t33 = load ptr, ptr %t24
+  %t34 = load i64, ptr %t4
+  %t35 = getelementptr inbounds i8, ptr %t33, i64 %t34
+  %t36 = load i8, ptr %t35
+  %t37 = icmp eq i8 %t36, 46
+  store i1 %t37, ptr %t29
+  br label %L7
+L7:
+  %t38 = load i1, ptr %t29
+  store i1 %t38, ptr %t25
+  br label %L5
+L5:
+  %t39 = load i1, ptr %t25
+  store i1 %t39, ptr %t40
+  %t42 = load i1, ptr %t40
+  store i1 %t42, ptr %t41
+  br i1 %t42, label %L8, label %L9
+L8:
+  %t43 = load ptr, ptr %t0
+  %t44 = getelementptr inbounds %Analyzer, ptr %t43, i32 0, i32 1
+  %t45 = load ptr, ptr %t44
+  %t46 = getelementptr inbounds %SymbolTable, ptr %t45, i32 0, i32 0
+  %t47 = load ptr, ptr %t46
+  %t48 = load i32, ptr %t11
+  %t49 = sext i32 %t48 to i64
+  %t50 = getelementptr inbounds %Symbol, ptr %t47, i64 %t49
+  %t51 = getelementptr inbounds %Symbol, ptr %t50, i32 0, i32 7
+  %t52 = load %Type, ptr %t51
+  %t53 = call i1 @Type.isUnion(%Type %t52)
+  store i1 %t53, ptr %t41
+  br label %L9
+L9:
+  %t54 = load i1, ptr %t41
+  br i1 %t54, label %L10, label %L12
+L10:
+  %t55 = load ptr, ptr %t0
+  %t56 = getelementptr inbounds %Analyzer, ptr %t55, i32 0, i32 1
+  %t57 = load ptr, ptr %t56
+  %t58 = getelementptr inbounds %SymbolTable, ptr %t57, i32 0, i32 0
+  %t59 = load ptr, ptr %t58
+  %t60 = load i32, ptr %t11
+  %t61 = sext i32 %t60 to i64
+  %t62 = getelementptr inbounds %Symbol, ptr %t59, i64 %t61
+  %t63 = getelementptr inbounds %Symbol, ptr %t62, i32 0, i32 7
+  %t64 = load %Type, ptr %t63
+  %t65 = load ptr, ptr %t0
+  %t66 = getelementptr inbounds %Analyzer, ptr %t65, i32 0, i32 1
+  %t67 = load ptr, ptr %t66
+  %t68 = getelementptr inbounds %SymbolTable, ptr %t67, i32 0, i32 0
+  %t69 = load ptr, ptr %t68
+  %t70 = load i32, ptr %t11
+  %t71 = sext i32 %t70 to i64
+  %t72 = getelementptr inbounds %Symbol, ptr %t69, i64 %t71
+  %t73 = getelementptr inbounds %Symbol, ptr %t72, i32 0, i32 2
+  store %Type %t64, ptr %t73
+  br label %L12
+L12:
+  br label %L2
+L2:
+  %t74 = load i32, ptr %t10
+  %t75 = add i32 %t74, 1
+  store i32 %t75, ptr %t10
+  br label %L0
+L3:
   ret void
 }
 
@@ -33233,7 +33598,7 @@ entry:
   %t5 = getelementptr inbounds %Ast, ptr %t4, i32 0, i32 0
   %t6 = load ptr, ptr %t5
   %t7 = load ptr, ptr %t0
-  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 23
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 24
   %t9 = load i32, ptr %t8
   %t10 = sext i32 %t9 to i64
   %t11 = getelementptr inbounds %Node, ptr %t6, i64 %t10
@@ -33253,7 +33618,7 @@ L1:
   %t21 = getelementptr inbounds %Ast, ptr %t20, i32 0, i32 0
   %t22 = load ptr, ptr %t21
   %t23 = load ptr, ptr %t0
-  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 23
+  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 24
   %t25 = load i32, ptr %t24
   %t26 = sext i32 %t25 to i64
   %t27 = getelementptr inbounds %Node, ptr %t22, i64 %t26
@@ -34514,15 +34879,15 @@ entry:
   %t5 = call i32 @SymbolTable.depth(ptr %t4)
   store i32 %t5, ptr %t6
   %t7 = load ptr, ptr %t0
-  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 24
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 25
   %t9 = load i32, ptr %t8
   store i32 %t9, ptr %t10
   %t11 = load ptr, ptr %t0
-  %t12 = getelementptr inbounds %Analyzer, ptr %t11, i32 0, i32 25
+  %t12 = getelementptr inbounds %Analyzer, ptr %t11, i32 0, i32 26
   %t13 = load i1, ptr %t12
   store i1 %t13, ptr %t14
   %t15 = load ptr, ptr %t0
-  %t16 = getelementptr inbounds %Analyzer, ptr %t15, i32 0, i32 27
+  %t16 = getelementptr inbounds %Analyzer, ptr %t15, i32 0, i32 28
   %t17 = load %Type, ptr %t16
   store %Type %t17, ptr %t18
   %t19 = load ptr, ptr %t0
@@ -34541,15 +34906,15 @@ L2:
   call void @SymbolTable.truncateScopes(ptr %t25, i32 %t26)
   %t27 = load i32, ptr %t10
   %t28 = load ptr, ptr %t0
-  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 24
+  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 25
   store i32 %t27, ptr %t29
   %t30 = load i1, ptr %t14
   %t31 = load ptr, ptr %t0
-  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 25
+  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 26
   store i1 %t30, ptr %t32
   %t33 = load %Type, ptr %t18
   %t34 = load ptr, ptr %t0
-  %t35 = getelementptr inbounds %Analyzer, ptr %t34, i32 0, i32 27
+  %t35 = getelementptr inbounds %Analyzer, ptr %t34, i32 0, i32 28
   store %Type %t33, ptr %t35
   store i1 false, ptr @FAILED
   ret void
@@ -34654,7 +35019,7 @@ L6:
   br i1 %t43, label %L19, label %L21
 L19:
   %t44 = load ptr, ptr %t0
-  %t45 = getelementptr inbounds %Analyzer, ptr %t44, i32 0, i32 24
+  %t45 = getelementptr inbounds %Analyzer, ptr %t44, i32 0, i32 25
   %t46 = load i32, ptr %t45
   %t47 = icmp eq i32 %t46, 0
   br i1 %t47, label %L22, label %L24
@@ -34672,7 +35037,7 @@ L21:
   br i1 %t52, label %L25, label %L27
 L25:
   %t53 = load ptr, ptr %t0
-  %t54 = getelementptr inbounds %Analyzer, ptr %t53, i32 0, i32 24
+  %t54 = getelementptr inbounds %Analyzer, ptr %t53, i32 0, i32 25
   %t55 = load i32, ptr %t54
   %t56 = icmp eq i32 %t55, 0
   br i1 %t56, label %L28, label %L30
@@ -35098,7 +35463,9 @@ entry:
   %t15 = alloca %Type
   %t26 = alloca i32
   %t50 = alloca %Type
-  %t74 = alloca %Type
+  %t61 = alloca i1
+  %t117 = alloca %Type
+  %t139 = alloca ptr
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -35170,43 +35537,111 @@ L3:
 L5:
   br label %L2
 L2:
-  %t61 = load ptr, ptr %t0
   %t62 = load ptr, ptr %t0
   %t63 = getelementptr inbounds %Analyzer, ptr %t62, i32 0, i32 0
   %t64 = load ptr, ptr %t63
   %t65 = getelementptr inbounds %Ast, ptr %t64, i32 0, i32 0
   %t66 = load ptr, ptr %t65
-  %t67 = load i32, ptr %t1
+  %t67 = load i32, ptr %t26
   %t68 = sext i32 %t67 to i64
   %t69 = getelementptr inbounds %Node, ptr %t66, i64 %t68
-  %t70 = getelementptr inbounds %Node, ptr %t69, i32 0, i32 6
+  %t70 = getelementptr inbounds %Node, ptr %t69, i32 0, i32 0
   %t71 = load i32, ptr %t70
-  %t72 = load %Type, ptr %t15
-  %t73 = call %Type @checkExprAs(ptr %t61, i32 %t71, %Type %t72)
-  store %Type %t73, ptr %t74
-  %t75 = load %Type, ptr %t15
-  %t76 = load %Type, ptr %t74
-  %t77 = call i1 @Type.accepts(%Type %t75, %Type %t76)
-  %t78 = xor i1 %t77, true
-  br i1 %t78, label %L6, label %L8
+  %t72 = icmp eq i32 %t71, 18
+  store i1 %t72, ptr %t61
+  br i1 %t72, label %L6, label %L7
 L6:
-  %t79 = load ptr, ptr %t0
-  %t80 = load ptr, ptr %t0
-  %t81 = getelementptr inbounds %Analyzer, ptr %t80, i32 0, i32 0
-  %t82 = load ptr, ptr %t81
-  %t83 = getelementptr inbounds %Ast, ptr %t82, i32 0, i32 0
-  %t84 = load ptr, ptr %t83
-  %t85 = load i32, ptr %t1
-  %t86 = sext i32 %t85 to i64
-  %t87 = getelementptr inbounds %Node, ptr %t84, i64 %t86
-  %t88 = getelementptr inbounds %Node, ptr %t87, i32 0, i32 6
-  %t89 = load i32, ptr %t88
-  %t90 = load %Type, ptr %t15
-  %t91 = load %Type, ptr %t74
-  %t92 = call %Facts @Facts.aboutTypes(%Type %t90, %Type %t91)
-  call void @analyzerFailAtValue(ptr %t79, i32 %t89, i32 46, %Facts %t92)
-  br label %L8
+  %t73 = load ptr, ptr %t0
+  %t74 = getelementptr inbounds %Analyzer, ptr %t73, i32 0, i32 21
+  %t75 = load ptr, ptr %t74
+  %t76 = load i32, ptr %t26
+  %t77 = sext i32 %t76 to i64
+  %t78 = getelementptr inbounds %Type, ptr %t75, i64 %t77
+  %t79 = getelementptr inbounds %Type, ptr %t78, i32 0, i32 0
+  %t80 = load i32, ptr %t79
+  %t81 = icmp ne i32 %t80, 0
+  store i1 %t81, ptr %t61
+  br label %L7
+L7:
+  %t82 = load i1, ptr %t61
+  br i1 %t82, label %L8, label %L10
 L8:
+  %t83 = load ptr, ptr %t0
+  %t84 = getelementptr inbounds %Analyzer, ptr %t83, i32 0, i32 21
+  %t85 = load ptr, ptr %t84
+  %t86 = load i32, ptr %t26
+  %t87 = sext i32 %t86 to i64
+  %t88 = getelementptr inbounds %Type, ptr %t85, i64 %t87
+  %t89 = load %Type, ptr %t88
+  store %Type %t89, ptr %t15
+  %t90 = load %Type, ptr %t15
+  %t91 = load ptr, ptr %t0
+  %t92 = getelementptr inbounds %Analyzer, ptr %t91, i32 0, i32 3
+  %t93 = load ptr, ptr %t92
+  %t94 = load i32, ptr %t26
+  %t95 = sext i32 %t94 to i64
+  %t96 = getelementptr inbounds %Type, ptr %t93, i64 %t95
+  store %Type %t90, ptr %t96
+  %t97 = call %Type @Type.make(i32 0, i32 0)
+  %t98 = load ptr, ptr %t0
+  %t99 = getelementptr inbounds %Analyzer, ptr %t98, i32 0, i32 21
+  %t100 = load ptr, ptr %t99
+  %t101 = load i32, ptr %t26
+  %t102 = sext i32 %t101 to i64
+  %t103 = getelementptr inbounds %Type, ptr %t100, i64 %t102
+  store %Type %t97, ptr %t103
+  br label %L10
+L10:
+  %t104 = load ptr, ptr %t0
+  %t105 = load ptr, ptr %t0
+  %t106 = getelementptr inbounds %Analyzer, ptr %t105, i32 0, i32 0
+  %t107 = load ptr, ptr %t106
+  %t108 = getelementptr inbounds %Ast, ptr %t107, i32 0, i32 0
+  %t109 = load ptr, ptr %t108
+  %t110 = load i32, ptr %t1
+  %t111 = sext i32 %t110 to i64
+  %t112 = getelementptr inbounds %Node, ptr %t109, i64 %t111
+  %t113 = getelementptr inbounds %Node, ptr %t112, i32 0, i32 6
+  %t114 = load i32, ptr %t113
+  %t115 = load %Type, ptr %t15
+  %t116 = call %Type @checkExprAs(ptr %t104, i32 %t114, %Type %t115)
+  store %Type %t116, ptr %t117
+  %t118 = load %Type, ptr %t15
+  %t119 = load %Type, ptr %t117
+  %t120 = call i1 @Type.accepts(%Type %t118, %Type %t119)
+  %t121 = xor i1 %t120, true
+  br i1 %t121, label %L11, label %L13
+L11:
+  %t122 = load ptr, ptr %t0
+  %t123 = load ptr, ptr %t0
+  %t124 = getelementptr inbounds %Analyzer, ptr %t123, i32 0, i32 0
+  %t125 = load ptr, ptr %t124
+  %t126 = getelementptr inbounds %Ast, ptr %t125, i32 0, i32 0
+  %t127 = load ptr, ptr %t126
+  %t128 = load i32, ptr %t1
+  %t129 = sext i32 %t128 to i64
+  %t130 = getelementptr inbounds %Node, ptr %t127, i64 %t129
+  %t131 = getelementptr inbounds %Node, ptr %t130, i32 0, i32 6
+  %t132 = load i32, ptr %t131
+  %t133 = load %Type, ptr %t15
+  %t134 = load %Type, ptr %t117
+  %t135 = call %Facts @Facts.aboutTypes(%Type %t133, %Type %t134)
+  call void @analyzerFailAtValue(ptr %t122, i32 %t132, i32 46, %Facts %t135)
+  br label %L13
+L13:
+  %t136 = load ptr, ptr %t0
+  %t137 = load i32, ptr %t26
+  %t138 = call ptr @pathOf(ptr %t136, i32 %t137)
+  store ptr %t138, ptr %t139
+  %t140 = load ptr, ptr %t139
+  %t141 = icmp ne ptr %t140, null
+  br i1 %t141, label %L14, label %L16
+L14:
+  %t142 = load ptr, ptr %t0
+  %t143 = load ptr, ptr %t139
+  call void @forget(ptr %t142, ptr %t143)
+  br label %L16
+L16:
   ret void
 }
 
@@ -35216,9 +35651,8 @@ entry:
   %t1 = alloca i32
   %t14 = alloca %Type
   %t24 = alloca i32
-  %t86 = alloca ptr
-  %t88 = alloca %Type
-  %t90 = alloca %Type
+  %t77 = alloca %Type
+  %t79 = alloca %Type
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -35315,115 +35749,104 @@ L9:
 L11:
   ret void
 L8:
-  %t76 = load ptr, ptr %t0
-  %t77 = getelementptr inbounds %Analyzer, ptr %t76, i32 0, i32 0
-  %t78 = load ptr, ptr %t77
-  %t79 = getelementptr inbounds %Ast, ptr %t78, i32 0, i32 0
-  %t80 = load ptr, ptr %t79
-  %t81 = load i32, ptr %t24
-  %t82 = sext i32 %t81 to i64
-  %t83 = getelementptr inbounds %Node, ptr %t80, i64 %t82
-  %t84 = getelementptr inbounds %Node, ptr %t83, i32 0, i32 3
+  %t76 = call %Type @Type.make(i32 0, i32 0)
+  store %Type %t76, ptr %t77
+  %t78 = call %Type @Type.make(i32 0, i32 0)
+  store %Type %t78, ptr %t79
+  %t80 = load ptr, ptr %t0
+  %t81 = load ptr, ptr %t0
+  %t82 = getelementptr inbounds %Analyzer, ptr %t81, i32 0, i32 0
+  %t83 = load ptr, ptr %t82
+  %t84 = getelementptr inbounds %Ast, ptr %t83, i32 0, i32 0
   %t85 = load ptr, ptr %t84
-  store ptr %t85, ptr %t86
-  %t87 = call %Type @Type.make(i32 0, i32 0)
-  store %Type %t87, ptr %t88
-  %t89 = call %Type @Type.make(i32 0, i32 0)
-  store %Type %t89, ptr %t90
+  %t86 = load i32, ptr %t1
+  %t87 = sext i32 %t86 to i64
+  %t88 = getelementptr inbounds %Node, ptr %t85, i64 %t87
+  %t89 = getelementptr inbounds %Node, ptr %t88, i32 0, i32 5
+  %t90 = load i32, ptr %t89
+  call void @narrowedTypes(ptr %t80, i32 %t90, ptr %t77, ptr %t79)
   %t91 = load ptr, ptr %t0
-  %t92 = load ptr, ptr %t0
-  %t93 = getelementptr inbounds %Analyzer, ptr %t92, i32 0, i32 0
-  %t94 = load ptr, ptr %t93
-  %t95 = getelementptr inbounds %Ast, ptr %t94, i32 0, i32 0
-  %t96 = load ptr, ptr %t95
-  %t97 = load i32, ptr %t1
-  %t98 = sext i32 %t97 to i64
-  %t99 = getelementptr inbounds %Node, ptr %t96, i64 %t98
-  %t100 = getelementptr inbounds %Node, ptr %t99, i32 0, i32 5
-  %t101 = load i32, ptr %t100
-  call void @narrowedTypes(ptr %t91, i32 %t101, ptr %t88, ptr %t90)
-  %t102 = load ptr, ptr %t0
-  %t103 = getelementptr inbounds %Analyzer, ptr %t102, i32 0, i32 1
-  %t104 = load ptr, ptr %t103
-  call void @SymbolTable.enterScope(ptr %t104)
-  %t105 = load ptr, ptr %t0
-  %t106 = load ptr, ptr %t86
-  %t107 = load %Type, ptr %t88
-  call void @narrow(ptr %t105, ptr %t106, %Type %t107)
+  %t92 = getelementptr inbounds %Analyzer, ptr %t91, i32 0, i32 1
+  %t93 = load ptr, ptr %t92
+  call void @SymbolTable.enterScope(ptr %t93)
+  %t94 = load ptr, ptr %t0
+  %t95 = load i32, ptr %t24
+  %t96 = load %Type, ptr %t77
+  call void @narrow(ptr %t94, i32 %t95, %Type %t96)
+  %t97 = load ptr, ptr %t0
+  %t98 = load ptr, ptr %t0
+  %t99 = getelementptr inbounds %Analyzer, ptr %t98, i32 0, i32 0
+  %t100 = load ptr, ptr %t99
+  %t101 = getelementptr inbounds %Ast, ptr %t100, i32 0, i32 0
+  %t102 = load ptr, ptr %t101
+  %t103 = load i32, ptr %t1
+  %t104 = sext i32 %t103 to i64
+  %t105 = getelementptr inbounds %Node, ptr %t102, i64 %t104
+  %t106 = getelementptr inbounds %Node, ptr %t105, i32 0, i32 6
+  %t107 = load i32, ptr %t106
+  call void @analyzeStatement(ptr %t97, i32 %t107)
   %t108 = load ptr, ptr %t0
-  %t109 = load ptr, ptr %t0
-  %t110 = getelementptr inbounds %Analyzer, ptr %t109, i32 0, i32 0
-  %t111 = load ptr, ptr %t110
-  %t112 = getelementptr inbounds %Ast, ptr %t111, i32 0, i32 0
+  %t109 = getelementptr inbounds %Analyzer, ptr %t108, i32 0, i32 1
+  %t110 = load ptr, ptr %t109
+  call void @SymbolTable.exitScope(ptr %t110)
+  %t111 = load ptr, ptr %t0
+  %t112 = getelementptr inbounds %Analyzer, ptr %t111, i32 0, i32 0
   %t113 = load ptr, ptr %t112
-  %t114 = load i32, ptr %t1
-  %t115 = sext i32 %t114 to i64
-  %t116 = getelementptr inbounds %Node, ptr %t113, i64 %t115
-  %t117 = getelementptr inbounds %Node, ptr %t116, i32 0, i32 6
-  %t118 = load i32, ptr %t117
-  call void @analyzeStatement(ptr %t108, i32 %t118)
-  %t119 = load ptr, ptr %t0
-  %t120 = getelementptr inbounds %Analyzer, ptr %t119, i32 0, i32 1
-  %t121 = load ptr, ptr %t120
-  call void @SymbolTable.exitScope(ptr %t121)
-  %t122 = load ptr, ptr %t0
-  %t123 = getelementptr inbounds %Analyzer, ptr %t122, i32 0, i32 0
-  %t124 = load ptr, ptr %t123
-  %t125 = getelementptr inbounds %Ast, ptr %t124, i32 0, i32 0
-  %t126 = load ptr, ptr %t125
-  %t127 = load i32, ptr %t1
-  %t128 = sext i32 %t127 to i64
-  %t129 = getelementptr inbounds %Node, ptr %t126, i64 %t128
-  %t130 = getelementptr inbounds %Node, ptr %t129, i32 0, i32 7
-  %t131 = load i32, ptr %t130
-  %t132 = load i32, ptr @NO_NODE
-  %t133 = icmp ne i32 %t131, %t132
-  br i1 %t133, label %L12, label %L13
+  %t114 = getelementptr inbounds %Ast, ptr %t113, i32 0, i32 0
+  %t115 = load ptr, ptr %t114
+  %t116 = load i32, ptr %t1
+  %t117 = sext i32 %t116 to i64
+  %t118 = getelementptr inbounds %Node, ptr %t115, i64 %t117
+  %t119 = getelementptr inbounds %Node, ptr %t118, i32 0, i32 7
+  %t120 = load i32, ptr %t119
+  %t121 = load i32, ptr @NO_NODE
+  %t122 = icmp ne i32 %t120, %t121
+  br i1 %t122, label %L12, label %L13
 L12:
-  %t134 = load ptr, ptr %t0
-  %t135 = getelementptr inbounds %Analyzer, ptr %t134, i32 0, i32 1
-  %t136 = load ptr, ptr %t135
-  call void @SymbolTable.enterScope(ptr %t136)
-  %t137 = load ptr, ptr %t0
-  %t138 = load ptr, ptr %t86
-  %t139 = load %Type, ptr %t90
-  call void @narrow(ptr %t137, ptr %t138, %Type %t139)
+  %t123 = load ptr, ptr %t0
+  %t124 = getelementptr inbounds %Analyzer, ptr %t123, i32 0, i32 1
+  %t125 = load ptr, ptr %t124
+  call void @SymbolTable.enterScope(ptr %t125)
+  %t126 = load ptr, ptr %t0
+  %t127 = load i32, ptr %t24
+  %t128 = load %Type, ptr %t79
+  call void @narrow(ptr %t126, i32 %t127, %Type %t128)
+  %t129 = load ptr, ptr %t0
+  %t130 = load ptr, ptr %t0
+  %t131 = getelementptr inbounds %Analyzer, ptr %t130, i32 0, i32 0
+  %t132 = load ptr, ptr %t131
+  %t133 = getelementptr inbounds %Ast, ptr %t132, i32 0, i32 0
+  %t134 = load ptr, ptr %t133
+  %t135 = load i32, ptr %t1
+  %t136 = sext i32 %t135 to i64
+  %t137 = getelementptr inbounds %Node, ptr %t134, i64 %t136
+  %t138 = getelementptr inbounds %Node, ptr %t137, i32 0, i32 7
+  %t139 = load i32, ptr %t138
+  call void @analyzeStatement(ptr %t129, i32 %t139)
   %t140 = load ptr, ptr %t0
-  %t141 = load ptr, ptr %t0
-  %t142 = getelementptr inbounds %Analyzer, ptr %t141, i32 0, i32 0
-  %t143 = load ptr, ptr %t142
-  %t144 = getelementptr inbounds %Ast, ptr %t143, i32 0, i32 0
-  %t145 = load ptr, ptr %t144
-  %t146 = load i32, ptr %t1
-  %t147 = sext i32 %t146 to i64
-  %t148 = getelementptr inbounds %Node, ptr %t145, i64 %t147
-  %t149 = getelementptr inbounds %Node, ptr %t148, i32 0, i32 7
-  %t150 = load i32, ptr %t149
-  call void @analyzeStatement(ptr %t140, i32 %t150)
-  %t151 = load ptr, ptr %t0
-  %t152 = getelementptr inbounds %Analyzer, ptr %t151, i32 0, i32 1
-  %t153 = load ptr, ptr %t152
-  call void @SymbolTable.exitScope(ptr %t153)
+  %t141 = getelementptr inbounds %Analyzer, ptr %t140, i32 0, i32 1
+  %t142 = load ptr, ptr %t141
+  call void @SymbolTable.exitScope(ptr %t142)
   br label %L14
 L13:
-  %t154 = load ptr, ptr %t0
-  %t155 = load ptr, ptr %t0
-  %t156 = getelementptr inbounds %Analyzer, ptr %t155, i32 0, i32 0
-  %t157 = load ptr, ptr %t156
-  %t158 = getelementptr inbounds %Ast, ptr %t157, i32 0, i32 0
-  %t159 = load ptr, ptr %t158
-  %t160 = load i32, ptr %t1
-  %t161 = sext i32 %t160 to i64
-  %t162 = getelementptr inbounds %Node, ptr %t159, i64 %t161
-  %t163 = getelementptr inbounds %Node, ptr %t162, i32 0, i32 6
-  %t164 = load i32, ptr %t163
-  %t165 = call i1 @alwaysLeaves(ptr %t154, i32 %t164)
-  br i1 %t165, label %L15, label %L17
+  %t143 = load ptr, ptr %t0
+  %t144 = load ptr, ptr %t0
+  %t145 = getelementptr inbounds %Analyzer, ptr %t144, i32 0, i32 0
+  %t146 = load ptr, ptr %t145
+  %t147 = getelementptr inbounds %Ast, ptr %t146, i32 0, i32 0
+  %t148 = load ptr, ptr %t147
+  %t149 = load i32, ptr %t1
+  %t150 = sext i32 %t149 to i64
+  %t151 = getelementptr inbounds %Node, ptr %t148, i64 %t150
+  %t152 = getelementptr inbounds %Node, ptr %t151, i32 0, i32 6
+  %t153 = load i32, ptr %t152
+  %t154 = call i1 @alwaysLeaves(ptr %t143, i32 %t153)
+  br i1 %t154, label %L15, label %L17
 L15:
-  %t166 = load ptr, ptr %t0
-  %t167 = load ptr, ptr %t86
-  %t168 = load %Type, ptr %t90
-  call void @narrow(ptr %t166, ptr %t167, %Type %t168)
+  %t155 = load ptr, ptr %t0
+  %t156 = load i32, ptr %t24
+  %t157 = load %Type, ptr %t79
+  call void @narrow(ptr %t155, i32 %t156, %Type %t157)
   br label %L17
 L17:
   br label %L14
@@ -35465,11 +35888,11 @@ L0:
   br label %L2
 L2:
   %t23 = load ptr, ptr %t0
-  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 24
+  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 25
   %t25 = load i32, ptr %t24
   %t26 = add i32 %t25, 1
   %t27 = load ptr, ptr %t0
-  %t28 = getelementptr inbounds %Analyzer, ptr %t27, i32 0, i32 24
+  %t28 = getelementptr inbounds %Analyzer, ptr %t27, i32 0, i32 25
   store i32 %t26, ptr %t28
   %t29 = load ptr, ptr %t0
   %t30 = load ptr, ptr %t0
@@ -35484,11 +35907,11 @@ L2:
   %t39 = load i32, ptr %t38
   call void @analyzeStatement(ptr %t29, i32 %t39)
   %t40 = load ptr, ptr %t0
-  %t41 = getelementptr inbounds %Analyzer, ptr %t40, i32 0, i32 24
+  %t41 = getelementptr inbounds %Analyzer, ptr %t40, i32 0, i32 25
   %t42 = load i32, ptr %t41
   %t43 = sub i32 %t42, 1
   %t44 = load ptr, ptr %t0
-  %t45 = getelementptr inbounds %Analyzer, ptr %t44, i32 0, i32 24
+  %t45 = getelementptr inbounds %Analyzer, ptr %t44, i32 0, i32 25
   store i32 %t43, ptr %t45
   ret void
 }
@@ -35696,11 +36119,11 @@ L18:
   %t124 = load i32, ptr %t123
   call void @SymbolTable.declare(ptr %t93, ptr %t103, i32 0, %Type %t104, ptr null, i32 0, i32 %t114, i32 %t124)
   %t125 = load ptr, ptr %t0
-  %t126 = getelementptr inbounds %Analyzer, ptr %t125, i32 0, i32 24
+  %t126 = getelementptr inbounds %Analyzer, ptr %t125, i32 0, i32 25
   %t127 = load i32, ptr %t126
   %t128 = add i32 %t127, 1
   %t129 = load ptr, ptr %t0
-  %t130 = getelementptr inbounds %Analyzer, ptr %t129, i32 0, i32 24
+  %t130 = getelementptr inbounds %Analyzer, ptr %t129, i32 0, i32 25
   store i32 %t128, ptr %t130
   %t131 = load ptr, ptr %t0
   %t132 = load ptr, ptr %t0
@@ -35715,11 +36138,11 @@ L18:
   %t141 = load i32, ptr %t140
   call void @analyzeStatement(ptr %t131, i32 %t141)
   %t142 = load ptr, ptr %t0
-  %t143 = getelementptr inbounds %Analyzer, ptr %t142, i32 0, i32 24
+  %t143 = getelementptr inbounds %Analyzer, ptr %t142, i32 0, i32 25
   %t144 = load i32, ptr %t143
   %t145 = sub i32 %t144, 1
   %t146 = load ptr, ptr %t0
-  %t147 = getelementptr inbounds %Analyzer, ptr %t146, i32 0, i32 24
+  %t147 = getelementptr inbounds %Analyzer, ptr %t146, i32 0, i32 25
   store i32 %t145, ptr %t147
   %t148 = load ptr, ptr %t0
   %t149 = getelementptr inbounds %Analyzer, ptr %t148, i32 0, i32 1
@@ -35739,7 +36162,7 @@ entry:
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
-  %t3 = getelementptr inbounds %Analyzer, ptr %t2, i32 0, i32 25
+  %t3 = getelementptr inbounds %Analyzer, ptr %t2, i32 0, i32 26
   %t4 = load i1, ptr %t3
   %t5 = xor i1 %t4, true
   br i1 %t5, label %L0, label %L2
@@ -35765,21 +36188,21 @@ L2:
   br i1 %t20, label %L3, label %L5
 L3:
   %t22 = load ptr, ptr %t0
-  %t23 = getelementptr inbounds %Analyzer, ptr %t22, i32 0, i32 27
+  %t23 = getelementptr inbounds %Analyzer, ptr %t22, i32 0, i32 28
   %t24 = load %Type, ptr %t23
   %t25 = call i1 @Type.isVoid(%Type %t24)
   store i1 %t25, ptr %t21
   br i1 %t25, label %L7, label %L6
 L6:
   %t27 = load ptr, ptr %t0
-  %t28 = getelementptr inbounds %Analyzer, ptr %t27, i32 0, i32 27
+  %t28 = getelementptr inbounds %Analyzer, ptr %t27, i32 0, i32 28
   %t29 = load %Type, ptr %t28
   %t30 = call i1 @Type.isUnion(%Type %t29)
   store i1 %t30, ptr %t26
   br i1 %t30, label %L8, label %L9
 L8:
   %t31 = load ptr, ptr %t0
-  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 27
+  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 28
   %t33 = load %Type, ptr %t32
   %t34 = call %Type @valueOf(%Type %t33)
   %t35 = call i1 @Type.isVoid(%Type %t34)
@@ -35799,7 +36222,7 @@ L10:
   %t41 = load ptr, ptr %t0
   %t42 = load i32, ptr %t1
   %t43 = load ptr, ptr %t0
-  %t44 = getelementptr inbounds %Analyzer, ptr %t43, i32 0, i32 27
+  %t44 = getelementptr inbounds %Analyzer, ptr %t43, i32 0, i32 28
   %t45 = load %Type, ptr %t44
   %t46 = call %Type @Type.make(i32 12, i32 0)
   %t47 = call %Facts @Facts.aboutTypes(%Type %t45, %Type %t46)
@@ -35820,12 +36243,12 @@ L5:
   %t57 = getelementptr inbounds %Node, ptr %t56, i32 0, i32 5
   %t58 = load i32, ptr %t57
   %t59 = load ptr, ptr %t0
-  %t60 = getelementptr inbounds %Analyzer, ptr %t59, i32 0, i32 27
+  %t60 = getelementptr inbounds %Analyzer, ptr %t59, i32 0, i32 28
   %t61 = load %Type, ptr %t60
   %t62 = call %Type @checkExprAs(ptr %t48, i32 %t58, %Type %t61)
   store %Type %t62, ptr %t63
   %t64 = load ptr, ptr %t0
-  %t65 = getelementptr inbounds %Analyzer, ptr %t64, i32 0, i32 27
+  %t65 = getelementptr inbounds %Analyzer, ptr %t64, i32 0, i32 28
   %t66 = load %Type, ptr %t65
   %t67 = call i1 @Type.isVoid(%Type %t66)
   br i1 %t67, label %L13, label %L15
@@ -35838,7 +36261,7 @@ L13:
   br label %L15
 L15:
   %t72 = load ptr, ptr %t0
-  %t73 = getelementptr inbounds %Analyzer, ptr %t72, i32 0, i32 27
+  %t73 = getelementptr inbounds %Analyzer, ptr %t72, i32 0, i32 28
   %t74 = load %Type, ptr %t73
   %t75 = load %Type, ptr %t63
   %t76 = call i1 @Type.accepts(%Type %t74, %Type %t75)
@@ -35857,7 +36280,7 @@ L16:
   %t87 = getelementptr inbounds %Node, ptr %t86, i32 0, i32 5
   %t88 = load i32, ptr %t87
   %t89 = load ptr, ptr %t0
-  %t90 = getelementptr inbounds %Analyzer, ptr %t89, i32 0, i32 27
+  %t90 = getelementptr inbounds %Analyzer, ptr %t89, i32 0, i32 28
   %t91 = load %Type, ptr %t90
   %t92 = load %Type, ptr %t63
   %t93 = call %Facts @Facts.aboutTypes(%Type %t91, %Type %t92)
@@ -36242,7 +36665,7 @@ entry:
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
-  %t3 = getelementptr inbounds %Analyzer, ptr %t2, i32 0, i32 28
+  %t3 = getelementptr inbounds %Analyzer, ptr %t2, i32 0, i32 29
   %t4 = load i32, ptr %t3
   store i32 %t4, ptr %t5
   %t6 = load ptr, ptr %t0
@@ -36251,7 +36674,7 @@ entry:
   %t9 = getelementptr inbounds %SymbolTable, ptr %t8, i32 0, i32 1
   %t10 = load i32, ptr %t9
   %t11 = load ptr, ptr %t0
-  %t12 = getelementptr inbounds %Analyzer, ptr %t11, i32 0, i32 28
+  %t12 = getelementptr inbounds %Analyzer, ptr %t11, i32 0, i32 29
   store i32 %t10, ptr %t12
   %t13 = load ptr, ptr %t0
   %t14 = getelementptr inbounds %Analyzer, ptr %t13, i32 0, i32 1
@@ -36361,19 +36784,19 @@ L5:
   br label %L2
 L2:
   %t107 = load ptr, ptr %t0
-  %t108 = getelementptr inbounds %Analyzer, ptr %t107, i32 0, i32 25
+  %t108 = getelementptr inbounds %Analyzer, ptr %t107, i32 0, i32 26
   %t109 = load i1, ptr %t108
   store i1 %t109, ptr %t110
   %t111 = load ptr, ptr %t0
-  %t112 = getelementptr inbounds %Analyzer, ptr %t111, i32 0, i32 27
+  %t112 = getelementptr inbounds %Analyzer, ptr %t111, i32 0, i32 28
   %t113 = load %Type, ptr %t112
   store %Type %t113, ptr %t114
   %t115 = load ptr, ptr %t0
-  %t116 = getelementptr inbounds %Analyzer, ptr %t115, i32 0, i32 24
+  %t116 = getelementptr inbounds %Analyzer, ptr %t115, i32 0, i32 25
   %t117 = load i32, ptr %t116
   store i32 %t117, ptr %t118
   %t119 = load ptr, ptr %t0
-  %t120 = getelementptr inbounds %Analyzer, ptr %t119, i32 0, i32 25
+  %t120 = getelementptr inbounds %Analyzer, ptr %t119, i32 0, i32 26
   store i1 true, ptr %t120
   %t121 = load ptr, ptr %t0
   %t122 = load ptr, ptr %t0
@@ -36388,10 +36811,10 @@ L2:
   %t131 = load i32, ptr %t130
   %t132 = call %Type @analyzerParseType(ptr %t121, i32 %t131)
   %t133 = load ptr, ptr %t0
-  %t134 = getelementptr inbounds %Analyzer, ptr %t133, i32 0, i32 27
+  %t134 = getelementptr inbounds %Analyzer, ptr %t133, i32 0, i32 28
   store %Type %t132, ptr %t134
   %t135 = load ptr, ptr %t0
-  %t136 = getelementptr inbounds %Analyzer, ptr %t135, i32 0, i32 24
+  %t136 = getelementptr inbounds %Analyzer, ptr %t135, i32 0, i32 25
   store i32 0, ptr %t136
   %t137 = load ptr, ptr %t0
   %t138 = load ptr, ptr %t0
@@ -36407,15 +36830,15 @@ L2:
   call void @analyzeStatement(ptr %t137, i32 %t147)
   %t148 = load i1, ptr %t110
   %t149 = load ptr, ptr %t0
-  %t150 = getelementptr inbounds %Analyzer, ptr %t149, i32 0, i32 25
+  %t150 = getelementptr inbounds %Analyzer, ptr %t149, i32 0, i32 26
   store i1 %t148, ptr %t150
   %t151 = load %Type, ptr %t114
   %t152 = load ptr, ptr %t0
-  %t153 = getelementptr inbounds %Analyzer, ptr %t152, i32 0, i32 27
+  %t153 = getelementptr inbounds %Analyzer, ptr %t152, i32 0, i32 28
   store %Type %t151, ptr %t153
   %t154 = load i32, ptr %t118
   %t155 = load ptr, ptr %t0
-  %t156 = getelementptr inbounds %Analyzer, ptr %t155, i32 0, i32 24
+  %t156 = getelementptr inbounds %Analyzer, ptr %t155, i32 0, i32 25
   store i32 %t154, ptr %t156
   %t157 = load ptr, ptr %t0
   %t158 = getelementptr inbounds %Analyzer, ptr %t157, i32 0, i32 1
@@ -36423,7 +36846,7 @@ L2:
   call void @SymbolTable.exitScope(ptr %t159)
   %t160 = load i32, ptr %t5
   %t161 = load ptr, ptr %t0
-  %t162 = getelementptr inbounds %Analyzer, ptr %t161, i32 0, i32 28
+  %t162 = getelementptr inbounds %Analyzer, ptr %t161, i32 0, i32 29
   store i32 %t160, ptr %t162
   ret void
 }
@@ -38552,6 +38975,7 @@ entry:
   %t0 = alloca ptr
   %t1 = alloca i32
   %t12 = alloca i32
+  %t42 = alloca ptr
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -38600,38 +39024,70 @@ L3:
   %t39 = getelementptr inbounds %Node, ptr %t38, i32 0, i32 3
   %t40 = load ptr, ptr %t39
   %t41 = call ptr @genFieldAddress(ptr %t20, i32 %t30, ptr %t40)
-  ret ptr %t41
-L5:
-  %t42 = load i32, ptr %t12
-  %t43 = icmp eq i32 %t42, 19
-  br i1 %t43, label %L6, label %L8
+  store ptr %t41, ptr %t42
+  %t43 = load ptr, ptr %t0
+  %t44 = getelementptr inbounds %Emitter, ptr %t43, i32 0, i32 1
+  %t45 = load ptr, ptr %t44
+  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 21
+  %t47 = load ptr, ptr %t46
+  %t48 = load i32, ptr %t1
+  %t49 = sext i32 %t48 to i64
+  %t50 = getelementptr inbounds %Type, ptr %t47, i64 %t49
+  %t51 = getelementptr inbounds %Type, ptr %t50, i32 0, i32 0
+  %t52 = load i32, ptr %t51
+  %t53 = icmp ne i32 %t52, 0
+  br i1 %t53, label %L6, label %L8
 L6:
-  %t44 = load ptr, ptr %t0
-  %t45 = load i32, ptr %t1
-  %t46 = call ptr @genIndexAddress(ptr %t44, i32 %t45)
-  ret ptr %t46
+  %t54 = load ptr, ptr %t0
+  %t55 = load ptr, ptr %t0
+  %t56 = getelementptr inbounds %Emitter, ptr %t55, i32 0, i32 1
+  %t57 = load ptr, ptr %t56
+  %t58 = getelementptr inbounds %Analyzer, ptr %t57, i32 0, i32 21
+  %t59 = load ptr, ptr %t58
+  %t60 = load i32, ptr %t1
+  %t61 = sext i32 %t60 to i64
+  %t62 = getelementptr inbounds %Type, ptr %t59, i64 %t61
+  %t63 = load %Type, ptr %t62
+  %t64 = load ptr, ptr %t0
+  %t65 = load i32, ptr %t1
+  %t66 = call %Type @typeOfNode(ptr %t64, i32 %t65)
+  %t67 = load ptr, ptr %t42
+  %t68 = call ptr @memberAddress(ptr %t54, %Type %t63, %Type %t66, ptr %t67)
+  ret ptr %t68
 L8:
-  %t47 = load i32, ptr %t12
-  %t48 = icmp eq i32 %t47, 16
-  br i1 %t48, label %L9, label %L11
+  %t69 = load ptr, ptr %t42
+  ret ptr %t69
+L5:
+  %t70 = load i32, ptr %t12
+  %t71 = icmp eq i32 %t70, 19
+  br i1 %t71, label %L9, label %L11
 L9:
-  %t49 = load ptr, ptr %t0
-  %t50 = load ptr, ptr %t0
-  %t51 = getelementptr inbounds %Emitter, ptr %t50, i32 0, i32 0
-  %t52 = load ptr, ptr %t51
-  %t53 = getelementptr inbounds %Ast, ptr %t52, i32 0, i32 0
-  %t54 = load ptr, ptr %t53
-  %t55 = load i32, ptr %t1
-  %t56 = sext i32 %t55 to i64
-  %t57 = getelementptr inbounds %Node, ptr %t54, i64 %t56
-  %t58 = getelementptr inbounds %Node, ptr %t57, i32 0, i32 5
-  %t59 = load i32, ptr %t58
-  %t60 = call ptr @genExpr(ptr %t49, i32 %t59)
-  ret ptr %t60
+  %t72 = load ptr, ptr %t0
+  %t73 = load i32, ptr %t1
+  %t74 = call ptr @genIndexAddress(ptr %t72, i32 %t73)
+  ret ptr %t74
 L11:
-  %t61 = load ptr, ptr %t0
-  %t62 = load i32, ptr %t1
-  call void @codegenFault(ptr %t61, i32 %t62, ptr @.str.900)
+  %t75 = load i32, ptr %t12
+  %t76 = icmp eq i32 %t75, 16
+  br i1 %t76, label %L12, label %L14
+L12:
+  %t77 = load ptr, ptr %t0
+  %t78 = load ptr, ptr %t0
+  %t79 = getelementptr inbounds %Emitter, ptr %t78, i32 0, i32 0
+  %t80 = load ptr, ptr %t79
+  %t81 = getelementptr inbounds %Ast, ptr %t80, i32 0, i32 0
+  %t82 = load ptr, ptr %t81
+  %t83 = load i32, ptr %t1
+  %t84 = sext i32 %t83 to i64
+  %t85 = getelementptr inbounds %Node, ptr %t82, i64 %t84
+  %t86 = getelementptr inbounds %Node, ptr %t85, i32 0, i32 5
+  %t87 = load i32, ptr %t86
+  %t88 = call ptr @genExpr(ptr %t77, i32 %t87)
+  ret ptr %t88
+L14:
+  %t89 = load ptr, ptr %t0
+  %t90 = load i32, ptr %t1
+  call void @codegenFault(ptr %t89, i32 %t90, ptr @.str.900)
   ret ptr null
 }
 
@@ -40927,6 +41383,7 @@ entry:
   %t154 = alloca %Type
   %t187 = alloca %Type
   %t197 = alloca i1
+  %t245 = alloca ptr
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -41267,25 +41724,57 @@ L58:
   %t242 = getelementptr inbounds %Node, ptr %t241, i32 0, i32 3
   %t243 = load ptr, ptr %t242
   %t244 = call ptr @genFieldValue(ptr %t223, i32 %t233, ptr %t243)
-  ret ptr %t244
-L60:
-  %t245 = load i32, ptr %t12
-  %t246 = icmp eq i32 %t245, 19
-  br i1 %t246, label %L61, label %L63
+  store ptr %t244, ptr %t245
+  %t246 = load ptr, ptr %t0
+  %t247 = getelementptr inbounds %Emitter, ptr %t246, i32 0, i32 1
+  %t248 = load ptr, ptr %t247
+  %t249 = getelementptr inbounds %Analyzer, ptr %t248, i32 0, i32 21
+  %t250 = load ptr, ptr %t249
+  %t251 = load i32, ptr %t1
+  %t252 = sext i32 %t251 to i64
+  %t253 = getelementptr inbounds %Type, ptr %t250, i64 %t252
+  %t254 = getelementptr inbounds %Type, ptr %t253, i32 0, i32 0
+  %t255 = load i32, ptr %t254
+  %t256 = icmp ne i32 %t255, 0
+  br i1 %t256, label %L61, label %L63
 L61:
-  %t247 = load ptr, ptr %t0
-  %t248 = load ptr, ptr %t0
-  %t249 = load i32, ptr %t1
-  %t250 = call %Type @typeOfNode(ptr %t248, i32 %t249)
-  %t251 = load ptr, ptr %t0
-  %t252 = load i32, ptr %t1
-  %t253 = call ptr @genAddress(ptr %t251, i32 %t252)
-  %t254 = call ptr @emitLoad(ptr %t247, %Type %t250, ptr %t253)
-  ret ptr %t254
+  %t257 = load ptr, ptr %t0
+  %t258 = load ptr, ptr %t245
+  %t259 = load ptr, ptr %t0
+  %t260 = getelementptr inbounds %Emitter, ptr %t259, i32 0, i32 1
+  %t261 = load ptr, ptr %t260
+  %t262 = getelementptr inbounds %Analyzer, ptr %t261, i32 0, i32 21
+  %t263 = load ptr, ptr %t262
+  %t264 = load i32, ptr %t1
+  %t265 = sext i32 %t264 to i64
+  %t266 = getelementptr inbounds %Type, ptr %t263, i64 %t265
+  %t267 = load %Type, ptr %t266
+  %t268 = load ptr, ptr %t0
+  %t269 = load i32, ptr %t1
+  %t270 = call %Type @typeOfNode(ptr %t268, i32 %t269)
+  %t271 = call ptr @convertUnion(ptr %t257, ptr %t258, %Type %t267, %Type %t270)
+  ret ptr %t271
 L63:
-  %t255 = load ptr, ptr %t0
-  %t256 = load i32, ptr %t1
-  call void @codegenFault(ptr %t255, i32 %t256, ptr @.str.1016)
+  %t272 = load ptr, ptr %t245
+  ret ptr %t272
+L60:
+  %t273 = load i32, ptr %t12
+  %t274 = icmp eq i32 %t273, 19
+  br i1 %t274, label %L64, label %L66
+L64:
+  %t275 = load ptr, ptr %t0
+  %t276 = load ptr, ptr %t0
+  %t277 = load i32, ptr %t1
+  %t278 = call %Type @typeOfNode(ptr %t276, i32 %t277)
+  %t279 = load ptr, ptr %t0
+  %t280 = load i32, ptr %t1
+  %t281 = call ptr @genAddress(ptr %t279, i32 %t280)
+  %t282 = call ptr @emitLoad(ptr %t275, %Type %t278, ptr %t281)
+  ret ptr %t282
+L66:
+  %t283 = load ptr, ptr %t0
+  %t284 = load i32, ptr %t1
+  call void @codegenFault(ptr %t283, i32 %t284, ptr @.str.1016)
   ret ptr null
 }
 
@@ -50369,7 +50858,7 @@ L14:
 L15:
   %t51 = load ptr, ptr %t0
   %t52 = load ptr, ptr %t0
-  %t53 = getelementptr inbounds %Analyzer, ptr %t52, i32 0, i32 23
+  %t53 = getelementptr inbounds %Analyzer, ptr %t52, i32 0, i32 24
   %t54 = load i32, ptr %t53
   %t55 = load ptr, ptr %t0
   %t56 = getelementptr inbounds %Analyzer, ptr %t55, i32 0, i32 0
@@ -52439,6 +52928,10 @@ entry:
   %t118 = alloca %Type
   %t137 = alloca i32
   %t154 = alloca i32
+  %t179 = alloca %Type
+  %t192 = alloca ptr
+  %t198 = alloca %Type
+  %t199 = alloca i1
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -52661,7 +53154,64 @@ L23:
   %t176 = getelementptr inbounds %FieldDef, ptr %t173, i64 %t175
   %t177 = getelementptr inbounds %FieldDef, ptr %t176, i32 0, i32 1
   %t178 = load %Type, ptr %t177
-  ret %Type %t178
+  store %Type %t178, ptr %t179
+  %t180 = call %Type @Type.make(i32 0, i32 0)
+  %t181 = load ptr, ptr %t0
+  %t182 = getelementptr inbounds %Analyzer, ptr %t181, i32 0, i32 21
+  %t183 = load ptr, ptr %t182
+  %t184 = load i32, ptr %t1
+  %t185 = sext i32 %t184 to i64
+  %t186 = getelementptr inbounds %Type, ptr %t183, i64 %t185
+  store %Type %t180, ptr %t186
+  %t187 = load %Type, ptr %t179
+  %t188 = call i1 @Type.isUnion(%Type %t187)
+  br i1 %t188, label %L24, label %L26
+L24:
+  %t189 = load ptr, ptr %t0
+  %t190 = load i32, ptr %t1
+  %t191 = call ptr @pathOf(ptr %t189, i32 %t190)
+  store ptr %t191, ptr %t192
+  %t193 = load ptr, ptr %t192
+  %t194 = icmp ne ptr %t193, null
+  br i1 %t194, label %L27, label %L29
+L27:
+  %t195 = load ptr, ptr %t0
+  %t196 = load ptr, ptr %t192
+  %t197 = call %Type @narrowedPath(ptr %t195, ptr %t196)
+  store %Type %t197, ptr %t198
+  %t200 = getelementptr inbounds %Type, ptr %t198, i32 0, i32 0
+  %t201 = load i32, ptr %t200
+  %t202 = icmp ne i32 %t201, 0
+  store i1 %t202, ptr %t199
+  br i1 %t202, label %L30, label %L31
+L30:
+  %t203 = load %Type, ptr %t198
+  %t204 = load %Type, ptr %t179
+  %t205 = call i1 @Type.equals(%Type %t203, %Type %t204)
+  %t206 = xor i1 %t205, true
+  store i1 %t206, ptr %t199
+  br label %L31
+L31:
+  %t207 = load i1, ptr %t199
+  br i1 %t207, label %L32, label %L34
+L32:
+  %t208 = load %Type, ptr %t179
+  %t209 = load ptr, ptr %t0
+  %t210 = getelementptr inbounds %Analyzer, ptr %t209, i32 0, i32 21
+  %t211 = load ptr, ptr %t210
+  %t212 = load i32, ptr %t1
+  %t213 = sext i32 %t212 to i64
+  %t214 = getelementptr inbounds %Type, ptr %t211, i64 %t213
+  store %Type %t208, ptr %t214
+  %t215 = load %Type, ptr %t198
+  ret %Type %t215
+L34:
+  br label %L29
+L29:
+  br label %L26
+L26:
+  %t216 = load %Type, ptr %t179
+  ret %Type %t216
 }
 
 define %Type @checkIndex(ptr %p0, i32 %p1) {
@@ -53464,7 +54014,7 @@ entry:
   %t121 = alloca i1
   %t152 = alloca i32
   %t153 = alloca i1
-  %t194 = alloca %Type
+  %t185 = alloca %Type
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   store %Type %p2, ptr %t2
@@ -53677,7 +54227,7 @@ L9:
   store i32 %t151, ptr %t152
   %t154 = load ptr, ptr %t0
   %t155 = load i32, ptr %t152
-  %t156 = call i1 @isLocal(ptr %t154, i32 %t155)
+  %t156 = call i1 @isNarrowable(ptr %t154, i32 %t155)
   store i1 %t156, ptr %t153
   br i1 %t156, label %L28, label %L29
 L28:
@@ -53691,70 +54241,61 @@ L29:
   br i1 %t160, label %L30, label %L32
 L30:
   %t161 = load ptr, ptr %t0
-  %t162 = load ptr, ptr %t0
-  %t163 = getelementptr inbounds %Analyzer, ptr %t162, i32 0, i32 0
-  %t164 = load ptr, ptr %t163
-  %t165 = getelementptr inbounds %Ast, ptr %t164, i32 0, i32 0
-  %t166 = load ptr, ptr %t165
-  %t167 = load i32, ptr %t152
-  %t168 = sext i32 %t167 to i64
-  %t169 = getelementptr inbounds %Node, ptr %t166, i64 %t168
-  %t170 = getelementptr inbounds %Node, ptr %t169, i32 0, i32 3
-  %t171 = load ptr, ptr %t170
-  %t172 = load %Type, ptr %t40
-  call void @narrow(ptr %t161, ptr %t171, %Type %t172)
+  %t162 = load i32, ptr %t152
+  %t163 = load %Type, ptr %t40
+  call void @narrow(ptr %t161, i32 %t162, %Type %t163)
   br label %L32
 L32:
-  %t173 = load ptr, ptr %t0
-  %t174 = load ptr, ptr %t0
-  %t175 = getelementptr inbounds %Analyzer, ptr %t174, i32 0, i32 0
-  %t176 = load ptr, ptr %t175
-  %t177 = getelementptr inbounds %Ast, ptr %t176, i32 0, i32 0
-  %t178 = load ptr, ptr %t177
-  %t179 = load i32, ptr %t34
-  %t180 = sext i32 %t179 to i64
-  %t181 = getelementptr inbounds %Node, ptr %t178, i64 %t180
-  %t182 = getelementptr inbounds %Node, ptr %t181, i32 0, i32 5
-  %t183 = load i32, ptr %t182
-  call void @analyzeStatement(ptr %t173, i32 %t183)
-  %t184 = load ptr, ptr %t0
-  %t185 = getelementptr inbounds %Analyzer, ptr %t184, i32 0, i32 1
-  %t186 = load ptr, ptr %t185
-  call void @SymbolTable.exitScope(ptr %t186)
-  %t187 = load i1, ptr @FAILED
-  br i1 %t187, label %L33, label %L35
+  %t164 = load ptr, ptr %t0
+  %t165 = load ptr, ptr %t0
+  %t166 = getelementptr inbounds %Analyzer, ptr %t165, i32 0, i32 0
+  %t167 = load ptr, ptr %t166
+  %t168 = getelementptr inbounds %Ast, ptr %t167, i32 0, i32 0
+  %t169 = load ptr, ptr %t168
+  %t170 = load i32, ptr %t34
+  %t171 = sext i32 %t170 to i64
+  %t172 = getelementptr inbounds %Node, ptr %t169, i64 %t171
+  %t173 = getelementptr inbounds %Node, ptr %t172, i32 0, i32 5
+  %t174 = load i32, ptr %t173
+  call void @analyzeStatement(ptr %t164, i32 %t174)
+  %t175 = load ptr, ptr %t0
+  %t176 = getelementptr inbounds %Analyzer, ptr %t175, i32 0, i32 1
+  %t177 = load ptr, ptr %t176
+  call void @SymbolTable.exitScope(ptr %t177)
+  %t178 = load i1, ptr @FAILED
+  br i1 %t178, label %L33, label %L35
 L33:
   ret void
 L35:
   br label %L2
 L2:
-  %t188 = load i32, ptr %t16
-  %t189 = add i32 %t188, 1
-  store i32 %t189, ptr %t16
+  %t179 = load i32, ptr %t16
+  %t180 = add i32 %t179, 1
+  store i32 %t180, ptr %t16
   br label %L0
 L3:
-  %t190 = load i1, ptr %t5
-  br i1 %t190, label %L36, label %L38
+  %t181 = load i1, ptr %t5
+  br i1 %t181, label %L36, label %L38
 L36:
   ret void
 L38:
-  %t191 = load %Type, ptr %t2
-  %t192 = load ptr, ptr %t4
-  %t193 = call %Type @rest(%Type %t191, ptr %t192)
-  store %Type %t193, ptr %t194
-  %t195 = getelementptr inbounds %Type, ptr %t194, i32 0, i32 0
-  %t196 = load i32, ptr %t195
-  %t197 = icmp ne i32 %t196, 0
-  br i1 %t197, label %L39, label %L41
+  %t182 = load %Type, ptr %t2
+  %t183 = load ptr, ptr %t4
+  %t184 = call %Type @rest(%Type %t182, ptr %t183)
+  store %Type %t184, ptr %t185
+  %t186 = getelementptr inbounds %Type, ptr %t185, i32 0, i32 0
+  %t187 = load i32, ptr %t186
+  %t188 = icmp ne i32 %t187, 0
+  br i1 %t188, label %L39, label %L41
 L39:
-  %t198 = load ptr, ptr %t0
-  %t199 = load i32, ptr %t1
-  %t200 = load %Type, ptr %t2
-  %t201 = call ptr @Type.toText(%Type %t200)
-  %t202 = load %Type, ptr %t194
-  %t203 = call ptr @firstMember(%Type %t202)
-  %t204 = call %Facts @Facts.aboutTwo(ptr %t201, ptr %t203)
-  call void @analyzerFail(ptr %t198, i32 %t199, i32 116, %Facts %t204)
+  %t189 = load ptr, ptr %t0
+  %t190 = load i32, ptr %t1
+  %t191 = load %Type, ptr %t2
+  %t192 = call ptr @Type.toText(%Type %t191)
+  %t193 = load %Type, ptr %t185
+  %t194 = call ptr @firstMember(%Type %t193)
+  %t195 = call %Facts @Facts.aboutTwo(ptr %t192, ptr %t194)
+  call void @analyzerFail(ptr %t189, i32 %t190, i32 116, %Facts %t195)
   br label %L41
 L41:
   ret void
@@ -54038,12 +54579,12 @@ L5:
   ret ptr %t18
 }
 
-define i1 @isLocal(ptr %p0, i32 %p1) {
+define i1 @isNarrowable(ptr %p0, i32 %p1) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca i32
-  %t27 = alloca i32
-  %t28 = alloca i1
+  %t42 = alloca i32
+  %t43 = alloca i1
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -54056,50 +54597,69 @@ entry:
   %t9 = getelementptr inbounds %Node, ptr %t6, i64 %t8
   %t10 = getelementptr inbounds %Node, ptr %t9, i32 0, i32 0
   %t11 = load i32, ptr %t10
-  %t12 = icmp ne i32 %t11, 27
+  %t12 = icmp eq i32 %t11, 18
   br i1 %t12, label %L0, label %L2
 L0:
-  ret i1 false
-L2:
   %t13 = load ptr, ptr %t0
-  %t14 = getelementptr inbounds %Analyzer, ptr %t13, i32 0, i32 1
-  %t15 = load ptr, ptr %t14
-  %t16 = load ptr, ptr %t0
-  %t17 = getelementptr inbounds %Analyzer, ptr %t16, i32 0, i32 0
-  %t18 = load ptr, ptr %t17
-  %t19 = getelementptr inbounds %Ast, ptr %t18, i32 0, i32 0
-  %t20 = load ptr, ptr %t19
-  %t21 = load i32, ptr %t1
-  %t22 = sext i32 %t21 to i64
-  %t23 = getelementptr inbounds %Node, ptr %t20, i64 %t22
-  %t24 = getelementptr inbounds %Node, ptr %t23, i32 0, i32 3
-  %t25 = load ptr, ptr %t24
-  %t26 = call i32 @SymbolTable.find(ptr %t15, ptr %t25)
-  store i32 %t26, ptr %t27
-  %t29 = load i32, ptr %t27
-  %t30 = load ptr, ptr %t0
-  %t31 = getelementptr inbounds %Analyzer, ptr %t30, i32 0, i32 28
-  %t32 = load i32, ptr %t31
-  %t33 = icmp sge i32 %t29, %t32
-  store i1 %t33, ptr %t28
-  br i1 %t33, label %L3, label %L4
+  %t14 = load i32, ptr %t1
+  %t15 = call ptr @pathOf(ptr %t13, i32 %t14)
+  %t16 = icmp ne ptr %t15, null
+  ret i1 %t16
+L2:
+  %t17 = load ptr, ptr %t0
+  %t18 = getelementptr inbounds %Analyzer, ptr %t17, i32 0, i32 0
+  %t19 = load ptr, ptr %t18
+  %t20 = getelementptr inbounds %Ast, ptr %t19, i32 0, i32 0
+  %t21 = load ptr, ptr %t20
+  %t22 = load i32, ptr %t1
+  %t23 = sext i32 %t22 to i64
+  %t24 = getelementptr inbounds %Node, ptr %t21, i64 %t23
+  %t25 = getelementptr inbounds %Node, ptr %t24, i32 0, i32 0
+  %t26 = load i32, ptr %t25
+  %t27 = icmp ne i32 %t26, 27
+  br i1 %t27, label %L3, label %L5
 L3:
-  %t34 = load ptr, ptr %t0
-  %t35 = getelementptr inbounds %Analyzer, ptr %t34, i32 0, i32 1
-  %t36 = load ptr, ptr %t35
-  %t37 = getelementptr inbounds %SymbolTable, ptr %t36, i32 0, i32 0
-  %t38 = load ptr, ptr %t37
-  %t39 = load i32, ptr %t27
-  %t40 = sext i32 %t39 to i64
-  %t41 = getelementptr inbounds %Symbol, ptr %t38, i64 %t40
-  %t42 = getelementptr inbounds %Symbol, ptr %t41, i32 0, i32 1
-  %t43 = load i32, ptr %t42
-  %t44 = icmp eq i32 %t43, 0
-  store i1 %t44, ptr %t28
-  br label %L4
-L4:
-  %t45 = load i1, ptr %t28
-  ret i1 %t45
+  ret i1 false
+L5:
+  %t28 = load ptr, ptr %t0
+  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 1
+  %t30 = load ptr, ptr %t29
+  %t31 = load ptr, ptr %t0
+  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 0
+  %t33 = load ptr, ptr %t32
+  %t34 = getelementptr inbounds %Ast, ptr %t33, i32 0, i32 0
+  %t35 = load ptr, ptr %t34
+  %t36 = load i32, ptr %t1
+  %t37 = sext i32 %t36 to i64
+  %t38 = getelementptr inbounds %Node, ptr %t35, i64 %t37
+  %t39 = getelementptr inbounds %Node, ptr %t38, i32 0, i32 3
+  %t40 = load ptr, ptr %t39
+  %t41 = call i32 @SymbolTable.find(ptr %t30, ptr %t40)
+  store i32 %t41, ptr %t42
+  %t44 = load i32, ptr %t42
+  %t45 = load ptr, ptr %t0
+  %t46 = getelementptr inbounds %Analyzer, ptr %t45, i32 0, i32 29
+  %t47 = load i32, ptr %t46
+  %t48 = icmp sge i32 %t44, %t47
+  store i1 %t48, ptr %t43
+  br i1 %t48, label %L6, label %L7
+L6:
+  %t49 = load ptr, ptr %t0
+  %t50 = getelementptr inbounds %Analyzer, ptr %t49, i32 0, i32 1
+  %t51 = load ptr, ptr %t50
+  %t52 = getelementptr inbounds %SymbolTable, ptr %t51, i32 0, i32 0
+  %t53 = load ptr, ptr %t52
+  %t54 = load i32, ptr %t42
+  %t55 = sext i32 %t54 to i64
+  %t56 = getelementptr inbounds %Symbol, ptr %t53, i64 %t55
+  %t57 = getelementptr inbounds %Symbol, ptr %t56, i32 0, i32 1
+  %t58 = load i32, ptr %t57
+  %t59 = icmp eq i32 %t58, 0
+  store i1 %t59, ptr %t43
+  br label %L7
+L7:
+  %t60 = load i1, ptr %t43
+  ret i1 %t60
 }
 
 define ptr @wrapInUnion(ptr %p0, ptr %p1, %Type %p2, %Type %p3) {
@@ -54870,79 +55430,88 @@ define ptr @narrowedAddress(ptr %p0, i32 %p1) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca i32
-  %t5 = alloca %Type
-  %t9 = alloca %Type
-  %t13 = alloca ptr
-  %t14 = alloca i1
-  %t15 = alloca i1
-  %t27 = alloca i1
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
-  %t3 = load i32, ptr %t1
-  %t4 = call %Type @typeOfNode(ptr %t2, i32 %t3)
-  store %Type %t4, ptr %t5
+  %t3 = load ptr, ptr %t0
+  %t4 = load i32, ptr %t1
+  %t5 = call %Type @localTypeOf(ptr %t3, i32 %t4)
   %t6 = load ptr, ptr %t0
   %t7 = load i32, ptr %t1
-  %t8 = call %Type @localTypeOf(ptr %t6, i32 %t7)
-  store %Type %t8, ptr %t9
-  %t10 = load ptr, ptr %t0
-  %t11 = load i32, ptr %t1
-  %t12 = call ptr @variableAddress(ptr %t10, i32 %t11)
-  store ptr %t12, ptr %t13
-  %t16 = load %Type, ptr %t9
-  %t17 = call i1 @Type.isUnion(%Type %t16)
-  %t18 = xor i1 %t17, true
-  store i1 %t18, ptr %t15
-  br i1 %t18, label %L1, label %L0
+  %t8 = call %Type @typeOfNode(ptr %t6, i32 %t7)
+  %t9 = load ptr, ptr %t0
+  %t10 = load i32, ptr %t1
+  %t11 = call ptr @variableAddress(ptr %t9, i32 %t10)
+  %t12 = call ptr @memberAddress(ptr %t2, %Type %t5, %Type %t8, ptr %t11)
+  ret ptr %t12
+}
+
+define ptr @memberAddress(ptr %p0, %Type %p1, %Type %p2, ptr %p3) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca %Type
+  %t2 = alloca %Type
+  %t3 = alloca ptr
+  %t4 = alloca i1
+  %t5 = alloca i1
+  %t17 = alloca i1
+  store ptr %p0, ptr %t0
+  store %Type %p1, ptr %t1
+  store %Type %p2, ptr %t2
+  store ptr %p3, ptr %t3
+  %t6 = load %Type, ptr %t1
+  %t7 = call i1 @Type.isUnion(%Type %t6)
+  %t8 = xor i1 %t7, true
+  store i1 %t8, ptr %t5
+  br i1 %t8, label %L1, label %L0
 L0:
-  %t19 = load %Type, ptr %t9
-  %t20 = load %Type, ptr %t5
-  %t21 = call i1 @Type.equals(%Type %t19, %Type %t20)
-  store i1 %t21, ptr %t15
+  %t9 = load %Type, ptr %t1
+  %t10 = load %Type, ptr %t2
+  %t11 = call i1 @Type.equals(%Type %t9, %Type %t10)
+  store i1 %t11, ptr %t5
   br label %L1
 L1:
-  %t22 = load i1, ptr %t15
-  store i1 %t22, ptr %t14
-  br i1 %t22, label %L3, label %L2
+  %t12 = load i1, ptr %t5
+  store i1 %t12, ptr %t4
+  br i1 %t12, label %L3, label %L2
 L2:
-  %t23 = load %Type, ptr %t5
-  %t24 = call i1 @Type.isUnion(%Type %t23)
-  store i1 %t24, ptr %t14
+  %t13 = load %Type, ptr %t2
+  %t14 = call i1 @Type.isUnion(%Type %t13)
+  store i1 %t14, ptr %t4
   br label %L3
 L3:
-  %t25 = load i1, ptr %t14
-  br i1 %t25, label %L4, label %L6
+  %t15 = load i1, ptr %t4
+  br i1 %t15, label %L4, label %L6
 L4:
-  %t26 = load ptr, ptr %t13
-  ret ptr %t26
+  %t16 = load ptr, ptr %t3
+  ret ptr %t16
 L6:
-  %t28 = load %Type, ptr %t5
-  %t29 = call i1 @Type.isEnum(%Type %t28)
-  store i1 %t29, ptr %t27
-  br i1 %t29, label %L7, label %L8
+  %t18 = load %Type, ptr %t2
+  %t19 = call i1 @Type.isEnum(%Type %t18)
+  store i1 %t19, ptr %t17
+  br i1 %t19, label %L7, label %L8
 L7:
-  %t30 = load %Type, ptr %t9
-  %t31 = getelementptr inbounds %Type, ptr %t5, i32 0, i32 2
-  %t32 = load ptr, ptr %t31
-  %t33 = call i1 @holdsError(%Type %t30, ptr %t32)
-  store i1 %t33, ptr %t27
+  %t20 = load %Type, ptr %t1
+  %t21 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 2
+  %t22 = load ptr, ptr %t21
+  %t23 = call i1 @holdsError(%Type %t20, ptr %t22)
+  store i1 %t23, ptr %t17
   br label %L8
 L8:
-  %t34 = load i1, ptr %t27
-  br i1 %t34, label %L9, label %L11
+  %t24 = load i1, ptr %t17
+  br i1 %t24, label %L9, label %L11
 L9:
-  %t35 = load ptr, ptr %t0
-  %t36 = load %Type, ptr %t9
-  %t37 = load ptr, ptr %t13
-  %t38 = call ptr @part(ptr %t35, %Type %t36, ptr %t37, i32 0)
-  ret ptr %t38
+  %t25 = load ptr, ptr %t0
+  %t26 = load %Type, ptr %t1
+  %t27 = load ptr, ptr %t3
+  %t28 = call ptr @part(ptr %t25, %Type %t26, ptr %t27, i32 0)
+  ret ptr %t28
 L11:
-  %t39 = load ptr, ptr %t0
-  %t40 = load %Type, ptr %t9
-  %t41 = load ptr, ptr %t13
-  %t42 = call ptr @part(ptr %t39, %Type %t40, ptr %t41, i32 1)
-  ret ptr %t42
+  %t29 = load ptr, ptr %t0
+  %t30 = load %Type, ptr %t1
+  %t31 = load ptr, ptr %t3
+  %t32 = call ptr @part(ptr %t29, %Type %t30, ptr %t31, i32 1)
+  ret ptr %t32
 }
 
 define ptr @genTry(ptr %p0, i32 %p1) {
@@ -58039,30 +58608,30 @@ entry:
   store i32 %p3, ptr %t3
   store %Type %p4, ptr %t4
   %t5 = load ptr, ptr %t0
-  %t6 = getelementptr inbounds %Analyzer, ptr %t5, i32 0, i32 29
+  %t6 = getelementptr inbounds %Analyzer, ptr %t5, i32 0, i32 30
   %t7 = load i32, ptr %t6
   store i32 %t7, ptr %t8
   %t9 = load ptr, ptr %t0
-  %t10 = getelementptr inbounds %Analyzer, ptr %t9, i32 0, i32 30
+  %t10 = getelementptr inbounds %Analyzer, ptr %t9, i32 0, i32 31
   %t11 = load i32, ptr %t10
   store i32 %t11, ptr %t12
   %t13 = load ptr, ptr %t0
-  %t14 = getelementptr inbounds %Analyzer, ptr %t13, i32 0, i32 25
+  %t14 = getelementptr inbounds %Analyzer, ptr %t13, i32 0, i32 26
   %t15 = load i1, ptr %t14
   store i1 %t15, ptr %t16
   %t17 = load ptr, ptr %t0
-  %t18 = getelementptr inbounds %Analyzer, ptr %t17, i32 0, i32 27
+  %t18 = getelementptr inbounds %Analyzer, ptr %t17, i32 0, i32 28
   %t19 = load %Type, ptr %t18
   store %Type %t19, ptr %t20
   %t21 = load ptr, ptr %t0
-  %t22 = getelementptr inbounds %Analyzer, ptr %t21, i32 0, i32 24
+  %t22 = getelementptr inbounds %Analyzer, ptr %t21, i32 0, i32 25
   %t23 = load i32, ptr %t22
   store i32 %t23, ptr %t24
   %t25 = load ptr, ptr %t0
-  %t26 = getelementptr inbounds %Analyzer, ptr %t25, i32 0, i32 28
+  %t26 = getelementptr inbounds %Analyzer, ptr %t25, i32 0, i32 29
   %t27 = load i32, ptr %t26
   %t28 = load ptr, ptr %t0
-  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 29
+  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 30
   store i32 %t27, ptr %t29
   %t30 = load ptr, ptr %t0
   %t31 = getelementptr inbounds %Analyzer, ptr %t30, i32 0, i32 1
@@ -58070,17 +58639,17 @@ entry:
   %t33 = getelementptr inbounds %SymbolTable, ptr %t32, i32 0, i32 1
   %t34 = load i32, ptr %t33
   %t35 = load ptr, ptr %t0
-  %t36 = getelementptr inbounds %Analyzer, ptr %t35, i32 0, i32 30
+  %t36 = getelementptr inbounds %Analyzer, ptr %t35, i32 0, i32 31
   store i32 %t34, ptr %t36
   %t37 = load ptr, ptr %t0
-  %t38 = getelementptr inbounds %Analyzer, ptr %t37, i32 0, i32 25
+  %t38 = getelementptr inbounds %Analyzer, ptr %t37, i32 0, i32 26
   store i1 true, ptr %t38
   %t39 = load %Type, ptr %t4
   %t40 = load ptr, ptr %t0
-  %t41 = getelementptr inbounds %Analyzer, ptr %t40, i32 0, i32 27
+  %t41 = getelementptr inbounds %Analyzer, ptr %t40, i32 0, i32 28
   store %Type %t39, ptr %t41
   %t42 = load ptr, ptr %t0
-  %t43 = getelementptr inbounds %Analyzer, ptr %t42, i32 0, i32 24
+  %t43 = getelementptr inbounds %Analyzer, ptr %t42, i32 0, i32 25
   store i32 0, ptr %t43
   %t44 = load ptr, ptr %t0
   %t45 = getelementptr inbounds %Analyzer, ptr %t44, i32 0, i32 1
@@ -58185,23 +58754,23 @@ L3:
   call void @SymbolTable.exitScope(ptr %t131)
   %t132 = load i32, ptr %t8
   %t133 = load ptr, ptr %t0
-  %t134 = getelementptr inbounds %Analyzer, ptr %t133, i32 0, i32 29
+  %t134 = getelementptr inbounds %Analyzer, ptr %t133, i32 0, i32 30
   store i32 %t132, ptr %t134
   %t135 = load i32, ptr %t12
   %t136 = load ptr, ptr %t0
-  %t137 = getelementptr inbounds %Analyzer, ptr %t136, i32 0, i32 30
+  %t137 = getelementptr inbounds %Analyzer, ptr %t136, i32 0, i32 31
   store i32 %t135, ptr %t137
   %t138 = load i1, ptr %t16
   %t139 = load ptr, ptr %t0
-  %t140 = getelementptr inbounds %Analyzer, ptr %t139, i32 0, i32 25
+  %t140 = getelementptr inbounds %Analyzer, ptr %t139, i32 0, i32 26
   store i1 %t138, ptr %t140
   %t141 = load %Type, ptr %t20
   %t142 = load ptr, ptr %t0
-  %t143 = getelementptr inbounds %Analyzer, ptr %t142, i32 0, i32 27
+  %t143 = getelementptr inbounds %Analyzer, ptr %t142, i32 0, i32 28
   store %Type %t141, ptr %t143
   %t144 = load i32, ptr %t24
   %t145 = load ptr, ptr %t0
-  %t146 = getelementptr inbounds %Analyzer, ptr %t145, i32 0, i32 24
+  %t146 = getelementptr inbounds %Analyzer, ptr %t145, i32 0, i32 25
   store i32 %t144, ptr %t146
   ret void
 }
@@ -58216,7 +58785,7 @@ entry:
   store i32 %p1, ptr %t1
   %t4 = load i32, ptr %t1
   %t5 = load ptr, ptr %t0
-  %t6 = getelementptr inbounds %Analyzer, ptr %t5, i32 0, i32 29
+  %t6 = getelementptr inbounds %Analyzer, ptr %t5, i32 0, i32 30
   %t7 = load i32, ptr %t6
   %t8 = icmp sge i32 %t4, %t7
   store i1 %t8, ptr %t3
@@ -58224,7 +58793,7 @@ entry:
 L0:
   %t9 = load i32, ptr %t1
   %t10 = load ptr, ptr %t0
-  %t11 = getelementptr inbounds %Analyzer, ptr %t10, i32 0, i32 30
+  %t11 = getelementptr inbounds %Analyzer, ptr %t10, i32 0, i32 31
   %t12 = load i32, ptr %t11
   %t13 = icmp slt i32 %t9, %t12
   store i1 %t13, ptr %t3
@@ -61631,7 +62200,7 @@ entry:
   %t7 = alloca i1
   store i64 %p0, ptr %t0
   %t1 = load i64, ptr %t0
-  %t2 = mul i64 224, %t1
+  %t2 = mul i64 232, %t1
   store i64 %t2, ptr %t3
   %t4 = load i64, ptr %t3
   %t5 = call ptr @malloc(i64 %t4)
@@ -71330,7 +71899,7 @@ entry:
   ret void
 }
 
-define i32 @ode.lambda.35154(%Type %p0, %Type %p1) {
+define i32 @ode.lambda.35187(%Type %p0, %Type %p1) {
 entry:
   %t0 = alloca %Type
   %t1 = alloca %Type

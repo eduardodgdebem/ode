@@ -246,3 +246,76 @@ test "a match runs the arm of the member a union holds" {
     }
   `)), "circle straight straight\nHuge positive not positive\n5 5\n");
 }
+
+test "a narrowed field is read, and written, inside its union" {
+  assertEq(outputOf(program(`
+    import { alloc } from "std/mem";
+
+    struct Holder {
+      name: *i8,
+      shape: Shape,
+    }
+
+    struct Outer {
+      inner: Holder,
+      label: i64 | *i8,
+    }
+
+    struct Slot {
+      value: i64 | Bad,
+    }
+
+    fn measure(holder: *Holder): i64 {
+      if (holder.shape is Circle) {
+        return holder.shape.radius;
+      }
+      return holder.shape.width * holder.shape.height;
+    }
+
+    fn describe(outer: Outer): void {
+      match (outer.inner.shape) {
+        Circle => {
+          printf("circle %ld ", outer.inner.shape.radius);
+        }
+        Rect => {
+          printf("rect %ld ", outer.inner.shape.width);
+        }
+      }
+      match (outer.label) {
+        i64 => {
+          printf("%ld\n", outer.label);
+        }
+        *i8 => {
+          printf("%s\n", outer.label);
+        }
+      }
+    }
+
+    fn main(): i32 {
+      let holder: *Holder = alloc<Holder>(1);
+      holder.shape = Circle { radius: 7 };
+      printf("%ld ", measure(holder));
+      holder.shape = Rect { width: 3, height: 5 };
+      printf("%ld\n", measure(holder));
+
+      describe(Outer { inner: *holder, label: 42 });
+      describe(Outer { inner: Holder { name: "c", shape: Circle { radius: 1 } }, label: "one" });
+
+      if (holder.shape is Rect) {
+        holder.shape.width = 100;
+      }
+      printf("%ld\n", measure(holder));
+
+      let slot: Slot = Slot { value: 5 };
+      if (slot.value is Bad) {
+        return 1;
+      }
+      printf("%ld\n", slot.value + 1);
+      slot.value = Bad.Huge;
+      if (slot.value is Bad) {
+        printf("%s\n", nameOf(slot.value));
+      }
+      return 0;
+    }
+  `)), "7 15\nrect 3 42\ncircle 1 one\n500\n6\nHuge\n");
+}

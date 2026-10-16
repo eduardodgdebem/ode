@@ -160,9 +160,12 @@ convenience.
 
 An enum member is only a name for an integer. Data that is one of several
 shapes is a union of structs instead -- `type Shape = Circle | Rect` -- told
-apart with `is` or `match`. Both narrow a local variable only, not a field
-(`node.kind is Call`) or an expression, and an arm names whole members: one
-error of an error enum is told apart by a match on the enum inside it.
+apart with `is` or `match`. Both narrow a variable or a field path
+(`node.kind is Call`), but not an element (`list.at(0)`, `items[i]`) or a
+call's result -- copy it into a variable first. A write through another
+pointer to the same field is not seen, so a narrowed field changed by a
+function it is passed to keeps its narrowing. And an arm names whole members:
+one error of an error enum is told apart by a match on the enum inside it.
 
 ### 6.3 Structs cannot cross `extern` by value
 

@@ -83,6 +83,9 @@ export struct Analyzer {
   // Per node: the union its value is turned into where it is used -- a
   // value or an error given where `i64 | ParseError` is wanted -- or None.
   coerceTo: *Type,
+  // Per field read: the union a field was declared as, where `is` or `match`
+  // narrowed the read to one of its members; None elsewhere.
+  narrowedFrom: *Type,
   // How many nodes the per-node tables above have room for.
   nodeCapacity: i32,
   // Set when making a generic's instances never finished, which leaves the
@@ -153,6 +156,7 @@ export struct Analyzer {
       self.functionRefs = alloc<i8>(size);
       self.callTargets = alloc<CallTarget>(size);
       self.coerceTo = alloc<Type>(size);
+      self.narrowedFrom = alloc<Type>(size);
       self.variadicAfter = alloc<i32>(size);
     } else {
       self.types = grow<Type>(self.types, size);
@@ -165,6 +169,7 @@ export struct Analyzer {
       self.functionRefs = grow<i8>(self.functionRefs, size);
       self.callTargets = grow<CallTarget>(self.callTargets, size);
       self.coerceTo = grow<Type>(self.coerceTo, size);
+      self.narrowedFrom = grow<Type>(self.narrowedFrom, size);
       self.variadicAfter = grow<i32>(self.variadicAfter, size);
     }
 
@@ -178,6 +183,7 @@ export struct Analyzer {
       self.functionRefs[index] = 0;
       self.callTargets[index] = CallTarget.Direct;
       self.coerceTo[index] = Type.make(TypeKind.None, 0);
+      self.narrowedFrom[index] = Type.make(TypeKind.None, 0);
       self.values[index] = 0;
       self.variadicAfter[index] = 0;
     }

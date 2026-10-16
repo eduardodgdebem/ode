@@ -18,7 +18,7 @@ import {
   Analyzer, analyzerFail, analyzerParseType, analyzerValidateType,
 } from "./analyzer";
 import {
-  unionInfo, unionOfAll, holdsMember, holdsError, valuesOf, narrow,
+  unionInfo, unionOfAll, holdsMember, holdsError, valuesOf, narrow, pathOf,
 } from "./errors";
 import { analyzeStatement } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
@@ -73,8 +73,8 @@ export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type): void {
 
     an.symbols.enterScope();
     let matched: i32 = an.ast.nodes[node].a;
-    if (isLocal(an, matched) && armType.kind != TypeKind.None) {
-      narrow(an, an.ast.nodes[matched].text, armType);
+    if (isNarrowable(an, matched) && armType.kind != TypeKind.None) {
+      narrow(an, matched, armType);
     }
     analyzeStatement(an, an.ast.nodes[armNode].a);
     an.symbols.exitScope();
@@ -155,8 +155,12 @@ fn firstMember(left: Type): *i8 {
   return unionInfo(left).errors.at(0);
 }
 
-// Whether `node` is a local variable, which a match narrows in its arms.
-fn isLocal(an: *Analyzer, node: i32): bool {
+// Whether `node` is what a match narrows in its arms: a local variable, or a
+// field of a variable.
+fn isNarrowable(an: *Analyzer, node: i32): bool {
+  if (an.ast.nodes[node].kind == NodeKind.FieldAccess) {
+    return pathOf(an, node) != null;
+  }
   if (an.ast.nodes[node].kind != NodeKind.Ident) {
     return false;
   }

@@ -16,7 +16,7 @@ import { foldInteger, laterGlobalIn } from "./constants";
 import { analyzeMatch } from "./enums";
 import {
   valueOf, alwaysLeaves, alwaysReturns, narrowedLocal, declaredTypeOf, narrow,
-  narrowedTypes,
+  narrowedTypes, pathOf, forget,
 } from "./errors";
 import {
   checkExpr, checkExprAs, checkAssignTarget, isConstantExpr, isNumberLiteral,
@@ -202,11 +202,24 @@ fn analyzeAssign(an: *Analyzer, node: i32): void {
       an.types[target] = declared;
     }
   }
+  // So is a field.
+  if (an.ast.nodes[target].kind == NodeKind.FieldAccess &&
+      an.narrowedFrom[target].kind != TypeKind.None) {
+    targetType = an.narrowedFrom[target];
+    an.types[target] = targetType;
+    an.narrowedFrom[target] = Type.make(TypeKind.None, 0);
+  }
   let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, targetType);
 
   if (!targetType.accepts(exprType)) {
     analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.AssignmentMismatch,
                         Facts.aboutTypes(targetType, exprType));
+  }
+
+  // Whatever was found out about what is assigned no longer holds.
+  let path: *i8 = pathOf(an, target);
+  if (path != null) {
+    forget(an, path);
   }
 }
 
@@ -232,23 +245,22 @@ fn analyzeIf(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let name: *i8 = an.ast.nodes[narrowed].text;
   let held: Type = Type.make(TypeKind.None, 0);
   let notHeld: Type = Type.make(TypeKind.None, 0);
   narrowedTypes(an, an.ast.nodes[node].a, &held, &notHeld);
 
   an.symbols.enterScope();
-  narrow(an, name, held);
+  narrow(an, narrowed, held);
   analyzeStatement(an, an.ast.nodes[node].b);
   an.symbols.exitScope();
 
   if (an.ast.nodes[node].c != NO_NODE) {
     an.symbols.enterScope();
-    narrow(an, name, notHeld);
+    narrow(an, narrowed, notHeld);
     analyzeStatement(an, an.ast.nodes[node].c);
     an.symbols.exitScope();
   } else if (alwaysLeaves(an, an.ast.nodes[node].b)) {
-    narrow(an, name, notHeld);
+    narrow(an, narrowed, notHeld);
   }
 }
 
