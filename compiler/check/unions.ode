@@ -1,0 +1,165 @@
+// ---------------------------------------------------------------------------
+// Matching on a union: one arm per type it may hold.
+//
+//   match (shape) {
+//     Circle => { return 3 * shape.radius * shape.radius; }
+//     Rect => { return shape.width * shape.height; }
+//   }
+//
+// Each arm names members -- value types, or error enums for all their
+// errors -- and inside it a local variable matched on is narrowed to them,
+// as `is` narrows it. `else` takes what no arm named. Without one, every
+// member has to be named, so a member added to the union later is an error
+// at every match that forgot it.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import {
+  Analyzer, analyzerFail, analyzerParseType, analyzerValidateType,
+} from "./analyzer";
+import {
+  unionInfo, unionOfAll, holdsMember, holdsError, valuesOf, narrow,
+} from "./errors";
+import { analyzeStatement } from "./statements";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED } from "../diagnostics/report";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { SymbolKind } from "../types/symbols";
+import { TypeKind, Type } from "../types/types";
+
+export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type): void {
+  let handled: *List<Type> = List<Type>.new();
+  let hasElse: bool = false;
+
+  for (arm in 0..an.ast.nodes[node].itemCount) {
+    let armNode: i32 = an.ast.nodes[node].items[arm];
+    if (hasElse) {
+      analyzerFail(an, armNode, Problem.ArmAfterElse, Facts.none());
+      return;
+    }
+
+    let armType: Type = Type.make(TypeKind.None, 0);
+    if (an.ast.nodes[armNode].extra == 1) {
+      hasElse = true;
+      armType = rest(subject, handled);
+    } else {
+      let values: *List<Type> = List<Type>.new();
+      let errors: *List<*i8> = List<*i8>.new();
+      for (index in 0..an.ast.nodes[armNode].itemCount) {
+        let pattern: i32 = an.ast.nodes[armNode].items[index];
+        let type: Type = patternType(an, pattern, subject);
+        if (FAILED) {
+          return;
+        }
+        if (!holdsMember(subject, type)) {
+          analyzerFail(an, pattern, Problem.IsNeverTrue,
+                       Facts.about(type.toText()).withTypes(subject, type));
+          return;
+        }
+        if (isHandled(handled, type)) {
+          analyzerFail(an, pattern, Problem.DuplicatePattern, Facts.none());
+          return;
+        }
+        handled.push(type);
+        an.types[pattern] = type;
+        if (type.isEnum() && holdsError(subject, type.structName)) {
+          errors.push(type.structName);
+        } else {
+          values.push(type);
+        }
+      }
+      armType = unionOfAll(values, errors);
+    }
+
+    an.symbols.enterScope();
+    let matched: i32 = an.ast.nodes[node].a;
+    if (isLocal(an, matched) && armType.kind != TypeKind.None) {
+      narrow(an, an.ast.nodes[matched].text, armType);
+    }
+    analyzeStatement(an, an.ast.nodes[armNode].a);
+    an.symbols.exitScope();
+    if (FAILED) {
+      return;
+    }
+  }
+
+  if (hasElse) {
+    return;
+  }
+  let missing: Type = rest(subject, handled);
+  if (missing.kind != TypeKind.None) {
+    analyzerFail(an, node, Problem.UnhandledUnionMember,
+                 Facts.aboutTwo(subject.toText(), firstMember(missing)));
+  }
+}
+
+// The type a pattern names. A bare name -- `Circle`, `ParseError` -- is read
+// as a type, which is what it is here, from the file the match is in.
+fn patternType(an: *Analyzer, pattern: i32, subject: Type): Type {
+  let kind: NodeKind = an.ast.nodes[pattern].kind;
+  if (kind == NodeKind.Ident) {
+    // Linking recorded the type the name means in the match's own file.
+    let resolved: *i8 = an.structRefs[pattern];
+    an.ast.nodes[pattern].kind = NodeKind.Type;
+    an.ast.nodes[pattern].extra = 0;
+    if (resolved != null) {
+      an.ast.nodes[pattern].text = resolved;
+    }
+    kind = NodeKind.Type;
+  }
+  if (kind != NodeKind.Type && kind != NodeKind.FnType) {
+    analyzerFail(an, pattern, Problem.PatternNotType, Facts.about(subject.toText()));
+    return Type.make(TypeKind.None, 0);
+  }
+  let type: Type = analyzerParseType(an, pattern);
+  analyzerValidateType(an, pattern, type, "in a match pattern");
+  return type;
+}
+
+fn isHandled(handled: *List<Type>, type: Type): bool {
+  for (index in 0..handled.count) {
+    if (handled.at(index).equals(type)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// What of `union` no arm has named yet, or None when every member has been.
+fn rest(union: Type, handled: *List<Type>): Type {
+  let members: *List<Type> = valuesOf(union);
+  let values: *List<Type> = List<Type>.new();
+  for (index in 0..members.count) {
+    if (!isHandled(handled, members.at(index))) {
+      values.push(members.at(index));
+    }
+  }
+  let allErrors: *List<*i8> = unionInfo(union).errors;
+  let errors: *List<*i8> = List<*i8>.new();
+  for (index in 0..allErrors.count) {
+    if (!isHandled(handled, Type.ofEnum(allErrors.at(index), 0))) {
+      errors.push(allErrors.at(index));
+    }
+  }
+  return unionOfAll(values, errors);
+}
+
+// The first member of what is left, to name in the diagnostic.
+fn firstMember(left: Type): *i8 {
+  if (!left.isUnion()) {
+    return left.toText();
+  }
+  if (valuesOf(left).count > 0) {
+    return valuesOf(left).at(0).toText();
+  }
+  return unionInfo(left).errors.at(0);
+}
+
+// Whether `node` is a local variable, which a match narrows in its arms.
+fn isLocal(an: *Analyzer, node: i32): bool {
+  if (an.ast.nodes[node].kind != NodeKind.Ident) {
+    return false;
+  }
+  let symbol: i32 = an.symbols.find(an.ast.nodes[node].text);
+  return symbol >= an.localsFrom && an.symbols.items[symbol].kind == SymbolKind.Var;
+}

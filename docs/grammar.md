@@ -58,7 +58,7 @@ cycles.
 - **EnumMember** → IDENT (`=` `-`? NUMBER)?
 - **MatchStmt** → `match` `(` Expr `)` `{` MatchArm* `}`
 - **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` Block
-- **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR
+- **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR | Type — a Type only in a match on a union, where a bare IDENT names a type too
 - **TryExpr** → `try` Unary
 - **CatchExpr** → Coalesce `catch` `(` IDENT `)` Block — the lowest precedence; the block must leave
 - **Coalesce** → LogicOr (`??` LogicOr)* — below `||`
@@ -237,6 +237,10 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   the value; one of several values is `{ i32 code, [n x i64] }`, the value
   kept in as many words as the largest needs and the code below zero, one
   per type across the program. An error's code is above zero either way.
+- A match on a union has one arm per member: each pattern names a value type
+  or an error enum (all of its errors) that the union holds, once. A local
+  variable matched on is narrowed in each arm to the members it names, and in
+  `else` to the rest. Without `else`, every member must be named.
 - A type alias is a second name for a type and means exactly it: `Count`
   and `i64` are one type after `type Count = i64;`. It shares the type
   namespace with structs and enums, is exported and imported like them, may

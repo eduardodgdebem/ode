@@ -545,6 +545,19 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
   // only records the struct the name would mean.
   //
   // `Color.Red` names an enum the same way, and is resolved the same way.
+  // A match arm's bare name, `Circle =>`, names a type when the match is on
+  // a union; that is the analyzer's to decide, so it is recorded the same way.
+  if (kind == NodeKind.Arm) {
+    for (index in 0..an.ast.nodes[node].itemCount) {
+      let pattern: i32 = an.ast.nodes[node].items[index];
+      if (an.ast.nodes[pattern].kind == NodeKind.Ident) {
+        an.structRefs[pattern] =
+            resolveStructName(an, program, an.ast.nodes[pattern].module,
+                              an.ast.nodes[pattern].text);
+      }
+    }
+  }
+
   if (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) {
     let receiver: i32 = an.ast.nodes[node].a;
     if (an.ast.nodes[receiver].kind == NodeKind.Ident) {

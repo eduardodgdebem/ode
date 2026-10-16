@@ -153,6 +153,10 @@ export enum Problem {
   CannotMatch,
   ArmAfterElse,
   DuplicatePattern,
+  // A match on a union: `name` the union, `other` the member left out.
+  UnhandledUnionMember,
+  // A pattern in a match on a union that names no type: `name` the union.
+  PatternNotType,
   UnhandledMember,
   MatchNeedsElse,
 
@@ -752,6 +756,14 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     Problem.DuplicatePattern => {
       return says("this value is already handled by an earlier pattern");
+    }
+    Problem.UnhandledUnionMember => {
+      return saysMore(text4("match on ", q(name), " does not handle ", q(other)),
+                      "add an arm for it, or an 'else' arm");
+    }
+    Problem.PatternNotType => {
+      return saysMore(text2("a match on a union names the types it may hold: ", q(name)),
+                      "write a member's type, `Circle => { ... }`, or an error enum's name");
     }
     Problem.UnhandledMember => {
       return saysMore(text4("match on ", q(name), " does not handle ",
