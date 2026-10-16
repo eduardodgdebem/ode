@@ -10,23 +10,24 @@
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { Builder, equals, fromInt } from "std/text";
-import { internalError } from "../support/diagnostics";
-import { NO_NODE, NodeKind } from "../syntax/ast";
-import { TypeKind, Type } from "../semantics/types";
-import { analyzerParseType } from "../semantics/analyzer";
-import { textHasDot } from "../semantics/expressions";
-import { ReceiverMode } from "../semantics/methods";
-import { CallTarget } from "../semantics/functions";
-import { sizeOf } from "../semantics/layout";
+import { analyzerParseType } from "../check/analyzer";
+import { textHasDot } from "../check/expressions";
+import { CallTarget } from "../check/functions";
+import { ReceiverMode } from "../check/methods";
 import {
   Emitter, freshTemp, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, variableAddress, llvmName, internString, codegenFault,
 } from "./emitter";
-import { llvmTypeName, zeroValue } from "./layout";
-import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
 import {
   wrapInUnion, genVariable, genTry, genCoalesce, genCatch, genIs,
 } from "./errors";
+import { llvmTypeName, zeroValue } from "./layout";
+import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
+import { internalError } from "../diagnostics/report";
+import { line } from "../driver/options";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { sizeOf } from "../types/layout";
+import { TypeKind, Type } from "../types/types";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];

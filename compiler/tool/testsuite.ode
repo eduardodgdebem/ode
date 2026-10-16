@@ -24,14 +24,17 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { exists } from "std/fs";
 import { Builder, equals, slice, endsWith, contains } from "std/text";
-import { STDOUT } from "../support/libc";
-import { writeBuilder } from "../support/text";
-import { fail } from "../support/diagnostics";
+import { fail } from "../diagnostics/report";
+import { line } from "../driver/options";
 import {
-  TextList, StderrMode, runCommand, setEnvironment, isTerminal, joinPath,
-  withSuffix, parentDirectory, isExecutable, readBytes, writeBytes, sameBytes,
-  makeDirectories, removeTree, listDirectory, splitLines, makeTempDirectory,
-} from "../support/system";
+  joinPath, withSuffix, parentDirectory, isExecutable, readBytes, writeBytes,
+  sameBytes, makeDirectories, removeTree, listDirectory, splitLines,
+  makeTempDirectory,
+} from "../os/files";
+import { STDOUT, writeBuilder } from "../os/output";
+import {
+  TextList, StderrMode, runCommand, ran, setEnvironment, isTerminal, command,
+} from "../os/process";
 import { Workspace, complain, commandBuild } from "./build";
 
 export struct TestOptions {
@@ -112,11 +115,15 @@ struct Suite {
   // it as the expectation under --update.
   fn check(self: *Suite, kind: *i8, name: *i8, expectedPath: *i8,
            actual: *Builder, missing: *i8, differs: *i8): void {
-    let expected: *Builder = readBytes(expectedPath);
+    // No expectation yet is what --update records one for.
+    let expected: *Builder = readBytes(expectedPath) ?? null;
 
     if (self.update) {
       if (expected == null || !sameBytes(expected, actual)) {
-        writeBytes(expectedPath, actual);
+        writeBytes(expectedPath, actual) catch (e) {
+          self.fail(kind, name, "cannot record the expectation");
+          return;
+        };
         self.updated = self.updated + 1;
       }
       self.pass(kind, name);
@@ -142,13 +149,15 @@ struct Suite {
     actualPath.push('-');
     actualPath.add(name);
     actualPath.add(".actual");
-    writeBytes(actualPath.data, actual);
+    // Only for showing a diff; without it, the failure still stands.
+    writeBytes(actualPath.data, actual) catch (e) {};
 
     let diff: *TextList = TextList.new().add("diff").add("-u");
     diff.add("--label").add("expected").add(expectedPath);
     diff.add("--label").add("actual").add(actualPath.data);
     let output: *Builder = Builder.new();
-    runCommand(diff, null, output, StderrMode.Merge);
+    // diff exits 1 when the files differ, which is what it is shown for.
+    runCommand(diff, null, output, StderrMode.Merge) ?? 0;
     writeIndented(output);
   }
 }
@@ -206,7 +215,7 @@ fn runProgramCase(suite: *Suite, kind: *i8, source: *i8, name: *i8,
   // what pins down the default output paths.
   let compileOutput: *Builder = Builder.new();
   let compile: *TextList = TextList.new().add(suite.compiler).add(source);
-  if (runCommand(compile, suite.work, compileOutput, StderrMode.Merge) != 0) {
+  if (!ran(runCommand(compile, suite.work, compileOutput, StderrMode.Merge))) {
     suite.fail(kind, name, "compilation failed");
     writeIndented(compileOutput);
     return;
@@ -214,7 +223,7 @@ fn runProgramCase(suite: *Suite, kind: *i8, source: *i8, name: *i8,
 
   let actual: *Builder = Builder.new();
   let program: *TextList = TextList.new().add(joinPath(suite.work, name));
-  let status: i32 = runCommand(program, null, actual, StderrMode.Discard);
+  let status: i32 = runCommand(program, null, actual, StderrMode.Discard) ?? -1;
   if (status != 0) {
     let why: *Builder = Builder.new();
     why.add("program exited with status ");
@@ -238,12 +247,19 @@ fn runRunnerCase(suite: *Suite, source: *i8, name: *i8): void {
   let copyName: *Builder = Builder.new();
   copyName.add(name);
   copyName.add(".ode");
-  writeBytes(joinPath(suite.work, copyName.data), readBytes(source));
+  let original: *Builder = readBytes(source) catch (e) {
+    suite.fail("runner", name, "cannot read the case");
+    return;
+  };
+  writeBytes(joinPath(suite.work, copyName.data), original) catch (e) {
+    suite.fail("runner", name, "cannot copy the case to run it");
+    return;
+  };
 
   let actual: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
   run.add(copyName.data);
-  let status: i32 = runCommand(run, suite.work, actual, StderrMode.Merge);
+  let status: i32 = runCommand(run, suite.work, actual, StderrMode.Merge) ?? -1;
   actual.add("exit ");
   actual.addInt(status as i64);
   actual.push('\n');
@@ -259,14 +275,14 @@ fn runRunnerCase(suite: *Suite, source: *i8, name: *i8): void {
 // ---------------------------------------------------------------------------
 
 fn compileQuietly(suite: *Suite, command: *TextList): bool {
-  return runCommand(command, null, Builder.new(), StderrMode.Merge) == 0;
+  return ran(runCommand(command, null, Builder.new(), StderrMode.Merge));
 }
 
 // Whether the program at `path` runs and prints exactly "0".
 fn printsZero(path: *i8): bool {
   let output: *Builder = Builder.new();
-  if (runCommand(TextList.new().add(path), null, output,
-                 StderrMode.Discard) != 0) {
+  if (!ran(runCommand(TextList.new().add(path), null, output,
+                 StderrMode.Discard))) {
     return false;
   }
 
@@ -280,7 +296,9 @@ fn exampleOne(suite: *Suite): *i8 {
 
 fn checkOutputFlag(suite: *Suite): bool {
   let out: *i8 = joinPath(suite.work, "cli/nested/renamed");
-  makeDirectories(parentDirectory(out));
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
 
   let command: *TextList = TextList.new().add(suite.compiler);
   command.add("-o").add(out).add(exampleOne(suite));
@@ -295,7 +313,9 @@ fn checkOutputFlag(suite: *Suite): bool {
 
 fn checkKeepIntermediatesFlag(suite: *Suite): bool {
   let out: *i8 = joinPath(suite.work, "cli/kept");
-  makeDirectories(parentDirectory(out));
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
 
   let command: *TextList = TextList.new().add(suite.compiler);
   command.add("--keep-intermediates").add("-o").add(out).add(exampleOne(suite));
@@ -312,7 +332,9 @@ fn checkKeepIntermediatesFlag(suite: *Suite): bool {
 // check stays, because that is the property being relied on.
 fn checkHostileOutputPath(suite: *Suite): bool {
   let out: *i8 = joinPath(suite.work, "cli/a b $(touch pwned);/prog");
-  makeDirectories(parentDirectory(out));
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
 
   let command: *TextList = TextList.new().add(suite.compiler);
   command.add("-o").add(out).add(exampleOne(suite));
@@ -336,7 +358,7 @@ fn runCompilerTests(suite: *Suite): void {
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
   run.add(joinPath(suite.ws.root, "compiler"));
-  if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
+  if (ran(runCommand(run, suite.work, output, StderrMode.Merge))) {
     suite.pass("tests", "compiler");
     return;
   }
@@ -352,7 +374,7 @@ fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
   run.add(source);
-  if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
+  if (ran(runCommand(run, suite.work, output, StderrMode.Merge))) {
     suite.pass("tests", name);
     return;
   }
@@ -366,17 +388,19 @@ fn checkDirectoryInput(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let compile: *TextList = TextList.new().add(suite.compiler);
   compile.add(joinPath(suite.ws.root, "compiler"));
-  if (runCommand(compile, suite.work, output, StderrMode.Merge) != 1 ||
+  if ((runCommand(compile, suite.work, output, StderrMode.Merge) ?? -1) != 1 ||
       !contains(output.data, "cannot open input file")) {
     return false;
   }
 
   let empty: *i8 = joinPath(suite.work, "empty-directory");
-  makeDirectories(empty);
+  makeDirectories(empty) catch (e) {
+    return false;
+  };
   output = Builder.new();
   let test: *TextList = TextList.new().add(suite.compiler).add("test");
   test.add(empty);
-  return runCommand(test, suite.work, output, StderrMode.Merge) == 1 &&
+  return (runCommand(test, suite.work, output, StderrMode.Merge) ?? -1) == 1 &&
          contains(output.data, "no .ode files to test here");
 }
 
@@ -384,7 +408,7 @@ fn checkDirectoryInput(suite: *Suite): bool {
 fn checkTestWithoutInput(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let bare: *TextList = TextList.new().add(suite.compiler).add("test");
-  if (runCommand(bare, suite.work, output, StderrMode.Merge) != 2 ||
+  if ((runCommand(bare, suite.work, output, StderrMode.Merge) ?? -1) != 2 ||
       !contains(output.data, "usage:")) {
     return false;
   }
@@ -392,7 +416,7 @@ fn checkTestWithoutInput(suite: *Suite): bool {
   output = Builder.new();
   let missing: *TextList = TextList.new().add(suite.compiler).add("test");
   missing.add("no-such-file.ode");
-  return runCommand(missing, suite.work, output, StderrMode.Merge) == 1 &&
+  return (runCommand(missing, suite.work, output, StderrMode.Merge) ?? -1) == 1 &&
          contains(output.data, "cannot open input file");
 }
 
@@ -401,7 +425,7 @@ fn checkTestFilterMatchingNothing(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
   run.add(joinPath(suite.ws.root, "tests/runner/math.ode")).add("no test is named this");
-  return runCommand(run, suite.work, output, StderrMode.Merge) == 0 &&
+  return ran(runCommand(run, suite.work, output, StderrMode.Merge)) &&
          contains(output.data, "0 passed; 0 failed; 5 filtered out");
 }
 
@@ -430,11 +454,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   // repository's standard library on its own.
   setEnvironment("ODE_STD", joinPath(ws.root, "std"));
 
-  let work: *i8 = makeTempDirectory("ode-tests");
-  if (work == null) {
+  let work: *i8 = makeTempDirectory("ode-tests") catch (e) {
     complain("cannot create a temporary directory");
     return 1;
-  }
+  };
 
   let suite: *Suite = alloc<Suite>(1);
   suite.ws = ws;
@@ -461,7 +484,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
 
   let examples: *i8 = joinPath(ws.root, "examples");
   let expectedExamples: *i8 = joinPath(ws.root, "tests/examples");
-  makeDirectories(expectedExamples);
+  makeDirectories(expectedExamples) catch (e) {
+    complain("cannot make tests/examples");
+    return 1;
+  };
   let names: *TextList = listDirectory(examples);
   for (index in 0..names.size()) {
     let file: *i8 = names.at(index);

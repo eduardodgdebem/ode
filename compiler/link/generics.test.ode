@@ -1,0 +1,131 @@
+// ---------------------------------------------------------------------------
+// Generics: what checking rejects.
+//
+// Each checks a fragment -- statements in a function body, or declarations
+// -- in a Scope that states what it can see, and asserts the problems found:
+// which, where in the fragment, and about what.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
+
+test "generic arguments on plain struct" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Point {
+          x: i32,
+        }
+
+        fn main(): i32 {
+          let p: Point<i32> = Point { x: 1 };
+          return 0;
+        }
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotGeneric);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).facts.name, "Point");
+}
+
+test "generic function without arguments" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Box<T> {
+          value: T,
+        }
+
+        fn identity<T>(x: T): T {
+          return x;
+        }
+
+        fn main(): i32 {
+          return identity(1);
+        }
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.GenericFunctionNeedsArguments);
+  assertEq(found.at(0).line, 10);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).facts.name, "identity");
+}
+
+test "generic infinite instances" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Nest<T> {
+          value: T,
+
+          fn deeper(self: Nest<T>): Nest<Nest<T>> {
+            return Nest<Nest<T>> { value: self };
+          }
+        }
+
+        fn main(): i32 {
+          let n: Nest<i32> = Nest<i32> { value: 1 };
+          return 0;
+        }
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.InstancesNeverEnd);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).facts.name, "Nest");
+}
+
+test "generic struct without arguments" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Box<T> {
+          value: T,
+        }
+
+        fn identity<T>(x: T): T {
+          return x;
+        }
+
+        fn main(): i32 {
+          let b: Box = Box<i32> { value: 1 };
+          return 0;
+        }
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.GenericNeedsArguments);
+  assertEq(found.at(0).line, 10);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).facts.name, "Box");
+}
+
+test "generic wrong argument count" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        struct Box<T> {
+          value: T,
+        }
+
+        fn identity<T>(x: T): T {
+          return x;
+        }
+
+        fn main(): i32 {
+          let b: Box<i32, bool> = Box<i32> { value: 1 };
+          return identity<i32, i32>(1);
+        }
+      `)
+      .problems();
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.WrongTypeArgumentCount);
+  assertEq(found.at(0).line, 10);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).facts.name, "Box");
+  assertEq(found.at(1).problem, Problem.WrongTypeArgumentCount);
+  assertEq(found.at(1).line, 11);
+  assertEq(found.at(1).column, 10);
+  assertEq(found.at(1).facts.name, "identity");
+}

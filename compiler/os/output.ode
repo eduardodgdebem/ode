@@ -1,0 +1,20 @@
+// ---------------------------------------------------------------------------
+// Writing to the standard descriptors, straight to write(2) rather than
+// through printf's format strings.
+// ---------------------------------------------------------------------------
+
+import { strlen, write } from "std/c";
+import { Builder } from "std/text";
+
+export let STDOUT: i32 = 1;
+export let STDERR: i32 = 2;
+
+export fn writeText(fd: i32, text: *i8): void {
+  write(fd, text, strlen(text));
+}
+
+// A builder is written by its own length, because strlen would stop at the
+// first NUL and silently truncate anything holding a `'\0'`.
+export fn writeBuilder(fd: i32, text: *Builder): void {
+  write(fd, text.data, text.length);
+}

@@ -4,9 +4,9 @@
 // ---------------------------------------------------------------------------
 
 import { List } from "std/list";
-import { Problem } from "../support/problems";
-import { Diagnostic } from "../support/diagnostics";
-import { problemsIn } from "../testkit";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { problemsIn } from "../testkit/testkit";
 
 test "a character no token starts with" {
   let found: *List<Diagnostic> = problemsIn("fn main(): i32 { return 1 @ 2; }");

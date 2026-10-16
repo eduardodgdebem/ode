@@ -1,0 +1,238 @@
+// ---------------------------------------------------------------------------
+// Constant globals.
+//
+// A global's initialiser becomes an LLVM constant initialiser, which is
+// worked out here rather than computed at start-up. An integer global may be
+// initialised from any arithmetic on literals, `sizeof`, enum members and the
+// globals declared before it; the value is folded into `an.values`. A global
+// of any other type may be initialised from a literal, or from an earlier
+// global, whose initialiser it then shares.
+// ---------------------------------------------------------------------------
+
+import { equals } from "std/text";
+import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED } from "../diagnostics/report";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { sizeOf } from "../types/layout";
+import { TypeKind, Type, parseMagnitude } from "../types/types";
+
+// The global declaration the identifier `node` names, or NO_NODE when it
+// names something else.
+export fn globalDeclOf(an: *Analyzer, node: i32): i32 {
+  if (an.ast.nodes[node].kind != NodeKind.Ident || an.linkNames[node] == null ||
+      an.functionRefs[node] != 0) {
+    return NO_NODE;
+  }
+
+  for (index in 0..an.globals.count) {
+    let decl: i32 = an.globals.at(index);
+    if (equals(an.linkNames[decl], an.linkNames[node])) {
+      return decl;
+    }
+  }
+
+  return NO_NODE;
+}
+
+// Whether the global `node` names has had its initialiser checked, which is
+// what lets another global be initialised from it. A global declared later is
+// not, so no two globals can be made of each other.
+export fn isReadyGlobal(an: *Analyzer, node: i32): bool {
+  let decl: i32 = globalDeclOf(an, node);
+  return decl != NO_NODE && an.isGlobal[decl] == 2;
+}
+
+// `value` as a `type` holds it: cut to its width, and sign-extended back
+// when the type is signed.
+fn wrap(value: i64, type: Type): i64 {
+  let bits: i32 = type.bitWidth();
+  if (bits >= 64 || bits == 0) {
+    return value;
+  }
+
+  let range: i64 = (1) << (bits as i64);
+  let cut: i64 = value & (range - 1);
+  if (type.isSigned() && cut >= range / 2) {
+    return cut - range;
+  }
+
+  return cut;
+}
+
+// Works out the integer constant `node` and keeps it in `an.values`. Returns
+// false when it is not one; only a constant that is wrong in itself, such as
+// a division by zero, is reported here.
+export fn foldInteger(an: *Analyzer, node: i32): bool {
+  if (FAILED) {
+    return false;
+  }
+
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  let type: Type = an.types[node];
+  let value: i64 = 0;
+
+  if (!type.isInteger() && !type.isEnum()) {
+    return false;
+  }
+
+  if (kind == NodeKind.Number) {
+    let text: *i8 = an.ast.nodes[node].text;
+    let start: i64 = 0;
+    if (text[0] == '-') {
+      start = 1;
+    }
+    let overflowed: bool = false;
+    value = parseMagnitude(text, start, an.ast.nodes[node].textLength,
+                           &overflowed) as i64;
+    if (start == 1) {
+      value = -value;
+    }
+  } else if (kind == NodeKind.Char) {
+    // The byte's value, which wrap() makes negative again in an i8.
+    value = an.ast.nodes[node].text[0] as i64;
+    if (value < 0) {
+      value = value + 256;
+    }
+  } else if (kind == NodeKind.Sizeof) {
+    value = sizeOf(an.structs,
+                   analyzerParseType(an, an.ast.nodes[node].a)) as i64;
+  } else if (kind == NodeKind.FieldAccess) {
+    if (an.isConstant[node] == 0) {
+      return false;
+    }
+    value = an.values[node];
+  } else if (kind == NodeKind.Ident) {
+    if (!isReadyGlobal(an, node)) {
+      return false;
+    }
+    value = an.values[an.ast.nodes[globalDeclOf(an, node)].b];
+  } else if (kind == NodeKind.Cast) {
+    if (!foldInteger(an, an.ast.nodes[node].a)) {
+      return false;
+    }
+    value = an.values[an.ast.nodes[node].a];
+  } else if (kind == NodeKind.Unary) {
+    if (!foldInteger(an, an.ast.nodes[node].a)) {
+      return false;
+    }
+    let operand: i64 = an.values[an.ast.nodes[node].a];
+    let op: *i8 = an.ast.nodes[node].text;
+    if (equals(op, "-")) {
+      value = -operand;
+    } else if (equals(op, "+")) {
+      value = operand;
+    } else {
+      return false;
+    }
+  } else if (kind == NodeKind.Binary) {
+    if (!foldInteger(an, an.ast.nodes[node].a) ||
+        !foldInteger(an, an.ast.nodes[node].b)) {
+      return false;
+    }
+    if (!foldBinary(an, node, type)) {
+      return false;
+    }
+    value = an.values[node];
+  } else {
+    return false;
+  }
+
+  an.values[node] = wrap(value, type);
+  return true;
+}
+
+fn foldBinary(an: *Analyzer, node: i32, type: Type): bool {
+  let op: *i8 = an.ast.nodes[node].text;
+  let left: i64 = an.values[an.ast.nodes[node].a];
+  let right: i64 = an.values[an.ast.nodes[node].b];
+  let signed: bool = type.isSigned();
+
+  if ((equals(op, "/") || equals(op, "%")) && right == 0) {
+    analyzerFail(an, node, Problem.ConstantDivisionByZero, Facts.none());
+    return false;
+  }
+  if ((equals(op, "<<") || equals(op, ">>")) &&
+      (right < 0 || right >= type.bitWidth() as i64)) {
+    analyzerFail(an, node, Problem.ConstantShiftRange, Facts.none());
+    return false;
+  }
+
+  let value: i64 = 0;
+  if (equals(op, "+")) {
+    value = left + right;
+  } else if (equals(op, "-")) {
+    value = left - right;
+  } else if (equals(op, "*")) {
+    value = left * right;
+  } else if (equals(op, "/")) {
+    if (signed) {
+      value = left / right;
+    } else {
+      value = (left as u64 / right as u64) as i64;
+    }
+  } else if (equals(op, "%")) {
+    if (signed) {
+      value = left % right;
+    } else {
+      value = (left as u64 % right as u64) as i64;
+    }
+  } else if (equals(op, "&")) {
+    value = left & right;
+  } else if (equals(op, "|")) {
+    value = left | right;
+  } else if (equals(op, "^")) {
+    value = left ^ right;
+  } else if (equals(op, "<<")) {
+    value = left << right;
+  } else if (equals(op, ">>")) {
+    if (signed) {
+      value = left >> right;
+    } else {
+      // The value is already cut to the type's width, so shifting its bits
+      // as a u64 brings in zeros, as the type's own shift would.
+      let bits: i32 = type.bitWidth();
+      let unsigned: u64 = left as u64;
+      if (bits < 64) {
+        unsigned = unsigned & (((1) << (bits as u64)) - 1);
+      }
+      value = (unsigned >> right as u64) as i64;
+    }
+  } else {
+    return false;
+  }
+
+  an.values[node] = value;
+  return true;
+}
+
+// The first global in `node` that is declared after the one being
+// initialised, or NO_NODE -- which is worth naming when a global is rejected.
+export fn laterGlobalIn(an: *Analyzer, node: i32): i32 {
+  if (node == NO_NODE) {
+    return NO_NODE;
+  }
+  if (globalDeclOf(an, node) != NO_NODE && !isReadyGlobal(an, node)) {
+    return node;
+  }
+
+  let kind: NodeKind = an.ast.nodes[node].kind;
+  if (kind == NodeKind.Unary || kind == NodeKind.Cast ||
+      kind == NodeKind.Binary) {
+    let found: i32 = laterGlobalIn(an, an.ast.nodes[node].a);
+    if (found == NO_NODE && kind == NodeKind.Binary) {
+      found = laterGlobalIn(an, an.ast.nodes[node].b);
+    }
+    return found;
+  }
+
+  return NO_NODE;
+}
+
+test "wrap cuts to the width and sign-extends" {
+  assertEq(wrap(300, Type.make(TypeKind.I8, 0)), 44);
+  assertEq(wrap(200, Type.make(TypeKind.I8, 0)), -56);
+  assertEq(wrap(-1, Type.make(TypeKind.U8, 0)), 255);
+  assertEq(wrap(65536 + 5, Type.make(TypeKind.U16, 0)), 5);
+  assertEq(wrap(-1, Type.make(TypeKind.I64, 0)), -1);
+}

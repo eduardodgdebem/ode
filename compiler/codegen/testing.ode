@@ -10,20 +10,22 @@
 import { strlen } from "std/c";
 import { List } from "std/list";
 import { Builder, equals } from "std/text";
-import { NodeKind } from "../syntax/ast";
-import { TypeKind, Type } from "../semantics/types";
-import { moduleDisplayPath, NameSet } from "../semantics/modules";
-import { enumDeclOf } from "../semantics/enums";
-import { RUNNER_MODULE } from "../semantics/testing";
-import { unionType, valueOf } from "../semantics/errors";
+import { enumDeclOf } from "../check/enums";
+import { unionType, valueOf } from "../check/errors";
+import { RUNNER_MODULE } from "../check/testing";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitCondBranch,
   llvmName, internString,
 } from "./emitter";
-import { llvmTypeName } from "./layout";
 import {
   typeOfNode, emitAssign, emitCast, resultTypeOf, genExpr,
 } from "./expressions";
+import { llvmTypeName } from "./layout";
+import { line } from "../driver/options";
+import { moduleDisplayPath, NameSet } from "../link/modules";
+import { NodeKind } from "../syntax/ast";
+import { shown } from "../tool/build";
+import { TypeKind, Type } from "../types/types";
 
 // `path:line:column` of `node`, as a string constant.
 fn location(e: *Emitter, node: i32): *i8 {
@@ -192,6 +194,24 @@ fn unionText(e: *Emitter, value: *i8, type: Type): *i8 {
   let name: *i8 = emitAssign(e, call.data);
   if (valueOf(type).isVoid()) {
     return name;
+  }
+
+  // A struct has no printf conversion of its own; it shows as its type.
+  let valueType: Type = valueOf(type);
+  if (valueType.isStruct()) {
+    let text: *Builder = Builder.new();
+    text.add("a ");
+    text.add(valueType.toText());
+    let shown: *i8 = internString(e, text.data, text.length);
+    let succeeded: *i8 = instruction(e, "icmp eq i32 ", code, "0");
+    let pick: *Builder = Builder.new();
+    pick.add("select i1 ");
+    pick.add(succeeded);
+    pick.add(", ptr ");
+    pick.add(shown);
+    pick.add(", ptr ");
+    pick.add(name);
+    return emitAssign(e, pick.data);
   }
 
   // The value, printed into a buffer of its own, picked when there is no

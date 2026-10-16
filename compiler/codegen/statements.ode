@@ -9,20 +9,21 @@
 
 import { alloc } from "std/mem";
 import { Builder, fromInt } from "std/text";
-import { NO_NODE, NodeKind } from "../syntax/ast";
-import { Type } from "../semantics/types";
-import { before, analyzerParseType } from "../semantics/analyzer";
+import { before, analyzerParseType } from "../check/analyzer";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
   codegenFault,
 } from "./emitter";
-import { llvmTypeName } from "./layout";
+import { compare } from "./errors";
 import {
   typeOfNode, emitAssign, emitLoad, emitStore, genAddress, resultTypeOf,
   genExpr,
 } from "./expressions";
-import { compare } from "./errors";
+import { llvmTypeName } from "./layout";
+import { line } from "../driver/options";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { Type } from "../types/types";
 
 export fn genStatement(e: *Emitter, node: i32): void {
   let kind: NodeKind = e.ast.nodes[node].kind;

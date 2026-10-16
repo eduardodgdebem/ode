@@ -1,0 +1,172 @@
+// ---------------------------------------------------------------------------
+// The command line: what `ode` and `ode test` were asked to do.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { equals, slice } from "std/text";
+import { dumpTokens } from "../syntax/dump";
+
+export let USAGE: *i8 = `
+  usage: ode [-o <path>] [--keep-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>
+         ode test <input.ode | directory> [filter]   runs the tests in a program, or in every file under a directory
+         ode build [build | test | bootstrap | seed] [options]   (ode build --help)
+`;
+
+export error enum UsageError {
+  // A flag `ode` does not know.
+  UnknownFlag,
+  // A flag that takes a value, last on the line.
+  MissingValue,
+  // No input file, or no directory to test.
+  NoInput,
+  // A second input, where one is taken.
+  TooManyInputs,
+}
+
+// What `ode <input.ode>` was asked to do.
+export struct CompileOptions {
+  input: *i8,
+  // Where the executable goes; null for beside the working directory,
+  // named after the input.
+  output: *i8,
+  dumpTokens: bool,
+  dumpAst: bool,
+  dumpTypes: bool,
+  emitLlvm: bool,
+  keepIntermediates: bool,
+}
+
+// `arguments` are the command line after the program's name.
+export fn parseCompileOptions(arguments: *List<*i8>): CompileOptions | UsageError {
+  let options: CompileOptions = CompileOptions {
+    input: null, output: null, dumpTokens: false, dumpAst: false,
+    dumpTypes: false, emitLlvm: false, keepIntermediates: false,
+  };
+
+  let index: i64 = 0;
+  while (index < arguments.count) {
+    let argument: *i8 = arguments.at(index);
+    if (equals(argument, "--dump-tokens")) {
+      options.dumpTokens = true;
+    } else if (equals(argument, "--dump-ast")) {
+      options.dumpAst = true;
+    } else if (equals(argument, "--dump-types")) {
+      options.dumpTypes = true;
+    } else if (equals(argument, "--emit-llvm")) {
+      options.emitLlvm = true;
+    } else if (equals(argument, "--keep-intermediates")) {
+      options.keepIntermediates = true;
+    } else if (equals(argument, "-o")) {
+      index = index + 1;
+      if (index >= arguments.count) {
+        return UsageError.MissingValue;
+      }
+      options.output = arguments.at(index);
+    } else if (argument[0] == '-') {
+      return UsageError.UnknownFlag;
+    } else if (options.input != null) {
+      return UsageError.TooManyInputs;
+    } else {
+      options.input = argument;
+    }
+    index = index + 1;
+  }
+
+  if (options.input == null) {
+    return UsageError.NoInput;
+  }
+  return options;
+}
+
+// What `ode test <path> [filter]` was asked to do.
+export struct TestRunOptions {
+  // A file, or a directory whose every .ode file is tested.
+  input: *i8,
+  // Only tests whose name holds this run; null for all of them.
+  filter: *i8,
+}
+
+// `arguments` are the command line after `ode test`.
+export fn parseTestOptions(arguments: *List<*i8>): TestRunOptions | UsageError {
+  if (arguments.count == 0) {
+    return UsageError.NoInput;
+  }
+  if (arguments.count > 2) {
+    return UsageError.TooManyInputs;
+  }
+  for (index in 0..arguments.count) {
+    if (arguments.at(index)[0] == '-') {
+      return UsageError.UnknownFlag;
+    }
+  }
+
+  let filter: *i8 = null;
+  if (arguments.count == 2) {
+    filter = arguments.at(1);
+  }
+  return TestRunOptions { input: arguments.at(0), filter: filter };
+}
+
+// argv from `first` on, as a list.
+export fn argumentsFrom(argc: i32, argv: **i8, first: i32): *List<*i8> {
+  let list: *List<*i8> = List<*i8>.new();
+  for (index in first..argc) {
+    list.push(argv[index]);
+  }
+  return list;
+}
+
+export fn line(text: *i8): *List<*i8> {
+  let list: *List<*i8> = List<*i8>.new();
+  let start: i64 = 0;
+  let index: i64 = 0;
+  while (true) {
+    if (text[index] == ' ' || text[index] == '\0') {
+      if (index > start) {
+        list.push(slice(text, start, index - start));
+      }
+      if (text[index] == '\0') {
+        return list;
+      }
+      start = index + 1;
+    }
+    index = index + 1;
+  }
+  return list;
+}
+
+test "a compile takes flags in any order, and one input" {
+  let options: CompileOptions =
+      parseCompileOptions(line("--emit-llvm main.ode -o out/prog")) catch (e) {
+        assert(false, "a valid command line was rejected");
+        return;
+      };
+  assertEq(options.input, "main.ode");
+  assertEq(options.output, "out/prog");
+  assert(options.emitLlvm);
+  assert(!options.keepIntermediates);
+}
+
+test "a compile rejects what it cannot make sense of" {
+  assertEq(parseCompileOptions(line("")), UsageError.NoInput);
+  assertEq(parseCompileOptions(line("--emit-llvm")), UsageError.NoInput);
+  assertEq(parseCompileOptions(line("main.ode -o")), UsageError.MissingValue);
+  assertEq(parseCompileOptions(line("main.ode --fast")), UsageError.UnknownFlag);
+  assertEq(parseCompileOptions(line("a.ode b.ode")), UsageError.TooManyInputs);
+}
+
+test "a test run takes an input and, maybe, a filter" {
+  let options: TestRunOptions = parseTestOptions(line("compiler lexer")) catch (e) {
+    assert(false, "a valid command line was rejected");
+    return;
+  };
+  assertEq(options.input, "compiler");
+  assertEq(options.filter, "lexer");
+  assertEq((parseTestOptions(line("math.ode")) ?? options).filter, null);
+}
+
+test "a test run rejects what it cannot make sense of" {
+  assertEq(parseTestOptions(line("")), UsageError.NoInput);
+  assertEq(parseTestOptions(line("a b c")), UsageError.TooManyInputs);
+  assertEq(parseTestOptions(line("--all")), UsageError.UnknownFlag);
+}

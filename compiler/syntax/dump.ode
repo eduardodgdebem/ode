@@ -7,9 +7,9 @@
 // ---------------------------------------------------------------------------
 
 import { Builder } from "std/text";
-import { TokenKind, Token, TokenList, kindName } from "./token";
 import { NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText } from "./ast";
-import { TypeKind, Type } from "../semantics/types";
+import { TokenKind, Token, TokenList, kindName } from "./token";
+import { TypeKind, Type } from "../types/types";
 
 // Text is escaped rather than written raw so that a literal newline or NUL
 // inside a string cannot break the line-per-node format.

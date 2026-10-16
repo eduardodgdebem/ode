@@ -1,0 +1,93 @@
+// ---------------------------------------------------------------------------
+// `ode file.ode`: compiles a program and the files it imports, and links an
+// executable -- or, asked to, stops at a phase and prints what it produced.
+// ---------------------------------------------------------------------------
+
+import { readFile } from "std/fs";
+import { Builder } from "std/text";
+import { Analyzer, analyze } from "../check/analyzer";
+import { Emitter } from "../codegen/emitter";
+import { genProgram } from "../codegen/program";
+import { Problem } from "../diagnostics/problems";
+import { printDiagnostics } from "../diagnostics/render";
+import {
+  SOURCE_PATH, Diagnostics, DIAGS, hasErrors, fail,
+} from "../diagnostics/report";
+import {
+  USAGE, CompileOptions, parseCompileOptions, argumentsFrom,
+} from "./options";
+import { loadProgram, buildExecutable } from "./pipeline";
+import { stemOf } from "../os/files";
+import { STDOUT, STDERR, writeText, writeBuilder } from "../os/output";
+import { NodeKind, Ast } from "../syntax/ast";
+import { dumpTokens, dumpNode } from "../syntax/dump";
+import { tokenize } from "../syntax/lexer";
+
+export fn compileMain(argc: i32, argv: **i8): i32 {
+  let options: CompileOptions =
+      parseCompileOptions(argumentsFrom(argc, argv, 1)) catch (e) {
+        writeText(STDERR, USAGE);
+        return 2;
+      };
+
+  SOURCE_PATH = options.input;
+  DIAGS = Diagnostics.new();
+
+  let source: *i8 = readFile(options.input) catch (e) {
+    fail(Problem.CannotOpenInput);
+    return 1;
+  };
+
+  let out: *Builder = Builder.new();
+  if (options.dumpTokens) {
+    dumpTokens(tokenize(source), out);
+    writeBuilder(STDOUT, out);
+    return 0;
+  }
+
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  loadProgram(ast, root, options.input, source);
+
+  // A tree with a hole in it says nothing trustworthy about types, so the
+  // syntax errors are reported on their own rather than alongside whatever
+  // the analyzer would invent from the wreckage.
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  if (options.dumpAst) {
+    dumpNode(ast, null, root, 0, out);
+    writeBuilder(STDOUT, out);
+    return 0;
+  }
+
+  let an: *Analyzer = Analyzer.new(ast);
+  analyze(an, root);
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  if (options.dumpTypes) {
+    dumpNode(ast, an.types, root, 0, out);
+    writeBuilder(STDOUT, out);
+    return 0;
+  }
+
+  let module: *i8 = genProgram(Emitter.new(ast, an), root);
+  if (options.emitLlvm) {
+    writeText(STDOUT, module);
+    return 0;
+  }
+
+  // The intermediates hang off the executable rather than the input, so that
+  // -o keeps a whole build in one directory.
+  let output: *i8 = options.output;
+  if (output == null) {
+    output = stemOf(options.input);
+  }
+  buildExecutable(module, output, options.keepIntermediates);
+  return 0;
+}

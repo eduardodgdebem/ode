@@ -3,15 +3,16 @@
 // ---------------------------------------------------------------------------
 
 import { equals, copy, slice } from "std/text";
-import { Problem, Facts } from "../support/problems";
-import { FAILED, report } from "../support/diagnostics";
-import { TokenKind, Token } from "./token";
+import { memberName } from "../codegen/testing";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED, report } from "../diagnostics/report";
+import { line } from "../driver/options";
 import { NO_NODE, NodeKind } from "./ast";
+import { parseExpr } from "./expressions";
 import {
   Parser, startsStatement, parseType, parseDeclaredType, parseTypeParams,
 } from "./parser";
-import { parseExpr } from "./expressions";
-import { memberName } from "../codegen/testing";
+import { TokenKind, Token } from "./token";
 
 // `a op= b` is sugar for `a = a op b`; this names the binary operator each
 // compound token stands for, or TK_NONE when the token is not one.

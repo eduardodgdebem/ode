@@ -1,6 +1,0 @@
-// ---------------------------------------------------------------------------
-// The standard file descriptors. The C library itself comes from std/c.
-// ---------------------------------------------------------------------------
-
-export let STDOUT: i32 = 1;
-export let STDERR: i32 = 2;

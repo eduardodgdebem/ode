@@ -4,9 +4,9 @@
 // ---------------------------------------------------------------------------
 
 import { Builder } from "std/text";
-import { TypeKind, Type } from "../semantics/types";
-import { valueOf } from "../semantics/errors";
+import { valueOf } from "../check/errors";
 import { llvmName } from "./emitter";
+import { TypeKind, Type } from "../types/types";
 
 export fn llvmTypeName(type: Type): *i8 {
   // Pointers are opaque in modern LLVM, so every depth is the same `ptr`.

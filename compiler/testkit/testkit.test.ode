@@ -1,0 +1,104 @@
+// ---------------------------------------------------------------------------
+// The test kit itself.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { NodeKind } from "../syntax/ast";
+import {
+  problemsIn, typeOf, irOf, parse, Parsed, Scope, Checked, mentions,
+} from "./testkit";
+import { TypeKind, Type } from "../types/types";
+
+test "a clean program has no problems" {
+  assertEq(problemsIn("fn main(): i32 { return 0; }").count, 0);
+}
+
+test "a problem comes with where it is and what it was about" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      return true;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongReturnType);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 10);
+  assert(found.at(0).facts.expected.equals(Type.make(TypeKind.I32, 0)));
+  assert(found.at(0).facts.got.equals(Type.make(TypeKind.Bool, 0)));
+}
+
+test "every lexer problem is found, and the file is not parsed" {
+  let found: *List<Diagnostic> = problemsIn("fn main(): i32 { $ return 0 # }");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.UnexpectedCharacter);
+  assertEq(found.at(0).column, 18);
+  assertEq(found.at(1).problem, Problem.UnexpectedCharacter);
+  assertEq(found.at(1).column, 29);
+}
+
+test "two snippets in one test do not see each other" {
+  assertEq(problemsIn("fn main(): i32 { return 1; } fn helper(): void {}").count, 0);
+  let found: *List<Diagnostic> = problemsIn("fn main(): i32 { return helper(); }");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedFunction);
+  assertEq(found.at(0).facts.name, "helper");
+}
+
+test "typeOf gives the type checking settles on" {
+  assert(typeOf("let a: i64 = 1;", "a + 1").equals(Type.make(TypeKind.I64, 0)));
+  assert(typeOf("", "'x'").equals(Type.make(TypeKind.I8, 0)));
+  assert(typeOf("let p: *i32 = null;", "p + 1").equals(Type.make(TypeKind.I32, 1)));
+  assert(typeOf("", "missing").equals(Type.make(TypeKind.None, 0)));
+}
+
+test "the tree can be walked" {
+  let tree: Parsed = parse("fn main(): i32 { return 7; } struct Point { x: i32 }");
+  assertEq(tree.kind(tree.item(0)), NodeKind.Fn);
+  assertEq(tree.kind(tree.item(1)), NodeKind.Struct);
+}
+
+test "the IR of a clean snippet, and none for one that does not check" {
+  assert(mentions(irOf("fn main(): i32 { return 7; }"), "ret i32 7"));
+  assertEq(irOf("fn main(): i32 { return x; }"), "");
+}
+
+test "an expression is checked in the scope a test gives it" {
+  let scope: *Scope = Scope.new()
+      .declare("struct Point { x: i32, y: i32 }\nenum Color { Red, Green }")
+      .local("small", "i32").local("wide", "i64").local("p", "*Point");
+
+  let ok: Checked = scope.check("wide + 1");
+  assert(ok.clean());
+  assert(ok.type.equals(Type.make(TypeKind.I64, 0)));
+
+  let bad: Checked = scope.check("small + wide");
+  assertEq(bad.problem(), Problem.ArithmeticTypes);
+  assertEq(bad.problems.at(0).column, 7);
+
+  assertEq(scope.check("p.x + p.z").problem(), Problem.NoSuchField);
+  assert(scope.check("Color.Green").type.isEnum());
+}
+
+test "statements are checked as a function body" {
+  let found: *List<Diagnostic> = Scope.new().returning("i32").local("n", "i64")
+      .run("let m: i32 = 1;\nreturn n;");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.WrongReturnType);
+  assertEq(found.at(0).line, 2);
+}
+
+test "declarations alone need no main" {
+  assertEq(Scope.new().declare("struct Point { x: i32 }").problems().count, 0);
+  let found: *List<Diagnostic> = Scope.new()
+      .declare("struct Node { next: Node }").problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.RecursiveStruct);
+}
+
+test "an expression that does not parse is the parser's problem" {
+  let checked: Checked = Scope.new().check("1 + ");
+  assertEq(checked.problem(), Problem.UnexpectedToken);
+  assertEq(Scope.new().check("1 2").problem(), Problem.UnexpectedToken);
+}
