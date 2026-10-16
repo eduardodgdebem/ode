@@ -1,4 +1,0 @@
-fn main(): i32 {
-  let count: i32 = 3;
-  return count.abs();
-}

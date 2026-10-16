@@ -9,7 +9,8 @@
 
 import { alloc, grow } from "std/mem";
 import { List } from "std/list";
-import { Builder, equals } from "std/text";
+import { equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { report } from "../support/diagnostics";
 import { Type } from "./types";
 
@@ -109,11 +110,7 @@ export struct SymbolTable {
              params: *Type, paramCount: i32, line: i32,
              column: i32): void {
     if (self.findInScope(name) >= 0) {
-      let message: *Builder = Builder.new();
-      message.add("symbol '");
-      message.add(name);
-      message.add("' already declared in this scope");
-      report(line, column, message.data);
+      report(Problem.AlreadyDeclared, line, column, Facts.about(name));
       return;
     }
 

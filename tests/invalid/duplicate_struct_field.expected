@@ -1,1 +1,0 @@
-duplicate_struct_field.ode:1:1: error: struct 'Point' declares field 'x' twice

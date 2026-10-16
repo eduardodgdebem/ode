@@ -1,1 +1,0 @@
-static_method_on_value.ode:20:19: error: 'Point.new' has no 'self' parameter: call it on the struct instead: 'Point.new(...)'

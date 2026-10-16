@@ -1,1 +1,0 @@
-return_value_from_void.ode:2:3: error: returning a value from a void function: got 'i32'

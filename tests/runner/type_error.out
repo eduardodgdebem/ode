@@ -1,0 +1,5 @@
+type_error.ode:8:20: error: type mismatch in declaration of 'count'
+  let count: i32 = "three";
+                   ^~~~~~~
+note: declared as 'i32' but assigned '*i8'
+exit 1

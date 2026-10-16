@@ -1,6 +1,0 @@
-import { a b } from "./lib";
-import { c } "./lib";
-
-fn main(): i32 {
-  return 0;
-}

@@ -1,7 +1,0 @@
-import { List } from "std/list";
-
-fn main(): i32 {
-  let numbers: *List<i32> = List<i32>.new();
-  numbers.push("one");
-  return 0;
-}

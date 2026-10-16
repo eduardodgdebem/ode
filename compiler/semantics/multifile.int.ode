@@ -1,0 +1,619 @@
+// ---------------------------------------------------------------------------
+// Programs of several files: what checking finds across them, and what
+// they print when they build.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../support/problems";
+import { Diagnostic } from "../support/diagnostics";
+import { problemsInFiles, Files, outputOfFiles } from "../testkit";
+
+test "enum not imported" {
+  let files: *Files = Files.new();
+  files.add("main.ode", `
+    // An enum declared in a file that is loaded but not imported here.
+    import { Box } from "./shapes";
+
+    fn main(): i32 {
+      let box: Box = Box { side: 2 };
+      return Shape.Square as i32;
+    }
+  `);
+  files.add("shapes.ode", `
+    export enum Shape { Circle, Square }
+
+    export struct Box {
+      side: i32,
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedVariable);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "Shape");
+  files.release();
+}
+
+test "enums across files" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    enum Mode { A, B, C, D }
+
+    export enum Level { Info, Warning, Error }
+
+    export fn describe(level: Level): i32 {
+      return (level as i32) * 10 + Mode.D as i32;
+    }
+  `);
+  files.add("main.ode", `
+    // An enum is imported like a struct, and its members and matches work under
+    // an alias. lib.ode has a private enum of the same name as one here.
+
+    import { Level as Severity, describe } from "./lib";
+
+    enum Mode { Fast, Slow }
+
+    fn main(): i32 {
+      let s: Severity = Severity.Warning;
+      printf("%d\n", describe(s));
+      match (s) {
+        Severity.Info => {
+          printf("%s\n", "info");
+        }
+        Severity.Warning, Severity.Error => {
+          printf("%s\n", "worth a look");
+        }
+      }
+      printf("%d\n", Mode.Slow as i32);
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(outputOfFiles(files, "main.ode"),
+           `
+             13
+             worth a look
+             1
+           `);
+  files.release();
+}
+
+test "export non declaration" {
+  let files: *Files = Files.new();
+  files.add("main.ode", `
+    export while (true) {}
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 8);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.other, "while");
+  files.release();
+}
+
+test "exported global and alias" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    export let LIMIT: i32 = 21;
+
+    export struct Counter {
+      hits: i32,
+    }
+
+    export fn bump(counter: *Counter): void {
+      counter.hits = counter.hits + 1;
+    }
+  `);
+  files.add("main.ode", `
+    import { LIMIT, Counter as C, bump } from "./lib";
+    import { LIMIT as AGAIN } from "./lib.ode";
+
+    fn main(): i32 {
+      let c: C = C { hits: 0 };
+      bump(&c);
+      bump(&c);
+      printf("%d\n", c.hits);
+      printf("%d\n", LIMIT + AGAIN);
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(outputOfFiles(files, "main.ode"),
+           `
+             2
+             42
+           `);
+  files.release();
+}
+
+test "generics across files" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    extern fn malloc(size: i64): *i8;
+
+    struct Point {
+      x: i32,
+    }
+
+    export struct Stack<T> {
+      items: *T,
+      count: i32,
+
+      fn new(): *Stack<T> {
+        let stack: *Stack<T> = malloc(sizeof(Stack<T>) as i64) as *Stack<T>;
+        stack.items = malloc(sizeof(T) as i64 * 16 as i64) as *T;
+        stack.count = 0;
+        return stack;
+      }
+
+      fn push(self: *Stack<T>, item: T): void {
+        self.items[self.count] = item;
+        self.count = self.count + 1;
+      }
+
+      fn peek(self: *Stack<T>): T {
+        return self.items[self.count - 1];
+      }
+
+      // This file's Point, whatever T is.
+      fn origin(self: *Stack<T>): Point {
+        return Point { x: 100 };
+      }
+    }
+
+    export fn peekOr<T>(stack: *Stack<T>, fallback: T): T {
+      if (stack.count == 0) {
+        return fallback;
+      }
+      return stack.peek();
+    }
+  `);
+  files.add("main.ode", `
+    // A generic declared in one file, instantiated in another with a struct that
+    // file declares, and called through an alias. lib.ode has a private Point of
+    // its own, which its generic must not confuse with this one.
+
+    import { Stack, peekOr as top } from "./lib";
+
+    struct Point {
+      x: i32,
+      y: i32,
+    }
+
+    fn main(): i32 {
+      let points: *Stack<Point> = Stack<Point>.new();
+      points.push(Point { x: 1, y: 2 });
+      points.push(Point { x: 3, y: 4 });
+      printf("%d\n", points.peek().y);
+      printf("%d\n", top<i32>(Stack<i32>.new(), 42));
+      printf("%d\n", points.origin().x);
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(outputOfFiles(files, "main.ode"),
+           `
+             4
+             42
+             100
+           `);
+  files.release();
+}
+
+test "import conflicts with local" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    export fn twice(value: i32): i32 {
+      return value * 2;
+    }
+  `);
+  files.add("main.ode", `
+    import { twice } from "./lib";
+
+    fn twice(value: i32): i32 {
+      return value + value;
+    }
+
+    fn main(): i32 {
+      return twice(2);
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.AlreadyDeclared);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "twice");
+  files.release();
+}
+
+test "import inside function" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    export let value: i32 = 1;
+  `);
+  files.add("main.ode", `
+    fn main(): i32 {
+      import { value } from "./lib";
+      return 0;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NotAtTopLevel);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 3);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "import");
+  files.release();
+}
+
+test "malformed import" {
+  let files: *Files = Files.new();
+  files.add("main.ode", `
+    import { a b } from "./lib";
+    import { c } "./lib";
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 12);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.other, "b");
+  assertEq(found.at(1).problem, Problem.UnexpectedToken);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(1).column, 14);
+  assertEq(found.at(1).path, "main.ode");
+  assertEq(found.at(1).facts.other, "./lib");
+  files.release();
+}
+
+test "methods across files" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    struct Box {
+      value: i32,
+
+      fn get(self: Box): i32 {
+        return self.value * 100;
+      }
+    }
+
+    export struct Counter {
+      total: i32,
+
+      fn start(at: i32): Counter {
+        return Counter { total: at };
+      }
+
+      fn add(self: *Counter, amount: i32): void {
+        self.total = self.total + amount;
+      }
+
+      fn boxed(self: Counter): i32 {
+        return Box { value: self.total }.get();
+      }
+    }
+
+    export fn makeTally(): Counter {
+      return Counter.start(3);
+    }
+  `);
+  files.add("main.ode", `
+    // Methods come with their struct: importing the struct, under any name, is
+    // enough to call them. lib.ode's private 'Box' has methods of the same names
+    // as the one here, and they do not collide.
+
+    import { Counter as Tally, makeTally } from "./lib";
+
+    struct Box {
+      value: i32,
+
+      fn get(self: Box): i32 {
+        return self.value;
+      }
+    }
+
+    fn main(): i32 {
+      let t: Tally = Tally.start(10);
+      t.add(5);
+      printf("%d\n", t.total);
+      printf("%d\n", makeTally().boxed());
+
+      let b: Box = Box { value: 7 };
+      printf("%d\n", b.get());
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(outputOfFiles(files, "main.ode"),
+           `
+             15
+             300
+             7
+           `);
+  files.release();
+}
+
+test "missing module" {
+  let files: *Files = Files.new();
+  files.add("main.ode", `
+    import { nothing } from "./nowhere";
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ModuleNotFound);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "./nowhere");
+  files.release();
+}
+
+test "no such export" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    export fn whisper(): i32 {
+      return 1;
+    }
+  `);
+  files.add("main.ode", `
+    import { shout } from "./lib";
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.NoSuchExport);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "./lib");
+  assertEq(found.at(0).facts.other, "shout");
+  files.release();
+}
+
+test "not exported" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    fn secret(): i32 {
+      return 42;
+    }
+
+    struct Hidden {
+      value: i32,
+    }
+  `);
+  files.add("main.ode", `
+    import { secret, Hidden } from "./lib";
+
+    fn main(): i32 {
+      let h: Hidden = Hidden { value: secret() };
+      return h.value;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.NotExported);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "secret");
+  assertEq(found.at(0).facts.other, "./lib");
+  assertEq(found.at(1).problem, Problem.NotExported);
+  assertEq(found.at(1).line, 1);
+  assertEq(found.at(1).column, 18);
+  assertEq(found.at(1).path, "main.ode");
+  assertEq(found.at(1).facts.name, "Hidden");
+  assertEq(found.at(1).facts.other, "./lib");
+  files.release();
+}
+
+test "not imported function" {
+  let files: *Files = Files.new();
+  files.add("lib.ode", `
+    export fn first(): i32 {
+      return 1;
+    }
+
+    export fn second(): i32 {
+      return 2;
+    }
+  `);
+  files.add("main.ode", `
+    import { first } from "./lib";
+
+    fn main(): i32 {
+      return first() + second();
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UndefinedFunction);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 20);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "second");
+  files.release();
+}
+
+test "not imported type" {
+  let files: *Files = Files.new();
+  files.add("geometry.ode", `
+    export struct Point {
+      x: i32,
+      y: i32,
+    }
+
+    export fn area(p: Point): i32 {
+      return p.x * p.y;
+    }
+  `);
+  files.add("main.ode", `
+    import { area } from "./geometry";
+
+    fn main(): i32 {
+      let p: Point = Point { x: 1, y: 2 };
+      return p.x;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.TypeNotImported);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 10);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "Point");
+  assertEq(found.at(0).facts.other, "geometry.ode");
+  assertEq(found.at(1).problem, Problem.TypeNotImported);
+  assertEq(found.at(1).line, 4);
+  assertEq(found.at(1).column, 18);
+  assertEq(found.at(1).path, "main.ode");
+  assertEq(found.at(1).facts.name, "Point");
+  assertEq(found.at(1).facts.other, "geometry.ode");
+  files.release();
+}
+
+test "parse error in imported file" {
+  let files: *Files = Files.new();
+  files.add("main.ode", `
+    import { broken } from "./sub/lib";
+
+    fn main(): i32 {
+      let flag: bool = 1;
+      return broken();
+    }
+  `);
+  files.add("sub/lib.ode", `
+    export fn broken(): i32 {
+      return true;
+    }
+
+    export fn alsoBroken(): i32 {
+      let x: i32 = ;
+      return x;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 6);
+  assertEq(found.at(0).column, 16);
+  assertEq(found.at(0).path, "sub/lib.ode");
+  assertEq(found.at(0).facts.other, ";");
+  files.release();
+}
+
+test "same stem private names" {
+  let files: *Files = Files.new();
+  files.add("a/util.ode", `
+    struct Box {
+      value: i32,
+    }
+
+    fn scale(value: i32): i32 {
+      return value * 10;
+    }
+
+    export fn apply(value: i32): i32 {
+      let box: Box = Box { value: scale(value) };
+      return box.value;
+    }
+  `);
+  files.add("b/util.ode", `
+    struct Box {
+      value: i32,
+      extra: i32,
+    }
+
+    fn scale(value: i32): i32 {
+      return value * 100;
+    }
+
+    export fn apply(value: i32): i32 {
+      let box: Box = Box { value: scale(value), extra: 0 };
+      return box.value + box.extra;
+    }
+  `);
+  files.add("main.ode", `
+    // Two files named util.ode, each with a private 'scale' and a private
+    // 'Box', and an exported function of the same name in each, renamed apart on
+    // import.
+
+    import { apply as applyA } from "./a/util";
+    import { apply as applyB } from "./b/util";
+
+    fn scale(value: i32): i32 {
+      return value;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", scale(5));
+      printf("%d\n", applyA(5));
+      printf("%d\n", applyB(5));
+      return 0;
+    }
+
+    extern fn printf(format: *i8, ...): i32;
+  `);
+  assertEq(outputOfFiles(files, "main.ode"),
+           `
+             5
+             50
+             500
+           `);
+  files.release();
+}
+
+test "type errors in two files" {
+  let files: *Files = Files.new();
+  files.add("main.ode", `
+    import { broken } from "./sub/lib";
+
+    fn main(): i32 {
+      let flag: bool = 1;
+      return broken();
+    }
+  `);
+  files.add("sub/lib.ode", `
+    export fn broken(): i32 {
+      return true;
+    }
+  `);
+  let found: *List<Diagnostic> = problemsInFiles(files, "main.ode");
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(0).column, 20);
+  assertEq(found.at(0).path, "main.ode");
+  assertEq(found.at(0).facts.name, "flag");
+  assertEq(found.at(1).problem, Problem.WrongReturnType);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(1).column, 10);
+  assertEq(found.at(1).path, "sub/lib.ode");
+  files.release();
+}

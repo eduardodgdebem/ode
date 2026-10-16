@@ -1,3 +1,0 @@
-main.ode:1:12: error: expected '}' but got 'b'
-main.ode:2:14: error: expected 'from' but got './lib'
-2 errors generated.

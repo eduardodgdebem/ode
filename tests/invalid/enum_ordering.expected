@@ -1,1 +1,0 @@
-enum_ordering.ode:4:17: error: cannot order enum 'Color' values: compare them with == and !=, or match on them

@@ -1,1 +1,0 @@
-generic_struct_without_arguments.ode:10:10: error: generic struct 'Box' needs type arguments: write Box<...>

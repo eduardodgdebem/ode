@@ -1,8 +1,0 @@
-export struct Point {
-  x: i32,
-  y: i32,
-}
-
-export fn area(p: Point): i32 {
-  return p.x * p.y;
-}

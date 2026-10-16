@@ -1,1 +1,0 @@
-variadic_as_value.ode:4:27: error: cannot use 'printf' as a value: it takes '...', which a function type cannot say

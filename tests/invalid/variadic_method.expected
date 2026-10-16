@@ -1,1 +1,0 @@
-variadic_method.ode:4:3: error: method 'Log.write' takes '...': only an extern can take a variable number of arguments

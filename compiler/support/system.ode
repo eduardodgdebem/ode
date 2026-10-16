@@ -8,11 +8,11 @@
 // to a standard tool instead (`ls`, `cp`, `rm`), still without a shell.
 // ---------------------------------------------------------------------------
 
-import { free, memcmp, strlen, fopen, fclose, fread, fwrite, read, getenv } from "std/c";
+import { free, memcmp, strlen, fopen, fclose, fread, fwrite, fflush, read, getenv } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { exists } from "std/fs";
-import { Builder, slice } from "std/text";
+import { Builder, slice, endsWith } from "std/text";
 import { realpath } from "../semantics/modules";
 
 extern fn fork(): i32;
@@ -29,7 +29,7 @@ extern fn close(fd: i32): i32;
 extern fn mkdir(path: *i8, mode: i32): i32;
 extern fn mkdtemp(template: *i8): *i8;
 extern fn rename(from: *i8, to: *i8): i32;
-extern fn isatty(fd: i32): i32;
+export extern fn isatty(fd: i32): i32;
 extern fn fileno(stream: *i8): i32;
 
 // `access` modes.
@@ -130,26 +130,67 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Builder,
     _exit(127);
   }
 
-  // Read to the end before waiting: a child whose output fills the pipe
-  // would otherwise block forever on a parent that is waiting for it.
-  if (capturing) {
-    close(fds[1]);
-    let chunk: *i8 = alloc<i8>(4096);
-    while (pid > 0) {
-      let count: i64 = read(fds[0], chunk, 4096);
-      if (count <= 0) {
-        break;
-      }
-      out.addBytes(chunk, count);
-    }
-    free(chunk);
-    close(fds[0]);
+  if (capturing && pid > 0) {
+    drain(fds, out);
   }
 
   if (devNull != null) {
     fclose(devNull);
   }
 
+  return waitFor(pid);
+}
+
+// Runs `work` in a child process -- this program, forked, rather than another
+// one -- with what it writes to stdout and stderr collected into `out`. The
+// child works on a copy of everything, so whatever `work` changes, or however
+// it ends, the caller's state is untouched. Returns the child's exit status,
+// 0 if `work` returned, or -1 if it died of a signal.
+export fn runInChild(work: fn(): void, out: *Builder): i32 {
+  let fds: *i32 = alloc<i32>(2);
+  pipe(fds);
+
+  // Anything still buffered would otherwise be written twice: once by each.
+  fflush(null);
+  let pid: i32 = fork();
+
+  if (pid == 0) {
+    dup2(fds[1], 1);
+    dup2(fds[1], 2);
+    close(fds[0]);
+    close(fds[1]);
+
+    work();
+    fflush(null);
+    _exit(0);
+  }
+
+  if (pid > 0) {
+    drain(fds, out);
+  }
+  return waitFor(pid);
+}
+
+// Reads a child's end of the pipe to its end. This comes before waiting: a
+// child whose output fills the pipe would otherwise block forever on a parent
+// that is waiting for it.
+fn drain(fds: *i32, out: *Builder): void {
+  close(fds[1]);
+  let chunk: *i8 = alloc<i8>(4096);
+  while (true) {
+    let count: i64 = read(fds[0], chunk, 4096);
+    if (count <= 0) {
+      break;
+    }
+    out.addBytes(chunk, count);
+  }
+  free(chunk);
+  close(fds[0]);
+}
+
+// The exit status of the child `pid`, or -1 if it could not be started or
+// died of a signal.
+fn waitFor(pid: i32): i32 {
   if (pid < 0) {
     return -1;
   }
@@ -181,6 +222,10 @@ export fn environment(name: *i8): *i8 {
 
 export fn setEnvironment(name: *i8, value: *i8): void {
   setenv(name, value, 1);
+}
+
+export fn changeDirectory(path: *i8): bool {
+  return chdir(path) == 0;
 }
 
 export fn currentDirectory(): *i8 {
@@ -337,7 +382,7 @@ export fn removeTree(path: *i8): void {
 }
 
 // Copies what is inside `from` into `to`, which must exist.
-export fn copyTree(from: *i8, to: *i8): bool {
+fn copyTree(from: *i8, to: *i8): bool {
   let contents: *i8 = joinPath(from, ".");
   return runCommand(TextList.new().add("cp").add("-R").add(contents).add(to),
                     null, null, StderrMode.Inherit) == 0;
@@ -348,6 +393,28 @@ export fn moveFile(from: *i8, to: *i8): bool {
 }
 
 // The names in a directory, sorted, without `.` and `..`.
+export fn isDirectory(path: *i8): bool {
+  return exists(joinPath(path, "."));
+}
+
+// Every `.ode` file under `directory`, at any depth, in a stable order.
+export fn findSources(directory: *i8): *TextList {
+  let found: *TextList = TextList.new();
+  let names: *TextList = listDirectory(directory);
+  for (index in 0..names.size()) {
+    let path: *i8 = joinPath(directory, names.at(index));
+    if (isDirectory(path)) {
+      let inner: *TextList = findSources(path);
+      for (entry in 0..inner.size()) {
+        found.add(inner.at(entry));
+      }
+    } else if (endsWith(path, ".ode")) {
+      found.add(path);
+    }
+  }
+  return found;
+}
+
 export fn listDirectory(path: *i8): *TextList {
   let output: *Builder = Builder.new();
   runCommand(TextList.new().add("ls").add("-1").add(path), null, output,

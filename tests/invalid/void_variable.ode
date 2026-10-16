@@ -1,5 +1,0 @@
-fn main(): i32 {
-  let nothing: void = 0;
-
-  return 0;
-}

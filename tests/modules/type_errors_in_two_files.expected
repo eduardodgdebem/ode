@@ -1,3 +1,0 @@
-main.ode:4:3: error: type mismatch in declaration of 'flag': declared as 'bool' but assigned 'i32'
-sub/lib.ode:2:3: error: wrong return type: expected 'i32' but got 'bool'
-2 errors generated.

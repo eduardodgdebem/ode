@@ -22,7 +22,7 @@ import {
 import { llvmTypeName, zeroValue } from "./layout";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { genStatement } from "./statements";
-import { emitCheckSupport, emitTestMain } from "./testing";
+import { emitCheckSupport, emitTestMain, emitEnumNames } from "./testing";
 
 fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
   let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
@@ -310,6 +310,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
     emitTestMain(e, program, tests, testNames, testCount);
   }
   emitCheckSupport(e, declared);
+  emitEnumNames(e);
 
   let module: *Builder = Builder.new();
   module.addBytes(e.head.data, e.head.length);

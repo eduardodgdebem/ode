@@ -1,3 +1,0 @@
-export fn broken(): i32 {
-  return true;
-}

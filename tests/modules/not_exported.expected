@@ -1,3 +1,0 @@
-main.ode:1:10: error: 'secret' is not exported from './lib'
-main.ode:1:18: error: 'Hidden' is not exported from './lib'
-2 errors generated.

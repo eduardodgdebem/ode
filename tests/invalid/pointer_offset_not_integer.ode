@@ -1,7 +1,0 @@
-fn main(): i32 {
-  let value: i32 = 1;
-  let pointer: *i32 = &value;
-  let moved: *i32 = pointer + true;
-
-  return 0;
-}

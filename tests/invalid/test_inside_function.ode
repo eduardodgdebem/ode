@@ -1,6 +1,0 @@
-fn main(): i32 {
-  test "nested" {
-  }
-
-  return 0;
-}

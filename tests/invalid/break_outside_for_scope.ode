@@ -1,6 +1,0 @@
-fn main(): i32 {
-  for (i in 0..3) {
-  }
-  break;
-  return 0;
-}

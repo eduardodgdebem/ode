@@ -1,0 +1,1766 @@
+// ---------------------------------------------------------------------------
+// Whole programs, built and run: what they print.
+//
+// Each builds with clang in a child process, so these are the slow tests;
+// a program's behaviour is what they are for, and anything that can be told
+// from checking alone is tested where the checking is.
+// ---------------------------------------------------------------------------
+
+import { outputOf } from "../testkit";
+
+test "arrays" {
+  assertEq(outputOf(`
+    // Arrays are a pointer plus indexing. 'values[i]' is '*(values + i)', so it
+    // reads and assigns like any other lvalue.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    extern fn malloc(size: i64): *i8;
+    extern fn free(block: *i8): void;
+
+    fn main(): i32 {
+      let length: i32 = 8;
+      let values: *i32 = malloc(sizeof(i32) as i64 * length as i64) as *i32;
+
+      let i: i32 = 0;
+      while (i < length) {
+        values[i] = i * i;
+        i = i + 1;
+      }
+
+      printf("%d\n", values[0]);
+      printf("%d\n", values[7]);
+
+      let total: i32 = 0;
+      i = 0;
+      while (i < length) {
+        total = total + values[i];
+        i = i + 1;
+      }
+      printf("%d\n", total);
+
+      // Indexing and pointer arithmetic are the same thing.
+      printf("%d\n", *(values + 3));
+
+      free(values as *i8);
+      return 0;
+    }
+  `),
+           `
+             0
+             49
+             140
+             9
+           `);
+}
+
+test "assert shadowed" {
+  assertEq(outputOf(`
+    // A program may declare its own 'assert'; calls then go to it rather than to
+    // the built-in check.
+
+    import { printf } from "std/c";
+
+    fn assert(value: i32): i32 {
+      return value + 1;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", assert(41));
+      return 0;
+    }
+  `),
+           "42\n");
+}
+
+test "casts" {
+  assertEq(outputOf(`
+    // Integer widths and explicit conversions. Integer literals are i32, so
+    // widening one to i64 needs an 'as'. See numeric_types.ode for the wider
+    // types and for what happens to a literal i32 cannot hold.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let big: i64 = 300 as i64;
+      printf("%lld\n", big);
+
+      // 300 does not fit in 8 bits, so this truncates to 44.
+      let narrow: i8 = big as i8;
+      printf("%d\n", narrow);
+
+      // u8 zero-extends where i8 would sign-extend.
+      let unsigned: u8 = 200 as u8;
+      printf("%u\n", unsigned);
+
+      let asFloat: f32 = big as f32;
+      printf("%f\n", asFloat);
+
+      // Truncates toward zero.
+      let backToInt: i32 = 9.75 as i32;
+      printf("%d\n", backToInt);
+
+      let flag: bool = 1 as bool;
+      printf("%d\n", flag);
+
+      // usize is a spelling of u64.
+      let size: usize = 4096 as usize;
+      printf("%llu\n", size);
+
+      return 0;
+    }
+  `),
+           `
+             300
+             44
+             200
+             300.000000
+             9
+             1
+             4096
+           `);
+}
+
+test "constant globals" {
+  assertEq(outputOf(`
+    // Globals can be made from earlier globals and constant arithmetic.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    enum Level { Low, Mid = 10, High }
+
+    struct Pair {
+      a: i64,
+      b: i8,
+    }
+
+    let WIDTH: i32 = 80;
+    let HEIGHT: i32 = 25;
+    let CELLS: i32 = WIDTH * HEIGHT;
+    let HALF: i32 = CELLS / 2 - 1;
+    let MASK: u8 = 1 << 7 | 3;
+    let SHIFTED: u8 = MASK >> 1;
+    let PAIR_SIZE: i64 = sizeof(Pair) * 4;
+    let NEGATIVE: i16 = -(WIDTH as i16) % 7;
+    let TRUNCATED: i8 = (CELLS + 56) as i8;
+    let TOP: i32 = Level.High as i32 + 1;
+    let DEFAULT: Level = Level.Mid;
+    let CHOSEN: Level = DEFAULT;
+    let NAME: *i8 = "grid";
+    let ALIAS: *i8 = NAME;
+    let RATE: f64 = 2.5;
+    let SAME_RATE: f64 = RATE;
+    let ON: bool = true;
+    let STILL_ON: bool = ON;
+
+    fn main(): i32 {
+      printf("%d\n", CELLS);
+      printf("%d\n", HALF);
+      printf("%u\n", MASK);
+      printf("%u\n", SHIFTED);
+      printf("%lld\n", PAIR_SIZE);
+      printf("%d\n", NEGATIVE);
+      printf("%d\n", TRUNCATED);
+      printf("%d\n", TOP);
+      printf("%d\n", CHOSEN as i32);
+      printf("%s\n", ALIAS);
+      printf("%f\n", SAME_RATE);
+      printf("%d\n", STILL_ON);
+
+      return 0;
+    }
+  `),
+           `
+             2000
+             999
+             131
+             65
+             64
+             -3
+             8
+             12
+             10
+             grid
+             2.500000
+             1
+           `);
+}
+
+test "deep pointers" {
+  assertEq(outputOf(`
+    // '.' follows however many pointers stand between it and the struct.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    struct Point {
+      x: i32,
+      y: i32,
+
+      fn sum(self: Point): i32 {
+        return self.x + self.y;
+      }
+
+      fn shift(self: *Point, by: i32): void {
+        self.x = self.x + by;
+      }
+    }
+
+    fn main(): i32 {
+      let point: Point = Point { x: 1, y: 2 };
+      let one: *Point = &point;
+      let two: **Point = &one;
+      let three: ***Point = &two;
+
+      printf("%d\n", two.x);
+      printf("%d\n", three.y);
+
+      three.x = 10;
+      printf("%d\n", point.x);
+
+      two.shift(5);
+      printf("%d\n", point.x);
+      printf("%d\n", three.sum());
+
+      return 0;
+    }
+  `),
+           `
+             1
+             2
+             10
+             15
+             17
+           `);
+}
+
+test "enums" {
+  assertEq(outputOf(`
+    // Enums: named integer constants with a type of their own.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    enum Color { Red, Green, Blue }
+
+    // Values count up from the one before, or from a value written out.
+    enum Status {
+      Ok,
+      NotFound = 404,
+      Gone,
+      Negative = -3,
+      AfterNegative,
+    }
+
+    struct Pixel {
+      x: i32,
+      color: Color,
+    }
+
+    let DEFAULT: Color = Color.Green;
+
+    fn next(color: Color): Color {
+      if (color == Color.Red) {
+        return Color.Green;
+      }
+      if (color == Color.Green) {
+        return Color.Blue;
+      }
+      return Color.Red;
+    }
+
+    fn main(): i32 {
+      let c: Color = Color.Red;
+      printf("%d\n", c == Color.Red);
+      printf("%d\n", c != Color.Blue);
+
+      c = next(next(c));
+      printf("%d\n", c == Color.Blue);
+      printf("%d\n", c as i32);
+
+      printf("%d\n", Status.Ok as i32);
+      printf("%d\n", Status.NotFound as i32);
+      printf("%d\n", Status.Gone as i32);
+      printf("%d\n", Status.Negative as i32);
+      printf("%d\n", Status.AfterNegative as i32);
+
+      // An integer converts to an enum only when asked.
+      let fromNumber: Color = 1 as Color;
+      printf("%d\n", fromNumber == Color.Green);
+
+      // In a struct, a global, and as a sizeof.
+      let pixel: Pixel = Pixel { x: 3, color: DEFAULT };
+      printf("%d\n", pixel.color == Color.Green);
+      printf("%llu\n", sizeof(Color));
+      printf("%llu\n", sizeof(Pixel));
+
+      // Through a pointer.
+      let p: *Pixel = &pixel;
+      p.color = Color.Blue;
+      printf("%d\n", pixel.color == Color.Blue);
+
+      return 0;
+    }
+  `),
+           `
+             1
+             1
+             1
+             2
+             0
+             404
+             405
+             -3
+             -2
+             1
+             1
+             4
+             8
+             1
+           `);
+}
+
+test "expression statements" {
+  assertEq(outputOf(`
+    // Expressions used as statements, at the top level and inside a block, whose
+    // values are discarded; and a block's own scope.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    (1+6);
+
+    fn main(): i32 {
+      let num: i32 = 45;
+      num = 46;
+
+      {
+        let x: i32 = 1;
+        (x * num);
+      }
+
+      let a:i32 = 3;
+      printf("%d\n", a);
+    }
+  `),
+           "3\n");
+}
+
+test "floats" {
+  assertEq(outputOf(`
+    // 'f32' arithmetic, printed with six decimal places.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+        let x: f32 = 10.5;
+        let y: f32 = 2.5;
+        let z: f32 = x + y;
+        printf("%f\n", z);
+        return 0;
+    }
+  `),
+           "13.000000\n");
+}
+
+test "for loops" {
+  assertEq(outputOf(`
+    // for loops over a range: the start included, the end not.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    let calls: i32 = 0;
+
+    fn limit(): i32 {
+      calls = calls + 1;
+      return 4;
+    }
+
+    fn main(): i32 {
+      let sum: i32 = 0;
+      for (i in 0..10) {
+        sum = sum + i;
+      }
+      printf("%d\n", sum);
+
+      // The bounds may be any integer type; a literal bound takes the other's.
+      let count: i64 = 3000000000 as i64;
+      let last: i64 = 0 as i64;
+      for (i in 2999999998 as i64..count) {
+        last = i;
+      }
+      printf("%lld\n", last);
+
+      let bytes: u8 = 0 as u8;
+      for (b in 250 as u8..255 as u8) {
+        bytes = bytes + 1 as u8;
+      }
+      printf("%u\n", bytes);
+
+      // An empty range runs nothing, and a negative start counts up from it.
+      for (i in 5..5) {
+        printf("%s\n", "never");
+      }
+      let negatives: i32 = 0;
+      for (i in -3..0) {
+        negatives = negatives + i;
+      }
+      printf("%d\n", negatives);
+
+      // break and continue.
+      let odd: i32 = 0;
+      for (i in 0..100) {
+        if (i % 2 == 0) {
+          continue;
+        }
+        if (i > 9) {
+          break;
+        }
+        odd = odd + i;
+      }
+      printf("%d\n", odd);
+
+      // Assigning to the variable does not change how many passes there are.
+      let passes: i32 = 0;
+      for (i in 0..5) {
+        i = 100;
+        passes = passes + 1;
+      }
+      printf("%d\n", passes);
+
+      // Nested, and the end evaluated once.
+      let cells: i32 = 0;
+      for (row in 0..limit()) {
+        for (column in 0..row) {
+          cells = cells + 1;
+        }
+      }
+      printf("%d\n", cells);
+      printf("%d\n", calls);
+
+      // The variable is scoped to the loop, so the name can be reused.
+      let i: i32 = 42;
+      for (i in 0..2) {
+      }
+      printf("%d\n", i);
+
+      return 0;
+    }
+  `),
+           `
+             45
+             2999999999
+             5
+             -6
+             25
+             5
+             6
+             1
+             42
+           `);
+}
+
+test "function call" {
+  assertEq(outputOf(`
+    // Calling a function with arguments, and a negative literal.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn sum(n1: i32, n2:i32): i32 {
+        return n1 + n2;
+    }
+
+    fn main(): i32 {
+      let a: i32 = 1;
+      let b: i32 = -1;
+
+      let result: i32 = sum(a, b);
+      printf("%d\n", result);
+
+      return 0;
+    }
+  `),
+           "0\n");
+}
+
+test "function pointers" {
+  assertEq(outputOf(`
+    // Functions as values: stored, passed, returned, kept in structs and tables,
+    // and handed to C as callbacks.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    extern fn malloc(size: i64): *i8;
+    extern fn qsort(base: *i8, count: i64, size: i64,
+                    compare: fn(*i8, *i8): i32): void;
+
+    fn add(a: i32, b: i32): i32 {
+      return a + b;
+    }
+
+    fn multiply(a: i32, b: i32): i32 {
+      return a * b;
+    }
+
+    fn square(x: i32): i32 {
+      return x * x;
+    }
+
+    fn negate(x: i32): i32 {
+      return 0 - x;
+    }
+
+    // Taking a function.
+    fn apply(f: fn(i32): i32, x: i32): i32 {
+      return f(x);
+    }
+
+    fn fold(values: *i32, count: i32, start: i32, step: fn(i32, i32): i32): i32 {
+      let total: i32 = start;
+      let i: i32 = 0;
+      while (i < count) {
+        total = step(total, values[i]);
+        i = i + 1;
+      }
+      return total;
+    }
+
+    // Returning one.
+    fn pick(name: i8): fn(i32, i32): i32 {
+      if (name == '+') {
+        return add;
+      }
+      return multiply;
+    }
+
+    // In a struct, called like a method.
+    struct Operation {
+      name: *i8,
+      run: fn(i32): i32,
+    }
+
+    // A global, initialised from a function.
+    let DEFAULT: fn(i32): i32 = square;
+
+    // The comparison qsort calls back into, with C's signature.
+    fn compareInts(a: *i8, b: *i8): i32 {
+      let x: i32 = *(a as *i32);
+      let y: i32 = *(b as *i32);
+      if (x < y) {
+        return -1;
+      }
+      if (x > y) {
+        return 1;
+      }
+      return 0;
+    }
+
+    fn main(): i32 {
+      let op: fn(i32, i32): i32 = add;
+      printf("%d\n", op(2, 3));
+      op = multiply;
+      printf("%d\n", op(2, 3));
+
+      printf("%d\n", apply(square, 7));
+      printf("%d\n", apply(negate, 7));
+      printf("%d\n", apply(DEFAULT, 4));
+
+      let values: *i32 = malloc(sizeof(i32) as i64 * 5 as i64) as *i32;
+      values[0] = 5;
+      values[1] = 3;
+      values[2] = 9;
+      values[3] = 1;
+      values[4] = 7;
+      printf("%d\n", fold(values, 5, 0, add));
+      printf("%d\n", fold(values, 5, 1, multiply));
+      printf("%d\n", pick('+')(10, 20));
+      printf("%d\n", pick('*')(10, 20));
+
+      let op2: Operation = Operation { name: "square", run: square };
+      printf("%d\n", op2.run(9));
+      let p: *Operation = &op2;
+      p.run = negate;
+      printf("%d\n", p.run(9));
+
+      // A table of functions, indexed and called.
+      let table: *fn(i32): i32 =
+          malloc(sizeof(fn(i32): i32) as i64 * 2 as i64) as *fn(i32): i32;
+      table[0] = square;
+      table[1] = negate;
+      printf("%d\n", table[0](5) + table[1](5));
+
+      // 'null' is the absence of a function, and functions compare.
+      let missing: fn(i32): i32 = null;
+      printf("%d\n", missing == null);
+      printf("%d\n", table[0] == square);
+      printf("%d\n", table[0] != table[1]);
+
+      qsort(values as *i8, 5 as i64, sizeof(i32) as i64, compareInts);
+      let i: i32 = 0;
+      while (i < 5) {
+        printf("%d\n", values[i]);
+        i = i + 1;
+      }
+
+      return 0;
+    }
+  `),
+           `
+             5
+             6
+             49
+             -7
+             16
+             25
+             945
+             30
+             200
+             81
+             -9
+             20
+             1
+             1
+             1
+             1
+             3
+             5
+             7
+             9
+           `);
+}
+
+test "generics" {
+  assertEq(outputOf(`
+    // Generics: structs and functions with type parameters, made into one
+    // instance per distinct set of type arguments.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    extern fn malloc(size: i64): *i8;
+    extern fn realloc(block: *i8, size: i64): *i8;
+
+    struct List<T> {
+      items: *T,
+      count: i32,
+      capacity: i32,
+
+      fn new(): *List<T> {
+        let list: *List<T> = malloc(sizeof(List<T>) as i64) as *List<T>;
+        list.capacity = 4;
+        list.count = 0;
+        list.items = malloc(sizeof(T) as i64 * 4 as i64) as *T;
+        return list;
+      }
+
+      fn push(self: *List<T>, item: T): void {
+        if (self.count == self.capacity) {
+          self.capacity = self.capacity * 2;
+          self.items = realloc(self.items as *i8,
+                               sizeof(T) as i64 * self.capacity as i64) as *T;
+        }
+        self.items[self.count] = item;
+        self.count = self.count + 1;
+      }
+
+      fn at(self: *List<T>, index: i32): T {
+        return self.items[index];
+      }
+    }
+
+    struct Pair<A, B> {
+      first: A,
+      second: B,
+    }
+
+    fn max<T>(a: T, b: T): T {
+      if (a > b) {
+        return a;
+      }
+      return b;
+    }
+
+    // Generic code calling generic code, with its own parameter as the argument.
+    fn sumOf<T>(list: *List<T>, zero: T): T {
+      let total: T = zero;
+      for (i in 0..list.count) {
+        total = total + list.at(i);
+      }
+      return total;
+    }
+
+    fn swap<A, B>(pair: Pair<A, B>): Pair<B, A> {
+      return Pair<B, A> { first: pair.second, second: pair.first };
+    }
+
+    fn main(): i32 {
+      let numbers: *List<i32> = List<i32>.new();
+      for (i in 0..10) {
+        numbers.push(i * i);
+      }
+      printf("%d\n", numbers.at(9));
+      printf("%d\n", numbers.count);
+
+      let words: *List<*i8> = List<*i8>.new();
+      words.push("hello");
+      words.push("generics");
+      printf("%s\n", words.at(1));
+
+      let p: Pair<i32, bool> = Pair<i32, bool> { first: 7, second: true };
+      printf("%d\n", p.first);
+      printf("%d\n", p.second);
+
+      let pairs: *List<Pair<i32, bool>> = List<Pair<i32, bool>>.new();
+      pairs.push(p);
+      printf("%d\n", pairs.at(0).first);
+
+      printf("%d\n", sumOf<i32>(numbers, 0));
+
+      let swapped: Pair<bool, i32> = swap<i32, bool>(p);
+      printf("%d\n", swapped.second);
+
+      printf("%d\n", max<i32>(3, 9));
+      printf("%f\n", max<f64>(2.5 as f64, 1.5 as f64));
+      return 0;
+    }
+  `),
+           `
+             81
+             10
+             generics
+             7
+             1
+             7
+             285
+             7
+             9
+             2.500000
+           `);
+}
+
+test "if else" {
+  assertEq(outputOf(`
+    // 'if' and 'else' on a condition built with '&&'.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let num: i32 = 3;
+      let sla: bool = num < 4;
+      let te: bool = true;
+
+      if(sla && te) {
+        num = num * 2;
+      } else {
+        num = num * 3;
+      }
+
+      printf("%d\n", num);
+    }
+  `),
+           "6\n");
+}
+
+test "if statement" {
+  assertEq(outputOf(`
+    // An 'if' without an 'else'.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let num: i32 = 0;
+
+      if (num == 0) {
+        num = 9;
+      }
+
+      printf("%d\n", num);
+    }
+  `),
+           "9\n");
+}
+
+test "literal types" {
+  assertEq(outputOf(`
+    // A literal takes the type its context expects, so none of these needs 'as'.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    struct Pixel {
+      red: u8,
+      depth: i16,
+      scale: f64,
+    }
+
+    fn widen(value: i64): i64 {
+      return value * 1000000000 + 7;
+    }
+
+    fn half(value: f64): f64 {
+      return value / 2;
+    }
+
+    fn main(): i32 {
+      let small: i16 = -12;
+      let big: i64 = 3000000000;
+      let byte: u8 = 255;
+      let letter: u8 = 'z';
+      let ratio: f64 = 3;
+
+      printf("%d\n", small);
+      printf("%lld\n", big);
+      printf("%u\n", byte);
+      printf("%u\n", letter);
+      printf("%f\n", ratio);
+
+      // The other operand decides, from either side.
+      printf("%lld\n", big + 1);
+      printf("%lld\n", 2 * big);
+      printf("%d\n", small < 0);
+      printf("%d\n", byte == 255);
+      printf("%lld\n", (big + 2) * 3 - 1);
+
+      // So do parameters, returns, fields and assignments.
+      printf("%lld\n", widen(5));
+      printf("%f\n", half(5));
+      let pixel: Pixel = Pixel { red: 200, depth: -3, scale: 1 };
+      printf("%u\n", pixel.red);
+      printf("%d\n", pixel.depth);
+      printf("%f\n", pixel.scale);
+      big = 1 << 40;
+      printf("%lld\n", big);
+
+      // A character is a number too.
+      let code: i32 = 'A';
+      let digit: i32 = 7;
+      printf("%d\n", code);
+      printf("%d\n", '0' + digit);
+      let tab: u8 = '\t';
+      printf("%u\n", tab);
+
+      // With nothing to go by, a literal is still an i32: this wraps.
+      let wrapped: i64 = (2147483647 + 1) as i64;
+      printf("%lld\n", wrapped);
+
+      // Casts still read wide literals as themselves.
+      printf("%lld\n", -3000000000 as i64);
+      printf("%f\n", 3000000000 as f64);
+
+      return 0;
+    }
+  `),
+           `
+             -12
+             3000000000
+             255
+             122
+             3.000000
+             3000000001
+             6000000000
+             1
+             1
+             9000000005
+             5000000007
+             2.500000
+             200
+             -3
+             1.000000
+             1099511627776
+             65
+             55
+             9
+             -2147483648
+             -3000000000
+             3000000000.000000
+           `);
+}
+
+test "loop locals" {
+  assertEq(outputOf(`
+    // Ten million passes through a loop whose condition uses '&&' and whose body
+    // declares a local. Each takes a stack slot; they are made once, on entry to
+    // the function, so the loop runs in constant stack. Made where they appear,
+    // they would take a fresh slot on every pass and overflow the stack.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let total: i64 = 0 as i64;
+      let i: i32 = 0;
+
+      while (i < 10000000 && total >= 0 as i64) {
+        let step: i64 = (i % 7) as i64;
+        total = total + step;
+        i = i + 1;
+      }
+
+      printf("%lld\n", total);
+      return 0;
+    }
+  `),
+           "29999994\n");
+}
+
+test "match" {
+  assertEq(outputOf(`
+    // match: choosing a block by value, on enums, integers and characters.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    enum Shape { Circle, Square, Triangle }
+
+    fn sides(shape: Shape): i32 {
+      // Every member is handled, so no 'else' is needed.
+      match (shape) {
+        Shape.Circle => {
+          return 0;
+        }
+        Shape.Square => {
+          return 4;
+        }
+        Shape.Triangle => {
+          return 3;
+        }
+      }
+      return -1;
+    }
+
+    fn isRound(shape: Shape): bool {
+      match (shape) {
+        Shape.Circle => {
+          return true;
+        }
+        else => {
+          return false;
+        }
+      }
+      return false;
+    }
+
+    fn classify(c: i8): *i8 {
+      match (c) {
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => {
+          return "digit";
+        }
+        ' ', '\t', '\n' => {
+          return "space";
+        }
+        else => {
+          return "other";
+        }
+      }
+      return "";
+    }
+
+    fn describe(n: i64): *i8 {
+      match (n) {
+        0 => {
+          return "zero";
+        }
+        -1 => {
+          return "minus one";
+        }
+        3000000000 => {
+          return "three billion";
+        }
+        else => {
+          return "something else";
+        }
+      }
+      return "";
+    }
+
+    fn main(): i32 {
+      printf("%d\n", sides(Shape.Circle));
+      printf("%d\n", sides(Shape.Square));
+      printf("%d\n", sides(Shape.Triangle));
+      printf("%d\n", isRound(Shape.Circle));
+      printf("%d\n", isRound(Shape.Triangle));
+
+      printf("%s\n", classify('7'));
+      printf("%s\n", classify('\t'));
+      printf("%s\n", classify('x'));
+
+      printf("%s\n", describe(0 as i64));
+      printf("%s\n", describe(-1 as i64));
+      printf("%s\n", describe(3000000000 as i64));
+      printf("%s\n", describe(42 as i64));
+
+      // Arms that fall through to code after the match, inside a loop, with
+      // break and continue acting on the loop.
+      let total: i32 = 0;
+      let i: i32 = 0;
+      while (i < 10) {
+        i = i + 1;
+        match (i % 3) {
+          0 => {
+            continue;
+          }
+          1 => {
+            total = total + i;
+          }
+          else => {
+            if (i > 7) {
+              break;
+            }
+          }
+        }
+        total = total + 100;
+      }
+      printf("%d\n", total);
+
+      // A u8 above 127.
+      let byte: u8 = 200 as u8;
+      match (byte) {
+        200 => {
+          printf("%s\n", "two hundred");
+        }
+        else => {
+          printf("%s\n", "not two hundred");
+        }
+      }
+
+      return 0;
+    }
+  `),
+           `
+             0
+             4
+             3
+             1
+             0
+             digit
+             space
+             other
+             zero
+             minus one
+             three billion
+             something else
+             512
+             two hundred
+           `);
+}
+
+test "mutual recursion" {
+  assertEq(outputOf(`
+    // 'isEven' calls 'isOdd', which is declared after it. Before the compiler
+    // hoisted function signatures this program could not be compiled at all,
+    // which also ruled out writing a recursive-descent parser in Ode.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn isEven(n: i32): bool {
+      if (n == 0) {
+        return true;
+      }
+
+      return isOdd(n - 1);
+    }
+
+    fn isOdd(n: i32): bool {
+      if (n == 0) {
+        return false;
+      }
+
+      return isEven(n - 1);
+    }
+
+    fn main(): i32 {
+      printf("%d\n", isEven(10));
+      printf("%d\n", isOdd(10));
+      printf("%d\n", isEven(7));
+      printf("%d\n", isOdd(7));
+
+      return 0;
+    }
+  `),
+           `
+             1
+             0
+             0
+             1
+           `);
+}
+
+test "nested control" {
+  assertEq(outputOf(`
+    // Nested control flow, where each construct leaves the IR builder on a
+    // different block than it entered on: an 'if' inside a 'while', an 'if'
+    // inside an 'if', a 'while' inside a 'while', and an early return from
+    // inside a loop.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn classify(n: i32): i32 {
+      if (n < 0) {
+        return 0 - 1;
+      }
+
+      let i: i32 = 0;
+      let hits: i32 = 0;
+
+      while (i < n) {
+        if (i * 2 == n) {
+          hits = hits + 1;
+        } else {
+          if (i * 3 == n) {
+            hits = hits + 10;
+          }
+        }
+
+        i = i + 1;
+      }
+
+      return hits;
+    }
+
+    fn firstFactor(n: i32): i32 {
+      let i: i32 = 2;
+
+      while (i < n) {
+        if (n / i * i == n) {
+          return i;
+        }
+
+        i = i + 1;
+      }
+
+      return n;
+    }
+
+    fn triangle(n: i32): i32 {
+      let outer: i32 = 0;
+      let total: i32 = 0;
+
+      while (outer < n) {
+        let inner: i32 = 0;
+
+        while (inner < outer) {
+          total = total + 1;
+          inner = inner + 1;
+        }
+
+        outer = outer + 1;
+      }
+
+      return total;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", classify(0 - 5));
+      printf("%d\n", classify(6));
+      printf("%d\n", classify(9));
+      printf("%d\n", firstFactor(91));
+      printf("%d\n", firstFactor(13));
+      printf("%d\n", triangle(5));
+
+      return 0;
+    }
+  `),
+           `
+             -1
+             11
+             10
+             7
+             13
+             10
+           `);
+}
+
+test "nested fields of values" {
+  assertEq(outputOf(`
+    // Fields of fields of a struct a call returned, which has no address of its
+    // own: each is read out of the value.
+
+    import { printf } from "std/c";
+
+    struct Inner {
+      value: i32,
+
+      fn doubled(self: Inner): i32 {
+        return self.value * 2;
+      }
+    }
+
+    struct Outer {
+      inner: Inner,
+      tag: i8,
+    }
+
+    fn make(value: i32): Outer {
+      return Outer { inner: Inner { value: value }, tag: 'x' };
+    }
+
+    fn main(): i32 {
+      printf("%d\n", make(21).inner.value);
+      printf("%d\n", make(4).inner.doubled());
+      let outer: Outer = make(5);
+      printf("%d %c\n", outer.inner.value, outer.tag);
+      return 0;
+    }
+  `),
+           `
+             21
+             8
+             5 x
+           `);
+}
+
+test "null" {
+  assertEq(outputOf(`
+    // 'null': the pointer that points at nothing. It goes wherever a pointer of
+    // any type does, and compares with one from either side.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    extern fn malloc(size: i64): *i8;
+
+    struct Node {
+      value: i32,
+      next: *Node,
+    }
+
+    let EMPTY: *Node = null;
+
+    fn find(list: *Node, value: i32): *Node {
+      let node: *Node = list;
+      while (node != null) {
+        if (node.value == value) {
+          return node;
+        }
+        node = node.next;
+      }
+
+      return null;
+    }
+
+    fn push(list: *Node, value: i32): *Node {
+      let node: *Node = malloc(sizeof(Node) as i64) as *Node;
+      node.value = value;
+      node.next = list;
+      return node;
+    }
+
+    fn length(list: *Node): i32 {
+      if (list == null) {
+        return 0;
+      }
+      return 1 + length(list.next);
+    }
+
+    fn main(): i32 {
+      let list: *Node = EMPTY;
+      printf("%d\n", length(list));
+
+      list = push(push(push(null, 1), 2), 3);
+      printf("%d\n", length(list));
+
+      printf("%d\n", find(list, 2) != null);
+      printf("%d\n", null == find(list, 7));
+
+      // In a struct literal, and cast to a pointer type explicitly.
+      let tail: Node = Node { value: 0, next: null };
+      printf("%d\n", tail.next == null);
+      let text: *i8 = null as *i8;
+      printf("%d\n", text == null);
+
+      return 0;
+    }
+  `),
+           `
+             0
+             3
+             1
+             1
+             1
+             1
+           `);
+}
+
+test "numeric types" {
+  assertEq(outputOf(`
+    // The full numeric set: every integer width in both signednesses, both float
+    // widths, the conversions between them, and literals wider than i32.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      // i16 and u16 print through the same promotion to i32 that i8 and u8 use.
+      let small: i16 = 30000 as i16;
+      printf("%d\n", small);              // 30000
+
+      let smallUnsigned: u16 = 65535 as u16;
+      printf("%u\n", smallUnsigned);      // 65535
+
+      // Narrowing keeps the low bits: 100000 is 0x186A0, and 0x86A0 read as a
+      // signed 16-bit value is -31072.
+      let truncated: i16 = 100000 as i16;
+      printf("%d\n", truncated);          // -31072
+
+      // u32 holds values i32 cannot, and divides unsigned.
+      let wide: u32 = 4000000000 as u32;
+      printf("%u\n", wide);               // 4000000000
+      printf("%u\n", wide / 2 as u32);    // 2000000000
+
+      // 16777217 is the first integer f32 cannot represent: it has 24 bits of
+      // mantissa, and this needs 25. f64 holds it exactly.
+      let exact: f64 = 16777217.0 as f64;
+      printf("%f\n", exact);              // 16777217.000000
+
+      // Narrowing to f32 rounds it down to the nearest representable value...
+      let rounded: f32 = exact as f32;
+      printf("%f\n", rounded);            // 16777216.000000
+
+      // ...and widening back does not recover the lost bit.
+      let widened: f64 = rounded as f64;
+      printf("%f\n", widened);            // 16777216.000000
+
+      // Integers convert to f64 and back the same way they do to f32.
+      let fromInt: f64 = 3000000000 as i64 as f64;
+      printf("%f\n", fromInt);            // 3000000000.000000
+      printf("%lld\n", fromInt as i64);     // 3000000000
+
+      // A literal too wide for i32 takes the type it is cast to, so this no
+      // longer has to be built out of arithmetic.
+      let huge: i64 = 3000000000 as i64;
+      printf("%lld\n", huge);               // 3000000000
+
+      let hugest: u64 = 18446744073709551615 as u64;
+      printf("%llu\n", hugest);             // 18446744073709551615
+
+      // A literal that does fit i32 keeps it, so casting down still truncates
+      // rather than becoming an out-of-range literal.
+      let narrow: i8 = 300 as i8;
+      printf("%d\n", narrow);             // 44
+
+      return 0;
+    }
+  `),
+           `
+             30000
+             65535
+             -31072
+             4000000000
+             2000000000
+             16777217.000000
+             16777216.000000
+             16777216.000000
+             3000000000.000000
+             3000000000
+             3000000000
+             18446744073709551615
+             44
+           `);
+}
+
+test "operators" {
+  assertEq(outputOf(`
+    // Remainder, the bitwise operators, the shifts, compound assignment and
+    // unary plus. Every print is annotated with the value it should produce.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    extern fn malloc(size: i64): *i8;
+    extern fn free(block: *i8): void;
+
+    struct Counter { hits: i32, }
+
+    fn main(): i32 {
+      // Remainder. 'srem' takes the sign of the left operand, 'urem' never
+      // produces a negative result.
+      printf("%d\n", 17 % 5);                // 2
+      printf("%d\n", -17 % 5);               // -2
+      printf("%u\n", 250 as u8 % 7 as u8);   // 5
+
+      // Bitwise and / or / xor. 12 is 1100 and 10 is 1010.
+      printf("%d\n", 12 & 10);               // 8
+      printf("%d\n", 12 | 10);               // 14
+      printf("%d\n", 12 ^ 10);               // 6
+
+      printf("%d\n", 1 << 10);               // 1024
+      printf("%d\n", -16 >> 2);              // -4
+
+      // '>>' copies the sign bit on a signed type and shifts zeros in on an
+      // unsigned one, so the same bit pattern gives two different answers.
+      printf("%d\n", -1 >> 4);               // -1
+      printf("%u\n", 255 as u8 >> 4 as u8);  // 15
+      printf("%llu\n", -1 as i64 as u64 >> 60 as u64);  // 15
+
+      // Precedence follows C: shifts bind looser than '+' and tighter than the
+      // comparisons, and '&' '^' '|' sit between equality and '&&'.
+      printf("%d\n", 2 + 3 << 2);            // 20, i.e. (2 + 3) << 2
+      printf("%d\n", 1 << 2 == 4);           // 1, i.e. (1 << 2) == 4
+      printf("%d\n", 12 & 10 | 3 ^ 1);       // 10, i.e. (12 & 10) | (3 ^ 1)
+
+      // A lone '&' is still address-of in unary position, and '&&' is still
+      // logical and.
+      let n: i32 = 6;
+      let p: *i32 = &n;
+      printf("%d\n", *p & 3);                // 2
+      printf("%d\n", n > 5 && n < 10);       // 1
+
+      // Unary plus is a no-op on any numeric operand.
+      printf("%d\n", +7);                    // 7
+      printf("%d\n", +n);                    // 6
+      printf("%f\n", +2.5);                  // 2.500000
+
+      // Compound assignment on a plain variable.
+      let a: i32 = 10;
+      a += 5;
+      printf("%d\n", a);                     // 15
+      a -= 3;
+      printf("%d\n", a);                     // 12
+      a *= 4;
+      printf("%d\n", a);                     // 48
+      a /= 5;
+      printf("%d\n", a);                     // 9
+      a %= 4;
+      printf("%d\n", a);                     // 1
+
+      // ... and on every other lvalue form: '*p', 's.field' and 'v[i]'.
+      *p += 4;
+      printf("%d\n", n);                     // 10
+
+      let counter: Counter = Counter { hits: 7 };
+      counter.hits *= 6;
+      printf("%d\n", counter.hits);          // 42
+
+      let values: *i32 = malloc(sizeof(i32) as i64 * 3 as i64) as *i32;
+      values[0] = 100;
+      values[1] = 100;
+      values[2] = 100;
+      values[1] -= 58;
+      values[2] %= 7;
+      printf("%d\n", values[0]);             // 100
+      printf("%d\n", values[1]);             // 42
+      printf("%d\n", values[2]);             // 2
+      free(values as *i8);
+
+      return 0;
+    }
+  `),
+           `
+             2
+             -2
+             5
+             8
+             14
+             6
+             1024
+             -4
+             -1
+             15
+             15
+             20
+             1
+             10
+             2
+             1
+             7
+             6
+             2.500000
+             15
+             12
+             48
+             9
+             1
+             10
+             42
+             100
+             42
+             2
+           `);
+}
+
+test "pointers" {
+  assertEq(outputOf(`
+    // Taking addresses, reading and writing through pointers, and pointers to
+    // pointers.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn increment(target: *i32): void {
+      *target = *target + 1;
+    }
+
+    fn main(): i32 {
+      let value: i32 = 41;
+      let pointer: *i32 = &value;
+
+      printf("%d\n", *pointer);
+
+      // Writing through the pointer updates the variable it points at.
+      *pointer = 100;
+      printf("%d\n", value);
+
+      increment(&value);
+      printf("%d\n", value);
+
+      let alias: **i32 = &pointer;
+      printf("%d\n", **alias);
+
+      return 0;
+    }
+  `),
+           `
+             41
+             100
+             101
+             101
+           `);
+}
+
+test "shadowing" {
+  assertEq(outputOf(`
+    // A name declared in a nested block is a new variable, and the outer one of
+    // the same name is untouched once the block ends. Parameters shadow the same
+    // way, and a 'let' may read the variable it shadows in its own initialiser.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn shadowParam(x: i32): i32 {
+      {
+        let x: i32 = 99;
+        printf("%d\n", x);
+      }
+
+      return x;
+    }
+
+    fn shadowInLoop(n: i32): i32 {
+      let total: i32 = 0;
+      let i: i32 = 0;
+
+      while (i < n) {
+        let total: i32 = i * 100;
+        printf("%d\n", total);
+        i = i + 1;
+      }
+
+      return total;
+    }
+
+    fn readsWhatItShadows(x: i32): i32 {
+      {
+        let x: i32 = x + 1;
+        printf("%d\n", x);
+      }
+
+      return x;
+    }
+
+    fn main(): i32 {
+      let x: i32 = 1;
+
+      {
+        let x: i32 = 99;
+        {
+          let x: i32 = 7;
+          printf("%d\n", x);
+        }
+        printf("%d\n", x);
+      }
+
+      printf("%d\n", x);
+
+      if (true) {
+        let x: bool = false;
+        printf("%d\n", x);
+      }
+
+      printf("%d\n", x);
+      printf("%d\n", shadowParam(1));
+      printf("%d\n", shadowInLoop(3));
+      printf("%d\n", readsWhatItShadows(41));
+
+      return 0;
+    }
+  `),
+           `
+             7
+             99
+             1
+             0
+             1
+             99
+             1
+             0
+             100
+             200
+             0
+             42
+             41
+           `);
+}
+
+test "short circuit" {
+  assertEq(outputOf(`
+    // '&&' evaluates its right operand only when the left is true, and '||' only
+    // when the left is false. A counter incremented by the right operand makes
+    // that observable.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    extern fn strlen(text: *i8): i64;
+
+    let calls: i32 = 0;
+
+    fn track(result: bool): bool {
+      calls = calls + 1;
+
+      return result;
+    }
+
+    fn main(): i32 {
+      calls = 0;
+      printf("%d\n", false && track(true));
+      printf("%d\n", calls);
+
+      calls = 0;
+      printf("%d\n", true || track(true));
+      printf("%d\n", calls);
+
+      calls = 0;
+      printf("%d\n", true && track(false));
+      printf("%d\n", calls);
+
+      calls = 0;
+      printf("%d\n", false || track(true));
+      printf("%d\n", calls);
+
+      // Nesting: the outer && stops before the inner || runs at all.
+      calls = 0;
+      printf("%d\n", false && (track(true) || track(true)));
+      printf("%d\n", calls);
+
+      // The guard idiom this exists for: without short-circuiting, 'text[i]'
+      // would be read even once 'i' has run past the end of the string.
+      let text: *i8 = "abc";
+      let length: i64 = strlen(text);
+      let i: i64 = 0 as i64;
+      let letters: i32 = 0;
+
+      while (i < length && text[i] != '\0') {
+        letters = letters + 1;
+        i = i + 1 as i64;
+      }
+      printf("%d\n", letters);
+
+      return 0;
+    }
+  `),
+           `
+             0
+             0
+             1
+             0
+             0
+             1
+             1
+             1
+             0
+             0
+             3
+           `);
+}
+
+test "unary" {
+  assertEq(outputOf(`
+    // simple_test.ode
+    // Teste simples para debugging
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+        // Test 1: Simple negative number
+        let a: i32 = -5;
+        printf("%d\n", a);  // Should print -5
+
+        // Test 2: Negate variable
+        let x: i32 = 10;
+        let b: i32 = -x;
+        printf("%d\n", b);  // Should print -10
+
+        // Test 3: Double negation
+        let c: i32 = --5;
+        printf("%d\n", c);  // Should print 5
+
+        // Test 4: Unary in expression
+        let d: i32 = -5 + 10;
+        printf("%d\n", d);  // Should print 5
+
+        // Test 5: Logical NOT
+        let e: bool = !true;
+        printf("%d\n", e);  // Should print 0 (false)
+
+        // Test 6: NOT with comparison
+        let f: bool = !(10 > 5);
+        printf("%d\n", f);  // Should print 0 (false)
+
+        return 0;
+    }
+  `),
+           `
+             -5
+             -10
+             5
+             5
+             0
+             0
+           `);
+}
+
+test "variadic" {
+  assertEq(outputOf(`
+    // A C function that takes '...' is declared with it, and called with any
+    // number of arguments after the ones it names.
+
+    extern fn printf(format: *i8, ...): i32;
+    extern fn snprintf(buffer: *i8, size: u64, format: *i8, ...): i32;
+    extern fn malloc(size: i64): *i8;
+
+    enum Shade { Light, Dark }
+
+    fn main(): i32 {
+      let small: i8 = -5;
+      let byte: u8 = 250;
+      let half: f32 = 0.5;
+      let wide: i64 = 9000000000;
+
+      printf("plain\n");
+      printf("%d %u %d %lld\n", small, byte, true, wide);
+      printf("%.2f %.3f %s\n", half, 2.25, "text");
+      printf("%d %c\n", Shade.Dark, 'x');
+
+      let buffer: *i8 = malloc(32);
+      let written: i32 = snprintf(buffer, 32, "%d-%d", 4, 2);
+      printf("%s %d\n", buffer, written);
+
+      return 0;
+    }
+  `),
+           `
+             plain
+             -5 250 1 9000000000
+             0.50 2.250 text
+             1 x
+             4-2 3
+           `);
+}
+
+test "while loop" {
+  assertEq(outputOf(`
+    // A 'while' loop counting to ten.
+
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let i: i32 = 0;
+      let sum: i32 = 0;
+
+      while(i < 10) {
+        sum = sum + 1;
+        i = i + 1;
+      }
+
+      printf("%d\n", sum);
+    }
+  `),
+           "10\n");
+}

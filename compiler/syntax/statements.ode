@@ -2,12 +2,14 @@
 // Statements and declarations.
 // ---------------------------------------------------------------------------
 
-import { Builder, equals, copy, slice } from "std/text";
+import { equals, copy, slice } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED, report } from "../support/diagnostics";
 import { TokenKind, Token } from "./token";
 import { NO_NODE, NodeKind } from "./ast";
 import { Parser, startsStatement, parseType, parseTypeParams } from "./parser";
 import { parseExpr } from "./expressions";
+import { memberName } from "../codegen/testing";
 
 // `a op= b` is sugar for `a = a op b`; this names the binary operator each
 // compound token stands for, or TK_NONE when the token is not one.
@@ -38,7 +40,7 @@ fn parserReparse(parser: *Parser, start: i32): i32 {
 
 // Parses one statement, recording the error and resynchronising if it does
 // not parse. Returns NO_NODE for a statement that recovery dropped.
-fn parseStatementRecovering(parser: *Parser): i32 {
+export fn parseStatementRecovering(parser: *Parser): i32 {
   let start: i32 = parser.pos;
   let node: i32 = parseStatement(parser);
 
@@ -127,12 +129,7 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
 fn requireTopLevel(parser: *Parser, at: *Token, construct: *i8,
                    declaration: i32): i32 {
   if (!parser.atTopLevel) {
-    let message: *Builder = Builder.new();
-    message.push('\'');
-    message.add(construct);
-    message.add("' declarations are only allowed at the top level of the ");
-    message.add("program");
-    report(at.line, at.column, message.data);
+    report(Problem.NotAtTopLevel, at.line, at.column, Facts.about(construct));
   }
 
   return declaration;

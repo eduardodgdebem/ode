@@ -1,6 +1,0 @@
-import { secret, Hidden } from "./lib";
-
-fn main(): i32 {
-  let h: Hidden = Hidden { value: secret() };
-  return h.value;
-}

@@ -1,7 +1,0 @@
-fn main(): i32 {
-  let wide: i64 = 1;
-  let small: i32 = 1;
-  assertEq(wide, small);
-
-  return 0;
-}

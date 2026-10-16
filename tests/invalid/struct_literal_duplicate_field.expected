@@ -1,1 +1,0 @@
-struct_literal_duplicate_field.ode:7:22: error: field 'x' is initialised twice

@@ -1,2 +1,0 @@
-type_error.ode:8:3: error: type mismatch in declaration of 'count': declared as 'i32' but assigned '*i8'
-exit 1

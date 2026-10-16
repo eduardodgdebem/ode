@@ -7,14 +7,14 @@
 // one run reports every error rather than the first.
 // ---------------------------------------------------------------------------
 
-import { Builder } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "./types";
 import { SymbolKind } from "./symbols";
 import {
-  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, gotTwoTypes,
-  quoted, analyzerParseType, analyzerValidateType, analyzerParamTypes,
+  Analyzer, analyzerFail, analyzerFailAtValue, quoted, analyzerParseType,
+  analyzerValidateType, analyzerParamTypes,
 } from "./analyzer";
 import {
   checkExpr, checkExprAs, checkAssignTarget, isConstantExpr, isNumberLiteral,
@@ -73,14 +73,14 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
 
   if (kind == NodeKind.Break) {
     if (an.loopDepth == 0) {
-      analyzerFail(an, node, "break used outside of a loop");
+      analyzerFail(an, node, Problem.BreakOutsideLoop, Facts.none());
     }
     return;
   }
 
   if (kind == NodeKind.Continue) {
     if (an.loopDepth == 0) {
-      analyzerFail(an, node, "continue used outside of a loop");
+      analyzerFail(an, node, Problem.ContinueOutsideLoop, Facts.none());
     }
     return;
   }
@@ -107,7 +107,8 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     return;
   }
 
-  analyzerFail(an, node, "unknown statement node type");
+  analyzerFail(an, node, Problem.Internal,
+               Facts.about("unknown statement node type"));
 }
 
 fn analyzeBlock(an: *Analyzer, node: i32): void {
@@ -127,7 +128,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
   analyzerValidateType(an, node, declaredType,
                        quoted("in declaration of ", name, ""));
   if (declaredType.isVoid()) {
-    analyzerFail(an, node, quoted("variable ", name, " cannot be void"));
+    analyzerFail(an, node, Problem.VoidVariable, Facts.about(name));
   }
 
   // The initialiser is checked before the name is bound, so `let x = x + 1;`
@@ -135,19 +136,8 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
   let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, declaredType);
 
   if (!FAILED && !declaredType.accepts(exprType)) {
-    let context: *Builder = Builder.new();
-    context.add("type mismatch in declaration of '");
-    context.add(name);
-    context.push('\'');
-
-    let detail: *Builder = Builder.new();
-    detail.add("declared as '");
-    detail.add(declaredType.toText());
-    detail.add("' but assigned '");
-    detail.add(exprType.toText());
-    detail.push('\'');
-
-    analyzerFail2(an, node, context.data, detail.data);
+    analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.DeclarationMismatch,
+                        Facts.about(name).withTypes(declaredType, exprType));
   }
 
   // Globals were declared during hoisting; all that is left is to confirm the
@@ -163,15 +153,11 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
 
     let later: i32 = laterGlobalIn(an, init);
     if (!FAILED && !constant && later != NO_NODE) {
-      analyzerFail2(an, node,
-                    quoted("initialiser of global ", name, " is not constant"),
-                    quoted("", an.ast.nodes[later].text,
-                           " is declared after it"));
+      analyzerFail(an, node, Problem.GlobalDeclaredLater,
+                   Facts.aboutTwo(name, an.ast.nodes[later].text));
     }
     if (!FAILED && !constant) {
-      analyzerFail2(an, node,
-                    quoted("initialiser of global ", name, " is not constant"),
-                    "globals may only be initialised from literals, sizeof, enum members and earlier globals");
+      analyzerFail(an, node, Problem.GlobalNotConstant, Facts.about(name));
     }
     an.isGlobal[node] = 2;
     return;
@@ -186,16 +172,16 @@ fn analyzeAssign(an: *Analyzer, node: i32): void {
   let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, targetType);
 
   if (!targetType.accepts(exprType)) {
-    analyzerFail2(an, node, "type mismatch in assignment",
-                  expectedButGot(targetType.toText(),
-                                 exprType.toText()));
+    analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.AssignmentMismatch,
+                        Facts.aboutTypes(targetType, exprType));
   }
 }
 
 fn analyzeIf(an: *Analyzer, node: i32): void {
   let condType: Type = checkExpr(an, an.ast.nodes[node].a);
   if (!condType.isBool()) {
-    analyzerFail2(an, node, "if condition must be boolean", gotType(condType));
+    analyzerFail(an, node, Problem.ConditionNotBool,
+                 Facts.about("if").withType(condType));
   }
 
   analyzeStatement(an, an.ast.nodes[node].b);
@@ -207,8 +193,8 @@ fn analyzeIf(an: *Analyzer, node: i32): void {
 fn analyzeWhile(an: *Analyzer, node: i32): void {
   let condType: Type = checkExpr(an, an.ast.nodes[node].a);
   if (!condType.isBool()) {
-    analyzerFail2(an, node, "while condition must be boolean",
-                  gotType(condType));
+    analyzerFail(an, node, Problem.ConditionNotBool,
+                 Facts.about("while").withType(condType));
   }
 
   an.loopDepth = an.loopDepth + 1;
@@ -238,7 +224,7 @@ fn analyzeFor(an: *Analyzer, node: i32): void {
       return;
     }
     if (!type.isInteger()) {
-      analyzerFail2(an, node, "for loop bounds must be integers", gotType(type));
+      analyzerFail(an, node, Problem.ForBoundsNotIntegers, Facts.aboutType(type));
       return;
     }
   }
@@ -260,8 +246,8 @@ fn analyzeFor(an: *Analyzer, node: i32): void {
           return;
         }
         if (!other.equals(type)) {
-          analyzerFail2(an, node, "for loop bounds must have the same type",
-                        gotTwoTypes(type, other));
+          analyzerFail(an, node, Problem.ForBoundsDiffer,
+                     Facts.aboutTypes(type, other));
           return;
         }
       }
@@ -281,14 +267,14 @@ fn analyzeFor(an: *Analyzer, node: i32): void {
 
 fn analyzeReturn(an: *Analyzer, node: i32): void {
   if (!an.inFunction) {
-    analyzerFail(an, node, "return used outside of a function");
+    analyzerFail(an, node, Problem.ReturnOutsideFunction, Facts.none());
   }
 
   if (an.ast.nodes[node].a == NO_NODE) {
     if (!an.currentReturnType.isVoid()) {
-      analyzerFail2(an, node, "return without a value",
-                    quoted("this function returns ",
-                           an.currentReturnType.toText(), ""));
+      analyzerFail(an, node, Problem.ReturnWithoutValue,
+                   Facts.aboutTypes(an.currentReturnType,
+                                    Type.make(TypeKind.Void, 0)));
     }
     return;
   }
@@ -297,14 +283,12 @@ fn analyzeReturn(an: *Analyzer, node: i32): void {
                                    an.currentReturnType);
 
   if (an.currentReturnType.isVoid()) {
-    analyzerFail2(an, node, "returning a value from a void function",
-                  gotType(returned));
+    analyzerFail(an, node, Problem.ReturnFromVoid, Facts.aboutType(returned));
   }
 
   if (!an.currentReturnType.accepts(returned)) {
-    analyzerFail2(an, node, "wrong return type",
-                  expectedButGot(an.currentReturnType.toText(),
-                                 returned.toText()));
+    analyzerFailAtValue(an, an.ast.nodes[node].a, Problem.WrongReturnType,
+                        Facts.aboutTypes(an.currentReturnType, returned));
   }
 }
 
@@ -383,7 +367,7 @@ fn analyzeExternDecl(an: *Analyzer, node: i32): void {
 
   for (index in 0..paramCount) {
     if (params[index].isVoid()) {
-      analyzerFail(an, node, quoted("extern ", name, " has a void parameter"));
+      analyzerFail(an, node, Problem.VoidParameter, Facts.about(name));
     }
   }
 }

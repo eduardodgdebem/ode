@@ -1,1 +1,0 @@
-dereference_non_pointer.ode:3:18: error: cannot dereference a non-pointer value: got 'i32'

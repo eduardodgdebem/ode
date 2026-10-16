@@ -236,15 +236,16 @@ fn parsePostfix(parser: *Parser): i32 {
     }
 
     if (parser.kind() == TokenKind.Dot) {
-      let dot: *Token = parser.current();
-      let line: i32 = dot.line;
-      let column: i32 = dot.column;
       parser.advance();
 
       let field: *Token = parser.expect(TokenKind.Ident, "field name");
       if (FAILED) {
         return expr;
       }
+      // Recorded at the member's name, which is what a diagnostic about it
+      // underlines: `p.shift()` points at `shift`.
+      let line: i32 = field.line;
+      let column: i32 = field.column;
 
       // `value.name(...)` calls a method rather than reading a field. The
       // receiver may also be a struct's name, for `Point.new(...)`; which of

@@ -15,8 +15,10 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals } from "std/text";
+import { SOURCE_PATH, internalError } from "../support/diagnostics";
 import { Ast } from "../syntax/ast";
 import { Type } from "../semantics/types";
+import { moduleDisplayPath } from "../semantics/modules";
 import { Analyzer } from "../semantics/analyzer";
 import { TEST_MODE } from "../semantics/testing";
 
@@ -48,6 +50,9 @@ export struct Emitter {
   // Whether a check -- `assert`, `assertEq` -- was emitted, which needs the
   // declarations emitCheckSupport adds.
   usesChecks: bool,
+  // The enums whose member names were asked for, each of which gets a
+  // function giving them; see emitEnumNames.
+  namedEnums: *List<*i8>,
 
   locals: *List<Local>,
   // Where each open scope's locals start, innermost last.
@@ -69,6 +74,7 @@ export struct Emitter {
     e.nextString = 0;
     e.terminated = false;
     e.usesChecks = false;
+    e.namedEnums = List<*i8>.new();
 
     e.locals = List<Local>.new();
     e.scopeStarts = List<i64>.new();
@@ -277,4 +283,10 @@ export fn internString(e: *Emitter, text: *i8, length: i64): *i8 {
 test "llvmName quotes only what LLVM cannot take bare" {
   assertEq(llvmName('@', "main.helper"), "@main.helper");
   assertEq(llvmName('%', "List<i32>"), "%\"List<i32>\"");
+}
+
+// A fault in code generation, reported at `node` in the file it came from.
+export fn codegenFault(e: *Emitter, node: i32, what: *i8): void {
+  SOURCE_PATH = moduleDisplayPath(e.ast.nodes[node].module);
+  internalError(e.ast.nodes[node].line, e.ast.nodes[node].column, what);
 }

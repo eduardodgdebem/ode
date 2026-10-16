@@ -10,14 +10,15 @@
 // ---------------------------------------------------------------------------
 
 import { alloc } from "std/mem";
-import { Builder, equals } from "std/text";
+import { equals } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type, fitsIn, parseMagnitude } from "./types";
 import { SymbolKind } from "./symbols";
 import {
-  Analyzer, analyzerFail, analyzerFail2, expectedButGot, gotType, gotTwoTypes,
-  quoted, analyzerParseType, analyzerValidateType,
+  Analyzer, analyzerFail, analyzerFailAtValue, quoted, analyzerParseType,
+  analyzerValidateType,
 } from "./analyzer";
 import { checkMethodCall } from "./methods";
 import { checkEnumMember } from "./enums";
@@ -26,7 +27,9 @@ import {
 } from "./functions";
 import { functionTemplateIn } from "./generics";
 import { isReadyGlobal } from "./constants";
-import { isAssert, checkAssert, isAssertEq, checkAssertEq } from "./testing";
+import {
+  isAssert, checkAssert, isAssertEq, checkAssertEq, isNameOf, checkNameOf,
+} from "./testing";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -106,7 +109,7 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
     analyzerValidateType(an, node, type, "in sizeof");
     if (type.isVoid()) {
-      analyzerFail(an, node, "sizeof(void) is not allowed");
+      analyzerFail(an, node, Problem.SizeofVoid, Facts.none());
     }
     // A size is a constant, and like a literal it takes the integer type
     // that is wanted of it.
@@ -121,7 +124,7 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     let symbol: i32 = an.symbols.find(name);
 
     if (symbol < 0) {
-      analyzerFail(an, node, quoted("undefined variable ", name, ""));
+      analyzerFail(an, node, Problem.UndefinedVariable, Facts.about(name));
       return Type.make(TypeKind.None, 0);
     }
     // A function's name, used other than to call it, is its value.
@@ -133,7 +136,8 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     return an.symbols.items[symbol].type;
   }
 
-  analyzerFail(an, node, "unknown expression node type");
+  analyzerFail(an, node, Problem.Internal,
+               Facts.about("unknown expression node type"));
   return Type.make(TypeKind.Void, 0);
 }
 
@@ -181,7 +185,7 @@ fn isArithmetic(op: *i8): bool {
 // is the statement that is wrong.
 export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
   if (!isLValue(an, target)) {
-    analyzerFail(an, at, "left-hand side of assignment is not assignable");
+    analyzerFail(an, at, Problem.NotAssignable, Facts.none());
   }
 
   let type: Type = checkExpr(an, target);
@@ -189,7 +193,7 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
   // `Color.Red` reads like a field but is a constant, with nowhere to store
   // to; that is only known once it has been checked.
   if (!FAILED && an.isConstant[target] != 0) {
-    analyzerFail(an, at, "left-hand side of assignment is not assignable");
+    analyzerFail(an, at, Problem.NotAssignable, Facts.none());
   }
 
   return type;
@@ -205,6 +209,9 @@ fn checkCall(an: *Analyzer, node: i32): Type {
   if (symbol < 0 && isAssertEq(an, node)) {
     return checkAssertEq(an, node);
   }
+  if (symbol < 0 && isNameOf(an, node)) {
+    return checkNameOf(an, node);
+  }
   if (symbol < 0) {
     // A generic called without arguments was reported as that already.
     if (functionTemplateIn(an, an.program, an.ast.nodes[node].module,
@@ -212,7 +219,7 @@ fn checkCall(an: *Analyzer, node: i32): Type {
       FAILED = true;
       return Type.make(TypeKind.None, 0);
     }
-    analyzerFail(an, node, quoted("undefined function ", name, ""));
+    analyzerFail(an, node, Problem.UndefinedFunction, Facts.about(name));
     return Type.make(TypeKind.None, 0);
   }
   an.linkNames[node] = an.symbols.items[symbol].linkName;
@@ -247,14 +254,9 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   }
 
   if (argCount != paramCount) {
-    let detail: *Builder = Builder.new();
-    detail.add("expected ");
-    detail.addInt(paramCount as i64);
-    detail.add(" but got ");
-    detail.addInt(argCount as i64);
-
-    analyzerFail2(an, node, quoted("wrong number of arguments to ", name, ""),
-                  detail.data);
+    analyzerFail(an, node, Problem.WrongArgumentCount,
+                 Facts.about(name).withCounts(paramCount as i64,
+                                              argCount as i64));
   }
 
   if (argCount < paramCount) {
@@ -272,16 +274,10 @@ fn checkArgumentTypes(an: *Analyzer, node: i32, name: *i8, args: i32,
     let argType: Type = checkExprAs(an, argument, paramType);
 
     if (!paramType.accepts(argType)) {
-      let context: *Builder = Builder.new();
-      context.add("argument ");
-      context.addInt((index + 1) as i64);
-      context.add(" of '");
-      context.add(name);
-      context.add("' has the wrong type");
-
-      analyzerFail2(an, node, context.data,
-                    expectedButGot(paramType.toText(),
-                                   argType.toText()));
+      analyzerFailAtValue(an, argument, Problem.WrongArgumentType,
+                          Facts.about(name)
+                              .withTypes(paramType, argType)
+                              .withCounts((index + 1) as i64, 0));
     }
   }
 }
@@ -296,14 +292,9 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   }
 
   if (argCount < paramCount) {
-    let detail: *Builder = Builder.new();
-    detail.add("expected at least ");
-    detail.addInt(paramCount as i64);
-    detail.add(" but got ");
-    detail.addInt(argCount as i64);
-
-    analyzerFail2(an, node, quoted("wrong number of arguments to ", name, ""),
-                  detail.data);
+    analyzerFail(an, node, Problem.TooFewArguments,
+                 Facts.about(name).withCounts(paramCount as i64,
+                                              argCount as i64));
     return;
   }
 
@@ -316,15 +307,9 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
       return;
     }
     if (type.isVoid() || type.isStruct()) {
-      let context: *Builder = Builder.new();
-      context.add("argument ");
-      context.addInt((index + 1) as i64);
-      context.add(" of '");
-      context.add(name);
-      context.add("' cannot go through '...'");
-      analyzerFail2(an, node, context.data,
-                    quoted("a ", type.toText(),
-                           " has no C type; pass a pointer or a number"));
+      analyzerFail(an, node, Problem.VariadicArgument,
+                   Facts.about(name).withType(type)
+                       .withCounts((index + 1) as i64, 0));
       return;
     }
   }
@@ -339,15 +324,15 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   // Address-of inspects the operand as storage rather than as a value.
   if (equals(op, "&")) {
     if (!isLValue(an, operand)) {
-      analyzerFail(an, node, "cannot take the address of a temporary value");
+      analyzerFail(an, node, Problem.AddressOfTemporary, Facts.none());
     }
 
     let addressed: Type = checkExpr(an, operand);
     if (!FAILED && an.isConstant[operand] != 0) {
-      analyzerFail(an, node, "cannot take the address of a temporary value");
+      analyzerFail(an, node, Problem.AddressOfTemporary, Facts.none());
     }
     if (addressed.isVoid()) {
-      analyzerFail(an, node, "cannot take the address of a void value");
+      analyzerFail(an, node, Problem.AddressOfVoid, Facts.none());
     }
 
     return addressed.pointerTo();
@@ -361,41 +346,36 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
 
   if (equals(op, "-")) {
     if (!operandType.isNumeric()) {
-      analyzerFail2(an, node, "unary minus requires a numeric operand",
-                    gotType(operandType));
+      analyzerFail(an, node, Problem.UnaryMinusNotNumeric, Facts.aboutType(operandType));
     }
     return operandType;
   }
 
   if (equals(op, "+")) {
     if (!operandType.isNumeric()) {
-      analyzerFail2(an, node, "unary plus requires a numeric operand",
-                    gotType(operandType));
+      analyzerFail(an, node, Problem.UnaryPlusNotNumeric, Facts.aboutType(operandType));
     }
     return operandType;
   }
 
   if (equals(op, "!")) {
     if (!operandType.isBool()) {
-      analyzerFail2(an, node, "logical NOT requires boolean operand",
-                    gotType(operandType));
+      analyzerFail(an, node, Problem.NotNotBool, Facts.aboutType(operandType));
     }
     return Type.make(TypeKind.Bool, 0);
   }
 
   if (equals(op, "*")) {
     if (!operandType.isPointer()) {
-      analyzerFail2(an, node, "cannot dereference a non-pointer value",
-                    gotType(operandType));
+      analyzerFail(an, node, Problem.DereferenceNonPointer, Facts.aboutType(operandType));
     }
     if (operandType.pointee().isVoid()) {
-      analyzerFail2(an, node, "cannot dereference '*void'",
-                    "cast it to a concrete pointer type first");
+      analyzerFail(an, node, Problem.DereferenceVoidPointer, Facts.none());
     }
     return operandType.pointee();
   }
 
-  analyzerFail(an, node, quoted("unknown unary operator ", op, ""));
+  analyzerFail(an, node, Problem.Internal, Facts.about("unknown unary operator"));
   return Type.make(TypeKind.Void, 0);
 }
 
@@ -424,8 +404,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
 
   if (equals(op, "||") || equals(op, "&&")) {
     if (!left.isBool() || !right.isBool()) {
-      analyzerFail2(an, node, "logical operators require boolean operands",
-                    gotTwoTypes(left, right));
+      analyzerFail(an, node, Problem.LogicalNotBool, Facts.aboutTypes(left, right));
     }
     return Type.make(TypeKind.Bool, 0);
   }
@@ -433,20 +412,16 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   if (equals(op, "==") || equals(op, "!=")) {
     // `null` compares with any pointer, from either side.
     if (!left.accepts(right) && !right.accepts(left)) {
-      analyzerFail2(an, node, "equality operators require same type operands",
-                    gotTwoTypes(left, right));
+      analyzerFail(an, node, Problem.EqualityTypes, Facts.aboutTypes(left, right));
     }
     if (left.isVoid()) {
-      analyzerFail(an, node, "cannot compare void values");
+      analyzerFail(an, node, Problem.CompareVoid, Facts.none());
     }
     // A struct is an aggregate; there is no single machine instruction to
     // compare one, and comparing them field by field would be a feature of
     // its own.
     if (left.isStruct()) {
-      analyzerFail2(an, node,
-                    quoted("cannot compare struct ", left.structName,
-                           " values"),
-                    "compare their fields instead");
+      analyzerFail(an, node, Problem.CompareStructs, Facts.about(left.structName));
     }
     return Type.make(TypeKind.Bool, 0);
   }
@@ -454,25 +429,19 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   if (equals(op, ">") || equals(op, ">=") || equals(op, "<") ||
       equals(op, "<=")) {
     if (!left.equals(right)) {
-      analyzerFail2(an, node,
-                    "comparison operators require same type operands",
-                    gotTwoTypes(left, right));
+      analyzerFail(an, node, Problem.ComparisonTypes, Facts.aboutTypes(left, right));
     }
     if (left.isBool() || left.isVoid()) {
-      analyzerFail(an, node, "cannot compare boolean or void values");
+      analyzerFail(an, node, Problem.OrderBoolOrVoid, Facts.none());
     }
     if (left.isEnum()) {
-      analyzerFail2(an, node,
-                    quoted("cannot order enum ", left.structName, " values"),
-                    "compare them with == and !=, or match on them");
+      analyzerFail(an, node, Problem.OrderEnum, Facts.about(left.structName));
     }
     if (left.isFunction()) {
-      analyzerFail(an, node, "cannot order function values");
+      analyzerFail(an, node, Problem.OrderFunctions, Facts.none());
     }
     if (left.isStruct()) {
-      analyzerFail2(an, node,
-                    quoted("cannot order struct ", left.structName, " values"),
-                    "compare their fields instead");
+      analyzerFail(an, node, Problem.OrderStructs, Facts.about(left.structName));
     }
     return Type.make(TypeKind.Bool, 0);
   }
@@ -485,16 +454,13 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     if (left.isPointer() || right.isPointer()) {
       if (left.isPointer() && right.isPointer()) {
         if (!isSub) {
-          analyzerFail(an, node, "cannot add two pointers");
+          analyzerFail(an, node, Problem.AddPointers, Facts.none());
         }
         if (!left.equals(right)) {
-          analyzerFail2(an, node,
-                        "pointer difference requires identical pointer types",
-                        gotTwoTypes(left, right));
+          analyzerFail(an, node, Problem.PointerDifferenceTypes, Facts.aboutTypes(left, right));
         }
         if (left.pointee().isVoid()) {
-          analyzerFail(an, node,
-                       "cannot take the difference of '*void' pointers");
+          analyzerFail(an, node, Problem.VoidPointerDifference, Facts.none());
         }
         return Type.make(TypeKind.I64, 0);
       }
@@ -507,15 +473,13 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
       }
 
       if (right.isPointer() && isSub) {
-        analyzerFail(an, node, "cannot subtract a pointer from an integer");
+        analyzerFail(an, node, Problem.IntegerMinusPointer, Facts.none());
       }
       if (!offset.isInteger()) {
-        analyzerFail2(an, node, "pointer arithmetic requires an integer offset",
-                      gotType(offset));
+        analyzerFail(an, node, Problem.PointerOffsetNotInteger, Facts.aboutType(offset));
       }
       if (pointer.pointee().isVoid()) {
-        analyzerFail2(an, node, "cannot do arithmetic on '*void'",
-                      "cast it to a concrete pointer type first");
+        analyzerFail(an, node, Problem.VoidPointerArithmetic, Facts.none());
       }
       return pointer;
     }
@@ -523,15 +487,13 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
 
   if (isAdd || isSub || equals(op, "*") || equals(op, "/")) {
     if (left.isPointer() || right.isPointer()) {
-      analyzerFail(an, node, "pointers do not support this operator");
+      analyzerFail(an, node, Problem.PointerOperator, Facts.none());
     }
     if (!left.equals(right)) {
-      analyzerFail2(an, node, "arithmetic operators require same type operands",
-                    gotTwoTypes(left, right));
+      analyzerFail(an, node, Problem.ArithmeticTypes, Facts.aboutTypes(left, right));
     }
     if (!left.isNumeric()) {
-      analyzerFail2(an, node, "arithmetic requires numeric operands",
-                    gotType(left));
+      analyzerFail(an, node, Problem.ArithmeticNotNumeric, Facts.aboutType(left));
     }
     return left;
   }
@@ -542,17 +504,17 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   if (equals(op, "%") || equals(op, "&") || equals(op, "|") ||
       equals(op, "^") || equals(op, "<<") || equals(op, ">>")) {
     if (!left.equals(right)) {
-      analyzerFail2(an, node, quoted("", op, " requires same type operands"),
-                    gotTwoTypes(left, right));
+      analyzerFail(an, node, Problem.OperatorTypes,
+                   Facts.about(op).withTypes(left, right));
     }
     if (!left.isInteger()) {
-      analyzerFail2(an, node, quoted("", op, " requires integer operands"),
-                    gotType(left));
+      analyzerFail(an, node, Problem.OperatorNotInteger,
+                   Facts.about(op).withType(left));
     }
     return left;
   }
 
-  analyzerFail(an, node, "unknown binary operator");
+  analyzerFail(an, node, Problem.Internal, Facts.about("unknown binary operator"));
   return Type.make(TypeKind.Void, 0);
 }
 
@@ -565,16 +527,10 @@ fn operandHint(other: Type, wanted: Type): Type {
   return wanted;
 }
 
+// `got` is the type cast from, `expected` the one to.
 fn castRejection(an: *Analyzer, node: i32, from: Type, to: Type,
-                 why: *i8): void {
-  let context: *Builder = Builder.new();
-  context.add("cannot cast '");
-  context.add(from.toText());
-  context.add("' to '");
-  context.add(to.toText());
-  context.push('\'');
-
-  analyzerFail2(an, node, context.data, why);
+                 problem: Problem): void {
+  analyzerFail(an, node, problem, Facts.aboutTypes(to, from));
 }
 
 fn checkCast(an: *Analyzer, node: i32): Type {
@@ -582,7 +538,7 @@ fn checkCast(an: *Analyzer, node: i32): Type {
   let from: Type = checkCastOperand(an, an.ast.nodes[node].a, to);
 
   if (from.isVoid() || to.isVoid()) {
-    castRejection(an, node, from, to, "void is not a value type");
+    castRejection(an, node, from, to, Problem.CastFromVoid);
   }
 
   if (from.equals(to)) { return to; }
@@ -603,20 +559,18 @@ fn checkCast(an: *Analyzer, node: i32): Type {
   // Pointers only convert to and from a pointer-sized integer.
   if (from.isPointer() && to.isInteger()) {
     if (to.bitWidth() != 64) {
-      castRejection(an, node, from, to,
-                    "pointers only convert to a 64-bit integer (i64, u64, usize)");
+      castRejection(an, node, from, to, Problem.PointerToNarrowInteger);
     }
     return to;
   }
   if (from.isInteger() && to.isPointer()) {
     if (from.bitWidth() != 64) {
-      castRejection(an, node, from, to,
-                    "only a 64-bit integer (i64, u64, usize) converts to a pointer");
+      castRejection(an, node, from, to, Problem.NarrowIntegerToPointer);
     }
     return to;
   }
 
-  castRejection(an, node, from, to, "no such conversion");
+  castRejection(an, node, from, to, Problem.InvalidCast);
   return to;
 }
 
@@ -690,8 +644,8 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
   let magnitude: u64 = parseMagnitude(text, start, length, overflowed);
 
   if (*overflowed) {
-    analyzerFail(an, node, quoted("number is out of range for ",
-                                  wanted.toText(), ""));
+    analyzerFail(an, node, Problem.NumberOutOfRange,
+                 Facts.aboutTypes(wanted, wanted));
   }
 
   if (fitsIn(magnitude, negative, fallback)) {
@@ -699,13 +653,11 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
   }
 
   if (!fitsIn(magnitude, negative, wanted)) {
-    let detail: *i8 = "the value does not fit the type it is cast to";
+    let problem: Problem = Problem.NumberTooWideForCast;
     if (wanted.equals(fallback)) {
-      detail = "use an explicit cast such as `... as i64`";
+      problem = Problem.NumberNeedsCast;
     }
-    analyzerFail2(an, node,
-                  quoted("number is out of range for ", wanted.toText(), ""),
-                  detail);
+    analyzerFail(an, node, problem, Facts.aboutTypes(wanted, wanted));
   }
 
   return wanted;
@@ -736,27 +688,22 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
   if (!structType.isStruct()) {
-    analyzerFail2(an, node, quoted("cannot read field ", field, ""),
-                  quoted("", objectType.toText(), " is not a struct"));
+    analyzerFail(an, node, Problem.FieldOfNonStruct,
+                 Facts.about(field).withType(objectType));
     return Type.make(TypeKind.None, 0);
   }
 
   let structIndex: i32 = an.structs.indexOf(structType.structName);
   if (structIndex < 0) {
-    analyzerFail2(an, node, quoted("field ", field, ""),
-                  quoted("unknown type ", structType.toText(), ""));
+    analyzerFail(an, node, Problem.UnknownType,
+                 Facts.aboutTwo(structType.toText(), quoted("field ", field, "")));
     return Type.make(TypeKind.None, 0);
   }
 
   let fieldIndex: i32 = an.structs.fieldIndex(structIndex, field);
   if (fieldIndex < 0) {
-    let message: *Builder = Builder.new();
-    message.add("struct '");
-    message.add(structType.structName);
-    message.add("' has no field '");
-    message.add(field);
-    message.push('\'');
-    analyzerFail(an, node, message.data);
+    analyzerFail(an, node, Problem.NoSuchField,
+                 Facts.aboutTwo(structType.structName, field));
     return Type.make(TypeKind.None, 0);
   }
 
@@ -768,15 +715,13 @@ fn checkIndex(an: *Analyzer, node: i32): Type {
   let indexType: Type = checkExpr(an, an.ast.nodes[node].b);
 
   if (!baseType.isPointer()) {
-    analyzerFail2(an, node, "cannot index a non-pointer value",
-                  gotType(baseType));
+    analyzerFail(an, node, Problem.IndexNonPointer, Facts.aboutType(baseType));
   }
   if (baseType.pointee().isVoid()) {
-    analyzerFail2(an, node, "cannot index '*void'",
-                  "cast it to a concrete pointer type first");
+    analyzerFail(an, node, Problem.IndexVoidPointer, Facts.none());
   }
   if (!indexType.isInteger()) {
-    analyzerFail2(an, node, "index must be an integer", gotType(indexType));
+    analyzerFail(an, node, Problem.IndexNotInteger, Facts.aboutType(indexType));
   }
 
   return baseType.pointee();
@@ -787,8 +732,8 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   let structIndex: i32 = an.structs.indexOf(name);
 
   if (structIndex < 0) {
-    analyzerFail2(an, node, quoted("in literal for ", name, ""),
-                  quoted("unknown type ", name, ""));
+    analyzerFail(an, node, Problem.UnknownType,
+                 Facts.aboutTwo(name, quoted("in literal for ", name, "")));
     return Type.ofStruct(name, 0);
   }
 
@@ -807,18 +752,11 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
     let fieldIndex: i32 = an.structs.fieldIndex(structIndex, fieldName);
 
     if (fieldIndex < 0) {
-      let message: *Builder = Builder.new();
-      message.add("struct '");
-      message.add(name);
-      message.add("' has no field '");
-      message.add(fieldName);
-      message.push('\'');
-      analyzerFail(an, node, message.data);
+      analyzerFail(an, node, Problem.NoSuchField, Facts.aboutTwo(name, fieldName));
       return Type.ofStruct(name, 0);
     }
     if (initialised[fieldIndex] != 0) {
-      analyzerFail(an, node,
-                   quoted("field ", fieldName, " is initialised twice"));
+      analyzerFail(an, node, Problem.FieldInitialisedTwice, Facts.about(fieldName));
     }
     initialised[fieldIndex] = 1;
 
@@ -827,16 +765,9 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
     let valueType: Type = checkExprAs(an, an.ast.nodes[init].a, fieldType);
 
     if (!fieldType.accepts(valueType)) {
-      let context: *Builder = Builder.new();
-      context.add("field '");
-      context.add(fieldName);
-      context.add("' of '");
-      context.add(name);
-      context.add("' has the wrong type");
-
-      analyzerFail2(an, node, context.data,
-                    expectedButGot(fieldType.toText(),
-                                   valueType.toText()));
+      analyzerFailAtValue(an, an.ast.nodes[init].a, Problem.FieldWrongType,
+                          Facts.aboutTwo(fieldName, name)
+                              .withTypes(fieldType, valueType));
     }
 
     index = index + 1;
@@ -844,13 +775,9 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 
   for (index in 0..fieldCount) {
     if (initialised[index] == 0) {
-      let message: *Builder = Builder.new();
-      message.add("field '");
-      message.add(an.structs.items[structIndex].fields[index].name);
-      message.add("' of '");
-      message.add(name);
-      message.add("' is missing");
-      analyzerFail(an, node, message.data);
+      analyzerFail(an, node, Problem.FieldMissing,
+                   Facts.aboutTwo(an.structs.items[structIndex].fields[index].name,
+                                  name));
     }
   }
 
@@ -934,7 +861,7 @@ export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
     negative = !negative;
   }
   if (overflowed || !fitsIn(magnitude, negative, type)) {
-    analyzerFail(an, node, quoted("number is out of range for ", type.toText(), ""));
+    analyzerFail(an, node, Problem.NumberOutOfRange, Facts.aboutTypes(type, type));
     return false;
   }
 

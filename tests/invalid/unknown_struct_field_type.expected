@@ -1,1 +1,0 @@
-unknown_struct_field_type.ode:1:1: error: field 'x' of struct 'Point': unknown type 'Missing'

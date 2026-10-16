@@ -1,5 +1,0 @@
-import { Missing } from "std/missing";
-
-fn main(): i32 {
-  return 0;
-}

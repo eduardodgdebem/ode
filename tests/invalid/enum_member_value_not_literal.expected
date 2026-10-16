@@ -1,1 +1,0 @@
-enum_member_value_not_literal.ode:3:13: error: value of 'First' is not an integer literal: an enum member's value has to be written as a number

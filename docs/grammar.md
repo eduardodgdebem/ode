@@ -114,10 +114,11 @@ position names a struct.
 - **IDENT** → [a-zA-Z_][a-zA-Z0-9_]*
 - **NUMBER** → [0-9]+
 - **BOOLEAN** → `true` | `false`
-- **STRING** → `"` Char* `"`
+- **STRING** → `"` Char* `"` | RawString
 - **CHAR** → `'` Char `'`
 - **Char** → any character except the closing quote or a newline, or an Escape
-- **Escape** → `\n` | `\t` | `\r` | `\0` | `\\` | `\"` | `\'`
+- **Escape** → `\n` | `\t` | `\r` | `\0` | `\\` | `\"` | `\'` | `\x` HexDigit HexDigit
+- **RawString** → `` ` `` any characters but `` ` `` `` ` ``, which may span lines and holds no escapes; `${` in one is an error. One whose opening backtick ends its line is a block: the indentation its lines share, and a last line of only whitespace, are dropped
 - **Operator** → `...` if it matches, otherwise a two-character operator if
   one matches, otherwise a single-character one
 - **TwoCharOp** → `==` | `!=` | `<=` | `>=` | `&&` | `||` | `<<` | `>>` |

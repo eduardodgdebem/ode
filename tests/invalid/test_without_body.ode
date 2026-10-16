@@ -1,5 +1,0 @@
-test "no body";
-
-fn main(): i32 {
-  return 0;
-}

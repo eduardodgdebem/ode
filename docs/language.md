@@ -324,11 +324,14 @@ match (c) {
 }
 ```
 
+`nameOf(value)` gives the name of the member an enum value is, as a string:
+`nameOf(Color.Red)` is `"Red"`, and a value that is no member's is `"?"`.
+
 ## Strings
 
 A string literal has type `*i8` and points at a NUL-terminated constant; a
 character literal has type `i8`. Escapes are `\n`, `\t`, `\r`, `\0`, `\\`,
-`\"` and `\'`.
+`\"`, `\'`, and `\x` with two hex digits for any byte.
 
 ```rust
 extern fn strlen(text: *i8): i64;
@@ -342,6 +345,22 @@ fn isDigit(c: i8): bool {
 
 `printf("%s", text)` writes one as text. Indexing a string yields its bytes, so `GREETING[0]` is `'O'`. Comments are
 recognised by the lexer, so a `//` inside a literal is just text.
+
+A string in backticks is written as it is: across lines if need be, with no
+escapes. When the opening backtick ends its line, the string is a block --
+the indentation its lines share is dropped -- so it can sit indented with the
+code around it:
+
+```rust
+let program: *i8 = `
+  fn main(): i32 {
+    return 0;
+  }
+`;   // "fn main(): i32 {\n  return 0;\n}\n"
+```
+
+Ode has no interpolation, so `${` in a backtick string is an error rather
+than text that looks like it means something.
 
 ## Arrays
 
@@ -432,8 +451,10 @@ test "add sums two numbers" {
 }
 ```
 
-`ode test file.ode` runs every test in the file and in the files it imports;
-a second argument runs only the tests whose name contains it. A plain build
+`ode test file.ode` runs every test in the file and in the files it imports,
+and `ode test dir/` every test in every `.ode` file under a directory; a
+second argument runs only the tests whose name contains it. Tests can live
+in files of their own, named `*.test.ode`, which no build includes. A plain build
 leaves tests out entirely, unchecked, so they cost the program nothing. A
 file of tests needs no `main`, and a test may call the file's private
 functions, `main` included.
@@ -452,7 +473,8 @@ test a broken one ... FAILED
 Two checks are built in, and work in any code, not only in tests:
 
 - `assert(cond)` and `assert(cond, message)` stop when `cond` is false.
-- `assertEq(actual, expected)` stops when the two differ, and shows both.
+- `assertEq(actual, expected)` stops when the two differ, and shows both --
+  an enum value by its name, `Color.Red`.
   They compare as `==` does — a literal takes the other side's type — except
   that two strings compare by their text.
 

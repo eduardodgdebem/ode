@@ -1,22 +1,19 @@
 // ---------------------------------------------------------------------------
-// `ode build test`: the regression suite.
+// `ode build test`: everything that needs the compiler as a program.
 //
-// Run cases are every tests/run/*.ode: each is compiled, linked, run, and its
-// stdout compared against the <name>.out beside it.
+// Most of what the compiler does is tested in-process, by the tests written
+// beside it in compiler/**/*.test.ode; this runs them, and the standard
+// library's, through `ode test`. What it adds is what only the binary can
+// show:
 //
-// Example cases are every examples/*.ode, run the same way and compared
-// against tests/examples/<name>.out, so the examples cannot rot.
+// - every examples/*.ode compiles, runs, and prints what
+//   tests/examples/<name>.out says, so the examples cannot rot;
+// - every tests/runner/*.ode, run through `ode test`, prints what its .out
+//   says and exits as it does -- the test runner's own behaviour, failing
+//   tests and crashes included;
+// - the driver's flags do what they say.
 //
-// Invalid cases are every tests/invalid/*.ode: each must fail to compile, and
-// the diagnostic is compared against tests/invalid/<name>.expected.
-//
-// Module cases are every tests/modules/<name>/, a program of several files
-// whose entry is main.ode. What it does is compared against
-// tests/modules/<name>.expected: the diagnostics if it fails to compile, and
-// what it prints if it compiles.
-//
-// --update rewrites the expected files from what the compiler does now, which
-// is how the suite is re-baselined after a deliberate language change. Read
+// --update rewrites the expected files from what the compiler does now. Read
 // the diff before committing it.
 //
 // Everything is compiled and run in a temporary directory, so the repository
@@ -33,10 +30,8 @@ import { fail } from "../support/diagnostics";
 import {
   TextList, StderrMode, runCommand, setEnvironment, isTerminal, joinPath,
   withSuffix, parentDirectory, isExecutable, readBytes, writeBytes, sameBytes,
-  makeDirectories, removeTree, copyTree, listDirectory, splitLines,
-  makeTempDirectory,
+  makeDirectories, removeTree, listDirectory, splitLines, makeTempDirectory,
 } from "../support/system";
-import { moduleCount } from "../semantics/modules";
 import { Workspace, complain, commandBuild } from "./build";
 
 export struct TestOptions {
@@ -56,10 +51,7 @@ struct Suite {
   passed: i32,
   failed: i32,
   updated: i32,
-  runCount: i32,
   exampleCount: i32,
-  invalidCount: i32,
-  moduleCount: i32,
   unitCount: i32,
   failures: *TextList,
 
@@ -161,7 +153,7 @@ struct Suite {
   }
 }
 
-fn colour(code: *i8): *i8 {
+export fn colour(code: *i8): *i8 {
   let out: *Builder = Builder.new();
   out.push(27);
   out.push('[');
@@ -200,23 +192,15 @@ fn withoutExtension(name: *i8): *i8 {
   return slice(name, 0, strlen(name) - 4);
 }
 
-fn isDirectory(path: *i8): bool {
-  return exists(joinPath(path, "."));
-}
-
 // ---------------------------------------------------------------------------
 // The cases.
 // ---------------------------------------------------------------------------
 
 // Compiles `source`, runs what it builds, and compares what it prints against
-// `expectedPath`. `kind` is "run" or "example".
+// `expectedPath`. `kind` names the category: "example".
 fn runProgramCase(suite: *Suite, kind: *i8, source: *i8, name: *i8,
                   expectedPath: *i8): void {
-  if (equals(kind, "run")) {
-    suite.runCount = suite.runCount + 1;
-  } else {
-    suite.exampleCount = suite.exampleCount + 1;
-  }
+  suite.exampleCount = suite.exampleCount + 1;
 
   // Compiled with no flags and from inside the work directory, which is also
   // what pins down the default output paths.
@@ -244,62 +228,9 @@ fn runProgramCase(suite: *Suite, kind: *i8, source: *i8, name: *i8,
               "stdout differs");
 }
 
-fn runInvalid(suite: *Suite, source: *i8, name: *i8): void {
-  suite.invalidCount = suite.invalidCount + 1;
-
-  // The case is copied in and compiled by its bare name so that the recorded
-  // diagnostic does not carry the absolute path it was run from.
-  let copyName: *Builder = Builder.new();
-  copyName.add(name);
-  copyName.add(".ode");
-  writeBytes(joinPath(suite.work, copyName.data), readBytes(source));
-
-  let actual: *Builder = Builder.new();
-  let compile: *TextList = TextList.new().add(suite.compiler);
-  compile.add(copyName.data);
-  if (runCommand(compile, suite.work, actual, StderrMode.Merge) == 0) {
-    suite.fail("invalid", name, "compiled successfully but should have failed");
-    return;
-  }
-
-  let expected: *Builder = Builder.new();
-  expected.add(joinPath(suite.ws.root, "tests/invalid/"));
-  expected.add(name);
-  expected.add(".expected");
-  suite.check("invalid", name, expected.data, actual,
-              "no expected diagnostic recorded (run with --update)",
-              "diagnostic differs");
-}
-
-fn runModule(suite: *Suite, caseDir: *i8, name: *i8): void {
-  suite.moduleCount = suite.moduleCount + 1;
-
-  // The whole directory is copied, and compiled from inside it, so the paths
-  // in a diagnostic are the ones relative to the entry file.
-  let work: *i8 = joinPath(joinPath(suite.work, "module-cases"), name);
-  makeDirectories(work);
-  copyTree(caseDir, work);
-
-  let actual: *Builder = Builder.new();
-  let compile: *TextList = TextList.new().add(suite.compiler).add("main.ode");
-  if (runCommand(compile, work, actual, StderrMode.Merge) == 0) {
-    actual = Builder.new();
-    let program: *TextList = TextList.new().add(joinPath(work, "main"));
-    runCommand(program, null, actual, StderrMode.Merge);
-  }
-
-  let expected: *Builder = Builder.new();
-  expected.add(joinPath(suite.ws.root, "tests/modules/"));
-  expected.add(name);
-  expected.add(".expected");
-  suite.check("module", name, expected.data, actual,
-              "no expected result recorded (run with --update)",
-              "result differs");
-}
-
 // A file of tests, run by `ode test`: what the runner printed and the status
 // it ended with are what is checked.
-fn runUnit(suite: *Suite, source: *i8, name: *i8): void {
+fn runRunnerCase(suite: *Suite, source: *i8, name: *i8): void {
   suite.unitCount = suite.unitCount + 1;
 
   // Run by its bare name, so that a failure's location carries no absolute
@@ -317,7 +248,7 @@ fn runUnit(suite: *Suite, source: *i8, name: *i8): void {
   actual.addInt(status as i64);
   actual.push('\n');
 
-  suite.check("unit", name, withSuffix(withoutExtension(source), ".out"),
+  suite.check("runner", name, withSuffix(withoutExtension(source), ".out"),
               actual, "no expected output recorded (run with --update)",
               "output differs");
 }
@@ -344,7 +275,7 @@ fn printsZero(path: *i8): bool {
 
 // A program that prints "0", which is what the driver checks build.
 fn exampleOne(suite: *Suite): *i8 {
-  return joinPath(suite.ws.root, "tests/run/function_call.ode");
+  return joinPath(suite.ws.root, "tests/cli/prints_zero.ode");
 }
 
 fn checkOutputFlag(suite: *Suite): bool {
@@ -357,22 +288,23 @@ fn checkOutputFlag(suite: *Suite): bool {
     return false;
   }
 
-  return isExecutable(out) && exists(withSuffix(out, ".ll")) &&
-         exists(withSuffix(out, ".o")) && printsZero(out);
+  // By default the executable is all a build leaves.
+  return isExecutable(out) && !exists(withSuffix(out, ".ll")) &&
+         !exists(withSuffix(out, ".o")) && printsZero(out);
 }
 
-fn checkNoIntermediatesFlag(suite: *Suite): bool {
-  let out: *i8 = joinPath(suite.work, "cli/dropped");
+fn checkKeepIntermediatesFlag(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/kept");
   makeDirectories(parentDirectory(out));
 
   let command: *TextList = TextList.new().add(suite.compiler);
-  command.add("--no-intermediates").add("-o").add(out).add(exampleOne(suite));
+  command.add("--keep-intermediates").add("-o").add(out).add(exampleOne(suite));
   if (!compileQuietly(suite, command)) {
     return false;
   }
 
-  return isExecutable(out) && !exists(withSuffix(out, ".ll")) &&
-         !exists(withSuffix(out, ".o"));
+  return isExecutable(out) && exists(withSuffix(out, ".ll")) &&
+         exists(withSuffix(out, ".o"));
 }
 
 // A path holding a space and a shell metacharacter must survive the linker.
@@ -403,17 +335,17 @@ fn runCompilerTests(suite: *Suite): void {
 
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "compiler/main.ode"));
+  run.add(joinPath(suite.ws.root, "compiler"));
   if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
-    suite.pass("unit", "compiler");
+    suite.pass("tests", "compiler");
     return;
   }
 
-  suite.fail("unit", "compiler", "a test of the compiler failed");
+  suite.fail("tests", "compiler", "a test of the compiler failed");
   writeIndented(output);
 }
 
-// The standard library's tests, a file at a time.
+// The standard library's tests, all of them in one run.
 fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
   suite.unitCount = suite.unitCount + 1;
 
@@ -421,15 +353,15 @@ fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
   run.add(source);
   if (runCommand(run, suite.work, output, StderrMode.Merge) == 0) {
-    suite.pass("std", name);
+    suite.pass("tests", name);
     return;
   }
 
-  suite.fail("std", name, "a test failed");
+  suite.fail("tests", name, "a test failed");
   writeIndented(output);
 }
 
-// A directory is not a source file, to compile or to test.
+// A directory is not a source file to compile; to test, it needs one.
 fn checkDirectoryInput(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let compile: *TextList = TextList.new().add(suite.compiler);
@@ -439,11 +371,13 @@ fn checkDirectoryInput(suite: *Suite): bool {
     return false;
   }
 
+  let empty: *i8 = joinPath(suite.work, "empty-directory");
+  makeDirectories(empty);
   output = Builder.new();
   let test: *TextList = TextList.new().add(suite.compiler).add("test");
-  test.add(joinPath(suite.ws.root, "compiler"));
+  test.add(empty);
   return runCommand(test, suite.work, output, StderrMode.Merge) == 1 &&
-         contains(output.data, "cannot open input file");
+         contains(output.data, "no .ode files to test here");
 }
 
 // `ode test` with no file, or one that is not there, says so and fails.
@@ -466,7 +400,7 @@ fn checkTestWithoutInput(suite: *Suite): bool {
 fn checkTestFilterMatchingNothing(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "tests/unit/math.ode")).add("no test is named this");
+  run.add(joinPath(suite.ws.root, "tests/runner/math.ode")).add("no test is named this");
   return runCommand(run, suite.work, output, StderrMode.Merge) == 0 &&
          contains(output.data, "0 passed; 0 failed; 5 filtered out");
 }
@@ -511,10 +445,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   suite.passed = 0;
   suite.failed = 0;
   suite.updated = 0;
-  suite.runCount = 0;
   suite.exampleCount = 0;
-  suite.invalidCount = 0;
-  suite.moduleCount = 0;
   suite.unitCount = 0;
   suite.failures = TextList.new();
   suite.dim = "";
@@ -528,22 +459,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     suite.off = colour("0");
   }
 
-  let runs: *i8 = joinPath(ws.root, "tests/run");
-  let names: *TextList = listDirectory(runs);
-  let index: i32 = 0;
-  for (index in 0..names.size()) {
-    let file: *i8 = names.at(index);
-    if (endsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
-      let name: *i8 = withoutExtension(file);
-      runProgramCase(suite, "run", joinPath(runs, file), name,
-                     withSuffix(joinPath(runs, name), ".out"));
-    }
-  }
-
   let examples: *i8 = joinPath(ws.root, "examples");
   let expectedExamples: *i8 = joinPath(ws.root, "tests/examples");
   makeDirectories(expectedExamples);
-  names = listDirectory(examples);
+  let names: *TextList = listDirectory(examples);
   for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
     if (endsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
@@ -553,31 +472,12 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     }
   }
 
-  let invalid: *i8 = joinPath(ws.root, "tests/invalid");
-  names = listDirectory(invalid);
-  for (index in 0..names.size()) {
-    let file: *i8 = names.at(index);
-    if (endsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
-      runInvalid(suite, joinPath(invalid, file), withoutExtension(file));
-    }
-  }
-
-  let modules: *i8 = joinPath(ws.root, "tests/modules");
-  names = listDirectory(modules);
-  for (index in 0..names.size()) {
-    let name: *i8 = names.at(index);
-    let caseDir: *i8 = joinPath(modules, name);
-    if (isDirectory(caseDir) && suite.selected(name)) {
-      runModule(suite, caseDir, name);
-    }
-  }
-
-  let units: *i8 = joinPath(ws.root, "tests/unit");
+  let units: *i8 = joinPath(ws.root, "tests/runner");
   names = listDirectory(units);
   for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
     if (endsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
-      runUnit(suite, joinPath(units, file), withoutExtension(file));
+      runRunnerCase(suite, joinPath(units, file), withoutExtension(file));
     }
   }
 
@@ -585,20 +485,15 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     runCompilerTests(suite);
   }
 
-  let library: *i8 = joinPath(ws.root, "std");
-  names = listDirectory(library);
-  for (index in 0..names.size()) {
-    let file: *i8 = names.at(index);
-    if (endsWith(file, ".ode") && suite.selected(withoutExtension(file))) {
-      runLibraryTests(suite, joinPath(library, file), withoutExtension(file));
-    }
+  if (suite.selected("std")) {
+    runLibraryTests(suite, joinPath(ws.root, "std"), "std");
   }
 
   if (suite.selected("output-flag")) {
     runCli(suite, "output-flag", checkOutputFlag(suite));
   }
-  if (suite.selected("no-intermediates-flag")) {
-    runCli(suite, "no-intermediates-flag", checkNoIntermediatesFlag(suite));
+  if (suite.selected("keep-intermediates-flag")) {
+    runCli(suite, "keep-intermediates-flag", checkKeepIntermediatesFlag(suite));
   }
   if (suite.selected("hostile-output-path")) {
     runCli(suite, "hostile-output-path", checkHostileOutputPath(suite));
@@ -622,16 +517,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   let summary: *Builder = Builder.new();
   summary.push('\n');
   if (suite.update) {
-    summary.addInt(suite.runCount as i64);
-    summary.add(" run, ");
     summary.addInt(suite.exampleCount as i64);
     summary.add(" example, ");
-    summary.addInt(suite.invalidCount as i64);
-    summary.add(" invalid, ");
-    summary.addInt(suite.moduleCount as i64);
-    summary.add(" module, ");
     summary.addInt(suite.unitCount as i64);
-    summary.add(" unit: ");
+    summary.add(" runner: ");
     summary.addInt(suite.updated as i64);
     summary.add(" expectation(s) rewritten\n");
   }
@@ -643,16 +532,10 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     summary.add(" checks passed");
     summary.add(suite.off);
     summary.add(" (");
-    summary.addInt(suite.runCount as i64);
-    summary.add(" run, ");
     summary.addInt(suite.exampleCount as i64);
     summary.add(" example, ");
-    summary.addInt(suite.invalidCount as i64);
-    summary.add(" invalid, ");
-    summary.addInt(suite.moduleCount as i64);
-    summary.add(" module, ");
     summary.addInt(suite.unitCount as i64);
-    summary.add(" unit)\n");
+    summary.add(" runner and test runs)\n");
     writeBuilder(STDOUT, summary);
     return 0;
   }
@@ -665,7 +548,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   summary.add(suite.off);
   summary.push('\n');
 
-  index = 0;
+  let index: i32 = 0;
   while (index < suite.failures.size()) {
     summary.add("  ");
     summary.add(suite.failures.at(index));

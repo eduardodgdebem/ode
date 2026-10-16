@@ -10,7 +10,7 @@
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { Builder, equals, fromInt } from "std/text";
-import { failAt } from "../support/diagnostics";
+import { internalError } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { TypeKind, Type } from "../semantics/types";
 import { analyzerParseType } from "../semantics/analyzer";
@@ -20,10 +20,10 @@ import { CallTarget } from "../semantics/functions";
 import { sizeOf } from "../semantics/layout";
 import {
   Emitter, freshTemp, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
-  emitCondBranch, variableAddress, llvmName, internString,
+  emitCondBranch, variableAddress, llvmName, internString, codegenFault,
 } from "./emitter";
 import { llvmTypeName, zeroValue } from "./layout";
-import { genAssert, genAssertEq } from "./testing";
+import { genAssert, genAssertEq, genNameOf } from "./testing";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];
@@ -133,7 +133,7 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
       opcode = "fptrunc";
     }
   } else {
-    failAt(0, 0, "cannot cast in codegen");
+    internalError(0, 0, "cannot cast in codegen");
   }
 
   let line: *Builder = Builder.new();
@@ -151,8 +151,17 @@ export fn emitCast(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
 fn isAddressable(e: *Emitter, node: i32): bool {
   let kind: NodeKind = e.ast.nodes[node].kind;
 
-  if (kind == NodeKind.Ident || kind == NodeKind.FieldAccess || kind == NodeKind.Index) {
+  if (kind == NodeKind.Ident || kind == NodeKind.Index) {
     return true;
+  }
+  // A field has an address when what it is read from does: a pointer, or
+  // storage -- not the struct a call returned. `Color.Red` has none.
+  if (kind == NodeKind.FieldAccess) {
+    if (e.an.isConstant[node] != 0) {
+      return false;
+    }
+    let object: i32 = e.ast.nodes[node].a;
+    return typeOfNode(e, object).isPointer() || isAddressable(e, object);
   }
   if (kind == NodeKind.Unary) {
     return equals(e.ast.nodes[node].text, "*");
@@ -181,8 +190,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
     return genExpr(e, e.ast.nodes[node].a);
   }
 
-  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
-         "expression does not denote an addressable location");
+  codegenFault(e, node, "expression does not denote an addressable location");
   return null;
 }
 
@@ -513,6 +521,9 @@ fn genCall(e: *Emitter, node: i32): *i8 {
   if (e.an.callTargets[node] == CallTarget.AssertEq) {
     return genAssertEq(e, node);
   }
+  if (e.an.callTargets[node] == CallTarget.NameOf) {
+    return genNameOf(e, node);
+  }
 
   // A variable holding a function is loaded, and the call goes through it.
   if (e.an.callTargets[node] == CallTarget.Value) {
@@ -807,7 +818,6 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
     return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
   }
 
-  failAt(e.ast.nodes[node].line, e.ast.nodes[node].column,
-         "unsupported expression in code generation");
+  codegenFault(e, node, "unsupported expression in code generation");
   return null;
 }

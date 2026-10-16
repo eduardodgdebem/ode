@@ -1,1 +1,0 @@
-null_arithmetic.ode:2:22: error: arithmetic operators require same type operands: got 'null' and 'i32'

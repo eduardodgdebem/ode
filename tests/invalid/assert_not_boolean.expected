@@ -1,1 +1,0 @@
-assert_not_boolean.ode:2:3: error: assert needs a boolean condition: got 'i32'

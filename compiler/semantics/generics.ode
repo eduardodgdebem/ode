@@ -30,12 +30,13 @@
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { Builder, equals, copy, contains } from "std/text";
+import { Problem, Facts } from "../support/problems";
 import { FAILED } from "../support/diagnostics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import {
   NameSet, findTopLevel, importLocalName, rewriteNodeNames, SymbolList,
 } from "./modules";
-import { Analyzer, analyzerFail, analyzerFail2, quoted } from "./analyzer";
+import { Analyzer, analyzerFail } from "./analyzer";
 import { structDeclOf } from "./methods";
 
 // How many rounds of new instances are made before giving up.
@@ -225,8 +226,8 @@ export fn functionTemplateIn(an: *Analyzer, program: i32, module: i32,
 }
 
 // Reports `message` at `node` and lets checking go on.
-fn genericFail(an: *Analyzer, node: i32, message: *i8): void {
-  analyzerFail(an, node, message);
+fn genericFail(an: *Analyzer, node: i32, problem: Problem, facts: Facts): void {
+  analyzerFail(an, node, problem, facts);
   FAILED = false;
 }
 
@@ -238,19 +239,9 @@ fn checkArgumentCount(an: *Analyzer, typeNode: i32, template: i32,
     return true;
   }
 
-  let message: *Builder = Builder.new();
-  message.add(what);
-  message.add(" '");
-  message.add(an.ast.nodes[template].text);
-  message.add("' takes ");
-  message.addInt(wanted as i64);
-  message.add(" type argument");
-  if (wanted != 1) {
-    message.push('s');
-  }
-  message.add(" but got ");
-  message.addInt(given as i64);
-  genericFail(an, typeNode, message.data);
+  genericFail(an, typeNode, Problem.WrongTypeArgumentCount,
+              Facts.aboutTwo(an.ast.nodes[template].text, what)
+                  .withCounts(wanted as i64, given as i64));
 
   return false;
 }
@@ -319,9 +310,9 @@ fn resolveTypeInstance(an: *Analyzer, program: i32, node: i32): bool {
   let template: i32 = structTemplateNamed(an, program, name);
   if (template == NO_NODE) {
     if (structDeclOf(an, name) != NO_NODE) {
-      genericFail(an, node, quoted("struct ", name, " is not generic"));
+      genericFail(an, node, Problem.NotGeneric, Facts.about(name));
     } else {
-      genericFail(an, node, quoted("unknown type ", name, ""));
+      genericFail(an, node, Problem.UnknownType, Facts.about(name));
     }
     an.ast.nodes[node].itemCount = 0;
     return true;
@@ -356,7 +347,7 @@ fn resolveCallInstance(an: *Analyzer, program: i32, node: i32): bool {
   an.ast.nodes[node].b = NO_NODE;
 
   if (template == NO_NODE) {
-    genericFail(an, node, quoted("", name, " is not a generic function"));
+    genericFail(an, node, Problem.NotGenericFunction, Facts.about(name));
     return true;
   }
   if (!checkArgumentCount(an, typeNode, template, "function")) {
@@ -380,26 +371,16 @@ fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
 
   if (kind == NodeKind.Type && an.ast.nodes[node].itemCount == 0 &&
       structTemplateNamed(an, program, an.ast.nodes[node].text) != NO_NODE) {
-    let message: *Builder = Builder.new();
-    message.add("generic struct '");
-    message.add(an.ast.nodes[node].text);
-    message.add("' needs type arguments: write ");
-    message.add(an.ast.nodes[node].text);
-    message.add("<...>");
-    genericFail(an, node, message.data);
+    genericFail(an, node, Problem.GenericNeedsArguments,
+                Facts.about(an.ast.nodes[node].text));
     return;
   }
 
   if ((kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) &&
       an.structRefs[node] != null &&
       structTemplateNamed(an, program, an.structRefs[node]) != NO_NODE) {
-    let message: *Builder = Builder.new();
-    message.add("generic struct '");
-    message.add(an.structRefs[node]);
-    message.add("' needs type arguments: write ");
-    message.add(an.structRefs[node]);
-    message.add("<...>");
-    genericFail(an, node, message.data);
+    genericFail(an, node, Problem.GenericNeedsArguments,
+                Facts.about(an.structRefs[node]));
     an.structRefs[node] = null;
     return;
   }
@@ -407,13 +388,8 @@ fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
   if (kind == NodeKind.Call && an.ast.nodes[node].b == NO_NODE &&
       functionTemplateIn(an, program, an.ast.nodes[node].module,
                          an.ast.nodes[node].text) != NO_NODE) {
-    let message: *Builder = Builder.new();
-    message.add("generic function '");
-    message.add(an.ast.nodes[node].text);
-    message.add("' needs type arguments: write ");
-    message.add(an.ast.nodes[node].text);
-    message.add("<...>(...)");
-    genericFail(an, node, message.data);
+    genericFail(an, node, Problem.GenericFunctionNeedsArguments,
+                Facts.about(an.ast.nodes[node].text));
   }
 }
 
@@ -438,12 +414,8 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
     changed = false;
     rounds = rounds + 1;
     if (rounds > INSTANTIATION_LIMIT) {
-      let message: *Builder = Builder.new();
-      message.add("generic '");
-      message.add(an.ast.nodes[lastTemplate].text);
-      message.add("' keeps asking for bigger instances of itself");
-      analyzerFail2(an, lastTemplate, message.data,
-                    "an instance's body uses one with more type arguments around them");
+      analyzerFail(an, lastTemplate, Problem.InstancesNeverEnd,
+               Facts.about(an.ast.nodes[lastTemplate].text));
       FAILED = false;
       an.instancesFailed = true;
       return;

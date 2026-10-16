@@ -1,1 +1,0 @@
-global_from_later_global.ode:1:1: error: initialiser of global 'FIRST' is not constant: 'SECOND' is declared after it

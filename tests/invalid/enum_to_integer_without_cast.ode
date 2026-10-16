@@ -1,6 +1,0 @@
-enum Color { Red, Green, Blue }
-
-fn main(): i32 {
-  let n: i32 = Color.Green;
-  return n;
-}
