@@ -9,7 +9,9 @@
 import { List } from "std/list";
 import { Problem } from "../diagnostics/problems";
 import { Diagnostic } from "../diagnostics/report";
-import { NO_NODE, NodeKind } from "./ast";
+import {
+  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, binaryOf, unaryOf,
+} from "./ast";
 import { Scope, Parsed, parse } from "../testkit/testkit";
 
 test "for missing in" {
@@ -374,8 +376,33 @@ test "a lambda may write its types, and take a block" {
 test "parentheses without an arrow after them are still grouping" {
   let tree: Parsed = parse("fn main(): void { let n: i32 = (1 + 2) * (3); }");
   let value: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
-  assertEq(tree.kind(value), NodeKind.Binary);
-  assertEq(tree.kind(tree.ast.nodes[value].a), NodeKind.Binary);
+  let product: Binary = binaryOf(tree.ast, value);
+  assertEq(product.op, BinaryOp.Multiply);
+  assertEq(binaryOf(tree.ast, product.left).op, BinaryOp.Add);
+  assertEq(tree.kind(product.right), NodeKind.Number);
+}
+
+test "an operator's node says which operator, and holds its operands" {
+  let tree: Parsed = parse(`
+    fn main(): void {
+      let a: bool = !(*x ?? -y < 2 << 1);
+      count += 1;
+    }
+  `);
+  let not: Unary = unaryOf(tree.ast, tree.ast.nodes[statementOf(tree, 0)].b);
+  assertEq(not.op, UnaryOp.Not);
+  let coalesce: Binary = binaryOf(tree.ast, not.operand);
+  assertEq(coalesce.op, BinaryOp.Coalesce);
+  assertEq(unaryOf(tree.ast, coalesce.left).op, UnaryOp.Deref);
+  let less: Binary = binaryOf(tree.ast, coalesce.right);
+  assertEq(less.op, BinaryOp.Less);
+  assertEq(unaryOf(tree.ast, less.left).op, UnaryOp.Negate);
+  assertEq(binaryOf(tree.ast, less.right).op, BinaryOp.ShiftLeft);
+
+  // `count += 1` is `count = count + 1`.
+  let sum: Binary = binaryOf(tree.ast, tree.ast.nodes[statementOf(tree, 1)].b);
+  assertEq(sum.op, BinaryOp.Add);
+  assertEq(tree.ast.nodes[sum.left].text, "count");
 }
 
 test "a lambda's parameters are names" {

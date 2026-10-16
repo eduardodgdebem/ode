@@ -674,3 +674,10 @@ test "unknown struct field" {
   assertEq(found.at(0).facts.name, "Point");
   assertEq(found.at(0).facts.other, "z");
 }
+
+test "a cast takes any operator's result, and a negated literal at the cast's width" {
+  let scope: *Scope = Scope.new().local("pointer", "*i8").local("flag", "bool");
+  assertEq(scope.check("*pointer as i32").type.toText(), "i32");
+  assertEq(scope.check("-3000000000 as i64").type.toText(), "i64");
+  assertEq(scope.check("&pointer as i64").type.toText(), "i64");
+}

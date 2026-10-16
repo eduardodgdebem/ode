@@ -5,17 +5,177 @@
 // pointer: the arena moves when it grows, so a held pointer would dangle. An
 // index of NO_NODE is the absent child.
 //
-// There are no sum types, so every node is the same struct with a kind tag.
-// `a`, `b` and `c` are the fixed children and mean different things per kind;
-// `items` is the variable-length child list that only some kinds use.
+// Every node is the same struct with a kind tag. What a node holds is moving
+// into `syntax`, a union with a struct per kind that says what each part is:
+// a Binary's `left` and `right`, where the older kinds still keep `a`, `b`
+// and `c`, which mean different things per kind, and `items`, the
+// variable-length child list that only some kinds use. Those are Unmoved.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { alloc, grow } from "std/mem";
 import { line } from "../driver/options";
 import { Token } from "./token";
 import { Type } from "../types/types";
 
 export let NO_NODE: i32 = -1;
+
+// ---------------------------------------------------------------------------
+// Syntax: what a node holds, by kind.
+// ---------------------------------------------------------------------------
+
+export enum BinaryOp {
+  Add,
+  Subtract,
+  Multiply,
+  Divide,
+  Remainder,
+  Equal,
+  NotEqual,
+  Less,
+  LessEqual,
+  Greater,
+  GreaterEqual,
+  And,
+  Or,
+  BitAnd,
+  BitOr,
+  BitXor,
+  ShiftLeft,
+  ShiftRight,
+  // `??`: the left side's value, or the right side when it has none.
+  Coalesce,
+}
+
+export enum UnaryOp {
+  Negate,
+  Plus,
+  Not,
+  // `*p`
+  Deref,
+  // `&x`
+  AddressOf,
+}
+
+// `left op right`.
+export struct Binary {
+  op: BinaryOp,
+  left: i32,
+  right: i32,
+}
+
+// `op operand`.
+export struct Unary {
+  op: UnaryOp,
+  operand: i32,
+}
+
+// A kind not moved into syntax of its own yet: its parts are in the node's
+// `a`, `b`, `c`, `text` and `items`.
+export struct Unmoved {}
+
+export type Syntax = Binary | Unary | Unmoved;
+
+// The children a node's syntax holds, in order, for the walks that visit
+// every node without caring what each one is: cloning a generic, marking a
+// subtree. A walk also visits `a`, `b`, `c` and `items`, which an Unmoved
+// node keeps its children in.
+export fn syntaxChildren(syntax: Syntax): *List<i32> {
+  let children: *List<i32> = List<i32>.new();
+  match (syntax) {
+    Binary => {
+      children.push(syntax.left);
+      children.push(syntax.right);
+    }
+    Unary => {
+      children.push(syntax.operand);
+    }
+    Unmoved => {}
+  }
+  return children;
+}
+
+// `syntax` with its children replaced by `children`, given in the order
+// syntaxChildren lists them.
+export fn withChildren(syntax: Syntax, children: *List<i32>): Syntax {
+  match (syntax) {
+    Binary => {
+      return Binary { op: syntax.op, left: children.at(0), right: children.at(1) };
+    }
+    Unary => {
+      return Unary { op: syntax.op, operand: children.at(0) };
+    }
+    Unmoved => {
+      return syntax;
+    }
+  }
+}
+
+// A node's syntax as the kind it is known to be.
+export fn binaryOf(ast: *Ast, node: i32): Binary {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Binary) {
+    return syntax;
+  }
+  assert(false, "not a binary operator");
+  return Binary { op: BinaryOp.Add, left: NO_NODE, right: NO_NODE };
+}
+
+export fn unaryOf(ast: *Ast, node: i32): Unary {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Unary) {
+    return syntax;
+  }
+  assert(false, "not a unary operator");
+  return Unary { op: UnaryOp.Plus, operand: NO_NODE };
+}
+
+// The operand of `node` when it is a minus in front of something -- `-5`,
+// `-x` -- and NO_NODE otherwise.
+export fn negated(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Unary) {
+    if (syntax.op == UnaryOp.Negate) {
+      return syntax.operand;
+    }
+  }
+  return NO_NODE;
+}
+
+// How an operator is written, for what a diagnostic quotes.
+export fn binaryOpText(op: BinaryOp): *i8 {
+  match (op) {
+    BinaryOp.Add => { return "+"; }
+    BinaryOp.Subtract => { return "-"; }
+    BinaryOp.Multiply => { return "*"; }
+    BinaryOp.Divide => { return "/"; }
+    BinaryOp.Remainder => { return "%"; }
+    BinaryOp.Equal => { return "=="; }
+    BinaryOp.NotEqual => { return "!="; }
+    BinaryOp.Less => { return "<"; }
+    BinaryOp.LessEqual => { return "<="; }
+    BinaryOp.Greater => { return ">"; }
+    BinaryOp.GreaterEqual => { return ">="; }
+    BinaryOp.And => { return "&&"; }
+    BinaryOp.Or => { return "||"; }
+    BinaryOp.BitAnd => { return "&"; }
+    BinaryOp.BitOr => { return "|"; }
+    BinaryOp.BitXor => { return "^"; }
+    BinaryOp.ShiftLeft => { return "<<"; }
+    BinaryOp.ShiftRight => { return ">>"; }
+    BinaryOp.Coalesce => { return "??"; }
+  }
+}
+
+export fn unaryOpText(op: UnaryOp): *i8 {
+  match (op) {
+    UnaryOp.Negate => { return "-"; }
+    UnaryOp.Plus => { return "+"; }
+    UnaryOp.Not => { return "!"; }
+    UnaryOp.Deref => { return "*"; }
+    UnaryOp.AddressOf => { return "&"; }
+  }
+}
 
 export enum NodeKind {
   Program,
@@ -151,6 +311,8 @@ struct Node {
   module: i32,
   // Set on a top-level declaration written with `export`.
   exported: bool,
+  // What the node holds, for the kinds moved into a struct of their own.
+  syntax: Syntax,
 }
 
 export struct Ast {
@@ -192,6 +354,7 @@ export struct Ast {
     self.nodes[index].itemCapacity = 0;
     self.nodes[index].module = self.currentModule;
     self.nodes[index].exported = false;
+    self.nodes[index].syntax = Unmoved {};
     self.count = self.count + 1;
 
     return index;
@@ -291,7 +454,7 @@ export fn nodeCarriesText(kind: NodeKind): bool {
   if (kind == NodeKind.Struct || kind == NodeKind.Field || kind == NodeKind.Call) {
     return true;
   }
-  if (kind == NodeKind.Binary || kind == NodeKind.Unary || kind == NodeKind.FieldAccess) {
+  if (kind == NodeKind.FieldAccess) {
     return true;
   }
   if (kind == NodeKind.StructLit || kind == NodeKind.FieldInit || kind == NodeKind.Param) {

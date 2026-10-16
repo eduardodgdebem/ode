@@ -33,7 +33,7 @@ import {
   moduleDisplayPath, moduleCount, NameSet, linkModules, SymbolList,
   declareImports,
 } from "../link/modules";
-import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
+import { NO_NODE, NodeKind, Ast, Binary, binaryOf } from "../syntax/ast";
 import { LAYOUT_STRUCTS } from "../types/layout";
 import { SymbolKind, SymbolTable } from "../types/symbols";
 import { TypeKind, Type, typeKindFromName, StructTable } from "../types/types";
@@ -214,7 +214,10 @@ export fn analyzerFailAtValue(an: *Analyzer, value: i32, problem: Problem,
 fn expressionStart(an: *Analyzer, node: i32): i32 {
   let kind: NodeKind = an.ast.nodes[node].kind;
   let start: i32 = node;
-  if (kind == NodeKind.Binary || kind == NodeKind.Cast ||
+  if (an.ast.nodes[node].syntax is Binary) {
+    return expressionStart(an, binaryOf(an.ast, node).left);
+  }
+  if (kind == NodeKind.Cast ||
       kind == NodeKind.Index || kind == NodeKind.FieldAccess ||
       kind == NodeKind.MethodCall || kind == NodeKind.CallValue) {
     let left: i32 = an.ast.nodes[node].a;

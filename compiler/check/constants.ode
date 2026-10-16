@@ -9,11 +9,14 @@
 // global, whose initialiser it then shares.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { equals } from "std/text";
 import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, binaryOf, unaryOf, syntaxChildren,
+} from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { TypeKind, Type, parseMagnitude } from "../types/types";
 
@@ -112,25 +115,25 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
       return false;
     }
     value = an.values[an.ast.nodes[node].a];
-  } else if (kind == NodeKind.Unary) {
-    if (!foldInteger(an, an.ast.nodes[node].a)) {
+  } else if (an.ast.nodes[node].syntax is Unary) {
+    let unary: Unary = unaryOf(an.ast, node);
+    if (!foldInteger(an, unary.operand)) {
       return false;
     }
-    let operand: i64 = an.values[an.ast.nodes[node].a];
-    let op: *i8 = an.ast.nodes[node].text;
-    if (equals(op, "-")) {
+    let operand: i64 = an.values[unary.operand];
+    if (unary.op == UnaryOp.Negate) {
       value = -operand;
-    } else if (equals(op, "+")) {
+    } else if (unary.op == UnaryOp.Plus) {
       value = operand;
     } else {
       return false;
     }
-  } else if (kind == NodeKind.Binary) {
-    if (!foldInteger(an, an.ast.nodes[node].a) ||
-        !foldInteger(an, an.ast.nodes[node].b)) {
+  } else if (an.ast.nodes[node].syntax is Binary) {
+    let binary: Binary = binaryOf(an.ast, node);
+    if (!foldInteger(an, binary.left) || !foldInteger(an, binary.right)) {
       return false;
     }
-    if (!foldBinary(an, node, type)) {
+    if (!foldBinary(an, node, binary, type)) {
       return false;
     }
     value = an.values[node];
@@ -142,64 +145,64 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
   return true;
 }
 
-fn foldBinary(an: *Analyzer, node: i32, type: Type): bool {
-  let op: *i8 = an.ast.nodes[node].text;
-  let left: i64 = an.values[an.ast.nodes[node].a];
-  let right: i64 = an.values[an.ast.nodes[node].b];
+fn foldBinary(an: *Analyzer, node: i32, binary: Binary, type: Type): bool {
+  let op: BinaryOp = binary.op;
+  let left: i64 = an.values[binary.left];
+  let right: i64 = an.values[binary.right];
   let signed: bool = type.isSigned();
 
-  if ((equals(op, "/") || equals(op, "%")) && right == 0) {
+  if ((op == BinaryOp.Divide || op == BinaryOp.Remainder) && right == 0) {
     analyzerFail(an, node, Problem.ConstantDivisionByZero, Facts.none());
     return false;
   }
-  if ((equals(op, "<<") || equals(op, ">>")) &&
+  if ((op == BinaryOp.ShiftLeft || op == BinaryOp.ShiftRight) &&
       (right < 0 || right >= type.bitWidth() as i64)) {
     analyzerFail(an, node, Problem.ConstantShiftRange, Facts.none());
     return false;
   }
 
   let value: i64 = 0;
-  if (equals(op, "+")) {
-    value = left + right;
-  } else if (equals(op, "-")) {
-    value = left - right;
-  } else if (equals(op, "*")) {
-    value = left * right;
-  } else if (equals(op, "/")) {
-    if (signed) {
-      value = left / right;
-    } else {
-      value = (left as u64 / right as u64) as i64;
-    }
-  } else if (equals(op, "%")) {
-    if (signed) {
-      value = left % right;
-    } else {
-      value = (left as u64 % right as u64) as i64;
-    }
-  } else if (equals(op, "&")) {
-    value = left & right;
-  } else if (equals(op, "|")) {
-    value = left | right;
-  } else if (equals(op, "^")) {
-    value = left ^ right;
-  } else if (equals(op, "<<")) {
-    value = left << right;
-  } else if (equals(op, ">>")) {
-    if (signed) {
-      value = left >> right;
-    } else {
-      // The value is already cut to the type's width, so shifting its bits
-      // as a u64 brings in zeros, as the type's own shift would.
-      let bits: i32 = type.bitWidth();
-      let unsigned: u64 = left as u64;
-      if (bits < 64) {
-        unsigned = unsigned & (((1) << (bits as u64)) - 1);
+  match (op) {
+    BinaryOp.Add => { value = left + right; }
+    BinaryOp.Subtract => { value = left - right; }
+    BinaryOp.Multiply => { value = left * right; }
+    BinaryOp.Divide => {
+      if (signed) {
+        value = left / right;
+      } else {
+        value = (left as u64 / right as u64) as i64;
       }
-      value = (unsigned >> right as u64) as i64;
     }
-  } else {
-    return false;
+    BinaryOp.Remainder => {
+      if (signed) {
+        value = left % right;
+      } else {
+        value = (left as u64 % right as u64) as i64;
+      }
+    }
+    BinaryOp.BitAnd => { value = left & right; }
+    BinaryOp.BitOr => { value = left | right; }
+    BinaryOp.BitXor => { value = left ^ right; }
+    BinaryOp.ShiftLeft => { value = left << right; }
+    BinaryOp.ShiftRight => {
+      if (signed) {
+        value = left >> right;
+      } else {
+        // The value is already cut to the type's width, so shifting its
+        // bits as a u64 brings in zeros, as the type's own shift would.
+        let bits: i32 = type.bitWidth();
+        let unsigned: u64 = left as u64;
+        if (bits < 64) {
+          unsigned = unsigned & (((1) << (bits as u64)) - 1);
+        }
+        value = (unsigned >> right as u64) as i64;
+      }
+    }
+    // A comparison or a logical operator gives a bool, which no integer
+    // constant is folded from.
+    else => {
+      return false;
+    }
   }
 
   an.values[node] = value;
@@ -216,16 +219,16 @@ export fn laterGlobalIn(an: *Analyzer, node: i32): i32 {
     return node;
   }
 
-  let kind: NodeKind = an.ast.nodes[node].kind;
-  if (kind == NodeKind.Unary || kind == NodeKind.Cast ||
-      kind == NodeKind.Binary) {
-    let found: i32 = laterGlobalIn(an, an.ast.nodes[node].a);
-    if (found == NO_NODE && kind == NodeKind.Binary) {
-      found = laterGlobalIn(an, an.ast.nodes[node].b);
-    }
-    return found;
+  if (an.ast.nodes[node].kind == NodeKind.Cast) {
+    return laterGlobalIn(an, an.ast.nodes[node].a);
   }
-
+  let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
+  for (index in 0..children.count) {
+    let found: i32 = laterGlobalIn(an, children.at(index));
+    if (found != NO_NODE) {
+      return found;
+    }
+  }
   return NO_NODE;
 }
 

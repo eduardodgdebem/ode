@@ -27,6 +27,7 @@ import {
 import { llvmTypeName } from "./layout";
 import { genStatement } from "./statements";
 import { line } from "../driver/options";
+import { Binary } from "../syntax/ast";
 import { payloadWords } from "../types/layout";
 import { TypeKind, Type } from "../types/types";
 
@@ -278,8 +279,8 @@ export fn genTry(e: *Emitter, node: i32): *i8 {
 
 // `value ?? fallback`: the fallback only runs when the value is an error, or
 // a null pointer.
-export fn genCoalesce(e: *Emitter, node: i32): *i8 {
-  let left: i32 = e.ast.nodes[node].a;
+export fn genCoalesce(e: *Emitter, node: i32, coalesce: Binary): *i8 {
+  let left: i32 = coalesce.left;
   let leftType: Type = typeOfNode(e, left);
   let result: Type = typeOfNode(e, node);
   let slot: *i8 = emitAlloca(e, llvmTypeName(result));
@@ -306,7 +307,7 @@ export fn genCoalesce(e: *Emitter, node: i32): *i8 {
   emitBranch(e, done);
 
   emitLabel(e, fallback);
-  emitStore(e, result, genExpr(e, e.ast.nodes[node].b), slot);
+  emitStore(e, result, genExpr(e, coalesce.right), slot);
   emitBranch(e, done);
 
   emitLabel(e, done);

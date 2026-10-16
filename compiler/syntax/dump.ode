@@ -6,8 +6,12 @@
 // compiler.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { Builder } from "std/text";
-import { NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText } from "./ast";
+import {
+  NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText, Syntax, Binary, Unary,
+  binaryOpText, unaryOpText, syntaxChildren,
+} from "./ast";
 import { TokenKind, Token, TokenList, kindName } from "./token";
 import { TypeKind, Type } from "../types/types";
 
@@ -90,6 +94,20 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
     dumpEscaped(out, ast.nodes[index].text, ast.nodes[index].textLength);
     out.push('\'');
   }
+  let syntax: Syntax = ast.nodes[index].syntax;
+  match (syntax) {
+    Binary => {
+      out.add(" '");
+      out.add(binaryOpText(syntax.op));
+      out.push('\'');
+    }
+    Unary => {
+      out.add(" '");
+      out.add(unaryOpText(syntax.op));
+      out.push('\'');
+    }
+    Unmoved => {}
+  }
 
   if (ast.nodes[index].exported) {
     out.add(" export");
@@ -120,5 +138,9 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
 
   for (item in 0..ast.nodes[index].itemCount) {
     dumpNode(ast, types, ast.nodes[index].items[item], depth + 1, out);
+  }
+  let children: *List<i32> = syntaxChildren(syntax);
+  for (child in 0..children.count) {
+    dumpNode(ast, types, children.at(child), depth + 1, out);
   }
 }

@@ -33,7 +33,9 @@ import {
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { functionTemplateIn } from "../link/generics";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, negated, binaryOpText,
+} from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type, fitsIn, parseMagnitude } from "../types/types";
 
@@ -46,8 +48,9 @@ export fn isLValue(an: *Analyzer, node: i32): bool {
     return true;
   }
 
-  if (kind == NodeKind.Unary) {
-    return equals(an.ast.nodes[node].text, "*");
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  if (syntax is Unary) {
+    return syntax.op == UnaryOp.Deref;
   }
 
   return false;
@@ -122,8 +125,9 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
   }
 
   match (kind) {
-    NodeKind.Binary => { return checkBinaryOp(an, node, expected); }
-    NodeKind.Unary => { return checkUnaryOp(an, node, expected); }
+    NodeKind.Binary, NodeKind.Unary => {
+      return checkOperator(an, node, expected);
+    }
     NodeKind.Cast => { return checkCast(an, node); }
     NodeKind.FieldAccess => { return checkFieldAccess(an, node); }
     NodeKind.Index => { return checkIndex(an, node); }
@@ -208,25 +212,34 @@ export fn isLiteralTree(an: *Analyzer, node: i32): bool {
       kind == NodeKind.Char) {
     return true;
   }
-  if (kind == NodeKind.Unary) {
-    let op: *i8 = an.ast.nodes[node].text;
-    return (equals(op, "-") || equals(op, "+")) &&
-           isLiteralTree(an, an.ast.nodes[node].a);
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  match (syntax) {
+    Unary => {
+      return (syntax.op == UnaryOp.Negate || syntax.op == UnaryOp.Plus) &&
+             isLiteralTree(an, syntax.operand);
+    }
+    Binary => {
+      return isArithmetic(syntax.op) && isLiteralTree(an, syntax.left) &&
+             isLiteralTree(an, syntax.right);
+    }
+    Unmoved => {
+      return false;
+    }
   }
-  if (kind == NodeKind.Binary) {
-    return isArithmetic(an.ast.nodes[node].text) &&
-           isLiteralTree(an, an.ast.nodes[node].a) &&
-           isLiteralTree(an, an.ast.nodes[node].b);
-  }
-  return false;
 }
 
 // The operators whose result has their operands' type.
-fn isArithmetic(op: *i8): bool {
-  return equals(op, "+") || equals(op, "-") || equals(op, "*") ||
-         equals(op, "/") || equals(op, "%") || equals(op, "&") ||
-         equals(op, "|") || equals(op, "^") || equals(op, "<<") ||
-         equals(op, ">>");
+fn isArithmetic(op: BinaryOp): bool {
+  match (op) {
+    BinaryOp.Add, BinaryOp.Subtract, BinaryOp.Multiply, BinaryOp.Divide,
+    BinaryOp.Remainder, BinaryOp.BitAnd, BinaryOp.BitOr, BinaryOp.BitXor,
+    BinaryOp.ShiftLeft, BinaryOp.ShiftRight => {
+      return true;
+    }
+    else => {
+      return false;
+    }
+  }
 }
 
 // `at` is the assignment being checked. The failure is reported there rather
@@ -366,12 +379,27 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   an.variadicAfter[node] = paramCount + 1;
 }
 
-fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
-  let op: *i8 = an.ast.nodes[node].text;
-  let operand: i32 = an.ast.nodes[node].a;
+fn checkOperator(an: *Analyzer, node: i32, expected: Type): Type {
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  match (syntax) {
+    Binary => {
+      return checkBinaryOp(an, node, syntax, expected);
+    }
+    Unary => {
+      return checkUnaryOp(an, node, syntax, expected);
+    }
+    Unmoved => {
+      analyzerFail(an, node, Problem.Internal, Facts.about("an operator without one"));
+      return Type.make(TypeKind.None, 0);
+    }
+  }
+}
+
+fn checkUnaryOp(an: *Analyzer, node: i32, unary: Unary, expected: Type): Type {
+  let operand: i32 = unary.operand;
 
   // Address-of inspects the operand as storage rather than as a value.
-  if (equals(op, "&")) {
+  if (unary.op == UnaryOp.AddressOf) {
     if (!isLValue(an, operand)) {
       analyzerFail(an, node, Problem.AddressOfTemporary, Facts.none());
     }
@@ -388,53 +416,53 @@ fn checkUnaryOp(an: *Analyzer, node: i32, expected: Type): Type {
   }
 
   let operandExpected: Type = Type.make(TypeKind.None, 0);
-  if (equals(op, "-") || equals(op, "+")) {
+  if (unary.op == UnaryOp.Negate || unary.op == UnaryOp.Plus) {
     operandExpected = expected;
   }
   let operandType: Type = checkExprAs(an, operand, operandExpected);
 
-  if (equals(op, "-")) {
-    if (!operandType.isNumeric()) {
-      analyzerFail(an, node, Problem.UnaryMinusNotNumeric, Facts.aboutType(operandType));
+  match (unary.op) {
+    UnaryOp.Negate => {
+      if (!operandType.isNumeric()) {
+        analyzerFail(an, node, Problem.UnaryMinusNotNumeric, Facts.aboutType(operandType));
+      }
+      return operandType;
     }
-    return operandType;
+    UnaryOp.Plus => {
+      if (!operandType.isNumeric()) {
+        analyzerFail(an, node, Problem.UnaryPlusNotNumeric, Facts.aboutType(operandType));
+      }
+      return operandType;
+    }
+    UnaryOp.Not => {
+      if (!operandType.isBool()) {
+        analyzerFail(an, node, Problem.NotNotBool, Facts.aboutType(operandType));
+      }
+      return Type.make(TypeKind.Bool, 0);
+    }
+    UnaryOp.Deref => {
+      if (!operandType.isPointer()) {
+        analyzerFail(an, node, Problem.DereferenceNonPointer, Facts.aboutType(operandType));
+      }
+      if (operandType.pointee().isVoid()) {
+        analyzerFail(an, node, Problem.DereferenceVoidPointer, Facts.none());
+      }
+      return operandType.pointee();
+    }
+    // Handled above, before its operand was checked as a value.
+    UnaryOp.AddressOf => {
+      return operandType.pointerTo();
+    }
   }
-
-  if (equals(op, "+")) {
-    if (!operandType.isNumeric()) {
-      analyzerFail(an, node, Problem.UnaryPlusNotNumeric, Facts.aboutType(operandType));
-    }
-    return operandType;
-  }
-
-  if (equals(op, "!")) {
-    if (!operandType.isBool()) {
-      analyzerFail(an, node, Problem.NotNotBool, Facts.aboutType(operandType));
-    }
-    return Type.make(TypeKind.Bool, 0);
-  }
-
-  if (equals(op, "*")) {
-    if (!operandType.isPointer()) {
-      analyzerFail(an, node, Problem.DereferenceNonPointer, Facts.aboutType(operandType));
-    }
-    if (operandType.pointee().isVoid()) {
-      analyzerFail(an, node, Problem.DereferenceVoidPointer, Facts.none());
-    }
-    return operandType.pointee();
-  }
-
-  analyzerFail(an, node, Problem.Internal, Facts.about("unknown unary operator"));
-  return Type.make(TypeKind.Void, 0);
 }
 
-fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
-  let op: *i8 = an.ast.nodes[node].text;
-  if (equals(op, "??")) {
-    return checkCoalesce(an, node);
+fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type {
+  let op: BinaryOp = binary.op;
+  if (op == BinaryOp.Coalesce) {
+    return checkCoalesce(an, node, binary);
   }
-  let leftNode: i32 = an.ast.nodes[node].a;
-  let rightNode: i32 = an.ast.nodes[node].b;
+  let leftNode: i32 = binary.left;
+  let rightNode: i32 = binary.right;
 
   // Arithmetic hands down what is expected of its result; a comparison's
   // operands expect nothing of their own. Either way a literal side takes the
@@ -454,14 +482,74 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     right = checkExprAs(an, rightNode, operandHint(left, wanted));
   }
 
-  if (equals(op, "||") || equals(op, "&&")) {
-    if (!left.isBool() || !right.isBool()) {
-      analyzerFail(an, node, Problem.LogicalNotBool, Facts.aboutTypes(left, right));
+  match (op) {
+    BinaryOp.Or, BinaryOp.And => {
+      if (!left.isBool() || !right.isBool()) {
+        analyzerFail(an, node, Problem.LogicalNotBool, Facts.aboutTypes(left, right));
+      }
+      return Type.make(TypeKind.Bool, 0);
     }
-    return Type.make(TypeKind.Bool, 0);
+    BinaryOp.Equal, BinaryOp.NotEqual => {
+      return checkEquality(an, node, left, right);
+    }
+    BinaryOp.Less, BinaryOp.LessEqual, BinaryOp.Greater, BinaryOp.GreaterEqual => {
+      if (!left.equals(right)) {
+        analyzerFail(an, node, Problem.ComparisonTypes, Facts.aboutTypes(left, right));
+      }
+      if (left.isBool() || left.isVoid()) {
+        analyzerFail(an, node, Problem.OrderBoolOrVoid, Facts.none());
+      }
+      if (left.isEnum()) {
+        analyzerFail(an, node, Problem.OrderEnum, Facts.about(left.structName));
+      }
+      if (left.isFunction()) {
+        analyzerFail(an, node, Problem.OrderFunctions, Facts.none());
+      }
+      if (left.isStruct()) {
+        analyzerFail(an, node, Problem.OrderStructs, Facts.about(left.structName));
+      }
+      return Type.make(TypeKind.Bool, 0);
+    }
+    BinaryOp.Add, BinaryOp.Subtract, BinaryOp.Multiply, BinaryOp.Divide => {
+      if ((op == BinaryOp.Add || op == BinaryOp.Subtract) &&
+          (left.isPointer() || right.isPointer())) {
+        return checkPointerArithmetic(an, node, op, left, right);
+      }
+      if (left.isPointer() || right.isPointer()) {
+        analyzerFail(an, node, Problem.PointerOperator, Facts.none());
+      }
+      if (!left.equals(right)) {
+        analyzerFail(an, node, Problem.ArithmeticTypes, Facts.aboutTypes(left, right));
+      }
+      if (!left.isNumeric()) {
+        analyzerFail(an, node, Problem.ArithmeticNotNumeric, Facts.aboutType(left));
+      }
+      return left;
+    }
+    // Remainder, the bitwise operators and the shifts all lower to an LLVM
+    // instruction that wants two integers of one width, which is also what
+    // the absence of implicit conversions would demand anyway.
+    BinaryOp.Remainder, BinaryOp.BitAnd, BinaryOp.BitOr, BinaryOp.BitXor,
+    BinaryOp.ShiftLeft, BinaryOp.ShiftRight => {
+      if (!left.equals(right)) {
+        analyzerFail(an, node, Problem.OperatorTypes,
+                     Facts.about(binaryOpText(op)).withTypes(left, right));
+      }
+      if (!left.isInteger()) {
+        analyzerFail(an, node, Problem.OperatorNotInteger,
+                     Facts.about(binaryOpText(op)).withType(left));
+      }
+      return left;
+    }
+    // Checked by checkCoalesce, before its operands were.
+    BinaryOp.Coalesce => {
+      return left;
+    }
   }
+}
 
-  if ((equals(op, "==") || equals(op, "!=")) && (left.isUnion() || right.isUnion())) {
+fn checkEquality(an: *Analyzer, node: i32, left: Type, right: Type): Type {
+  if (left.isUnion() || right.isUnion()) {
     let union: Type = left;
     if (!left.isUnion()) {
       union = right;
@@ -469,114 +557,56 @@ fn checkBinaryOp(an: *Analyzer, node: i32, expected: Type): Type {
     analyzerFail(an, node, Problem.UnionCompared, Facts.aboutType(union));
     return Type.make(TypeKind.Bool, 0);
   }
-
-  if (equals(op, "==") || equals(op, "!=")) {
-    // `null` compares with any pointer, from either side.
-    if (!left.accepts(right) && !right.accepts(left)) {
-      analyzerFail(an, node, Problem.EqualityTypes, Facts.aboutTypes(left, right));
-    }
-    if (left.isVoid()) {
-      analyzerFail(an, node, Problem.CompareVoid, Facts.none());
-    }
-    // A struct is an aggregate; there is no single machine instruction to
-    // compare one, and comparing them field by field would be a feature of
-    // its own.
-    if (left.isStruct()) {
-      analyzerFail(an, node, Problem.CompareStructs, Facts.about(left.structName));
-    }
-    return Type.make(TypeKind.Bool, 0);
+  // `null` compares with any pointer, from either side.
+  if (!left.accepts(right) && !right.accepts(left)) {
+    analyzerFail(an, node, Problem.EqualityTypes, Facts.aboutTypes(left, right));
   }
-
-  if (equals(op, ">") || equals(op, ">=") || equals(op, "<") ||
-      equals(op, "<=")) {
-    if (!left.equals(right)) {
-      analyzerFail(an, node, Problem.ComparisonTypes, Facts.aboutTypes(left, right));
-    }
-    if (left.isBool() || left.isVoid()) {
-      analyzerFail(an, node, Problem.OrderBoolOrVoid, Facts.none());
-    }
-    if (left.isEnum()) {
-      analyzerFail(an, node, Problem.OrderEnum, Facts.about(left.structName));
-    }
-    if (left.isFunction()) {
-      analyzerFail(an, node, Problem.OrderFunctions, Facts.none());
-    }
-    if (left.isStruct()) {
-      analyzerFail(an, node, Problem.OrderStructs, Facts.about(left.structName));
-    }
-    return Type.make(TypeKind.Bool, 0);
+  if (left.isVoid()) {
+    analyzerFail(an, node, Problem.CompareVoid, Facts.none());
   }
-
-  let isAdd: bool = equals(op, "+");
-  let isSub: bool = equals(op, "-");
-
-  // Pointer arithmetic: p + i, i + p, p - i, and p - q.
-  if (isAdd || isSub) {
-    if (left.isPointer() || right.isPointer()) {
-      if (left.isPointer() && right.isPointer()) {
-        if (!isSub) {
-          analyzerFail(an, node, Problem.AddPointers, Facts.none());
-        }
-        if (!left.equals(right)) {
-          analyzerFail(an, node, Problem.PointerDifferenceTypes, Facts.aboutTypes(left, right));
-        }
-        if (left.pointee().isVoid()) {
-          analyzerFail(an, node, Problem.VoidPointerDifference, Facts.none());
-        }
-        return Type.make(TypeKind.I64, 0);
-      }
-
-      let pointer: Type = left;
-      let offset: Type = right;
-      if (!left.isPointer()) {
-        pointer = right;
-        offset = left;
-      }
-
-      if (right.isPointer() && isSub) {
-        analyzerFail(an, node, Problem.IntegerMinusPointer, Facts.none());
-      }
-      if (!offset.isInteger()) {
-        analyzerFail(an, node, Problem.PointerOffsetNotInteger, Facts.aboutType(offset));
-      }
-      if (pointer.pointee().isVoid()) {
-        analyzerFail(an, node, Problem.VoidPointerArithmetic, Facts.none());
-      }
-      return pointer;
-    }
+  // A struct is an aggregate; there is no single machine instruction to
+  // compare one, and comparing them field by field would be a feature of
+  // its own.
+  if (left.isStruct()) {
+    analyzerFail(an, node, Problem.CompareStructs, Facts.about(left.structName));
   }
+  return Type.make(TypeKind.Bool, 0);
+}
 
-  if (isAdd || isSub || equals(op, "*") || equals(op, "/")) {
-    if (left.isPointer() || right.isPointer()) {
-      analyzerFail(an, node, Problem.PointerOperator, Facts.none());
+// Pointer arithmetic: p + i, i + p, p - i, and p - q.
+fn checkPointerArithmetic(an: *Analyzer, node: i32, op: BinaryOp, left: Type,
+                          right: Type): Type {
+  let isSub: bool = op == BinaryOp.Subtract;
+  if (left.isPointer() && right.isPointer()) {
+    if (!isSub) {
+      analyzerFail(an, node, Problem.AddPointers, Facts.none());
     }
     if (!left.equals(right)) {
-      analyzerFail(an, node, Problem.ArithmeticTypes, Facts.aboutTypes(left, right));
+      analyzerFail(an, node, Problem.PointerDifferenceTypes, Facts.aboutTypes(left, right));
     }
-    if (!left.isNumeric()) {
-      analyzerFail(an, node, Problem.ArithmeticNotNumeric, Facts.aboutType(left));
+    if (left.pointee().isVoid()) {
+      analyzerFail(an, node, Problem.VoidPointerDifference, Facts.none());
     }
-    return left;
+    return Type.make(TypeKind.I64, 0);
   }
 
-  // Remainder, the bitwise operators and the shifts all lower to an LLVM
-  // instruction that wants two integers of one width, which is also what the
-  // absence of implicit conversions would demand anyway.
-  if (equals(op, "%") || equals(op, "&") || equals(op, "|") ||
-      equals(op, "^") || equals(op, "<<") || equals(op, ">>")) {
-    if (!left.equals(right)) {
-      analyzerFail(an, node, Problem.OperatorTypes,
-                   Facts.about(op).withTypes(left, right));
-    }
-    if (!left.isInteger()) {
-      analyzerFail(an, node, Problem.OperatorNotInteger,
-                   Facts.about(op).withType(left));
-    }
-    return left;
+  let pointer: Type = left;
+  let offset: Type = right;
+  if (!left.isPointer()) {
+    pointer = right;
+    offset = left;
   }
 
-  analyzerFail(an, node, Problem.Internal, Facts.about("unknown binary operator"));
-  return Type.make(TypeKind.Void, 0);
+  if (right.isPointer() && isSub) {
+    analyzerFail(an, node, Problem.IntegerMinusPointer, Facts.none());
+  }
+  if (!offset.isInteger()) {
+    analyzerFail(an, node, Problem.PointerOffsetNotInteger, Facts.aboutType(offset));
+  }
+  if (pointer.pointee().isVoid()) {
+    analyzerFail(an, node, Problem.VoidPointerArithmetic, Facts.none());
+  }
+  return pointer;
 }
 
 // What a literal operand is offered: the other side's type when that is a
@@ -641,10 +671,9 @@ fn checkCast(an: *Analyzer, node: i32): Type {
 fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
   // `-3000000000 as i64` is a negated literal; its literal is the one that
   // has to be wide.
-  if (an.ast.nodes[node].kind == NodeKind.Unary &&
-      equals(an.ast.nodes[node].text, "-") &&
-      an.ast.nodes[an.ast.nodes[node].a].kind == NodeKind.Number) {
-    let inner: Type = checkCastOperand(an, an.ast.nodes[node].a, target);
+  let minus: i32 = negated(an.ast, node);
+  if (minus != NO_NODE && an.ast.nodes[minus].kind == NodeKind.Number) {
+    let inner: Type = checkCastOperand(an, minus, target);
     an.types[node] = inner;
     return inner;
   }
@@ -885,11 +914,8 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   if (kind == NodeKind.Cast) {
     return isConstantExpr(an, an.ast.nodes[node].a);
   }
-  if (kind == NodeKind.Unary) {
-    if (!equals(an.ast.nodes[node].text, "-")) {
-      return false;
-    }
-    return isConstantExpr(an, an.ast.nodes[node].a);
+  if (negated(an.ast, node) != NO_NODE) {
+    return isConstantExpr(an, negated(an.ast, node));
   }
 
   return false;
@@ -898,9 +924,8 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
 // An integer literal, or one negated: `5`, `-5`, `- 5`.
 export fn isNumberLiteral(an: *Analyzer, node: i32): bool {
   let literal: i32 = node;
-  if (an.ast.nodes[node].kind == NodeKind.Unary &&
-      equals(an.ast.nodes[node].text, "-")) {
-    literal = an.ast.nodes[node].a;
+  if (negated(an.ast, node) != NO_NODE) {
+    literal = negated(an.ast, node);
   }
 
   if (an.ast.nodes[literal].kind != NodeKind.Number) {
@@ -916,11 +941,11 @@ export fn isNumberLiteral(an: *Analyzer, node: i32): bool {
 // which is how `0` stands for an i64 where one is wanted. Reports and returns
 // false when it does not fit.
 export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
+  // isNumberLiteral has seen to it that a Unary here is a minus.
   let literal: i32 = node;
-  let negated: bool = false;
-  if (an.ast.nodes[node].kind == NodeKind.Unary) {
-    literal = an.ast.nodes[node].a;
-    negated = true;
+  let minus: bool = negated(an.ast, node) != NO_NODE;
+  if (minus) {
+    literal = negated(an.ast, node);
   }
 
   let text: *i8 = an.ast.nodes[literal].text;
@@ -934,7 +959,7 @@ export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
   let magnitude: u64 = parseMagnitude(text, start,
                                       an.ast.nodes[literal].textLength,
                                       &overflowed);
-  if (negated) {
+  if (minus) {
     negative = !negative;
   }
   if (overflowed || !fitsIn(magnitude, negative, type)) {

@@ -41,7 +41,7 @@ import { checkExpr, checkExprAs } from "./expressions";
 import { analyzeStatement } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
+import { NO_NODE, NodeKind, Ast, Binary, syntaxChildren } from "../syntax/ast";
 import { SymbolKind, Symbol } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
@@ -409,8 +409,8 @@ export fn checkTry(an: *Analyzer, node: i32): Type {
 }
 
 // `value ?? fallback`: a union's value, or a pointer that is not null.
-export fn checkCoalesce(an: *Analyzer, node: i32): Type {
-  let left: Type = checkExpr(an, an.ast.nodes[node].a);
+export fn checkCoalesce(an: *Analyzer, node: i32, coalesce: Binary): Type {
+  let left: Type = checkExpr(an, coalesce.left);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
@@ -423,9 +423,9 @@ export fn checkCoalesce(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  let fallback: Type = checkExprAs(an, an.ast.nodes[node].b, result);
+  let fallback: Type = checkExprAs(an, coalesce.right, result);
   if (!FAILED && !result.accepts(fallback)) {
-    analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.CoalesceTypes,
+    analyzerFailAtValue(an, coalesce.right, Problem.CoalesceTypes,
                         Facts.aboutTypes(result, fallback));
   }
   return result;
@@ -581,6 +581,12 @@ fn breaksOut(an: *Analyzer, node: i32): bool {
   }
   for (index in 0..an.ast.nodes[node].itemCount) {
     if (breaksOut(an, an.ast.nodes[node].items[index])) {
+      return true;
+    }
+  }
+  let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
+  for (index in 0..children.count) {
+    if (breaksOut(an, children.at(index))) {
       return true;
     }
   }
