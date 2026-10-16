@@ -282,6 +282,7 @@ fn enter(scope: *Scope): Fragment {
   declareInstances(an, program.root, 0);
 
   let firstNode: i32 = program.ast.count;
+  an.localsFrom = an.symbols.count;
   an.symbols.enterScope();
   an.inFunction = true;
   an.currentReturnType = typeFromText(an, program.root, scope.returns);

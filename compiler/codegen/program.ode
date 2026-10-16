@@ -9,10 +9,11 @@
 import { Builder, equals, fromInt } from "std/text";
 import { analyzerParseType } from "../check/analyzer";
 import { globalDeclOf } from "../check/constants";
+import { signatureIndex } from "../check/functions";
 import { TEST_MODE, runsTestsOf } from "../check/testing";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
-  declareLocal, llvmName, internString,
+  declareLocal, llvmName, internString, lambdaValue,
 } from "./emitter";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { llvmTypeName, zeroValue } from "./layout";
@@ -25,8 +26,25 @@ import { NO_NODE, NodeKind } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { Type } from "../types/types";
 
+// A function's return type: as written, or for a lambda that left it out,
+// as its context gave it.
+fn resultTypeOf(e: *Emitter, node: i32): Type {
+  if (e.ast.nodes[node].kind == NodeKind.Lambda) {
+    return e.an.signatures.at(signatureIndex(e.an, e.an.types[node])).result;
+  }
+  return analyzerParseType(e.an, e.ast.nodes[node].a);
+}
+
+// A parameter's type, the same way: checking recorded a lambda's.
+fn paramTypeOf(e: *Emitter, param: i32): Type {
+  if (e.ast.nodes[param].a == NO_NODE) {
+    return e.an.types[param];
+  }
+  return analyzerParseType(e.an, e.ast.nodes[param].a);
+}
+
 fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
-  let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+  let returnType: Type = resultTypeOf(e, node);
 
   out.add(keyword);
   out.push(' ');
@@ -47,7 +65,7 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
     }
 
     let param: i32 = e.ast.nodes[params].items[index];
-    out.add(llvmTypeName(analyzerParseType(e.an, e.ast.nodes[param].a)));
+    out.add(llvmTypeName(paramTypeOf(e, param)));
 
     // A declaration names no parameters; a definition needs them to store.
     if (equals(keyword, "define")) {
@@ -67,7 +85,7 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
 }
 
 fn genFunction(e: *Emitter, node: i32): void {
-  let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+  let returnType: Type = resultTypeOf(e, node);
 
   e.returnType = returnType;
   e.nextTemp = 0;
@@ -91,7 +109,7 @@ fn genFunction(e: *Emitter, node: i32): void {
     let index: i32 = 0;
     while (index < e.ast.nodes[params].itemCount) {
       let param: i32 = e.ast.nodes[params].items[index];
-      let type: Type = analyzerParseType(e.an, e.ast.nodes[param].a);
+      let type: Type = paramTypeOf(e, param);
 
       let slot: *i8 = emitAlloca(e, llvmTypeName(type));
 
@@ -158,6 +176,9 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   }
   if (kind == NodeKind.Ident) {
     return llvmName('@', e.an.linkNames[node]);
+  }
+  if (kind == NodeKind.Lambda) {
+    return lambdaValue(e, node);
   }
   if (kind == NodeKind.FieldAccess) {
     return fromInt(e.an.values[node]);
@@ -309,6 +330,13 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
         }
       }
     }
+  }
+
+  // The lambdas met on the way, and any met inside those.
+  let lambda: i64 = 0;
+  while (lambda < e.lambdas.count) {
+    genFunction(e, e.lambdas.at(lambda));
+    lambda = lambda + 1;
   }
 
   if (TEST_MODE) {

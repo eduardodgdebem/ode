@@ -94,7 +94,9 @@ cycles.
 - **Cast** → Unary (`as` Type)*
 - **Unary** → (`-` | `+` | `!` | `*` | `&`) Unary | Postfix
 - **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]` | `(` ArgList? `)`)*
-- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | `(` Expr `)`
+- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | Lambda | `(` Expr `)`
+- **Lambda** → `(` (LambdaParam (`,` LambdaParam)*)? `)` (`:` DeclaredType)? `=>` (Block | Expr)
+- **LambdaParam** → IDENT (`:` DeclaredType)?
 - **StructLiteral** → IDENT TypeArgs? `{` FieldInit* `}`
 - **FieldInit** → IDENT `:` Expr `,`?
 - **SizeOf** → `sizeof` `(` Type `)`
@@ -223,6 +225,13 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   method of that name), or any expression (`table[i](x)`) -- compares with
   `==` and `!=`, accepts `null`, and converts to and from pointers with `as`.
   It is a pointer to code, so it passes to C as a function pointer.
+- A `(` starts a Lambda when the `)` matching it is followed by `=>` or `:`;
+  otherwise it groups an expression. A lambda is a function without a name,
+  and a constant like one. Where a function type is expected, the types it
+  leaves out are that type's; elsewhere it writes every one. Its body is
+  checked as a function's, and may use its own parameters and locals,
+  globals and functions, but no local of a function around it. An
+  expression body is returned, or, when the lambda returns `void`, run.
 - A struct or function declared with type parameters is generic, and is used
   with type arguments written out: `List<i32>`, `max<i64>(a, b)`,
   `List<i32>.new()`, `Pair<i32, bool> { ... }`. Each distinct set of

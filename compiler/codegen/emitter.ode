@@ -59,6 +59,9 @@ export struct Emitter {
   // The enums whose member names were asked for, each of which gets a
   // function giving them; see emitEnumNames.
   namedEnums: *List<*i8>,
+  // The lambdas whose values were taken, each written as a function of its
+  // own once the one it appears in is done.
+  lambdas: *List<i32>,
 
   locals: *List<Local>,
   // Where each open scope's locals start, innermost last.
@@ -83,6 +86,7 @@ export struct Emitter {
     e.usesErrorNames = false;
     e.returnType = Type.make(TypeKind.Void, 0);
     e.namedEnums = List<*i8>.new();
+    e.lambdas = List<i32>.new();
 
     e.locals = List<Local>.new();
     e.scopeStarts = List<i64>.new();
@@ -310,4 +314,19 @@ test "llvmName quotes only what LLVM cannot take bare" {
 export fn codegenFault(e: *Emitter, node: i32, what: *i8): void {
   SOURCE_PATH = moduleDisplayPath(e.ast.nodes[node].module);
   internalError(e.ast.nodes[node].line, e.ast.nodes[node].column, what);
+}
+
+// A lambda's value: the address of its code, which is written later, as a
+// function of its own. See genProgram.
+export fn lambdaValue(e: *Emitter, node: i32): *i8 {
+  let queued: bool = false;
+  for (index in 0..e.lambdas.count) {
+    if (e.lambdas.at(index) == node) {
+      queued = true;
+    }
+  }
+  if (!queued) {
+    e.lambdas.push(node);
+  }
+  return llvmName('@', e.an.linkNames[node]);
 }

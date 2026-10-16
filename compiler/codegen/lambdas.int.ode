@@ -1,0 +1,187 @@
+// ---------------------------------------------------------------------------
+// Lambdas at run time: written where they are used, called through function
+// values, handed to C, and made inside generics.
+// ---------------------------------------------------------------------------
+
+import { indexOf, length } from "std/text";
+import { irOf, outputOf } from "../testkit/testkit";
+
+test "lambdas are passed, returned, stored and called" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+
+    let TWICE: (i32) => i32 = (x) => x * 2;
+    let OFFSET: i32 = 100;
+
+    struct Operation {
+      name: *i8,
+      run: (i32) => i32,
+    }
+
+    fn apply(f: (i32) => i32, x: i32): i32 {
+      return f(x);
+    }
+
+    fn adder(): (i32, i32) => i32 {
+      return (a, b) => a + b;
+    }
+
+    fn main(): i32 {
+      printf("%d\n", apply((x) => x + 1, 41));
+      printf("%d\n", TWICE(21));
+      printf("%d\n", apply((x) => x + OFFSET, 1));
+      printf("%d\n", adder()(2, 3));
+
+      let square: (i32) => i32 = (x) => {
+        let result: i32 = x * x;
+        return result;
+      };
+      printf("%d\n", square(9));
+
+      let negate: Operation = Operation { name: "negate", run: (x) => -x };
+      printf("%s %d\n", negate.name, negate.run(5));
+
+      printf("%d\n", ((x: i32): i32 => x * 10)(4));
+      let nested: (i32) => i32 = (x) => apply((y) => y + 1, x);
+      printf("%d\n", nested(1));
+      return 0;
+    }
+  `), "42\n42\n101\n5\n81\nnegate -5\n40\n2\n");
+}
+
+test "a lambda returning nothing runs for what it does" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+
+    fn each(values: *i32, count: i32, visit: (i32) => void): void {
+      for (index in 0..count) {
+        visit(values[index]);
+      }
+    }
+
+    fn main(): i32 {
+      let values: *i32 = alloc<i32>(3);
+      values[0] = 7;
+      values[1] = 8;
+      values[2] = 9;
+      each(values, 3, (value) => printf("%d ", value));
+      each(values, 3, (value) => {
+        if (value == 8) {
+          return;
+        }
+        printf("[%d]", value);
+      });
+      printf("\n");
+      return 0;
+    }
+
+    import { alloc } from "std/mem";
+  `), "7 8 9 [7][9]\n");
+}
+
+test "C calls a lambda back" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+    import { alloc } from "std/mem";
+
+    extern fn qsort(base: *i8, count: i64, size: i64,
+                    compare: (*i8, *i8) => i32): void;
+
+    fn main(): i32 {
+      let values: *i32 = alloc<i32>(4);
+      values[0] = 3;
+      values[1] = 1;
+      values[2] = 4;
+      values[3] = 2;
+      qsort(values as *i8, 4, 4, (a, b) => *(a as *i32) - *(b as *i32));
+      printf("%d %d %d %d\n", values[0], values[1], values[2], values[3]);
+      qsort(values as *i8, 4, 4, (a, b) => *(b as *i32) - *(a as *i32));
+      printf("%d %d %d %d\n", values[0], values[1], values[2], values[3]);
+      return 0;
+    }
+  `), "1 2 3 4\n4 3 2 1\n");
+}
+
+test "a lambda that can fail is handled like any call that can" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+    import { ParseError, parseInt } from "std/text";
+
+    error enum Range { TooBig }
+
+    fn bounded(read: (*i8) => i64 | ParseError | Range, text: *i8): void {
+      let value: i64 | ParseError | Range = read(text);
+      if (value is ParseError) {
+        printf("%s: %s\n", text, nameOf(value));
+        return;
+      }
+      if (value is Range) {
+        printf("%s: %s\n", text, nameOf(value));
+        return;
+      }
+      printf("%s: %ld\n", text, value);
+    }
+
+    fn main(): i32 {
+      let percent: (*i8) => i64 | ParseError | Range = (text) => {
+        let value: i64 = try parseInt(text);
+        if (value > 100) {
+          return Range.TooBig;
+        }
+        return value;
+      };
+      bounded(percent, "42");
+      bounded(percent, "420");
+      bounded(percent, "x");
+
+      let parse: (*i8) => i64 | ParseError = (text) => parseInt(text);
+      printf("%ld\n", parse("7") ?? -1);
+      return 0;
+    }
+  `), "42: 42\n420: TooBig\nx: NotANumber\n7\n");
+}
+
+test "each instance of a generic gets lambdas of its own" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+
+    fn twice<T>(value: T, step: (T) => T): T {
+      let again: (T) => T = (x) => x;
+      return again(step(step(value)));
+    }
+
+    fn main(): i32 {
+      printf("%d\n", twice<i32>(3, (x) => x * 3));
+      printf("%ld\n", twice<i64>(5, (x) => x + 1000000000000));
+      return 0;
+    }
+  `), "27\n2000000000005\n");
+}
+
+test "a lambda in a loop is one function, written once" {
+  let ir: *i8 = irOf(`
+    fn apply(f: (i32) => i32, x: i32): i32 {
+      return f(x);
+    }
+
+    fn main(): i32 {
+      let total: i32 = 0;
+      for (index in 0..3) {
+        total = total + apply((x) => x + 1, index);
+      }
+      return total;
+    }
+  `);
+  assertEq(occurrences(ir, "define i32 @ode.lambda."), 1);
+}
+
+fn occurrences(text: *i8, part: *i8): i32 {
+  let count: i32 = 0;
+  let at: i64 = indexOf(text, part);
+  while (at >= 0) {
+    count = count + 1;
+    text = text + at + length(part);
+    at = indexOf(text, part);
+  }
+  return count;
+}

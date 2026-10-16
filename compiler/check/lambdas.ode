@@ -1,0 +1,152 @@
+// ---------------------------------------------------------------------------
+// Lambdas: functions written where they are used.
+//
+//     numbers.sort((a, b) => a - b);
+//     let double: (i32) => i32 = (x) => x * 2;
+//
+// A lambda is a function with no name, and nothing more: its value is a
+// pointer to its code, like any function's, so C can call it and it costs
+// what a call through a function value costs. That is also why it captures
+// nothing. It may use its own parameters, globals and functions, but not a
+// local of the function it is written in -- that local lives in a frame the
+// lambda's code knows nothing about. What it needs is passed in.
+//
+// The types it leaves out come from where it is used. A lambda given where a
+// `(i32, i32) => i32` is expected takes i32 parameters and returns an i32;
+// one with nothing to go by writes every type out.
+// ---------------------------------------------------------------------------
+
+import { alloc } from "std/mem";
+import { Builder } from "std/text";
+import { Analyzer, analyzerFail, analyzerParseType, analyzerValidateType } from "./analyzer";
+import { alwaysReturns, valueOf } from "./errors";
+import { signatureIndex, functionType } from "./functions";
+import { analyzeStatement } from "./statements";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED } from "../diagnostics/report";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { SymbolKind } from "../types/symbols";
+import { TypeKind, Type } from "../types/types";
+
+export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
+  let params: i32 = an.ast.nodes[node].b;
+  let count: i32 = an.ast.nodes[params].itemCount;
+
+  // What the context says, when it is a function type: one taking another
+  // number of parameters is no place for this lambda.
+  let context: bool = false;
+  let contextParams: *Type = null as *Type;
+  let contextResult: Type = Type.make(TypeKind.None, 0);
+  if (expected.isFunction()) {
+    let signature: i64 = signatureIndex(an, expected);
+    if (an.signatures.at(signature).count != count) {
+      analyzerFail(an, node, Problem.LambdaParameterCount,
+                   Facts.none()
+                       .withTypes(expected, Type.make(TypeKind.None, 0))
+                       .withCounts(an.signatures.at(signature).count as i64,
+                                   count as i64));
+      return Type.make(TypeKind.None, 0);
+    }
+    context = true;
+    contextParams = an.signatures.at(signature).params;
+    contextResult = an.signatures.at(signature).result;
+  }
+
+  let types: *Type = null as *Type;
+  if (count > 0) {
+    types = alloc<Type>(count as i64);
+  }
+  for (index in 0..count) {
+    let param: i32 = an.ast.nodes[params].items[index];
+    if (an.ast.nodes[param].a != NO_NODE) {
+      types[index] = analyzerParseType(an, an.ast.nodes[param].a);
+      analyzerValidateType(an, param, types[index], "for a parameter");
+    } else if (context) {
+      types[index] = contextParams[index];
+    } else {
+      analyzerFail(an, param, Problem.LambdaParameterType,
+                   Facts.about(an.ast.nodes[param].text));
+      return Type.make(TypeKind.None, 0);
+    }
+    if (FAILED) {
+      return Type.make(TypeKind.None, 0);
+    }
+    an.types[param] = types[index];
+  }
+
+  let result: Type = contextResult;
+  if (an.ast.nodes[node].a != NO_NODE) {
+    result = analyzerParseType(an, an.ast.nodes[node].a);
+    analyzerValidateType(an, node, result, "for a return type");
+  } else if (!context) {
+    analyzerFail(an, node, Problem.LambdaReturnType, Facts.none());
+    return Type.make(TypeKind.None, 0);
+  }
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+
+  // A body written as an expression, in a lambda that returns nothing, is
+  // that expression run for what it does: `(x) => printf("%d", x)`.
+  let body: i32 = an.ast.nodes[node].c;
+  let returnsNothing: bool = result.isVoid() ||
+      (result.isUnion() && valueOf(result).isVoid());
+  if (an.ast.nodes[node].extra == 1 && returnsNothing) {
+    an.ast.nodes[an.ast.nodes[body].items[0]].kind = NodeKind.ExprStmt;
+  }
+
+  checkBody(an, node, types, count, result);
+
+  if (!returnsNothing && !alwaysReturns(an, body)) {
+    analyzerFail(an, node, Problem.LambdaMissingReturn, Facts.none());
+  }
+
+  let name: *Builder = Builder.new();
+  name.add("ode.lambda.");
+  name.addInt(node as i64);
+  an.linkNames[node] = name.take();
+
+  return functionType(an, types, count, result, 0);
+}
+
+// Checks the body as a function's, in a scope of its own parameters, where
+// the locals of the functions around it may not be used.
+fn checkBody(an: *Analyzer, node: i32, types: *Type, count: i32, result: Type): void {
+  let captureFrom: i32 = an.captureFrom;
+  let captureTo: i32 = an.captureTo;
+  let wasInFunction: bool = an.inFunction;
+  let returnType: Type = an.currentReturnType;
+  let loopDepth: i32 = an.loopDepth;
+
+  // Everything declared since the function around the lambda began, up to
+  // here, is a local of it -- or of a lambda around this one.
+  an.captureFrom = an.localsFrom;
+  an.captureTo = an.symbols.count;
+  an.inFunction = true;
+  an.currentReturnType = result;
+  an.loopDepth = 0;
+
+  an.symbols.enterScope();
+  let params: i32 = an.ast.nodes[node].b;
+  for (index in 0..count) {
+    let param: i32 = an.ast.nodes[params].items[index];
+    an.symbols.declare(an.ast.nodes[param].text, SymbolKind.Var, types[index],
+                       null, 0, an.ast.nodes[param].line,
+                       an.ast.nodes[param].column);
+  }
+  analyzeStatement(an, an.ast.nodes[node].c);
+  an.symbols.exitScope();
+
+  an.captureFrom = captureFrom;
+  an.captureTo = captureTo;
+  an.inFunction = wasInFunction;
+  an.currentReturnType = returnType;
+  an.loopDepth = loopDepth;
+}
+
+// Whether the symbol a name found is a local of a function the lambda being
+// checked is written in.
+export fn isCaptured(an: *Analyzer, symbol: i32): bool {
+  return symbol >= an.captureFrom && symbol < an.captureTo &&
+         an.symbols.items[symbol].kind == SymbolKind.Var;
+}

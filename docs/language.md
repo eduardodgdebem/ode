@@ -185,6 +185,48 @@ Parentheses around a function type keep it whole where something else
 would be read into it: a pointer to one is `*((i32) => i32)`, and a union
 holding one is `((i32) => i32) | E`.
 
+## Lambdas
+
+A function can be written where it is used, without a name:
+
+```rust
+apply((x) => x + 1, 41);                          // 42
+let double: (i32) => i32 = (x) => x * 2;
+each(numbers, count, (n) => printf("%d\n", n));
+qsort(values as *i8, count, 4, (a, b) => *(a as *i32) - *(b as *i32));
+```
+
+The types it leaves out come from where it is used: given where a
+`(i32) => i32` is expected, `x` is an `i32` and so is the result. With
+nothing to go by -- called on the spot, say -- it writes them out:
+`((x: i32): i32 => x * 10)(4)`.
+
+A body after `=>` that is an expression is what the lambda returns; a lambda
+returning `void` just runs it. A block is a function body like any other,
+with `return`, its own locals and loops, and `try` when the lambda can fail:
+
+```rust
+let percent: (*i8) => i64 | ParseError | RangeError = (text) => {
+  let value: i64 = try parseInt(text);
+  if (value > 100) {
+    return RangeError.TooLarge;
+  }
+  return value;
+};
+```
+
+A lambda captures nothing. It may use its parameters, globals and other
+functions, but not a local of the function it is written in:
+
+```rust
+let base: i32 = 10;
+apply((x) => x + base, 1);   // error: a lambda cannot use 'base'
+```
+
+That is what keeps it cheap: its value is a pointer to its code, the same as
+a named function's, so there is nothing to allocate or free, and C can call
+it. What it needs is passed in as a parameter.
+
 ## Generics
 
 A struct or a function can take type parameters, and is used with type

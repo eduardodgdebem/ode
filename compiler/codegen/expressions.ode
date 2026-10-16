@@ -17,6 +17,7 @@ import { ReceiverMode } from "../check/methods";
 import {
   Emitter, freshTemp, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, variableAddress, llvmName, internString, codegenFault,
+  lambdaValue,
 } from "./emitter";
 import {
   wrapInUnion, genVariable, genTry, genCoalesce, genCatch, genIs,
@@ -808,6 +809,9 @@ fn genValue(e: *Emitter, node: i32): *i8 {
   // A function's name used as a value is the function's address.
   if (kind == NodeKind.Ident && e.an.functionRefs[node] != 0) {
     return direct(e, node);
+  }
+  if (kind == NodeKind.Lambda) {
+    return lambdaValue(e, node);
   }
 
   if (kind == NodeKind.Ident) {

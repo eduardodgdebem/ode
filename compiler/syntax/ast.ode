@@ -62,6 +62,11 @@ export enum NodeKind {
   Arm,
   // A function type, `(i32) => bool`.
   FnType,
+  // A function written where it is used, `(x) => x * 2`. Laid out like a Fn:
+  // `a` its return type or NO_NODE, `b` its Params -- each Param's type
+  // NO_NODE when left to the context -- and `c` its body, a Block. A body
+  // written as an expression becomes a block returning it, with `extra` 1.
+  Lambda,
   // A call of a value rather than of a name: `table[i](x)`.
   CallValue,
   For,
@@ -263,6 +268,7 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     NodeKind.Match => { return "match"; }
     NodeKind.Arm => { return "arm"; }
     NodeKind.FnType => { return "fntype"; }
+    NodeKind.Lambda => { return "lambda"; }
     NodeKind.CallValue => { return "callvalue"; }
     NodeKind.For => { return "for"; }
     NodeKind.TypeParams => { return "typeparams"; }

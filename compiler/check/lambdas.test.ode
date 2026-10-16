@@ -1,0 +1,196 @@
+// ---------------------------------------------------------------------------
+// Lambdas: the types they take from where they are used, and what checking
+// rejects in them.
+//
+// Each checks a fragment in a Scope that states what it can see, and asserts
+// the type found, or the problems: which, where, and about what.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
+
+let DECLARATIONS: *i8 = `
+  error enum Bad { Oops }
+
+  let LIMIT: i32 = 10;
+
+  fn apply(f: (i32) => i32, x: i32): i32 {
+    return f(x);
+  }
+
+  fn fails(n: i32): i32 | Bad {
+    return Bad.Oops;
+  }
+`;
+
+test "a lambda takes its types from where it is used" {
+  let scope: *Scope = Scope.new().declare(DECLARATIONS)
+      .local("f", "(i32) => i32")
+      .local("compare", "(*i8, *i8) => bool");
+  assert(scope.check("apply((x) => x * 2, 4)").clean());
+  assertEq(scope.check("f == (x) => x").problems.count, 1);
+  assert(scope.run("f = (x) => x + 1;").count == 0);
+  assert(scope.run("compare = (a, b) => a[0] < b[0];").count == 0);
+}
+
+test "a lambda with nothing to go by writes its types out" {
+  let scope: *Scope = Scope.new().declare(DECLARATIONS);
+  assertEq(scope.check("(x: i32): i32 => x").type.toText(), "(i32) => i32");
+  assertEq(scope.check("(): void => {}").type.toText(), "() => void");
+  assertEq(scope.check("((x: i32): bool => x > 0)(3)").type.toText(), "bool");
+
+  let untyped: *List<Diagnostic> = Scope.new().run("((x) => x)(3);");
+  assertEq(untyped.count, 1);
+  assertEq(untyped.at(0).problem, Problem.LambdaParameterType);
+  assertEq(untyped.at(0).line, 1);
+  assertEq(untyped.at(0).column, 3);
+  assertEq(untyped.at(0).facts.name, "x");
+
+  let noResult: *List<Diagnostic> = Scope.new().run("((x: i32) => x)(3);");
+  assertEq(noResult.count, 1);
+  assertEq(noResult.at(0).problem, Problem.LambdaReturnType);
+  assertEq(noResult.at(0).column, 2);
+}
+
+test "a written type wins over the context, and must still fit it" {
+  let found: *List<Diagnostic> = Scope.new().declare(DECLARATIONS)
+      .run(`
+        let wide: (i32) => i32 = (x: i64): i64 => x;
+        let fine: (i32) => i32 = (x: i32) => x;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).facts.got.toText(), "(i64) => i64");
+}
+
+test "a lambda takes as many parameters as the type it is given as" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run(`
+        let f: (i32, i32) => i32 = (x) => x;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.LambdaParameterCount);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 28);
+  assertEq(found.at(0).facts.expected.toText(), "(i32, i32) => i32");
+  assertEq(found.at(0).facts.count, 2);
+  assertEq(found.at(0).facts.given, 1);
+}
+
+test "a lambda uses globals and functions, but no local around it" {
+  assert(Scope.new().declare(DECLARATIONS)
+      .run("let f: (i32) => i32 = (x) => apply((y) => y + LIMIT, x);")
+      .count == 0);
+
+  let found: *List<Diagnostic> = Scope.new().declare(DECLARATIONS)
+      .local("base", "i32")
+      .run(`
+        let f: (i32) => i32 = (x) => x + base;
+        let g: (i32) => i32 = (x) => apply((y) => y + x, 1);
+        let h: (i32) => i32 = (x) => {
+          let inner: i32 = x;
+          return apply((y) => y + inner, 1);
+        };
+      `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.LambdaCapture);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 34);
+  assertEq(found.at(0).facts.name, "base");
+  assertEq(found.at(1).problem, Problem.LambdaCapture);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(1).facts.name, "x");
+  assertEq(found.at(2).problem, Problem.LambdaCapture);
+  assertEq(found.at(2).line, 5);
+  assertEq(found.at(2).facts.name, "inner");
+}
+
+test "a lambda's own locals and parameters shadow freely" {
+  assert(Scope.new().declare(DECLARATIONS)
+      .local("x", "i32")
+      .run(`
+        let f: (i32) => i32 = (x) => {
+          let y: i32 = x * 2;
+          return y;
+        };
+      `)
+      .count == 0);
+}
+
+test "a lambda's body is checked as a function's" {
+  let found: *List<Diagnostic> = Scope.new().declare(DECLARATIONS)
+      .run(`
+        let wrong: (i32) => bool = (x) => x;
+        let partial: (i32) => i32 = (x) => {
+          if (x > 0) {
+            return 1;
+          }
+        };
+        let forever: (i32) => i32 = (x) => {
+          while (true) {
+          }
+        };
+      `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.WrongReturnType);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(1).problem, Problem.LambdaMissingReturn);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(1).column, 29);
+}
+
+test "a lambda's loop is its own, and the one around it is not" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run(`
+        for (i in 0..3) {
+          let f: () => void = () => {
+            break;
+          };
+        }
+        let g: () => void = () => {
+          for (i in 0..3) {
+            break;
+          }
+        };
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.BreakOutsideLoop);
+  assertEq(found.at(0).line, 3);
+}
+
+test "a lambda that returns nothing runs its expression, errors and all" {
+  let found: *List<Diagnostic> = Scope.new().declare(DECLARATIONS)
+      .run(`
+        let quiet: (i32) => void = (x) => apply((y) => y, x);
+        let loud: (i32) => void = (x) => fails(x);
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnhandledError);
+  assertEq(found.at(0).line, 2);
+}
+
+test "a lambda that can fail passes errors on with try" {
+  let scope: *Scope = Scope.new().declare(DECLARATIONS);
+  assert(scope.run("let f: (i32) => i32 | Bad = (x) => try fails(x) + 1;").count == 0);
+  assert(scope.run("let f: (i32) => i32 | Bad = (x) => Bad.Oops;").count == 0);
+
+  let found: *List<Diagnostic> = Scope.new().declare(DECLARATIONS)
+      .run("let f: (i32) => i32 = (x) => try fails(x);");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ErrorNotReturned);
+}
+
+test "a lambda is a constant, so a global may be one" {
+  assert(Scope.new()
+      .declare(`
+        let DOUBLE: (i32) => i32 = (x) => x * 2;
+        let PICK: ((i32) => i32) | Missing = (x) => x;
+
+        error enum Missing { Gone }
+      `)
+      .problems()
+      .count == 0);
+}

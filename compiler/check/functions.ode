@@ -70,7 +70,7 @@ fn signatureText(params: *Type, count: i32, result: Type): *i8 {
 
 // The type of a function with these parameters and result, recorded so its
 // parts can be found again from the type alone.
-fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
+export fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
                 depth: i32): Type {
   let text: *i8 = signatureText(params, count, result);
 
