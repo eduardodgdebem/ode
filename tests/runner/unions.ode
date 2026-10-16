@@ -1,0 +1,40 @@
+// assertEq on a union that may hold values of several types: what it holds
+// is compared, and shown, as the type it is.
+
+error enum Bad { Oops }
+
+type Value = i64 | *i8 | bool;
+
+fn pick(n: i32): Value | Bad {
+  if (n == 0) {
+    return 7;
+  }
+  if (n == 1) {
+    return "seven";
+  }
+  if (n == 2) {
+    return true;
+  }
+  return Bad.Oops;
+}
+
+fn main(): i32 {
+  return 0;
+}
+
+test "each member compares as itself" {
+  assertEq(pick(0), 7);
+  assertEq(pick(1), "seven");
+  assertEq(pick(2), true);
+  assertEq(pick(3), Bad.Oops);
+  let seven: Value = 7;
+  assertEq(pick(0), seven);
+}
+
+test "a value of another member is shown as itself" {
+  assertEq(pick(1), 7);
+}
+
+test "an error is shown by its name" {
+  assertEq(pick(3), "seven");
+}

@@ -411,6 +411,37 @@ match (c) {
 `nameOf(value)` gives the name of the member an enum value is, as a string:
 `nameOf(Color.Red)` is `"Red"`, and a value that is no member's is `"?"`.
 
+## Unions
+
+A value that may be one of several types has a union type, written with
+`|`, and `is` asks which it holds -- narrowing the variable, as a type guard
+does in TypeScript:
+
+```rust
+struct Circle { radius: f64 }
+struct Rect { width: f64, height: f64 }
+type Shape = Circle | Rect;
+
+fn area(shape: Shape): f64 {
+  if (shape is Circle) {
+    return 3.14159 * shape.radius * shape.radius;   // here, a Circle
+  }
+  return shape.width * shape.height;                 // and here, a Rect
+}
+
+area(Circle { radius: 2.0 });
+```
+
+Any type can be a member: `i64 | *i8`, `Circle | Rect | Line`. A union is
+given any of its members, or a union of some of them -- a `Shape` goes where
+a `Shape | Line` is expected -- but not the other way round until `is` has
+narrowed it. A union of unions is one union of all their members, in no
+particular order: `Shape | Line` is `Circle | Line | Rect`.
+
+A union is as big as its largest member and a code saying which member it
+holds; nothing is allocated, and `is` compares that code. Two unions are not
+compared with `==` -- ask with `is`, and compare what it holds.
+
 ## Errors
 
 A function that can fail says so in its return type: its value, or one of
@@ -463,6 +494,10 @@ error -- `touch(path);` alone is an error -- and there, a `catch` block may
 fall through, there being no value to give: `removeFile(path) catch (e) {};`
 ignores the error on purpose, where anyone reading can see it. Errors from different error enums can share a union, and are
 always told apart: every error in the program has a number of its own.
+
+Errors are union members like any other, so the two mix: a
+`fn validate(shape: Shape): Shape | ShapeError` returns either shape, or an
+error, and `try validate(shape)` is a `Shape`.
 
 ## Strings
 

@@ -8,14 +8,38 @@
 // rather than in codegen because `sizeof` is also folded into constants.
 // ---------------------------------------------------------------------------
 
-import { valueOf } from "../check/errors";
+import { List } from "std/list";
+import { valueOf, valuesOf, holdsSeveral } from "../check/errors";
 import { TypeKind, Type, StructTable } from "./types";
+
+// The program's structs, for laying out a union that may hold several types
+// where nothing else has them to hand -- its LLVM type is named after its
+// size. Set when the analyzer is made.
+export let LAYOUT_STRUCTS: *StructTable = null;
+
+// How many 8-byte words a union that may hold several types keeps its value
+// in: enough for the largest of them.
+export fn payloadWords(type: Type): i32 {
+  let values: *List<Type> = valuesOf(type);
+  let widest: i32 = 1;
+  for (index in 0..values.count) {
+    let words: i32 = (sizeOf(LAYOUT_STRUCTS, values.at(index)) + 7) / 8;
+    if (words > widest) {
+      widest = words;
+    }
+  }
+  return widest;
+}
 
 fn alignOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return 8;
   }
-  // A union is laid out as { i32 code, value }.
+  // A union is laid out as { i32 code, value }, or { i32 tag, [n x i64] }
+  // when it may hold several types.
+  if (holdsSeveral(type)) {
+    return 8;
+  }
   if (type.isUnion()) {
     let value: i32 = alignOf(structs, valueOf(type));
     if (value > 4) {
@@ -61,6 +85,9 @@ fn alignUp(value: i32, alignment: i32): i32 {
 export fn sizeOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return 8;
+  }
+  if (holdsSeveral(type)) {
+    return 8 + payloadWords(type) * 8;
   }
   if (type.isUnion()) {
     let value: Type = valueOf(type);

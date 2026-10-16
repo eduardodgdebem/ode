@@ -1,14 +1,21 @@
 // ---------------------------------------------------------------------------
-// Emitting errors as values; see semantics/errors.ode for the language side.
+// Emitting unions; see check/errors.ode for the language side.
 //
 // A union is `{ i32 code, value }`: code 0 when it holds its value, and the
-// error's number otherwise. `try` and `catch` compare the code and branch;
-// `??` does too, and only evaluates its fallback when it is needed.
+// error's number otherwise. One that may hold values of several types is
+// `{ i32 code, [n x i64] }` instead, its value kept in words enough for the
+// largest of them, and its code below zero for a value -- each type has its
+// own, see valueTag -- and an error's number above. Either way a code above
+// zero is an error, which is all `try`, `catch` and `??` ask.
 // ---------------------------------------------------------------------------
 
-import { Builder, fromInt } from "std/text";
+import { List } from "std/list";
+import { Builder, equals, fromInt } from "std/text";
 import { analyzerParseType } from "../check/analyzer";
-import { unionInfo, valueOf, errorCodeRange } from "../check/errors";
+import {
+  unionInfo, valueOf, valuesOf, errorCodeRange, holdsError, holdsSeveral,
+  memberFor, valueTag,
+} from "../check/errors";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
@@ -20,29 +27,152 @@ import {
 import { llvmTypeName } from "./layout";
 import { genStatement } from "./statements";
 import { line } from "../driver/options";
-import { Type } from "../types/types";
+import { payloadWords } from "../types/layout";
+import { TypeKind, Type } from "../types/types";
 
 // `value`, of type `from`, as the union `union`: an error becomes the code
-// it is, and a value the value with code 0.
+// it is, a value the value with its code, and a narrower union this one.
 export fn wrapInUnion(e: *Emitter, value: *i8, from: Type, union: Type): *i8 {
-  if (from.isUnion()) {
+  return convertUnion(e, value, from, union);
+}
+
+// `value`, of type `from`, as a `to`, where one is a union and the other one
+// of its members or a union of some of them: widening a value into a union,
+// or narrowing one to what `is` found it to hold.
+export fn convertUnion(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
+  if (from.equals(to)) {
     return value;
   }
 
-  let line: *Builder = Builder.new();
-  line.add("insertvalue ");
-  line.add(llvmTypeName(union));
-  line.add(" zeroinitializer, ");
-  if (from.isEnum()) {
-    line.add("i32 ");
-    line.add(value);
-    line.add(", 0");
-  } else {
-    line.add(llvmTypeName(from));
-    line.push(' ');
-    line.add(value);
-    line.add(", 1");
+  if (to.isUnion()) {
+    if (from.isEnum() && holdsError(to, from.structName)) {
+      let line: *Builder = Builder.new();
+      line.add("insertvalue ");
+      line.add(llvmTypeName(to));
+      line.add(" zeroinitializer, i32 ");
+      line.add(value);
+      line.add(", 0");
+      return emitAssign(e, line.data);
+    }
+    if (!from.isUnion()) {
+      let member: Type = memberFor(to, from);
+      if (!holdsSeveral(to)) {
+        let line: *Builder = Builder.new();
+        line.add("insertvalue ");
+        line.add(llvmTypeName(to));
+        line.add(" zeroinitializer, ");
+        line.add(llvmTypeName(member));
+        line.push(' ');
+        line.add(value);
+        line.add(", 1");
+        return emitAssign(e, line.data);
+      }
+      let slot: *i8 = emitAlloca(e, llvmTypeName(to));
+      emitStore(e, Type.make(TypeKind.I32, 0), fromInt(valueTag(member)),
+                part(e, to, slot, 0));
+      emitStore(e, member, value, part(e, to, slot, 1));
+      return emitLoad(e, to, slot);
+    }
+    if (holdsSeveral(from) == holdsSeveral(to) &&
+        equals(llvmTypeName(from), llvmTypeName(to))) {
+      return value;
+    }
+    return reshape(e, value, from, to);
   }
+
+  // Narrowing a union to one of its members.
+  if (to.isEnum() && holdsError(from, to.structName)) {
+    return extract(e, from, value, 0);
+  }
+  if (!holdsSeveral(from)) {
+    return extract(e, from, value, 1);
+  }
+  let slot: *i8 = emitAlloca(e, llvmTypeName(from));
+  emitStore(e, from, value, slot);
+  return emitLoad(e, to, part(e, from, slot, 1));
+}
+
+// One union as another of a different shape: its code, renumbered between
+// the 0 of a union of one value and the value's own code in a union of
+// several, and its value moved over.
+fn reshape(e: *Emitter, value: *i8, from: Type, to: Type): *i8 {
+  let code: *i8 = extract(e, from, value, 0);
+  let fromValues: *List<Type> = valuesOf(from);
+  let toValues: *List<Type> = valuesOf(to);
+  if (!holdsSeveral(from) && holdsSeveral(to) && fromValues.count == 1) {
+    code = pick(e, compare(e, "eq", "i32", code, "0"),
+                fromInt(valueTag(fromValues.at(0))), code);
+  }
+  if (holdsSeveral(from) && !holdsSeveral(to) && toValues.count == 1) {
+    code = pick(e, compare(e, "eq", "i32", code, fromInt(valueTag(toValues.at(0)))),
+                "0", code);
+  }
+
+  let slot: *i8 = emitAlloca(e, llvmTypeName(to));
+  emitStore(e, Type.make(TypeKind.I32, 0), code, part(e, to, slot, 0));
+  if (toValues.count == 0 || fromValues.count == 0 || fromValues.at(0).isVoid()) {
+    return emitLoad(e, to, slot);
+  }
+
+  if (!holdsSeveral(from)) {
+    emitStore(e, fromValues.at(0), extract(e, from, value, 1), part(e, to, slot, 1));
+    return emitLoad(e, to, slot);
+  }
+
+  let source: *i8 = emitAlloca(e, llvmTypeName(from));
+  emitStore(e, from, value, source);
+  if (!holdsSeveral(to)) {
+    let moved: *i8 = emitLoad(e, toValues.at(0), part(e, from, source, 1));
+    emitStore(e, toValues.at(0), moved, part(e, to, slot, 1));
+    return emitLoad(e, to, slot);
+  }
+  // Both keep words: the narrower has fewer, and they are what it holds.
+  let count: i32 = payloadWords(from);
+  if (payloadWords(to) < count) {
+    count = payloadWords(to);
+  }
+  let array: *Builder = Builder.new();
+  array.push('[');
+  array.addInt(count as i64);
+  array.add(" x i64]");
+  let load: *Builder = Builder.new();
+  load.add("load ");
+  load.add(array.data);
+  load.add(", ptr ");
+  load.add(part(e, from, source, 1));
+  let moved: *i8 = emitAssign(e, load.data);
+  let store: *Builder = Builder.new();
+  store.add("store ");
+  store.add(array.data);
+  store.push(' ');
+  store.add(moved);
+  store.add(", ptr ");
+  store.add(part(e, to, slot, 1));
+  emitLine(e, store.data);
+  return emitLoad(e, to, slot);
+}
+
+// The address of part `index` of the union at `slot`: 0 its code, 1 its
+// value.
+fn part(e: *Emitter, union: Type, slot: *i8, index: i32): *i8 {
+  let line: *Builder = Builder.new();
+  line.add("getelementptr inbounds ");
+  line.add(llvmTypeName(union));
+  line.add(", ptr ");
+  line.add(slot);
+  line.add(", i32 0, i32 ");
+  line.addInt(index as i64);
+  return emitAssign(e, line.data);
+}
+
+fn pick(e: *Emitter, condition: *i8, ifTrue: *i8, ifFalse: *i8): *i8 {
+  let line: *Builder = Builder.new();
+  line.add("select i1 ");
+  line.add(condition);
+  line.add(", i32 ");
+  line.add(ifTrue);
+  line.add(", i32 ");
+  line.add(ifFalse);
   return emitAssign(e, line.data);
 }
 
@@ -81,14 +211,24 @@ export fn genVariable(e: *Emitter, node: i32): *i8 {
     return emitLoad(e, type, address);
   }
 
-  let union: *i8 = emitLoad(e, declared, address);
-  if (type.isUnion()) {
-    return union;
+  return convertUnion(e, emitLoad(e, declared, address), declared, type);
+}
+
+// Where a variable is kept, as what it is known to hold: a union narrowed by
+// `is` to one of its values keeps that value in its second part, so
+// `shape.radius`, with `shape is Circle`, is read from there. One narrowed to
+// an error is its code.
+export fn narrowedAddress(e: *Emitter, node: i32): *i8 {
+  let type: Type = typeOfNode(e, node);
+  let declared: Type = localTypeOf(e, node);
+  let address: *i8 = variableAddress(e, node);
+  if (!declared.isUnion() || declared.equals(type) || type.isUnion()) {
+    return address;
   }
-  if (type.isEnum()) {
-    return extract(e, declared, union, 0);
+  if (type.isEnum() && holdsError(declared, type.structName)) {
+    return part(e, declared, address, 0);
   }
-  return extract(e, declared, union, 1);
+  return part(e, declared, address, 1);
 }
 
 // `try value`: the value, or a return of its error.
@@ -100,7 +240,7 @@ export fn genTry(e: *Emitter, node: i32): *i8 {
 
   let failed: *i8 = freshLabel(e);
   let ok: *i8 = freshLabel(e);
-  emitCondBranch(e, compare(e, "ne", "i32", code, "0"), failed, ok);
+  emitCondBranch(e, compare(e, "sgt", "i32", code, "0"), failed, ok);
 
   // The function's own union holds the same error, by the same number.
   emitLabel(e, failed);
@@ -123,7 +263,7 @@ export fn genTry(e: *Emitter, node: i32): *i8 {
   if (valueOf(union).isVoid()) {
     return "";
   }
-  return extract(e, union, value, 1);
+  return convertUnion(e, value, union, valueOf(union));
 }
 
 // `value ?? fallback`: the fallback only runs when the value is an error, or
@@ -137,7 +277,7 @@ export fn genCoalesce(e: *Emitter, node: i32): *i8 {
   let value: *i8 = genExpr(e, left);
   let present: *i8 = "";
   if (leftType.isUnion()) {
-    present = compare(e, "eq", "i32", extract(e, leftType, value, 0), "0");
+    present = compare(e, "sle", "i32", extract(e, leftType, value, 0), "0");
   } else {
     present = compare(e, "ne", "ptr", value, "null");
   }
@@ -149,7 +289,7 @@ export fn genCoalesce(e: *Emitter, node: i32): *i8 {
 
   emitLabel(e, has);
   if (leftType.isUnion()) {
-    emitStore(e, result, extract(e, leftType, value, 1), slot);
+    emitStore(e, result, convertUnion(e, value, leftType, result), slot);
   } else {
     emitStore(e, result, value, slot);
   }
@@ -173,7 +313,7 @@ export fn genCatch(e: *Emitter, node: i32): *i8 {
 
   let failed: *i8 = freshLabel(e);
   let ok: *i8 = freshLabel(e);
-  emitCondBranch(e, compare(e, "ne", "i32", code, "0"), failed, ok);
+  emitCondBranch(e, compare(e, "sgt", "i32", code, "0"), failed, ok);
 
   emitLabel(e, failed);
   let slot: *i8 = emitAlloca(e, "i32");
@@ -194,17 +334,25 @@ export fn genCatch(e: *Emitter, node: i32): *i8 {
   if (valueOf(union).isVoid()) {
     return "";
   }
-  return extract(e, union, value, 1);
+  return convertUnion(e, value, union, valueOf(union));
 }
 
 // `value is SomeError`: whether the code is one of that enum's numbers,
-// which are given to its errors in order.
+// which are given to its errors in order. `shape is Circle`: whether it is
+// Circle's code -- or, in a union of one value, whether it is no error.
 export fn genIs(e: *Emitter, node: i32): *i8 {
   let operand: i32 = e.ast.nodes[node].a;
   let union: Type = typeOfNode(e, operand);
   let code: *i8 = extract(e, union, genExpr(e, operand), 0);
 
   let asked: Type = analyzerParseType(e.an, e.ast.nodes[node].b);
+  if (!asked.isEnum() || !holdsError(union, asked.structName)) {
+    if (holdsSeveral(union)) {
+      return compare(e, "eq", "i32", code, fromInt(valueTag(asked)));
+    }
+    return compare(e, "sle", "i32", code, "0");
+  }
+
   let first: i64 = 0;
   let last: i64 = 0;
   errorCodeRange(e.an, asked.structName, &first, &last);

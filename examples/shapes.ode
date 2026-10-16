@@ -1,0 +1,58 @@
+// Unions: a value that is one of several types. A Shape is a Circle or a
+// Rect, `is` tells which, and inside the `if` the shape is that one. Errors
+// are members of a union like any other, so a function can hand back either
+// a shape or what was wrong with it.
+
+import { printf } from "std/c";
+import { List } from "std/list";
+
+struct Circle {
+  radius: f64,
+}
+
+struct Rect {
+  width: f64,
+  height: f64,
+}
+
+type Shape = Circle | Rect;
+
+error enum ShapeError {
+  Empty,
+  Negative,
+}
+
+fn area(shape: Shape): f64 {
+  if (shape is Circle) {
+    return 3.14159 * shape.radius * shape.radius;
+  }
+  return shape.width * shape.height;
+}
+
+fn validated(shape: Shape): Shape | ShapeError {
+  if (area(shape) < 0.0) {
+    return ShapeError.Negative;
+  }
+  if (area(shape) == 0.0) {
+    return ShapeError.Empty;
+  }
+  return shape;
+}
+
+fn main(): i32 {
+  let shapes: *List<Shape> = List<Shape>.new();
+  shapes.push(Rect { width: 3.0, height: 4.0 });
+  shapes.push(Circle { radius: 1.0 });
+  shapes.push(Rect { width: 0.0, height: 9.0 });
+  shapes.push(Rect { width: -1.0, height: 2.0 });
+
+  for (index in 0..shapes.count) {
+    let checked: Shape | ShapeError = validated(shapes.at(index));
+    if (checked is ShapeError) {
+      printf("shape %ld: %s\n", index, nameOf(checked));
+    } else {
+      printf("shape %ld: area %.2f\n", index, area(checked));
+    }
+  }
+  return 0;
+}
