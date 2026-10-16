@@ -65,7 +65,8 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
       ast.nodes[item].extra = loaded;
       return;
     }
-    source = readFile(path);
+    // A file that cannot be read is reported below as one that is missing.
+    source = readFile(path) ?? null;
   }
 
   if (source == null) {
@@ -127,13 +128,12 @@ export fn loadFiles(ast: *Ast, root: i32, paths: *TextList): void {
       real = path;
     }
 
-    let source: *i8 = readFile(path);
-    if (source == null) {
+    let source: *i8 = readFile(path) catch (e) {
       SOURCE_PATH = path;
       report(Problem.CannotOpenInput, 0, 0, Facts.none());
       FAILED = false;
       continue;
-    }
+    };
     loadModule(ast, root, path, real, source);
     loadImports(ast, root);
   }
@@ -161,9 +161,9 @@ fn loadImports(ast: *Ast, root: i32): void {
 // misbehaves.
 export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): void {
   let irPath: *i8 = withSuffix(output, ".ll");
-  if (!writeFile(irPath, module)) {
+  writeFile(irPath, module) catch (e) {
     fail(Problem.CannotWriteIr);
-  }
+  };
 
   let objectPath: *i8 = withSuffix(output, ".o");
 
@@ -183,8 +183,10 @@ export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): vo
   }
 
   if (!keepIntermediates) {
-    removeFile(irPath);
-    removeFile(objectPath);
+    // Leaving them behind is untidy, not wrong.
+    // Leaving them behind is untidy, not wrong.
+    removeFile(irPath) catch (e) {};
+    removeFile(objectPath) catch (e) {};
   }
 }
 

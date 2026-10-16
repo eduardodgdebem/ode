@@ -7,7 +7,9 @@ import { Problem, Facts } from "../support/problems";
 import { FAILED, report } from "../support/diagnostics";
 import { TokenKind, Token } from "./token";
 import { NO_NODE, NodeKind } from "./ast";
-import { Parser, startsStatement, parseType, parseTypeParams } from "./parser";
+import {
+  Parser, startsStatement, parseType, parseDeclaredType, parseTypeParams,
+} from "./parser";
 import { parseExpr } from "./expressions";
 import { memberName } from "../codegen/testing";
 
@@ -110,6 +112,10 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
     let node: i32 = parseEnumDecl(parser);
     return requireTopLevel(parser, start, "enum", node);
   }
+  if (startsErrorEnum(parser)) {
+    let node: i32 = parseErrorEnumDecl(parser);
+    return requireTopLevel(parser, start, "error enum", node);
+  }
   if (kind == TokenKind.Import) {
     let node: i32 = parseImportDecl(parser);
     return requireTopLevel(parser, start, "import", node);
@@ -139,7 +145,7 @@ fn parseVarDecl(parser: *Parser): i32 {
   parser.expect(TokenKind.Let, "let");
   let name: *Token = parser.expect(TokenKind.Ident, "identifier");
   parser.expect(TokenKind.Colon, ":");
-  let type: i32 = parseType(parser);
+  let type: i32 = parseDeclaredType(parser);
   parser.expect(TokenKind.Assign, "=");
   let expr: i32 = parseExpr(parser);
   parser.expect(TokenKind.Semicolon, ";");
@@ -209,7 +215,7 @@ fn parseExprStmt(parser: *Parser): i32 {
   return node;
 }
 
-fn parseBlock(parser: *Parser): i32 {
+export fn parseBlock(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let node: i32 = parser.ast.add(NodeKind.Block, start.line, start.column);
   // With no `{` there is no block: what follows belongs to whatever comes
@@ -361,7 +367,7 @@ fn parseParamList(parser: *Parser): i32 {
 
     let param: i32 = parser.ast.add(NodeKind.Param, name.line, name.column);
     parser.ast.setText(param, name);
-    parser.ast.nodes[param].a = parseType(parser);
+    parser.ast.nodes[param].a = parseDeclaredType(parser);
     parser.ast.addItem(node, param);
 
     if (parser.kind() != TokenKind.Comma) {
@@ -388,7 +394,7 @@ fn parseFuncDecl(parser: *Parser): i32 {
   }
   let params: i32 = parseParamList(parser);
   parser.expect(TokenKind.Colon, ":");
-  let returnType: i32 = parseType(parser);
+  let returnType: i32 = parseDeclaredType(parser);
   let body: i32 = parseBlock(parser);
 
   let node: i32 = parser.ast.add(NodeKind.Fn, line, column);
@@ -497,7 +503,7 @@ fn parseStructDecl(parser: *Parser): i32 {
     let field: i32 = parser.ast.add(NodeKind.Field, fieldName.line,
                                     fieldName.column);
     parser.ast.setText(field, fieldName);
-    parser.ast.nodes[field].a = parseType(parser);
+    parser.ast.nodes[field].a = parseDeclaredType(parser);
     parser.ast.addItem(node, field);
 
     if (parser.kind() == TokenKind.Comma) {
@@ -602,6 +608,8 @@ fn parseExportDecl(parser: *Parser): i32 {
     node = parseVarDecl(parser);
   } else if (kind == TokenKind.Enum) {
     node = parseEnumDecl(parser);
+  } else if (startsErrorEnum(parser)) {
+    node = parseErrorEnumDecl(parser);
   } else {
     parser.fail("declaration");
     return parser.errorNode();
@@ -618,6 +626,27 @@ fn parseExportDecl(parser: *Parser): i32 {
 // A member without a value takes the one after the member before it, and the
 // first takes 0. A written value has to be an integer literal, which the
 // analyzer checks.
+// `error` is not a keyword: it marks an enum only when `enum` follows it.
+fn startsErrorEnum(parser: *Parser): bool {
+  return parser.kind() == TokenKind.Ident &&
+         equals(parser.current().text, "error") &&
+         parser.peek().kind == TokenKind.Enum;
+}
+
+// ErrorEnumDecl -> 'error' EnumDecl
+//
+// An error enum's members are the errors a function can return in place of
+// its value; see semantics/errors.ode.
+fn parseErrorEnumDecl(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  parser.advance();
+  let node: i32 = parseEnumDecl(parser);
+  parser.ast.nodes[node].extra = 1;
+  parser.ast.nodes[node].line = start.line;
+  parser.ast.nodes[node].column = start.column;
+  return node;
+}
+
 fn parseEnumDecl(parser: *Parser): i32 {
   let start: *Token = parser.current();
   let line: i32 = start.line;

@@ -25,6 +25,9 @@ export enum TokenKind {
   Struct,
   Sizeof,
   Return,
+  // `try` and `catch`, which pass on an error or handle it.
+  Try,
+  Catch,
   While,
   Break,
   Continue,
@@ -76,6 +79,8 @@ export enum TokenKind {
   DotDot,
   // `...`, ending a variadic extern's parameters.
   Ellipsis,
+  // `??`, a value's fallback.
+  Coalesce,
 }
 // Not a token: the state before the first one has been read.
 
@@ -155,6 +160,8 @@ export fn kindName(kind: TokenKind): *i8 {
     TokenKind.Struct => { return "struct"; }
     TokenKind.Sizeof => { return "sizeof"; }
     TokenKind.Return => { return "return"; }
+    TokenKind.Try => { return "try"; }
+    TokenKind.Catch => { return "catch"; }
     TokenKind.While => { return "while"; }
     TokenKind.Break => { return "break"; }
     TokenKind.Continue => { return "continue"; }
@@ -203,6 +210,7 @@ export fn kindName(kind: TokenKind): *i8 {
     TokenKind.Arrow => { return "=>"; }
     TokenKind.DotDot => { return ".."; }
     TokenKind.Ellipsis => { return "..."; }
+    TokenKind.Coalesce => { return "??"; }
     else => {}
   }
 

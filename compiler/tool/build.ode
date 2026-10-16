@@ -114,10 +114,9 @@ fn hashInputs(ws: *Workspace): Inputs {
 
   DIAGS = Diagnostics.new();
   SOURCE_PATH = ws.entry;
-  let source: *i8 = readFile(ws.entry);
-  if (source == null) {
+  let source: *i8 = readFile(ws.entry) catch (e) {
     return Inputs { hash: "", lines: 0, modules: 0 };
-  }
+  };
 
   let ast: *Ast = Ast.new();
   let root: i32 = ast.add(NodeKind.Program, 0, 0);

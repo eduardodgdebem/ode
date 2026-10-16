@@ -70,6 +70,14 @@ export enum NodeKind {
   // The `<i64>` of a generic call, `max<i64>(a, b)`.
   // `test "name" { ... }`, laid out like a fn.
   Test,
+  // `i64 | ParseError`: a value, or one of the errors, as a type.
+  UnionType,
+  // `try value`: the value, or its error passed on.
+  Try,
+  // `value catch (e) { ... }`: the value, or the block run with its error.
+  Catch,
+  // `value is ParseError`: whether a union holds that error.
+  Is,
   TypeArgs,
 }
 
@@ -87,6 +95,10 @@ struct Node {
   //   while    a=cond   b=body
   //   fn       a=type   b=params c=body
   //   test     a=type   b=params c=body, all a void fn's, and its name
+  //   uniontype items=the value's type, then each error's
+  //   try      a=value
+  //   catch    a=value  b=block, and the error's name
+  //   is       a=value  b=type
   //   extern   a=type   b=params
   //   field    a=type
   //   param    a=type
@@ -118,7 +130,8 @@ struct Node {
   c: i32,
   // Pointer depth, for a type node. For an import, the module it loads, once
   // the driver has found it. For a match arm, 1 when it is the `else` arm.
-  // For a parameter list, 1 when it ends in `...`.
+  // For a parameter list, 1 when it ends in `...`. For an enum, 1 when it is
+  // an `error enum`.
   extra: i32,
   // Child indices, for program, block, struct, structlit, params, args and
   // import. A struct's items are its fields and then, mixed in, its methods.
@@ -234,6 +247,10 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     NodeKind.Params => { return "params"; }
     NodeKind.Param => { return "param"; }
     NodeKind.Args => { return "args"; }
+    NodeKind.UnionType => { return "uniontype"; }
+    NodeKind.Try => { return "try"; }
+    NodeKind.Catch => { return "catch"; }
+    NodeKind.Is => { return "is"; }
     NodeKind.Test => { return "test"; }
     NodeKind.Error => { return "error"; }
     NodeKind.Import => { return "import"; }

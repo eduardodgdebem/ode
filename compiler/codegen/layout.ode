@@ -3,7 +3,9 @@
 // semantics/layout.ode.
 // ---------------------------------------------------------------------------
 
+import { Builder } from "std/text";
 import { TypeKind, Type } from "../semantics/types";
+import { valueOf } from "../semantics/errors";
 import { llvmName } from "./emitter";
 
 export fn llvmTypeName(type: Type): *i8 {
@@ -17,6 +19,20 @@ export fn llvmTypeName(type: Type): *i8 {
 
   if (type.kind == TypeKind.Struct) {
     return llvmName('%', type.structName);
+  }
+
+  // A union is its code -- 0 for the value, the error's number otherwise --
+  // and its value.
+  if (type.isUnion()) {
+    let value: Type = valueOf(type);
+    if (value.isVoid()) {
+      return "{ i32 }";
+    }
+    let out: *Builder = Builder.new();
+    out.add("{ i32, ");
+    out.add(llvmTypeName(value));
+    out.add(" }");
+    return out.take();
   }
 
   match (type.kind) {
@@ -37,7 +53,7 @@ export fn llvmTypeName(type: Type): *i8 {
 export fn zeroValue(type: Type): *i8 {
   if (type.isPointer() || type.isFunction()) { return "null"; }
   match (type.kind) {
-    TypeKind.Struct => { return "zeroinitializer"; }
+    TypeKind.Struct, TypeKind.Union => { return "zeroinitializer"; }
     TypeKind.Bool => { return "false"; }
     TypeKind.F32, TypeKind.F64 => { return "0.0"; }
     else => {}

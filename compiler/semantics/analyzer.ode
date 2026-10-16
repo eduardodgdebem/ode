@@ -33,6 +33,7 @@ import {
 } from "./functions";
 import { isTemplate, structTemplateNamed, declareInstances } from "./generics";
 import { TEST_MODE } from "./testing";
+import { parseUnionType } from "./errors";
 
 export struct Analyzer {
   ast: *Ast,
@@ -62,6 +63,9 @@ export struct Analyzer {
   // The IR names of every enum, which is how a type name is told to be an
   // enum's rather than a struct's.
   enumNames: *NameSet,
+  // The error enums among them, and the number the next error is given.
+  errorEnums: *NameSet,
+  nextErrorCode: i64,
   // Every function type seen, so that a type's signature can be read back.
   signatures: *List<Signature>,
   // Per node: 1 for a function's name used as a value.
@@ -71,6 +75,9 @@ export struct Analyzer {
   variadicAfter: *i32,
   // Per call: what it calls, one of the CallTarget kinds.
   callTargets: *CallTarget,
+  // Per node: the union its value is turned into where it is used -- a
+  // value or an error given where `i64 | ParseError` is wanted -- or None.
+  coerceTo: *Type,
   // How many nodes the per-node tables above have room for.
   nodeCapacity: i32,
   // Set when making a generic's instances never finished, which leaves the
@@ -93,6 +100,8 @@ export struct Analyzer {
     an.instancesFailed = false;
     an.growNodeArrays();
     an.enumNames = NameSet.new();
+    an.errorEnums = NameSet.new();
+    an.nextErrorCode = 1;
     an.signatures = List<Signature>.new();
     an.globals = List<i32>.new();
     an.program = NO_NODE;
@@ -126,6 +135,7 @@ export struct Analyzer {
       self.values = alloc<i64>(size);
       self.functionRefs = alloc<i8>(size);
       self.callTargets = alloc<CallTarget>(size);
+      self.coerceTo = alloc<Type>(size);
       self.variadicAfter = alloc<i32>(size);
     } else {
       self.types = grow<Type>(self.types, size);
@@ -137,6 +147,7 @@ export struct Analyzer {
       self.values = grow<i64>(self.values, size);
       self.functionRefs = grow<i8>(self.functionRefs, size);
       self.callTargets = grow<CallTarget>(self.callTargets, size);
+      self.coerceTo = grow<Type>(self.coerceTo, size);
       self.variadicAfter = grow<i32>(self.variadicAfter, size);
     }
 
@@ -149,6 +160,7 @@ export struct Analyzer {
       self.isConstant[index] = 0;
       self.functionRefs[index] = 0;
       self.callTargets[index] = CallTarget.Direct;
+      self.coerceTo[index] = Type.make(TypeKind.None, 0);
       self.values[index] = 0;
       self.variadicAfter[index] = 0;
     }
@@ -221,6 +233,9 @@ export fn quoted(prefix: *i8, name: *i8, suffix: *i8): *i8 {
 export fn analyzerParseType(an: *Analyzer, node: i32): Type {
   if (node != NO_NODE && an.ast.nodes[node].kind == NodeKind.FnType) {
     return parseFunctionType(an, node);
+  }
+  if (node != NO_NODE && an.ast.nodes[node].kind == NodeKind.UnionType) {
+    return parseUnionType(an, node);
   }
   if (node == NO_NODE || an.ast.nodes[node].kind != NodeKind.Type) {
     internalError(0, 0, "expected type annotation");

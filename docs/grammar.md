@@ -3,7 +3,7 @@
 ## Program Structure
 
 - **Program** → TopLevel*
-- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | TestDecl | Statement
+- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | ErrorEnumDecl | TestDecl | Statement
 - **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
@@ -48,6 +48,8 @@ cycles.
 - **TypeParams** → `<` IDENT (`,` IDENT)* `>`
 - **TypeArgs** → `<` Type (`,` Type)* `>`
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
+- **ErrorEnumDecl** → `error` EnumDecl, whose members have no written values — `error` is an IDENT anywhere `enum` does not follow it
+- **DeclaredType** → Type (`|` Type)* — the type of a variable, parameter, field or return; a union is a value type, then error enums
 - **TestDecl** → `test` STRING Block — `test` is an IDENT anywhere a STRING does not follow it
 - **StructDecl** → `struct` IDENT TypeParams? `{` (FieldDecl | FuncDecl)* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
@@ -56,6 +58,10 @@ cycles.
 - **MatchStmt** → `match` `(` Expr `)` `{` MatchArm* `}`
 - **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` Block
 - **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR
+- **TryExpr** → `try` Unary
+- **CatchExpr** → Coalesce `catch` `(` IDENT `)` Block — the lowest precedence; the block must leave
+- **Coalesce** → LogicOr (`??` LogicOr)* — below `||`
+- **IsExpr** → Shift `is` Type — at comparison level; `is` is an IDENT elsewhere
 - **ReturnStmt** → `return` Expr? `;`
 - **ExprStmt** → Expr `;`
 - **Block** → `{` Statement* `}`

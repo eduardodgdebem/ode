@@ -19,8 +19,10 @@ import {
 } from "./emitter";
 import { llvmTypeName } from "./layout";
 import {
-  typeOfNode, emitAssign, emitLoad, emitStore, genAddress, genExpr,
+  typeOfNode, emitAssign, emitLoad, emitStore, genAddress, resultTypeOf,
+  genExpr,
 } from "./expressions";
+import { compare } from "./errors";
 
 export fn genStatement(e: *Emitter, node: i32): void {
   let kind: NodeKind = e.ast.nodes[node].kind;
@@ -75,10 +77,16 @@ export fn genStatement(e: *Emitter, node: i32): void {
   }
 
   if (kind == NodeKind.Return) {
-    if (e.ast.nodes[node].a == NO_NODE) {
+    if (e.ast.nodes[node].a == NO_NODE && e.returnType.isUnion()) {
+      let line: *Builder = Builder.new();
+      line.add("ret ");
+      line.add(llvmTypeName(e.returnType));
+      line.add(" zeroinitializer");
+      emitLine(e, line.data);
+    } else if (e.ast.nodes[node].a == NO_NODE) {
       emitLine(e, "ret void");
     } else {
-      let type: Type = typeOfNode(e, e.ast.nodes[node].a);
+      let type: Type = resultTypeOf(e, e.ast.nodes[node].a);
       let value: *i8 = genExpr(e, e.ast.nodes[node].a);
 
       let line: *Builder = Builder.new();

@@ -276,6 +276,7 @@ struct Lexer {
     else if (first == '>' && second == '=') { kind = TokenKind.Ge; }
     else if (first == '&' && second == '&') { kind = TokenKind.AndAnd; }
     else if (first == '|' && second == '|') { kind = TokenKind.OrOr; }
+    else if (first == '?' && second == '?') { kind = TokenKind.Coalesce; }
     else if (first == '<' && second == '<') { kind = TokenKind.Shl; }
     else if (first == '>' && second == '>') { kind = TokenKind.Shr; }
     else if (first == '+' && second == '=') { kind = TokenKind.PlusAssign; }
@@ -359,6 +360,8 @@ fn keywordKind(text: *i8): TokenKind {
   if (equals(text, "struct")) { return TokenKind.Struct; }
   if (equals(text, "sizeof")) { return TokenKind.Sizeof; }
   if (equals(text, "return")) { return TokenKind.Return; }
+  if (equals(text, "try")) { return TokenKind.Try; }
+  if (equals(text, "catch")) { return TokenKind.Catch; }
   if (equals(text, "while")) { return TokenKind.While; }
   if (equals(text, "break")) { return TokenKind.Break; }
   if (equals(text, "continue")) { return TokenKind.Continue; }
@@ -445,6 +448,7 @@ fn foldsNegative(lastKind: TokenKind): bool {
     TokenKind.AndAnd, TokenKind.OrOr => { return true; }
     TokenKind.LParen, TokenKind.LBrace => { return true; }
     TokenKind.Comma, TokenKind.Colon => { return true; }
+    TokenKind.Coalesce, TokenKind.Try => { return true; }
     else => {}
   }
 

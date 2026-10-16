@@ -104,7 +104,17 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
   }
   an.enumNames.add(name);
 
+  // An error enum's errors are numbered across the whole program, so that a
+  // union of several can tell them apart; see errors.ode.
+  let isError: bool = an.ast.nodes[node].extra == 1;
+  if (isError) {
+    an.errorEnums.add(name);
+  }
+
   let next: i64 = 0;
+  if (isError) {
+    next = an.nextErrorCode;
+  }
   let index: i32 = 0;
   while (index < an.ast.nodes[node].itemCount) {
     let member: i32 = an.ast.nodes[node].items[index];
@@ -120,7 +130,10 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
     }
 
     let valueNode: i32 = an.ast.nodes[member].a;
-    if (valueNode != NO_NODE) {
+    if (valueNode != NO_NODE && isError) {
+      analyzerFail(an, member, Problem.ErrorValueWritten, Facts.about(memberName));
+      FAILED = false;
+    } else if (valueNode != NO_NODE) {
       let ok: bool = true;
       let written: i64 = integerLiteralValue(an, valueNode, &ok);
       if (!ok || an.ast.nodes[valueNode].kind == NodeKind.Char) {
@@ -141,6 +154,10 @@ export fn registerEnum(an: *Analyzer, node: i32): void {
     an.values[member] = next;
     next = next + 1;
     index = index + 1;
+  }
+
+  if (isError) {
+    an.nextErrorCode = next;
   }
 }
 

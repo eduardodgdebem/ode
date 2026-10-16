@@ -93,6 +93,11 @@
 
 "sizeof" @function.builtin
 
+["try" "catch"] @keyword.exception
+(is_expression "is" @keyword.operator)
+(enum_declaration "error" @keyword)
+(union_type "|" @punctuation.delimiter)
+
 (test_declaration "test" @keyword)
 
 ((call_expression

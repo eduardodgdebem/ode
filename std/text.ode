@@ -71,16 +71,28 @@ export fn fromInt(value: i64): *i8 {
   return out.take();
 }
 
-// The decimal integer `text` holds, or `fallback` when it holds anything
-// else -- an empty string, a stray character, a value too wide for an i64.
-export fn parseInt(text: *i8, fallback: i64): i64 {
+export error enum ParseError {
+  // There was nothing to read.
+  Empty,
+  // Something that is not a digit -- a space, a letter, a sign alone.
+  NotANumber,
+  // A number, but one too wide for an i64.
+  OutOfRange,
+}
+
+// The decimal integer `text` holds: digits, after an optional sign, and
+// nothing else.
+export fn parseInt(text: *i8): i64 | ParseError {
   let index: i64 = 0;
   let negative: bool = text[0] == '-';
   if (negative || text[0] == '+') {
     index = 1;
   }
+  if (text[0] == '\0') {
+    return ParseError.Empty;
+  }
   if (text[index] == '\0') {
-    return fallback;
+    return ParseError.NotANumber;
   }
 
   // The magnitude, as a u64, may reach one past the largest i64 only when
@@ -94,11 +106,11 @@ export fn parseInt(text: *i8, fallback: i64): i64 {
   while (text[index] != '\0') {
     let digit: i8 = text[index];
     if (digit < '0' || digit > '9') {
-      return fallback;
+      return ParseError.NotANumber;
     }
     let value: u64 = (digit - '0') as u64;
     if (magnitude > (limit - value) / 10) {
-      return fallback;
+      return ParseError.OutOfRange;
     }
     magnitude = magnitude * 10 + value;
     index = index + 1;
@@ -214,23 +226,24 @@ test "numbers to text and back" {
   assertEq(fromInt(0), "0");
   assertEq(fromInt(-42), "-42");
   assertEq(fromInt(-9223372036854775807 - 1), "-9223372036854775808");
-  assertEq(parseInt("1234", -1), 1234);
-  assertEq(parseInt("-7", 0), -7);
-  assertEq(parseInt("+5", 0), 5);
-  assertEq(parseInt("9223372036854775807", 0), 9223372036854775807);
-  assertEq(parseInt("-9223372036854775808", 0), -9223372036854775807 - 1);
+  assertEq(parseInt("1234"), 1234);
+  assertEq(parseInt("-7"), -7);
+  assertEq(parseInt("+5"), 5);
+  assertEq(parseInt("9223372036854775807"), 9223372036854775807);
+  assertEq(parseInt("-9223372036854775808"), -9223372036854775807 - 1);
 }
 
-test "parseInt falls back on anything that is not a number" {
-  assertEq(parseInt("12a", -1), -1);
-  assertEq(parseInt("", -1), -1);
-  assertEq(parseInt("-", -1), -1);
-  assertEq(parseInt("+", -1), -1);
-  assertEq(parseInt(" 1", -1), -1);
-  assertEq(parseInt("1 ", -1), -1);
-  assertEq(parseInt("9223372036854775808", -1), -1);
-  assertEq(parseInt("-9223372036854775809", -1), -1);
-  assertEq(parseInt("99999999999999999999999", -1), -1);
+test "parseInt says why text is not a number" {
+  assertEq(parseInt(""), ParseError.Empty);
+  assertEq(parseInt("12a"), ParseError.NotANumber);
+  assertEq(parseInt("-"), ParseError.NotANumber);
+  assertEq(parseInt("+"), ParseError.NotANumber);
+  assertEq(parseInt(" 1"), ParseError.NotANumber);
+  assertEq(parseInt("1 "), ParseError.NotANumber);
+  assertEq(parseInt("9223372036854775808"), ParseError.OutOfRange);
+  assertEq(parseInt("-9223372036854775809"), ParseError.OutOfRange);
+  assertEq(parseInt("99999999999999999999999"), ParseError.OutOfRange);
+  assertEq(parseInt("abc") ?? 0, 0);
 }
 
 test "comparisons that do not match" {

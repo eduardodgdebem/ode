@@ -10,7 +10,7 @@
 
 import { printf, dprintf, getchar, fflush } from "./c";
 import { Builder } from "./text";
-import { writeFile, removeFile } from "./fs";
+import { writeFile, removeFile, FileError } from "./fs";
 
 export fn print(text: *i8): void {
   printf("%s", text);
@@ -57,7 +57,7 @@ extern fn close(fd: i32): i32;
 // Points standard input at a file holding `text`. Tests run in a process of
 // their own, so this lasts for the one test.
 fn feedInput(path: *i8, text: *i8): void {
-  writeFile(path, text);
+  assert(!(writeFile(path, text) is FileError), "cannot write the input");
   let fd: i32 = open(path, 0);
   dup2(fd, 0);
   close(fd);
@@ -70,11 +70,11 @@ test "readLine splits lines and ends with null" {
   assertEq(readLine(), "last without newline");
   assertEq(readLine(), null);
   assertEq(readLine(), null);
-  removeFile("ode-std-io-input.txt");
+  removeFile("ode-std-io-input.txt") catch (e) {};
 }
 
 test "readLine on empty input is null at once" {
   feedInput("ode-std-io-empty.txt", "");
   assertEq(readLine(), null);
-  removeFile("ode-std-io-empty.txt");
+  removeFile("ode-std-io-empty.txt") catch (e) {};
 }

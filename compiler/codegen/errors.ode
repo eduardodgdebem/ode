@@ -1,0 +1,219 @@
+// ---------------------------------------------------------------------------
+// Emitting errors as values; see semantics/errors.ode for the language side.
+//
+// A union is `{ i32 code, value }`: code 0 when it holds its value, and the
+// error's number otherwise. `try` and `catch` compare the code and branch;
+// `??` does too, and only evaluates its fallback when it is needed.
+// ---------------------------------------------------------------------------
+
+import { Builder, fromInt } from "std/text";
+import { Type } from "../semantics/types";
+import { analyzerParseType } from "../semantics/analyzer";
+import { unionInfo, valueOf, errorCodeRange } from "../semantics/errors";
+import {
+  Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
+  emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
+  localTypeOf, variableAddress,
+} from "./emitter";
+import { llvmTypeName } from "./layout";
+import {
+  typeOfNode, emitAssign, emitLoad, emitStore, genExpr,
+} from "./expressions";
+import { genStatement } from "./statements";
+
+// `value`, of type `from`, as the union `union`: an error becomes the code
+// it is, and a value the value with code 0.
+export fn wrapInUnion(e: *Emitter, value: *i8, from: Type, union: Type): *i8 {
+  if (from.isUnion()) {
+    return value;
+  }
+
+  let line: *Builder = Builder.new();
+  line.add("insertvalue ");
+  line.add(llvmTypeName(union));
+  line.add(" zeroinitializer, ");
+  if (from.isEnum()) {
+    line.add("i32 ");
+    line.add(value);
+    line.add(", 0");
+  } else {
+    line.add(llvmTypeName(from));
+    line.push(' ');
+    line.add(value);
+    line.add(", 1");
+  }
+  return emitAssign(e, line.data);
+}
+
+fn extract(e: *Emitter, union: Type, value: *i8, index: i32): *i8 {
+  let line: *Builder = Builder.new();
+  line.add("extractvalue ");
+  line.add(llvmTypeName(union));
+  line.push(' ');
+  line.add(value);
+  line.add(", ");
+  line.addInt(index as i64);
+  return emitAssign(e, line.data);
+}
+
+export fn compare(e: *Emitter, predicate: *i8, type: *i8, left: *i8, right: *i8): *i8 {
+  let line: *Builder = Builder.new();
+  line.add("icmp ");
+  line.add(predicate);
+  line.push(' ');
+  line.add(type);
+  line.push(' ');
+  line.add(left);
+  line.add(", ");
+  line.add(right);
+  return emitAssign(e, line.data);
+}
+
+// A variable's value. One narrowed by `is` is stored as its declared union,
+// so the part it is known to hold is read out of it.
+export fn genVariable(e: *Emitter, node: i32): *i8 {
+  let type: Type = typeOfNode(e, node);
+  let declared: Type = localTypeOf(e, node);
+  let address: *i8 = variableAddress(e, node);
+
+  if (!declared.isUnion() || declared.equals(type)) {
+    return emitLoad(e, type, address);
+  }
+
+  let union: *i8 = emitLoad(e, declared, address);
+  if (type.isUnion()) {
+    return union;
+  }
+  if (type.isEnum()) {
+    return extract(e, declared, union, 0);
+  }
+  return extract(e, declared, union, 1);
+}
+
+// `try value`: the value, or a return of its error.
+export fn genTry(e: *Emitter, node: i32): *i8 {
+  let operand: i32 = e.ast.nodes[node].a;
+  let union: Type = typeOfNode(e, operand);
+  let value: *i8 = genExpr(e, operand);
+  let code: *i8 = extract(e, union, value, 0);
+
+  let failed: *i8 = freshLabel(e);
+  let ok: *i8 = freshLabel(e);
+  emitCondBranch(e, compare(e, "ne", "i32", code, "0"), failed, ok);
+
+  // The function's own union holds the same error, by the same number.
+  emitLabel(e, failed);
+  let line: *Builder = Builder.new();
+  line.add("insertvalue ");
+  line.add(llvmTypeName(e.returnType));
+  line.add(" zeroinitializer, i32 ");
+  line.add(code);
+  line.add(", 0");
+  let returned: *i8 = emitAssign(e, line.data);
+  let ret: *Builder = Builder.new();
+  ret.add("ret ");
+  ret.add(llvmTypeName(e.returnType));
+  ret.push(' ');
+  ret.add(returned);
+  emitLine(e, ret.data);
+  e.terminated = true;
+
+  emitLabel(e, ok);
+  if (valueOf(union).isVoid()) {
+    return "";
+  }
+  return extract(e, union, value, 1);
+}
+
+// `value ?? fallback`: the fallback only runs when the value is an error, or
+// a null pointer.
+export fn genCoalesce(e: *Emitter, node: i32): *i8 {
+  let left: i32 = e.ast.nodes[node].a;
+  let leftType: Type = typeOfNode(e, left);
+  let result: Type = typeOfNode(e, node);
+  let slot: *i8 = emitAlloca(e, llvmTypeName(result));
+
+  let value: *i8 = genExpr(e, left);
+  let present: *i8 = "";
+  if (leftType.isUnion()) {
+    present = compare(e, "eq", "i32", extract(e, leftType, value, 0), "0");
+  } else {
+    present = compare(e, "ne", "ptr", value, "null");
+  }
+
+  let has: *i8 = freshLabel(e);
+  let fallback: *i8 = freshLabel(e);
+  let done: *i8 = freshLabel(e);
+  emitCondBranch(e, present, has, fallback);
+
+  emitLabel(e, has);
+  if (leftType.isUnion()) {
+    emitStore(e, result, extract(e, leftType, value, 1), slot);
+  } else {
+    emitStore(e, result, value, slot);
+  }
+  emitBranch(e, done);
+
+  emitLabel(e, fallback);
+  emitStore(e, result, genExpr(e, e.ast.nodes[node].b), slot);
+  emitBranch(e, done);
+
+  emitLabel(e, done);
+  return emitLoad(e, result, slot);
+}
+
+// `value catch (name) { ... }`: the value, or the block run with the error
+// bound to `name`. The block always leaves, so nothing follows it.
+export fn genCatch(e: *Emitter, node: i32): *i8 {
+  let operand: i32 = e.ast.nodes[node].a;
+  let union: Type = typeOfNode(e, operand);
+  let value: *i8 = genExpr(e, operand);
+  let code: *i8 = extract(e, union, value, 0);
+
+  let failed: *i8 = freshLabel(e);
+  let ok: *i8 = freshLabel(e);
+  emitCondBranch(e, compare(e, "ne", "i32", code, "0"), failed, ok);
+
+  emitLabel(e, failed);
+  let slot: *i8 = emitAlloca(e, "i32");
+  let errorType: Type = Type.ofEnum(unionInfo(union).errors.at(0), 0);
+  emitStore(e, errorType, code, slot);
+  emitterEnterScope(e);
+  declareLocal(e, e.ast.nodes[node].text, slot, errorType);
+  genStatement(e, e.ast.nodes[node].b);
+  emitterExitScope(e);
+  // Checking made sure the block leaves; whatever block its last statement
+  // opened after itself is never reached.
+  if (!e.terminated) {
+    emitLine(e, "unreachable");
+    e.terminated = true;
+  }
+
+  emitLabel(e, ok);
+  if (valueOf(union).isVoid()) {
+    return "";
+  }
+  return extract(e, union, value, 1);
+}
+
+// `value is SomeError`: whether the code is one of that enum's numbers,
+// which are given to its errors in order.
+export fn genIs(e: *Emitter, node: i32): *i8 {
+  let operand: i32 = e.ast.nodes[node].a;
+  let union: Type = typeOfNode(e, operand);
+  let code: *i8 = extract(e, union, genExpr(e, operand), 0);
+
+  let asked: Type = analyzerParseType(e.an, e.ast.nodes[node].b);
+  let first: i64 = 0;
+  let last: i64 = 0;
+  errorCodeRange(e.an, asked.structName, &first, &last);
+
+  let low: *i8 = compare(e, "sge", "i32", code, fromInt(first));
+  let high: *i8 = compare(e, "sle", "i32", code, fromInt(last));
+  let both: *Builder = Builder.new();
+  both.add("and i1 ");
+  both.add(low);
+  both.add(", ");
+  both.add(high);
+  return emitAssign(e, both.data);
+}

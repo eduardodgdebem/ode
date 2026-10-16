@@ -15,12 +15,15 @@ import { TypeKind, Type } from "../semantics/types";
 import { moduleDisplayPath, NameSet } from "../semantics/modules";
 import { enumDeclOf } from "../semantics/enums";
 import { RUNNER_MODULE } from "../semantics/testing";
+import { unionType, valueOf } from "../semantics/errors";
 import {
-  Emitter, freshLabel, emitLine, emitLabel, emitCondBranch, llvmName,
-  internString,
+  Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitCondBranch,
+  llvmName, internString,
 } from "./emitter";
 import { llvmTypeName } from "./layout";
-import { typeOfNode, emitAssign, emitCast, genExpr } from "./expressions";
+import {
+  typeOfNode, emitAssign, emitCast, resultTypeOf, genExpr,
+} from "./expressions";
 
 // `path:line:column` of `node`, as a string constant.
 fn location(e: *Emitter, node: i32): *i8 {
@@ -86,6 +89,13 @@ fn isText(type: Type): bool {
 // but by the text for two strings.
 fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
              rightType: Type): *i8 {
+  if (rightType.isUnion() && !leftType.isUnion()) {
+    return unionEquals(e, right, rightType, left, leftType);
+  }
+  if (leftType.isUnion()) {
+    return unionEquals(e, left, leftType, right, rightType);
+  }
+
   let line: *Builder = Builder.new();
 
   if (isText(leftType) && isText(rightType)) {
@@ -117,6 +127,99 @@ fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
   return emitAssign(e, line.data);
 }
 
+// A union against an error, a value, or another union: the same error, or
+// no error and the same value.
+fn unionEquals(e: *Emitter, union: *i8, unionType: Type, other: *i8,
+               otherType: Type): *i8 {
+  let code: *i8 = unionPart(e, unionType, union, 0);
+  if (otherType.isEnum()) {
+    return instruction(e, "icmp eq i32 ", code, other);
+  }
+
+  let value: Type = valueOf(unionType);
+  if (otherType.isUnion()) {
+    let sameCode: *i8 = instruction(e, "icmp eq i32 ", code,
+                                    unionPart(e, otherType, other, 0));
+    if (value.isVoid()) {
+      return sameCode;
+    }
+    let sameValue: *i8 = genEquals(e, unionPart(e, unionType, union, 1), value,
+                                   unionPart(e, otherType, other, 1), value);
+    let failed: *i8 = instruction(e, "icmp ne i32 ", code, "0");
+    let either: *i8 = instruction(e, "or i1 ", failed, sameValue);
+    return instruction(e, "and i1 ", sameCode, either);
+  }
+
+  let succeeded: *i8 = instruction(e, "icmp eq i32 ", code, "0");
+  if (value.isVoid()) {
+    return succeeded;
+  }
+  let sameValue: *i8 = genEquals(e, unionPart(e, unionType, union, 1), value,
+                                 other, otherType);
+  return instruction(e, "and i1 ", succeeded, sameValue);
+}
+
+fn unionPart(e: *Emitter, type: Type, value: *i8, index: i32): *i8 {
+  let line: *Builder = Builder.new();
+  line.add("extractvalue ");
+  line.add(llvmTypeName(type));
+  line.push(' ');
+  line.add(value);
+  line.add(", ");
+  line.addInt(index as i64);
+  return emitAssign(e, line.data);
+}
+
+// `operation a, b`, where `operation` names the type as well.
+export fn instruction(e: *Emitter, operation: *i8, a: *i8, b: *i8): *i8 {
+  let line: *Builder = Builder.new();
+  line.add(operation);
+  line.add(a);
+  line.add(", ");
+  line.add(b);
+  return emitAssign(e, line.data);
+}
+
+// A union as text: its error's name, `ParseError.Empty`, or its value
+// written as its own type would be.
+fn unionText(e: *Emitter, value: *i8, type: Type): *i8 {
+  e.usesErrorNames = true;
+  let code: *i8 = unionPart(e, type, value, 0);
+  let call: *Builder = Builder.new();
+  call.add("call ptr @ode.errorName(i32 ");
+  call.add(code);
+  call.push(')');
+  let name: *i8 = emitAssign(e, call.data);
+  if (valueOf(type).isVoid()) {
+    return name;
+  }
+
+  // The value, printed into a buffer of its own, picked when there is no
+  // error.
+  let buffer: *i8 = emitAlloca(e, "[64 x i8]");
+  let args: *Builder = Builder.new();
+  let format: *i8 = formatValue(e, unionPart(e, type, value, 1), valueOf(type),
+                                args);
+  let print: *Builder = Builder.new();
+  print.add("call i32 (ptr, i64, ptr, ...) @snprintf(ptr ");
+  print.add(buffer);
+  print.add(", i64 64, ptr ");
+  print.add(internString(e, format, strlen(format)));
+  print.add(args.data);
+  print.push(')');
+  emitAssign(e, print.data);
+
+  let succeeded: *i8 = instruction(e, "icmp eq i32 ", code, "0");
+  let pick: *Builder = Builder.new();
+  pick.add("select i1 ");
+  pick.add(succeeded);
+  pick.add(", ptr ");
+  pick.add(buffer);
+  pick.add(", ptr ");
+  pick.add(name);
+  return emitAssign(e, pick.data);
+}
+
 // Adds `value` to `args` in the form its printf conversion wants, and
 // returns that conversion.
 fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Builder): *i8 {
@@ -137,6 +240,12 @@ fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Builder): *i8 {
     args.add(", ptr ");
     args.add(value);
     return "\"%s\"";
+  }
+
+  if (type.isUnion()) {
+    args.add(", ptr ");
+    args.add(unionText(e, value, type));
+    return "%s";
   }
 
   // An enum shows as its member: `Color.Red`.
@@ -176,8 +285,8 @@ export fn genAssertEq(e: *Emitter, node: i32): *i8 {
   let args: i32 = e.ast.nodes[node].a;
   let actualNode: i32 = e.ast.nodes[args].items[0];
   let expectedNode: i32 = e.ast.nodes[args].items[1];
-  let actualType: Type = typeOfNode(e, actualNode);
-  let expectedType: Type = typeOfNode(e, expectedNode);
+  let actualType: Type = resultTypeOf(e, actualNode);
+  let expectedType: Type = resultTypeOf(e, expectedNode);
 
   let actual: *i8 = genExpr(e, actualNode);
   let expected: *i8 = genExpr(e, expectedNode);
@@ -219,6 +328,12 @@ export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
   }
   if (!declared.has("strcmp")) {
     e.head.add("declare i32 @strcmp(ptr, ptr)\n");
+  }
+  if (!declared.has("snprintf")) {
+    e.head.add("declare i32 @snprintf(ptr, i64, ptr, ...)\n");
+  }
+  if (e.usesErrorNames) {
+    emitErrorNames(e);
   }
 
   // Equal when both are the same pointer, or neither is null and their
@@ -371,4 +486,41 @@ export fn emitEnumNames(e: *Emitter): void {
     e.body.add(internString(e, "?", 1));
     e.body.add("\n}\n\n");
   }
+}
+
+// `@ode.errorName`: every error in the program by its number, as
+// `ParseError.Empty`; "ok" for 0, which is no error.
+fn emitErrorNames(e: *Emitter): void {
+  let arms: *Builder = Builder.new();
+  e.body.add("define private ptr @ode.errorName(i32 %code) {\nentry:\n");
+  e.body.add("  switch i32 %code, label %unknown [ i32 0, label %ok");
+  let names: *List<*i8> = e.an.errorEnums.names;
+  for (index in 0..names.count) {
+    let declaration: i32 = enumDeclOf(e.an, names.at(index));
+    for (member in 0..e.ast.nodes[declaration].itemCount) {
+      let node: i32 = e.ast.nodes[declaration].items[member];
+      let code: i64 = e.an.values[node];
+      e.body.add(" i32 ");
+      e.body.addInt(code);
+      e.body.add(", label %e");
+      e.body.addInt(code);
+
+      let text: *Builder = Builder.new();
+      text.add(Type.ofEnum(names.at(index), 0).toText());
+      text.push('.');
+      text.add(e.ast.nodes[node].text);
+      arms.add("e");
+      arms.addInt(code);
+      arms.add(":\n  ret ptr ");
+      arms.add(internString(e, text.data, text.length));
+      arms.push('\n');
+    }
+  }
+  e.body.add(" ]\nok:\n  ret ptr ");
+  e.body.add(internString(e, "ok", 2));
+  e.body.add("\n");
+  e.body.add(arms.data);
+  e.body.add("unknown:\n  ret ptr ");
+  e.body.add(internString(e, "?", 1));
+  e.body.add("\n}\n\n");
 }

@@ -85,7 +85,7 @@ string the caller owns.
 | `indexOf(text, part)` | where `part` starts, or -1 |
 | `slice(text, start, count)`, `copy(text)` | new strings |
 | `fromInt(value)` | decimal text |
-| `parseInt(text, fallback)` | the decimal in `text`, or `fallback` if it holds anything else |
+| `parseInt(text)` | the decimal in `text`: `i64 \| ParseError` -- `Empty`, `NotANumber` or `OutOfRange` |
 
 `Builder` puts a string together: `Builder.new()`, then `add(text)`,
 `push(byte)`, `addInt(value)` and `addBytes(bytes, count)`, and `take()`
@@ -102,8 +102,21 @@ hands over the string and frees the builder.
 
 ## `std/fs`
 
+Each function that can fail returns a `FileError`: `NotFound` when nothing is
+at the path, `CannotRead` when something is but cannot be read as a file (a
+directory, say), and `CannotWrite` when it cannot be written.
+
 | Function | Does |
 |---|---|
-| `readFile(path)` | the whole file as a string, or null |
-| `writeFile(path, text)`, `appendFile(path, text)` | false when it cannot |
-| `exists(path)`, `removeFile(path)` | |
+| `readFile(path)` | the whole file as a string: `*i8 \| FileError` |
+| `writeFile(path, text)`, `appendFile(path, text)` | `void \| FileError` |
+| `removeFile(path)` | `void \| FileError` |
+| `exists(path)` | whether anything is there |
+
+```rust
+let source: *i8 = readFile("config.txt") catch (e) {
+  eprintln("cannot read config.txt");
+  return 1;
+};
+let port: i64 = parseInt(field(source, "port")) ?? 8080;
+```

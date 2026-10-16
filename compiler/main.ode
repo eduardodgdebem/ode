@@ -69,10 +69,10 @@ fn testMain(argc: i32, argv: **i8): i32 {
     }
     loadFiles(ast, root, files);
   } else {
-    let source: *i8 = readFile(path);
-    if (source == null) {
+    let source: *i8 = readFile(path) catch (e) {
       fail(Problem.CannotOpenInput);
-    }
+      return 1;
+    };
     loadProgram(ast, root, path, source);
   }
   RUNNER_MODULE = loadModule(ast, root, "ode:testing", "ode:testing",
@@ -169,10 +169,10 @@ fn main(argc: i32, argv: **i8): i32 {
   SOURCE_PATH = path;
   DIAGS = Diagnostics.new();
 
-  let source: *i8 = readFile(path);
-  if (source == null) {
+  let source: *i8 = readFile(path) catch (e) {
     fail(Problem.CannotOpenInput);
-  }
+    return 1;
+  };
 
   let tokens: *TokenList = tokenize(source);
   let out: *Builder = Builder.new();
