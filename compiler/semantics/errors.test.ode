@@ -240,3 +240,25 @@ test "a bare return succeeds in a function returning void or an error" {
   assertEq(errors().returning("i64 | IoError").run("return;").at(0).problem,
            Problem.ReturnWithoutValue);
 }
+
+test "an error cannot be dropped by calling for the effect alone" {
+  let found: *List<Diagnostic> = errors().returning("void | IoError").run(`
+    touch("a");
+    parse("1");
+    try touch("b");
+    touch("c") catch (e) {};
+    let n: i64 = parse("2") ?? 0;
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.UnhandledError);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).facts.got.toText(), "void | IoError");
+  assertEq(found.at(1).problem, Problem.UnhandledError);
+  assertEq(found.at(1).line, 2);
+}
+
+test "a catch of a void union may fall through, having no value to give" {
+  assertEq(errors().run("touch(\"x\") catch (e) {};").count, 0);
+  let found: *List<Diagnostic> = errors().run("let n: i64 = parse(\"1\") catch (e) {};");
+  assertEq(found.at(0).problem, Problem.CatchFallsThrough);
+}

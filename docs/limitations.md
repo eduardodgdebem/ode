@@ -234,10 +234,10 @@ Linux but not Windows.
 
 `std/` has memory, a list, text, terminal I/O and whole files -- what the
 examples and tests needed first. There is no map or set, no formatting
-beyond `printf`, no time, no processes beyond `exit`, and no error values:
-a function that can fail returns null, false or a fallback, and one that
-must not -- an index out of range, running out of memory -- stops the
-program. A test cannot say that it expects to stop; such a test lives in
+beyond `printf`, no time, and no processes beyond `exit`. A function that
+can fail returns an error -- `parseInt` a `ParseError`, the file functions a
+`FileError` -- and one that must not -- an index out of range, running out
+of memory -- stops the program. A test cannot say that it expects to stop; such a test lives in
 `tests/runner/`, where its recorded failure is what is checked.
 
 ### 6.9 Errors: what the first version leaves out

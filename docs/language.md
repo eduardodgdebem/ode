@@ -374,7 +374,10 @@ printf("%lld\n", result);           // and here, an i64
 ```
 
 A function that only fails returns `void | IoError`, and succeeds with a bare
-`return;`. Errors from different error enums can share a union, and are
+`return;`. Calling one for what it does still has to say what happens to its
+error -- `touch(path);` alone is an error -- and there, a `catch` block may
+fall through, there being no value to give: `removeFile(path) catch (e) {};`
+ignores the error on purpose, where anyone reading can see it. Errors from different error enums can share a union, and are
 always told apart: every error in the program has a number of its own.
 
 ## Strings

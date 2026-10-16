@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // Files, whole: read one into a string, or write a string out as one.
 //
-//   let source: *i8 = readFile("main.ode");
-//   if (source == null) {
+//   let source: *i8 = readFile("main.ode") catch (e) {
 //     eprintln("cannot read main.ode");
-//   }
+//     return 1;
+//   };
 //
 // Paths are relative to the directory the program runs in.
 // ---------------------------------------------------------------------------
@@ -16,13 +16,22 @@ import { alloc, release } from "./mem";
 extern fn access(path: *i8, mode: i32): i32;
 extern fn unlink(path: *i8): i32;
 
-// The whole of the file at `path`, or null when it cannot be read -- a
-// directory included. A file holding a NUL byte reads as text that ends
-// there.
-export fn readFile(path: *i8): *i8 {
+export error enum FileError {
+  // Nothing is there.
+  NotFound,
+  // Something is there, but cannot be read as a file: a directory, or one
+  // the program may not read.
+  CannotRead,
+  // It cannot be written: its directory is missing, or may not be written.
+  CannotWrite,
+}
+
+// The whole of the file at `path`. A file holding a NUL byte reads as text
+// that ends there.
+export fn readFile(path: *i8): *i8 | FileError {
   let stream: *i8 = fopen(path, "rb");
   if (stream == null) {
-    return null;
+    return missingOr(path, FileError.CannotRead);
   }
 
   let out: *Builder = Builder.new();
@@ -38,38 +47,51 @@ export fn readFile(path: *i8): *i8 {
   fclose(stream);
   if (failed) {
     release<i8>(out.take());
-    return null;
+    return FileError.CannotRead;
   }
   return out.take();
 }
 
-// Replaces the file at `path` with `text`, making it if need be. False when
-// it cannot be written.
-export fn writeFile(path: *i8, text: *i8): bool {
+// Replaces the file at `path` with `text`, making it if need be.
+export fn writeFile(path: *i8, text: *i8): void | FileError {
   return put(path, text, "wb");
 }
 
 // Adds `text` to the end of the file at `path`, making it if need be.
-export fn appendFile(path: *i8, text: *i8): bool {
+export fn appendFile(path: *i8, text: *i8): void | FileError {
   return put(path, text, "ab");
 }
 
-fn put(path: *i8, text: *i8, mode: *i8): bool {
+fn put(path: *i8, text: *i8, mode: *i8): void | FileError {
   let stream: *i8 = fopen(path, mode);
   if (stream == null) {
-    return false;
+    return FileError.CannotWrite;
   }
   let length: i64 = strlen(text);
   let written: i64 = fwrite(text, 1, length, stream);
-  return fclose(stream) == 0 && written == length;
+  if (fclose(stream) != 0 || written != length) {
+    return FileError.CannotWrite;
+  }
+  return;
 }
 
 export fn exists(path: *i8): bool {
   return access(path, 0) == 0;
 }
 
-export fn removeFile(path: *i8): bool {
-  return unlink(path) == 0;
+export fn removeFile(path: *i8): void | FileError {
+  if (unlink(path) != 0) {
+    return missingOr(path, FileError.CannotWrite);
+  }
+  return;
+}
+
+// NotFound when nothing is at `path`, and `otherwise` when something is.
+fn missingOr(path: *i8, otherwise: FileError): FileError {
+  if (!exists(path)) {
+    return FileError.NotFound;
+  }
+  return otherwise;
 }
 
 test "a file written is read back whole" {
@@ -80,29 +102,32 @@ test "a file written is read back whole" {
   }
   let text: *i8 = line.take();
 
-  assert(writeFile(path, text));
+  assert(!(writeFile(path, text) is FileError));
   assert(exists(path));
-  assertEq(strlen(readFile(path)), 20000);
+  assertEq(strlen(readFile(path) ?? ""), 20000);
 
-  assert(appendFile(path, "end"));
-  assertEq(strlen(readFile(path)), 20003);
+  assert(!(appendFile(path, "end") is FileError));
+  assertEq(strlen(readFile(path) ?? ""), 20003);
 
-  assert(removeFile(path));
+  assert(!(removeFile(path) is FileError));
   assert(!exists(path));
 }
 
-test "what cannot be read or written says so" {
-  assertEq(readFile("no-such-file.txt"), null);
-  assertEq(readFile("."), null);
-  assert(!writeFile("no-such-directory/file.txt", "text"));
-  assert(!appendFile("no-such-directory/file.txt", "text"));
-  assert(!removeFile("no-such-file.txt"));
+test "what cannot be read says why" {
+  assertEq(readFile("no-such-file.txt"), FileError.NotFound);
+  assertEq(readFile("."), FileError.CannotRead);
+}
+
+test "what cannot be written or removed says why" {
+  assertEq(writeFile("no-such-directory/file.txt", "text"), FileError.CannotWrite);
+  assertEq(appendFile("no-such-directory/file.txt", "text"), FileError.CannotWrite);
+  assertEq(removeFile("no-such-file.txt"), FileError.NotFound);
   assert(!exists("no-such-file.txt"));
 }
 
 test "an empty file reads as an empty string" {
   let path: *i8 = "ode-std-fs-empty.txt";
-  assert(writeFile(path, ""));
+  assert(!(writeFile(path, "") is FileError));
   assertEq(readFile(path), "");
-  removeFile(path);
+  removeFile(path) catch (e) {};
 }

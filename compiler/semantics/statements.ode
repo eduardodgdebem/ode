@@ -70,7 +70,7 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     NodeKind.Extern => { analyzeExternDecl(an, node); return; }
     NodeKind.Test => { analyzeTest(an, node); return; }
     NodeKind.Return => { analyzeReturn(an, node); return; }
-    NodeKind.ExprStmt => { checkExpr(an, an.ast.nodes[node].a); return; }
+    NodeKind.ExprStmt => { analyzeExpressionStatement(an, node); return; }
     else => {}
   }
 
@@ -112,6 +112,15 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
 
   analyzerFail(an, node, Problem.Internal,
                Facts.about("unknown statement node type"));
+}
+
+// A call made for what it does. One that may fail cannot have its error
+// dropped on the floor: it is passed on, replaced, or handled.
+fn analyzeExpressionStatement(an: *Analyzer, node: i32): void {
+  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (!FAILED && type.isUnion()) {
+    analyzerFail(an, node, Problem.UnhandledError, Facts.aboutType(type));
+  }
 }
 
 fn analyzeBlock(an: *Analyzer, node: i32): void {

@@ -303,7 +303,9 @@ export fn checkCatch(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  if (!alwaysLeaves(an, block)) {
+  // A block that falls through leaves nothing to use as the value -- unless
+  // there is none, when falling through just carries on.
+  if (!valueOf(type).isVoid() && !alwaysLeaves(an, block)) {
     analyzerFail(an, node, Problem.CatchFallsThrough, Facts.none());
     return Type.make(TypeKind.None, 0);
   }

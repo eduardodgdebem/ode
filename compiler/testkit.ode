@@ -23,14 +23,14 @@
 import { exit } from "std/c";
 import { alloc, release } from "std/mem";
 import { List } from "std/list";
-import { readFile, writeFile } from "std/fs";
+import { readFile, writeFile, FileError } from "std/fs";
 import { Builder, contains } from "std/text";
 import { STDOUT } from "./support/libc";
 import { Problem } from "./support/problems";
 import { writeBuilder } from "./support/text";
 import {
   SOURCE_PATH, Diagnostic, DIAGS, FAILED, hasErrors, resetDiagnostics,
-  formatDiagnostics,
+  formatDiagnostics, fail,
 } from "./support/diagnostics";
 import {
   TextList, StderrMode, runCommand, runInChild, environment, changeDirectory,
@@ -75,8 +75,10 @@ export fn problemsIn(source: *i8): *List<Diagnostic> {
 // problemsIn, for the program entered at `entry` among `files`.
 export fn problemsInFiles(files: *Files, entry: *i8): *List<Diagnostic> {
   changeDirectory(files.directory);
-  let source: *i8 = readFile(entry);
-  assert(source != null, "no such file among the test's files");
+  let source: *i8 = readFile(entry) catch (e) {
+    assert(false, "no such file among the test's files");
+    return DIAGS.items;
+  };
   let program: Loaded = load(entry, source);
   analyzeLoaded(program);
   return DIAGS.items;
@@ -363,7 +365,7 @@ export struct Files {
   fn add(self: *Files, name: *i8, source: *i8): *Files {
     let path: *i8 = joinPath(self.directory, name);
     makeDirectories(parentDirectory(path));
-    assert(writeFile(path, source), "cannot write a scratch file");
+    assert(!(writeFile(path, source) is FileError), "cannot write a scratch file");
     return self;
   }
 
@@ -412,7 +414,10 @@ let JOB_ENTRY: *i8 = null;
 
 fn buildJob(): void {
   changeDirectory(JOB_DIRECTORY);
-  let source: *i8 = readFile(JOB_ENTRY);
+  let source: *i8 = readFile(JOB_ENTRY) catch (e) {
+    fail(Problem.CannotOpenInput);
+    return;
+  };
   let program: Loaded = load(JOB_ENTRY, source);
   analyzeLoaded(program);
   if (hasErrors()) {
