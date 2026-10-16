@@ -11,8 +11,10 @@
 // built in everywhere, unless the program declares a function of that name.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { Builder, equals } from "std/text";
 import { Analyzer, analyzerFail } from "./analyzer";
+import { valuesOf, holdsError } from "./errors";
 import { checkExpr, checkExprAs, isLiteralTree } from "./expressions";
 import { CallTarget } from "./functions";
 import { Problem, Facts } from "../diagnostics/problems";
@@ -108,9 +110,30 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
     analyzerFail(an, node, Problem.AssertEqTypes, Facts.aboutTypes(actual, expected));
   } else if (actual.isVoid() || actual.isStruct()) {
     analyzerFail(an, node, Problem.AssertEqType, Facts.aboutType(actual));
+  } else if (comparesStructs(actual, expected) || comparesStructs(expected, actual)) {
+    // A union that may hold a struct can still be asked for an error.
+    analyzerFail(an, node, Problem.AssertEqType, Facts.aboutType(actual));
   }
 
   return Type.make(TypeKind.Void, 0);
+}
+
+// Whether checking that `type` equals `other` would compare two structs:
+// `type` is a union that may hold one, and `other` is not just an error.
+fn comparesStructs(type: Type, other: Type): bool {
+  if (!type.isUnion()) {
+    return false;
+  }
+  if (other.isEnum() && holdsError(type, other.structName)) {
+    return false;
+  }
+  let values: *List<Type> = valuesOf(type);
+  for (index in 0..values.count) {
+    if (values.at(index).isStruct()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Whether `ode test` runs the tests written in `module`: those of what is

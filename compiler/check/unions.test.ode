@@ -1,0 +1,162 @@
+// ---------------------------------------------------------------------------
+// Unions of types: a value that is one of several types, told apart with
+// `is`, and errors as one more kind of member.
+//
+// Each checks a fragment in a Scope that states what it can see, and asserts
+// the type found, or the problems: which, where, and about what.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
+
+let SHAPES: *i8 = `
+  error enum Bad { Negative }
+
+  struct Circle {
+    radius: i64,
+  }
+
+  struct Rect {
+    width: i64,
+    height: i64,
+  }
+
+  struct Line {
+    length: i64,
+  }
+
+  type Shape = Circle | Rect;
+  type Drawing = Shape | Line;
+
+  fn validated(shape: Shape): Shape | Bad {
+    return shape;
+  }
+`;
+
+fn shapes(): *Scope {
+  return Scope.new().declare(SHAPES)
+      .local("shape", "Shape")
+      .local("drawing", "Drawing")
+      .local("checked", "Shape | Bad")
+      .local("either", "i64 | *i8");
+}
+
+test "a union of unions is one union of all their members" {
+  let scope: *Scope = shapes();
+  assertEq(scope.check("drawing").type.toText(), "Circle | Line | Rect");
+  assertEq(scope.check("checked").type.toText(), "Circle | Rect | Bad");
+  assertEq(scope.check("validated(shape) ?? shape").type.toText(), "Circle | Rect");
+}
+
+test "a union is given any of its members, or a union of some of them" {
+  let found: *List<Diagnostic> = shapes().run(`
+    shape = Circle { radius: 1 };
+    shape = Rect { width: 1, height: 2 };
+    drawing = shape;
+    drawing = Line { length: 3 };
+    checked = shape;
+    checked = Bad.Negative;
+    either = 5;
+    either = "five";
+    either = null;
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a union is not given what it cannot hold, nor a wider union" {
+  let found: *List<Diagnostic> = shapes().run(`
+    shape = Line { length: 3 };
+    shape = drawing;
+    either = true;
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.AssignmentMismatch);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(1).problem, Problem.AssignmentMismatch);
+  assertEq(found.at(1).line, 2);
+  assertEq(found.at(2).problem, Problem.AssignmentMismatch);
+  assertEq(found.at(2).facts.got.toText(), "bool");
+}
+
+test "null given to a union of two pointers could be either, so it is neither" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run("let both: *i8 | *i64 = null;");
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+}
+
+test "is narrows a union to a member, and the other branch to the rest" {
+  let found: *List<Diagnostic> = shapes().run(`
+    if (drawing is Circle) {
+      let circle: Circle = drawing;
+    } else {
+      let rest: Line | Rect = drawing;
+    }
+    if (checked is Bad) {
+      let bad: Bad = checked;
+    } else {
+      let fine: Shape = checked;
+    }
+    if (either is *i8) {
+      let text: *i8 = either;
+    } else {
+      let number: i64 = either;
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a narrowed union is the member, and no other" {
+  let found: *List<Diagnostic> = shapes().run(`
+    if (shape is Circle) {
+      let wrong: Rect = shape;
+      let radius: i64 = shape.radius;
+    }
+    let notYet: Circle = shape;
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(1).problem, Problem.DeclarationMismatch);
+  assertEq(found.at(1).line, 5);
+}
+
+test "is asks only about a member the union has" {
+  let scope: *Scope = shapes();
+  assertEq(scope.check("shape is Line").problem(), Problem.IsNeverTrue);
+  assertEq(scope.check("shape is Bad").problem(), Problem.IsNeverTrue);
+  assertEq(scope.check("either is i32").problem(), Problem.IsNeverTrue);
+  assertEq(scope.check("drawing is Line").type.toText(), "bool");
+}
+
+test "try and ?? take what is left once the errors are gone" {
+  let scope: *Scope = shapes().returning("i64 | Bad");
+  assert(scope.run("let s: Shape = try validated(shape); return 0;").count == 0);
+  assertEq(shapes().returning("i64").run("let s: Shape = try validated(shape); return 0;")
+               .at(0).problem, Problem.ErrorNotReturned);
+  assertEq(shapes().check("validated(shape) ?? Line { length: 1 }").problem(),
+           Problem.CoalesceTypes);
+}
+
+test "a union is compared by asking which member it holds, not with ==" {
+  let scope: *Scope = shapes();
+  assertEq(scope.check("shape == shape").problem(), Problem.UnionCompared);
+  assertEq(scope.check("either == either").problem(), Problem.UnionCompared);
+}
+
+test "assertEq compares a union of plain values, and one of structs only to an error" {
+  let found: *List<Diagnostic> = shapes().run(`
+    assertEq(either, 5);
+    assertEq(either, "five");
+    assertEq(checked, Bad.Negative);
+    assertEq(checked, Circle { radius: 1 });
+    assertEq(shape, shape);
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.AssertEqType);
+  assertEq(found.at(0).line, 4);
+  assertEq(found.at(1).problem, Problem.AssertEqType);
+  assertEq(found.at(1).line, 5);
+}

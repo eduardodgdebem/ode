@@ -21,6 +21,7 @@ import {
 } from "./emitter";
 import {
   wrapInUnion, genVariable, genTry, genCoalesce, genCatch, genIs,
+  narrowedAddress,
 } from "./errors";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
@@ -179,7 +180,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
   let kind: NodeKind = e.ast.nodes[node].kind;
 
   if (kind == NodeKind.Ident) {
-    return variableAddress(e, node);
+    return narrowedAddress(e, node);
   }
 
   if (kind == NodeKind.FieldAccess) {

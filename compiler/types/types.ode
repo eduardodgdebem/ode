@@ -88,11 +88,12 @@ export struct Type {
   // There are no implicit conversions, so that is equality -- except that
   // `null` goes wherever any pointer does.
   fn accepts(self: Type, value: Type): bool {
-    if (value.isNull()) {
-      return self.isPointer() || self.isNull() || self.isFunction();
-    }
+    // A union takes `null` when exactly one of its values would.
     if (self.isUnion()) {
       return unionAccepts(self, value);
+    }
+    if (value.isNull()) {
+      return self.isPointer() || self.isNull() || self.isFunction();
     }
 
     return self.equals(value);

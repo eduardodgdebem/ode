@@ -9,9 +9,11 @@
 
 import { strlen } from "std/c";
 import { List } from "std/list";
-import { Builder, equals } from "std/text";
+import { Builder, equals, fromInt } from "std/text";
 import { enumDeclOf } from "../check/enums";
-import { unionType, valueOf } from "../check/errors";
+import {
+  unionType, valueOf, valuesOf, holdsSeveral, holdsError, memberFor, valueTag,
+} from "../check/errors";
 import { RUNNER_MODULE } from "../check/testing";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitCondBranch,
@@ -20,6 +22,7 @@ import {
 import {
   typeOfNode, emitAssign, emitCast, resultTypeOf, genExpr,
 } from "./expressions";
+import { convertUnion } from "./errors";
 import { llvmTypeName } from "./layout";
 import { line } from "../driver/options";
 import { moduleDisplayPath, NameSet } from "../link/modules";
@@ -133,6 +136,9 @@ fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
 // no error and the same value.
 fn unionEquals(e: *Emitter, union: *i8, unionType: Type, other: *i8,
                otherType: Type): *i8 {
+  if (holdsSeveral(unionType) || holdsSeveral(otherType)) {
+    return severalEquals(e, union, unionType, other, otherType);
+  }
   let code: *i8 = unionPart(e, unionType, union, 0);
   if (otherType.isEnum()) {
     return instruction(e, "icmp eq i32 ", code, other);
@@ -159,6 +165,46 @@ fn unionEquals(e: *Emitter, union: *i8, unionType: Type, other: *i8,
   let sameValue: *i8 = genEquals(e, unionPart(e, unionType, union, 1), value,
                                  other, otherType);
   return instruction(e, "and i1 ", succeeded, sameValue);
+}
+
+// unionEquals, where one side may hold several types. Both are taken as the
+// wider of the two; then they are equal when their codes are, and either the
+// code is an error's or the values of the type it names are.
+fn severalEquals(e: *Emitter, union: *i8, unionType: Type, other: *i8,
+                 otherType: Type): *i8 {
+  let code: *i8 = unionPart(e, unionType, union, 0);
+  if (otherType.isEnum() && holdsError(unionType, otherType.structName)) {
+    return instruction(e, "icmp eq i32 ", code, other);
+  }
+  if (!otherType.isUnion()) {
+    let member: Type = memberFor(unionType, otherType);
+    let isMember: *i8 = instruction(e, "icmp eq i32 ", code,
+                                    fromInt(valueTag(member)));
+    let same: *i8 = genEquals(e, convertUnion(e, union, unionType, member), member,
+                              other, otherType);
+    return instruction(e, "and i1 ", isMember, same);
+  }
+
+  let wide: Type = unionType;
+  if (!unionType.accepts(otherType)) {
+    wide = otherType;
+  }
+  let left: *i8 = convertUnion(e, union, unionType, wide);
+  let right: *i8 = convertUnion(e, other, otherType, wide);
+  let leftCode: *i8 = unionPart(e, wide, left, 0);
+  let sameCode: *i8 = instruction(e, "icmp eq i32 ", leftCode,
+                                  unionPart(e, wide, right, 0));
+  let equal: *i8 = instruction(e, "icmp sgt i32 ", leftCode, "0");
+  let values: *List<Type> = valuesOf(wide);
+  for (index in 0..values.count) {
+    let member: Type = values.at(index);
+    let isMember: *i8 = instruction(e, "icmp eq i32 ", leftCode,
+                                    fromInt(valueTag(member)));
+    let same: *i8 = genEquals(e, convertUnion(e, left, wide, member), member,
+                              convertUnion(e, right, wide, member), member);
+    equal = instruction(e, "or i1 ", equal, instruction(e, "and i1 ", isMember, same));
+  }
+  return instruction(e, "and i1 ", sameCode, equal);
 }
 
 fn unionPart(e: *Emitter, type: Type, value: *i8, index: i32): *i8 {
@@ -194,6 +240,9 @@ fn unionText(e: *Emitter, value: *i8, type: Type): *i8 {
   let name: *i8 = emitAssign(e, call.data);
   if (valueOf(type).isVoid()) {
     return name;
+  }
+  if (holdsSeveral(type)) {
+    return severalText(e, value, type, code, name);
   }
 
   // A struct has no printf conversion of its own; it shows as its type.
@@ -238,6 +287,50 @@ fn unionText(e: *Emitter, value: *i8, type: Type): *i8 {
   pick.add(", ptr ");
   pick.add(name);
   return emitAssign(e, pick.data);
+}
+
+// unionText, for a union that may hold several types: the error's name, or
+// the value shown as the type its code names would show it.
+fn severalText(e: *Emitter, value: *i8, type: Type, code: *i8, name: *i8): *i8 {
+  let chosen: *i8 = name;
+  let values: *List<Type> = valuesOf(type);
+  for (index in 0..values.count) {
+    let member: Type = values.at(index);
+    let text: *i8 = memberText(e, convertUnion(e, value, type, member), member);
+    let isMember: *i8 = instruction(e, "icmp eq i32 ", code, fromInt(valueTag(member)));
+    let pick: *Builder = Builder.new();
+    pick.add("select i1 ");
+    pick.add(isMember);
+    pick.add(", ptr ");
+    pick.add(text);
+    pick.add(", ptr ");
+    pick.add(chosen);
+    chosen = emitAssign(e, pick.data);
+  }
+  return chosen;
+}
+
+// One value as text, in a buffer of its own: a struct, which has no printf
+// conversion, as its type.
+fn memberText(e: *Emitter, value: *i8, type: Type): *i8 {
+  if (type.isStruct()) {
+    let text: *Builder = Builder.new();
+    text.add("a ");
+    text.add(type.toText());
+    return internString(e, text.data, text.length);
+  }
+  let buffer: *i8 = emitAlloca(e, "[64 x i8]");
+  let args: *Builder = Builder.new();
+  let format: *i8 = formatValue(e, value, type, args);
+  let print: *Builder = Builder.new();
+  print.add("call i32 (ptr, i64, ptr, ...) @snprintf(ptr ");
+  print.add(buffer);
+  print.add(", i64 64, ptr ");
+  print.add(internString(e, format, strlen(format)));
+  print.add(args.data);
+  print.push(')');
+  emitAssign(e, print.data);
+  return buffer;
 }
 
 // Adds `value` to `args` in the form its printf conversion wants, and

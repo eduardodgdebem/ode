@@ -4,7 +4,8 @@
 // ---------------------------------------------------------------------------
 
 import { Builder } from "std/text";
-import { valueOf } from "../check/errors";
+import { valueOf, holdsSeveral } from "../check/errors";
+import { payloadWords } from "../types/layout";
 import { llvmName } from "./emitter";
 import { TypeKind, Type } from "../types/types";
 
@@ -22,7 +23,16 @@ export fn llvmTypeName(type: Type): *i8 {
   }
 
   // A union is its code -- 0 for the value, the error's number otherwise --
-  // and its value.
+  // and its value. One that may hold several types keeps the value in as
+  // many 8-byte words as the largest needs, and its code says which type it
+  // holds: see codegen/errors.ode.
+  if (holdsSeveral(type)) {
+    let out: *Builder = Builder.new();
+    out.add("{ i32, [");
+    out.addInt(payloadWords(type) as i64);
+    out.add(" x i64] }");
+    return out.take();
+  }
   if (type.isUnion()) {
     let value: Type = valueOf(type);
     if (value.isVoid()) {

@@ -1,0 +1,201 @@
+// ---------------------------------------------------------------------------
+// Unions of types at run time: values of several types in one, told apart
+// with `is`, widened into wider unions and narrowed back, with errors among
+// them.
+// ---------------------------------------------------------------------------
+
+import { Builder } from "std/text";
+import { outputOf } from "../testkit/testkit";
+
+let SHAPES: *i8 = `
+  import { printf } from "std/c";
+
+  struct Circle {
+    radius: i64,
+  }
+
+  struct Rect {
+    width: i64,
+    height: i64,
+  }
+
+  struct Big {
+    a: i64,
+    b: i64,
+    c: i64,
+    d: i64,
+  }
+
+  type Shape = Circle | Rect;
+  type Anything = Shape | Big | i32;
+  error enum Bad { Negative, Huge }
+
+  fn area(shape: Shape): i64 {
+    if (shape is Circle) {
+      return 3 * shape.radius * shape.radius;
+    }
+    return shape.width * shape.height;
+  }
+
+  fn validated(shape: Shape): Shape | Bad {
+    let size: i64 = area(shape);
+    if (size < 0) {
+      return Bad.Negative;
+    }
+    if (size > 1000) {
+      return Bad.Huge;
+    }
+    return shape;
+  }
+`;
+
+fn program(body: *i8): *i8 {
+  let source: *Builder = Builder.new();
+  source.add(SHAPES);
+  source.add(body);
+  return source.take();
+}
+
+test "is tells the members apart, and a narrowed one reads as itself" {
+  assertEq(outputOf(program(`
+    fn show(thing: Anything): void {
+      if (thing is Big) {
+        printf("big %ld\n", thing.a + thing.b + thing.c + thing.d);
+        return;
+      }
+      if (thing is i32) {
+        printf("int %d\n", thing);
+        return;
+      }
+      printf("shape %ld\n", area(thing));
+    }
+
+    fn main(): i32 {
+      show(Circle { radius: 2 });
+      show(Rect { width: 2, height: 5 });
+      show(Big { a: 1, b: 2, c: 3, d: 4 });
+      show(41);
+      return 0;
+    }
+  `)), "shape 12\nshape 10\nbig 10\nint 41\n");
+}
+
+test "a union widens into one with bigger members, and narrows back" {
+  assertEq(outputOf(program(`
+    fn widen(shape: Shape): Anything {
+      return shape;
+    }
+
+    fn main(): i32 {
+      let wide: Anything = widen(Rect { width: 6, height: 7 });
+      if (wide is Big) {
+        printf("no\n");
+      } else {
+        if (wide is i32) {
+          printf("no\n");
+        } else {
+          let shape: Shape = wide;
+          printf("%ld %ld\n", area(shape), sizeof(Anything));
+        }
+      }
+      return 0;
+    }
+  `)), "42 40\n");
+}
+
+test "errors are members too: try, ?? and catch take them out" {
+  assertEq(outputOf(program(`
+    fn doubled(shape: Shape): i64 | Bad {
+      let fine: Shape = try validated(shape);
+      return area(fine) * 2;
+    }
+
+    fn main(): i32 {
+      printf("%ld %ld\n", doubled(Rect { width: 2, height: 3 }) ?? -1,
+             doubled(Rect { width: 100, height: 100 }) ?? -1);
+      let fallback: Shape = validated(Circle { radius: 100 }) ?? Circle { radius: 1 };
+      printf("%ld\n", area(fallback));
+
+      let checked: Circle | Rect | Bad = validated(Rect { width: 7, height: 1 });
+      if (checked is Circle) {
+        printf("no\n");
+      } else {
+        let rest: Rect | Bad = checked;
+        printf("%ld\n", (rest ?? Rect { width: 0, height: 0 }).width);
+      }
+
+      let caught: Shape = validated(Circle { radius: 100 }) catch (e) {
+        printf("caught %s\n", nameOf(e));
+        return 0;
+      };
+      printf("no\n");
+      return 1;
+    }
+  `)), "12 -1\n3\n7\ncaught Huge\n");
+}
+
+test "a union of plain values: numbers, text and pointers" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+    import { parseInt } from "std/text";
+
+    fn read(text: *i8): i64 | *i8 {
+      let number: i64 = parseInt(text) ?? -1;
+      if (number < 0) {
+        return text;
+      }
+      return number;
+    }
+
+    fn show(value: i64 | *i8): void {
+      if (value is i64) {
+        printf("number %ld\n", value);
+      } else {
+        printf("text %s\n", value);
+      }
+    }
+
+    fn main(): i32 {
+      show(read("12"));
+      show(read("twelve"));
+      let five: i64 | *i8 = 5;
+      show(five);
+      let nothing: i64 | *i8 = null;
+      if (nothing is *i8) {
+        printf("%d\n", nothing == null);
+      }
+      return 0;
+    }
+  `), "number 12\ntext twelve\nnumber 5\n1\n");
+}
+
+test "a union is kept in fields and lists, and found in them" {
+  assertEq(outputOf(program(`
+    import { List, ListError } from "std/list";
+
+    struct Holder {
+      name: *i8,
+      shape: Shape,
+    }
+
+    fn main(): i32 {
+      let holder: Holder = Holder { name: "h", shape: Rect { width: 3, height: 3 } };
+      printf("%s %ld\n", holder.name, area(holder.shape));
+
+      let shapes: *List<Shape> = List<Shape>.new();
+      shapes.push(Circle { radius: 3 });
+      shapes.push(Rect { width: 4, height: 4 });
+      shapes.push(Circle { radius: 1 });
+      shapes.sort((a, b) => (area(a) - area(b)) as i32);
+      printf("%ld %ld %ld\n", area(shapes.at(0)), area(shapes.at(1)), area(shapes.at(2)));
+
+      let found: Shape | ListError = shapes.find((shape) => area(shape) > 20);
+      printf("%ld\n", area(found ?? Circle { radius: 0 }));
+      let none: Shape | ListError = shapes.find((shape) => area(shape) > 1000);
+      if (none is ListError) {
+        printf("none\n");
+      }
+      return 0;
+    }
+  `)), "h 9\n3 16 27\n27\nnone\n");
+}

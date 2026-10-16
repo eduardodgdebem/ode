@@ -175,8 +175,10 @@ export enum Problem {
 
   // Errors: error enums, unions, try, ??, catch and is.
   ErrorValueWritten,
-  UnionMemberNotError,
-  UnionValueIsError,
+  // `void | Circle`: void is no value, so it cannot be one of several.
+  UnionVoidMember,
+  // `ParseError | IoError`: `got` is the first error.
+  UnionWithoutValue,
   TryNotFallible,
   TryOutsideFunction,
   ErrorNotReturned,
@@ -202,7 +204,6 @@ export enum Problem {
   LambdaMissingReturn,
   UnionCompared,
   IsNotFallible,
-  IsNotAnError,
   IsNeverTrue,
 
   // Tests.
@@ -825,13 +826,14 @@ export fn describe(problem: Problem, facts: Facts): Description {
       return saysMore(text3("member ", q(name), " of an error enum has a value"),
                       "an error's value is given to it, so that every error is told apart");
     }
-    Problem.UnionMemberNotError => {
-      return saysMore(text2(typeText(facts.got), " is not an error enum"),
-                      "a union is a value, then the error enums it may be instead");
+    Problem.UnionVoidMember => {
+      return saysMore("void cannot be one of a union's values",
+                      "`void | SomeError` is a union that holds no value; one with values holds one of them");
     }
-    Problem.UnionValueIsError => {
-      return saysMore(text2("a union's value cannot be an error: ", typeText(facts.got)),
-                      "write the value's type first, then the errors");
+    Problem.UnionWithoutValue => {
+      return saysMore(text2("a union needs a value as well as its errors, such as ",
+                            typeText(facts.got)),
+                      "write the type of what it holds when it holds no error: `i64 | ParseError`");
     }
     Problem.TryNotFallible => {
       return saysMore("try needs a value that may be an error", gotOne(facts));
@@ -902,17 +904,13 @@ export fn describe(problem: Problem, facts: Facts): Description {
                       "take its value with ?? or try, or ask which error it holds with is");
     }
     Problem.IsNotFallible => {
-      return saysMore("is asks which error a value holds, and this one holds none",
+      return saysMore("is asks which of a union's members a value holds, and this is no union",
                       gotOne(facts));
-    }
-    Problem.IsNotAnError => {
-      return saysMore(text2(typeText(facts.got), " is not an error enum"),
-                      "is tells the errors of a union apart");
     }
     Problem.IsNeverTrue => {
       return saysMore(text4("a ", typeText(facts.expected), " can never be ",
                             q(name)),
-                      text2(q(name), " is not one of its errors"));
+                      text2(q(name), " is not one of its members"));
     }
 
     Problem.AssertArguments => {

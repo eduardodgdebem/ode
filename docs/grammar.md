@@ -49,7 +49,7 @@ cycles.
 - **TypeArgs** → `<` Type (`,` Type)* `>`
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
 - **ErrorEnumDecl** → `error` EnumDecl, whose members have no written values — `error` is an IDENT anywhere `enum` does not follow it
-- **DeclaredType** → Type (`|` Type)* — the type of a variable, parameter, field or return; a union is a value type, then error enums
+- **DeclaredType** → Type (`|` Type)* — the type of a variable, parameter, field or return; a union's error enums are its errors, and every other member one of its values
 - **TypeAliasDecl** → `type` IDENT `=` DeclaredType `;` — `type` is an IDENT anywhere a name and `=` do not follow it
 - **TestDecl** → `test` STRING Block — `test` is an IDENT anywhere a STRING does not follow it
 - **StructDecl** → `struct` IDENT TypeParams? `{` (FieldDecl | FuncDecl)* `}`
@@ -226,6 +226,17 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   method of that name), or any expression (`table[i](x)`) -- compares with
   `==` and `!=`, accepts `null`, and converts to and from pointers with `as`.
   It is a pointer to code, so it passes to C as a function pointer.
+- A union holds one of its values or one of its errors. Its members may be
+  any types, and come in any order; a union among them adds its own members,
+  and a member named twice counts once. It needs at least one value, and
+  `void` is only a value alone (`void | E`). A union is given any of its
+  members -- a value of another type when exactly one member takes it, as
+  `null` does a pointer -- or a union of some of them. `is` narrows a local
+  variable to the member asked about, and in the other branch to what is
+  left. A union of one value is laid out `{ i32 code, value }`, code 0 for
+  the value; one of several values is `{ i32 code, [n x i64] }`, the value
+  kept in as many words as the largest needs and the code below zero, one
+  per type across the program. An error's code is above zero either way.
 - A type alias is a second name for a type and means exactly it: `Count`
   and `i64` are one type after `type Count = i64;`. It shares the type
   namespace with structs and enums, is exported and imported like them, may

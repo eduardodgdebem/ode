@@ -34,6 +34,7 @@ import {
   declareImports,
 } from "../link/modules";
 import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
+import { LAYOUT_STRUCTS } from "../types/layout";
 import { SymbolKind, SymbolTable } from "../types/symbols";
 import { TypeKind, Type, typeKindFromName, StructTable } from "../types/types";
 
@@ -115,6 +116,7 @@ export struct Analyzer {
     an.nextErrorCode = 1;
     an.signatures = List<Signature>.new();
     an.aliases = List<i32>.new();
+    LAYOUT_STRUCTS = an.structs;
     an.globals = List<i32>.new();
     an.program = NO_NODE;
     an.moduleSymbols =

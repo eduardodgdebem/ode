@@ -203,12 +203,14 @@ test "a narrowed variable is still assigned as declared" {
   assertEq(found.count, 0);
 }
 
-test "is asks about an error a union can hold" {
+test "is asks about a member a union can hold" {
   let scope: *Scope = errors().local("n", "i64")
       .local("result", "i64 | ParseError");
   assert(scope.check("result is ParseError").type.equals(Type.make(TypeKind.Bool, 0)));
+  assert(scope.check("result is i64").type.equals(Type.make(TypeKind.Bool, 0)));
   assertEq(scope.check("result is IoError").problem(), Problem.IsNeverTrue);
-  assertEq(scope.check("result is Color").problem(), Problem.IsNotAnError);
+  assertEq(scope.check("result is Color").problem(), Problem.IsNeverTrue);
+  assertEq(scope.check("result is i32").problem(), Problem.IsNeverTrue);
   assertEq(scope.check("n is ParseError").problem(), Problem.IsNotFallible);
 }
 
@@ -220,19 +222,23 @@ test "an error enum's members have no values of their own" {
   assertEq(found.at(0).facts.name, "B");
 }
 
-test "a union is a value, then error enums" {
+test "a union holds values of any types, in any order, and needs one" {
   let found: *List<Diagnostic> = Scope.new().declare(`
     error enum E { A }
+    error enum F { B }
     enum Color { Red }
     fn f(): i64 | Color { return 0; }
     fn g(): E | i64 { return 0; }
     fn h(): i64 | i32 { return 0; }
+    fn k(): E | F { return E.A; }
+    fn v(): void | i64 { return; }
   `).problems();
-  assertEq(found.count, 3);
-  assertEq(found.at(0).problem, Problem.UnionMemberNotError);
-  assertEq(found.at(0).facts.got.toText(), "Color");
-  assertEq(found.at(1).problem, Problem.UnionValueIsError);
-  assertEq(found.at(2).problem, Problem.UnionMemberNotError);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.UnionWithoutValue);
+  assertEq(found.at(0).line, 7);
+  assertEq(found.at(0).facts.got.toText(), "E");
+  assertEq(found.at(1).problem, Problem.UnionVoidMember);
+  assertEq(found.at(1).line, 8);
 }
 
 test "a bare return succeeds in a function returning void or an error" {

@@ -156,13 +156,13 @@ An array is a pointer plus indexing: `malloc` for the storage, `a[i]` to reach
 it. A real array type would add a second axis to `Type` for one bootstrap
 convenience.
 
-### 6.2 Enums carry no data
+### 6.2 Enums carry no data; unions do that
 
-`enum` and `match` exist, but an enum member is only a name for an integer:
-there are no Rust-style variants carrying fields. A kind tag -- now an enum --
-plus one struct holding every variant's fields stands in, as
-`examples/expr_tree.ode` shows. Wasteful in memory, and exactly what a C
-bootstrap compiler does.
+An enum member is only a name for an integer. Data that is one of several
+shapes is a union of structs instead -- `type Shape = Circle | Rect` -- told
+apart with `is`. `match` does not take a union yet, so telling many members
+apart is a chain of `is`; and `is` narrows a local variable only, not a
+field (`node.kind is Call`) or an expression.
 
 ### 6.3 Structs cannot cross `extern` by value
 
@@ -244,8 +244,9 @@ of memory -- stops the program. A test cannot say that it expects to stop; such 
 - `is` narrows a local variable, in the branches of the `if` it is the
   condition of, and after that `if` when its first branch always leaves; it
   does not narrow a field, a global, or through `&&`.
-- An error carries no data: it says what went wrong, not with what. Enums
-  with data would be the way to add it.
+- An error carries no data: it says what went wrong, not with what. A union
+  can return a struct alongside the errors -- `Config | ParseFailure |
+  IoError` -- when the details matter.
 
 ### 6.10 Lambdas capture nothing
 

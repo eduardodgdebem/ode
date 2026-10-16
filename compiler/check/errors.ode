@@ -45,21 +45,55 @@ import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
 import { SymbolKind, Symbol } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
-// What a union type is made of. Its text, canonical -- the value, then the
-// errors by name -- is the Type's name, by which this is found.
+// What a union type is made of: the types of the values it may hold, and
+// the errors. Its text, canonical -- the values by name, then the errors by
+// name -- is the Type's name, by which this is found.
 struct UnionInfo {
   text: *i8,
-  value: Type,
+  values: *List<Type>,
   errors: *List<*i8>,
 }
 
 let UNIONS: *List<UnionInfo> = null;
 
 // The union of `value` and `errors`, made the first time it is asked for.
+// `value` may itself be a union, whose members join this one's.
 fn unionOf(value: Type, errors: *List<*i8>): Type {
-  // Each error once, by name, so that `A | B`, `B | A` and `A | B | A` are
-  // one union.
+  let values: *List<Type> = List<Type>.new();
+  values.push(value);
+  return unionOfAll(values, errors);
+}
+
+// The union of any number of values and errors. A union among the values
+// adds its own members, so `Shape | Line`, with `type Shape = Circle | Rect`,
+// is `Circle | Line | Rect`. One value and no error is that value, no union.
+export fn unionOfAll(values: *List<Type>, errors: *List<*i8>): Type {
+  let types: *List<Type> = List<Type>.new();
   let names: *List<*i8> = errors.copy();
+  for (index in 0..values.count) {
+    let value: Type = values.at(index);
+    if (value.isUnion()) {
+      let inner: UnionInfo = unionInfo(value);
+      for (member in 0..inner.values.count) {
+        types.push(inner.values.at(member));
+      }
+      for (member in 0..inner.errors.count) {
+        names.push(inner.errors.at(member));
+      }
+    } else {
+      types.push(value);
+    }
+  }
+
+  // Each member once, by name, so that `A | B`, `B | A` and `A | B | A` are
+  // one union.
+  types.sort((a, b) => strcmp(memberText(a), memberText(b)));
+  let sortedValues: *List<Type> = List<Type>.new();
+  for (index in 0..types.count) {
+    if (index == 0 || !types.at(index).equals(types.at(index - 1))) {
+      sortedValues.push(types.at(index));
+    }
+  }
   names.sort(strcmp);
   let sorted: *List<*i8> = List<*i8>.new();
   for (index in 0..names.count) {
@@ -68,18 +102,29 @@ fn unionOf(value: Type, errors: *List<*i8>): Type {
     }
   }
 
-  // A function's own result runs to the end of its type, so a function that
-  // is the value of a union is written in parentheses.
-  let text: *Builder = Builder.new();
-  if (value.isFunction()) {
-    text.push('(');
+  if (sortedValues.count == 1 && sorted.count == 0) {
+    return sortedValues.at(0);
   }
-  text.add(value.toText());
-  if (value.isFunction()) {
-    text.push(')');
+  // What is left once every value has been ruled out by `is`: an error, or
+  // one of several.
+  if (sortedValues.count == 0 && sorted.count == 1) {
+    return Type.ofEnum(sorted.at(0), 0);
+  }
+  if (sortedValues.count == 0 && sorted.count == 0) {
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let text: *Builder = Builder.new();
+  for (index in 0..sortedValues.count) {
+    if (index > 0) {
+      text.add(" | ");
+    }
+    text.add(memberText(sortedValues.at(index)));
   }
   for (index in 0..sorted.count) {
-    text.add(" | ");
+    if (index > 0 || sortedValues.count > 0) {
+      text.add(" | ");
+    }
     text.add(sorted.at(index));
   }
 
@@ -91,8 +136,22 @@ fn unionOf(value: Type, errors: *List<*i8>): Type {
       return unionType(UNIONS.at(index).text);
     }
   }
-  UNIONS.push(UnionInfo { text: text.data, value: value, errors: sorted });
+  UNIONS.push(UnionInfo { text: text.data, values: sortedValues, errors: sorted });
   return unionType(text.data);
+}
+
+// A member as a union writes it. A function's own result runs to the end of
+// its type, so a function that is one of a union's values is written in
+// parentheses.
+fn memberText(type: Type): *i8 {
+  if (!type.isFunction()) {
+    return type.toText();
+  }
+  let text: *Builder = Builder.new();
+  text.push('(');
+  text.add(type.toText());
+  text.push(')');
+  return text.take();
 }
 
 export fn unionType(text: *i8): Type {
@@ -109,12 +168,52 @@ export fn unionInfo(type: Type): UnionInfo {
   return UNIONS.at(0);
 }
 
-// What a union holds when it holds no error.
-export fn valueOf(type: Type): Type {
-  return unionInfo(type).value;
+// The types of the values a union may hold.
+export fn valuesOf(type: Type): *List<Type> {
+  return unionInfo(type).values;
 }
 
-fn holdsError(type: Type, errorEnum: *i8): bool {
+// Whether a union may hold values of more than one type, which changes how
+// it is laid out; see codegen/errors.ode.
+export fn holdsSeveral(type: Type): bool {
+  return type.isUnion() && valuesOf(type).count > 1;
+}
+
+// What a union holds when it holds no error: its one value's type, or the
+// union of its values when it may hold several -- or void for one that holds
+// only errors, which is all `is` leaves once every value is ruled out.
+export fn valueOf(type: Type): Type {
+  let info: UnionInfo = unionInfo(type);
+  if (info.values.count == 0) {
+    return Type.make(TypeKind.Void, 0);
+  }
+  if (info.values.count == 1) {
+    return info.values.at(0);
+  }
+  return unionOfAll(info.values, List<*i8>.new());
+}
+
+// The code a union that may hold several types gives a value of `type`:
+// below zero, so that it is told apart from every error, which are above.
+// Each type has one across the program, as each error does, so a union
+// widened into another keeps its code.
+let VALUE_TAGS: *List<*i8> = null;
+
+export fn valueTag(type: Type): i64 {
+  if (VALUE_TAGS == null) {
+    VALUE_TAGS = List<*i8>.new();
+  }
+  let text: *i8 = memberText(type);
+  for (index in 0..VALUE_TAGS.count) {
+    if (equals(VALUE_TAGS.at(index), text)) {
+      return -(index + 1);
+    }
+  }
+  VALUE_TAGS.push(text);
+  return -VALUE_TAGS.count;
+}
+
+export fn holdsError(type: Type, errorEnum: *i8): bool {
   let errors: *List<*i8> = unionInfo(type).errors;
   for (index in 0..errors.count) {
     if (equals(errors.at(index), errorEnum)) {
@@ -124,20 +223,56 @@ fn holdsError(type: Type, errorEnum: *i8): bool {
   return false;
 }
 
-// Whether a union can be given `value` where it is expected: its own value,
-// one of its errors, or a union of the same value with errors it has.
+fn holdsValue(type: Type, value: Type): bool {
+  let values: *List<Type> = valuesOf(type);
+  for (index in 0..values.count) {
+    if (values.at(index).equals(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Which of a union's values `value` becomes when it is given where the union
+// is expected: the one of its type, or else the one value that accepts it --
+// `null` for the one pointer. None when there is no such value, or more than
+// one.
+export fn memberFor(union: Type, value: Type): Type {
+  let values: *List<Type> = valuesOf(union);
+  for (index in 0..values.count) {
+    if (values.at(index).equals(value)) {
+      return values.at(index);
+    }
+  }
+  let found: Type = Type.make(TypeKind.None, 0);
+  let count: i32 = 0;
+  for (index in 0..values.count) {
+    if (values.at(index).accepts(value)) {
+      found = values.at(index);
+      count = count + 1;
+    }
+  }
+  if (count != 1) {
+    return Type.make(TypeKind.None, 0);
+  }
+  return found;
+}
+
+// Whether a union can be given `value` where it is expected: one of its
+// values, one of its errors, or a union of some of its members.
 export fn unionAccepts(union: Type, value: Type): bool {
   if (value.equals(union)) {
     return true;
   }
-  let info: UnionInfo = unionInfo(union);
   if (value.isEnum() && holdsError(union, value.structName)) {
     return true;
   }
   if (value.isUnion()) {
     let other: UnionInfo = unionInfo(value);
-    if (!other.value.equals(info.value)) {
-      return false;
+    for (index in 0..other.values.count) {
+      if (!holdsValue(union, other.values.at(index))) {
+        return false;
+      }
     }
     for (index in 0..other.errors.count) {
       if (!holdsError(union, other.errors.at(index))) {
@@ -146,23 +281,27 @@ export fn unionAccepts(union: Type, value: Type): bool {
     }
     return true;
   }
-  return info.value.accepts(value);
+  return memberFor(union, value).kind != TypeKind.None;
 }
 
-// The union `union` is once the error enum `removed` has been ruled out: its
-// value alone when that was its only error.
-fn without(union: Type, removed: *i8): Type {
+// The union `union` is once `removed` -- one of its values' types, or one of
+// its error enums -- has been ruled out: what is left, which is a value
+// alone when only one is.
+fn without(union: Type, removed: Type): Type {
   let info: UnionInfo = unionInfo(union);
-  let rest: *List<*i8> = List<*i8>.new();
-  for (index in 0..info.errors.count) {
-    if (!equals(info.errors.at(index), removed)) {
-      rest.push(info.errors.at(index));
+  let values: *List<Type> = List<Type>.new();
+  for (index in 0..info.values.count) {
+    if (!info.values.at(index).equals(removed)) {
+      values.push(info.values.at(index));
     }
   }
-  if (rest.count == 0) {
-    return info.value;
+  let errors: *List<*i8> = List<*i8>.new();
+  for (index in 0..info.errors.count) {
+    if (!removed.isEnum() || !equals(info.errors.at(index), removed.structName)) {
+      errors.push(info.errors.at(index));
+    }
   }
-  return unionOf(info.value, rest);
+  return unionOfAll(values, errors);
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +325,9 @@ export fn errorCodeRange(an: *Analyzer, name: *i8, first: *i64, last: *i64): voi
 // Checking.
 // ---------------------------------------------------------------------------
 
-// A union type as written: `i64 | ParseError | IoError`.
+// A union type as written: `i64 | ParseError | IoError`, `Circle | Rect`.
+// Its error enums are its errors; anything else, its values -- an alias of a
+// union adding the union's own members.
 export fn parseUnionType(an: *Analyzer, node: i32): Type {
   // A type is read again wherever it is used -- a signature when it is
   // hoisted, and again when its body is checked -- but a wrong one is
@@ -196,26 +337,47 @@ export fn parseUnionType(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  let value: Type = analyzerParseType(an, an.ast.nodes[node].items[0]);
-  if (value.isEnum() && isErrorEnum(an, value.structName)) {
-    analyzerFail(an, node, Problem.UnionValueIsError, Facts.aboutType(value));
-    an.isConstant[node] = 2;
-    return Type.make(TypeKind.None, 0);
-  }
-
+  let values: *List<Type> = List<Type>.new();
   let errors: *List<*i8> = List<*i8>.new();
-  for (index in 1..an.ast.nodes[node].itemCount) {
+  let hasVoid: bool = false;
+  for (index in 0..an.ast.nodes[node].itemCount) {
     let member: Type = analyzerParseType(an, an.ast.nodes[node].items[index]);
-    if (!member.isEnum() || member.pointerDepth != 0 ||
-        !isErrorEnum(an, member.structName)) {
-      analyzerFail(an, an.ast.nodes[node].items[index], Problem.UnionMemberNotError,
-                   Facts.aboutType(member));
+    if (FAILED) {
       an.isConstant[node] = 2;
       return Type.make(TypeKind.None, 0);
     }
-    errors.push(member.structName);
+    if (member.isEnum() && member.pointerDepth == 0 &&
+        isErrorEnum(an, member.structName)) {
+      errors.push(member.structName);
+    } else {
+      values.push(member);
+      hasVoid = hasVoid || member.isVoid();
+    }
   }
-  return unionOf(value, errors);
+
+  let union: Type = unionOfAll(values, errors);
+  if (!union.isUnion()) {
+    // Every member was the same value, or one error alone.
+    if (union.isEnum() && union.pointerDepth == 0 &&
+        isErrorEnum(an, union.structName)) {
+      analyzerFail(an, node, Problem.UnionWithoutValue, Facts.aboutType(union));
+      an.isConstant[node] = 2;
+      return Type.make(TypeKind.None, 0);
+    }
+    return union;
+  }
+  if (valuesOf(union).count == 0) {
+    analyzerFail(an, node, Problem.UnionWithoutValue,
+                 Facts.aboutType(Type.ofEnum(unionInfo(union).errors.at(0), 0)));
+    an.isConstant[node] = 2;
+    return Type.make(TypeKind.None, 0);
+  }
+  if (hasVoid && valuesOf(union).count > 1) {
+    analyzerFail(an, node, Problem.UnionVoidMember, Facts.none());
+    an.isConstant[node] = 2;
+    return Type.make(TypeKind.None, 0);
+  }
+  return union;
 }
 
 // `try value`.
@@ -305,29 +467,35 @@ export fn checkCatch(an: *Analyzer, node: i32): Type {
   return valueOf(type);
 }
 
-// `value is SomeError`.
+// `value is SomeError`, `shape is Circle`: whether a union holds that member.
 export fn checkIs(an: *Analyzer, node: i32): Type {
   let type: Type = checkExpr(an, an.ast.nodes[node].a);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
   let asked: Type = analyzerParseType(an, an.ast.nodes[node].b);
-  if (!asked.isEnum() || asked.pointerDepth != 0 ||
-      !isErrorEnum(an, asked.structName)) {
-    analyzerFail(an, an.ast.nodes[node].b, Problem.IsNotAnError,
-                 Facts.aboutType(asked));
+  if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
   if (!type.isUnion()) {
     analyzerFail(an, node, Problem.IsNotFallible, Facts.aboutType(type));
     return Type.make(TypeKind.None, 0);
   }
-  if (!holdsError(type, asked.structName)) {
+  if (!holdsMember(type, asked)) {
     analyzerFail(an, node, Problem.IsNeverTrue,
                  Facts.about(asked.toText()).withTypes(type, asked));
     return Type.make(TypeKind.None, 0);
   }
   return Type.make(TypeKind.Bool, 0);
+}
+
+// Whether `member` is one of a union's error enums or one of its values.
+export fn holdsMember(union: Type, member: Type): bool {
+  if (member.isEnum() && member.pointerDepth == 0 &&
+      holdsError(union, member.structName)) {
+    return true;
+  }
+  return holdsValue(union, member);
 }
 
 // Whether a statement can never be followed: it returns, breaks or continues
@@ -419,9 +587,9 @@ fn breaksOut(an: *Analyzer, node: i32): bool {
   return false;
 }
 
-// What `if (name is SomeError)` tells the branches about `name`: in the
-// first, it holds that error; in the second -- or after the `if`, when the
-// first always leaves -- it does not. The variable read there has the
+// What `if (name is SomeError)` -- or `name is Circle` -- tells the branches
+// about `name`: in the first, it holds that member; in the second -- or
+// after the `if`, when the first always leaves -- it does not. The variable read there has the
 // narrower type, and its storage is untouched.
 export fn narrowedLocal(an: *Analyzer, condition: i32): i32 {
   if (an.ast.nodes[condition].kind != NodeKind.Is) {
@@ -462,7 +630,7 @@ export fn narrowedTypes(an: *Analyzer, condition: i32, held: *Type,
   let union: Type = an.types[an.ast.nodes[condition].a];
   let asked: Type = analyzerParseType(an, an.ast.nodes[condition].b);
   *held = asked;
-  *notHeld = without(union, asked.structName);
+  *notHeld = without(union, asked);
 }
 
 fn errorsOf(names: *i8, other: *i8): *List<*i8> {
@@ -501,8 +669,9 @@ test "a union accepts its value, its errors, and narrower unions" {
 test "ruling an error out leaves the rest, or the value alone" {
   let i64Type: Type = Type.make(TypeKind.I64, 0);
   let wide: Type = unionOf(i64Type, errorsOf("IoError", "ParseError"));
-  assertEq(without(wide, "IoError").toText(), "i64 | ParseError");
-  assert(without(without(wide, "IoError"), "ParseError").equals(i64Type));
+  assertEq(without(wide, Type.ofEnum("IoError", 0)).toText(), "i64 | ParseError");
+  assert(without(without(wide, Type.ofEnum("IoError", 0)), Type.ofEnum("ParseError", 0))
+             .equals(i64Type));
 }
 
 // A block of `statements`, made by hand.
@@ -574,4 +743,58 @@ test "a loop that never ends leaves, unless a break gets out of it" {
   assert(!alwaysReturns(an, brokenOut));
   assert(!alwaysLeaves(an, brokenOut));
   assert(alwaysReturns(an, innerBreak));
+}
+
+fn valuesList(first: Type, second: Type): *List<Type> {
+  let list: *List<Type> = List<Type>.new();
+  list.push(first);
+  list.push(second);
+  return list;
+}
+
+test "a union of values is one union whatever their order, nesting or repeats" {
+  let circle: Type = Type.ofStruct("Circle", 0);
+  let rect: Type = Type.ofStruct("Rect", 0);
+  let shape: Type = unionOfAll(valuesList(rect, circle), List<*i8>.new());
+  assertEq(shape.toText(), "Circle | Rect");
+  assert(holdsSeveral(shape));
+  assert(shape.equals(unionOfAll(valuesList(circle, rect), List<*i8>.new())));
+
+  let nested: Type = unionOfAll(valuesList(shape, circle), errorsOf("IoError", null));
+  assertEq(nested.toText(), "Circle | Rect | IoError");
+  assert(valueOf(nested).equals(shape));
+  assert(unionOfAll(valuesList(circle, circle), List<*i8>.new()).equals(circle));
+}
+
+test "ruling out a value leaves the rest, a value alone, or the errors" {
+  let circle: Type = Type.ofStruct("Circle", 0);
+  let rect: Type = Type.ofStruct("Rect", 0);
+  let wide: Type = unionOfAll(valuesList(circle, rect), errorsOf("IoError", null));
+  assertEq(without(wide, circle).toText(), "Rect | IoError");
+  assert(!holdsSeveral(without(wide, circle)));
+  assertEq(without(without(wide, circle), rect).toText(), "IoError");
+  assert(without(without(wide, circle), Type.ofEnum("IoError", 0)).equals(rect));
+}
+
+test "a value goes to the one member it is, or the one that takes it" {
+  let text: Type = Type.make(TypeKind.I8, 1);
+  let count: Type = Type.make(TypeKind.I64, 0);
+  let either: Type = unionOfAll(valuesList(count, text), List<*i8>.new());
+  assert(memberFor(either, count).equals(count));
+  assert(memberFor(either, Type.make(TypeKind.Null, 0)).equals(text));
+  assertEq(memberFor(either, Type.make(TypeKind.I32, 0)).kind, TypeKind.None);
+
+  // `null` fits both pointers, so it is neither.
+  let pointers: Type = unionOfAll(valuesList(text, Type.make(TypeKind.I64, 1)),
+                                  List<*i8>.new());
+  assertEq(memberFor(pointers, Type.make(TypeKind.Null, 0)).kind, TypeKind.None);
+  assert(!pointers.accepts(Type.make(TypeKind.Null, 0)));
+}
+
+test "every value type has a code of its own, below every error's" {
+  let first: i64 = valueTag(Type.ofStruct("Circle", 0));
+  let second: i64 = valueTag(Type.ofStruct("Rect", 0));
+  assert(first < 0 && second < 0);
+  assert(first != second);
+  assertEq(valueTag(Type.ofStruct("Circle", 0)), first);
 }

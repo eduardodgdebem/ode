@@ -1,0 +1,12 @@
+test each member compares as itself ... ok
+unions.ode:35:3: assertEq failed
+  actual:   "seven"
+  expected: 7
+test a value of another member is shown as itself ... FAILED
+unions.ode:39:3: assertEq failed
+  actual:   Bad.Oops
+  expected: "seven"
+test an error is shown by its name ... FAILED
+
+1 passed; 2 failed
+exit 1

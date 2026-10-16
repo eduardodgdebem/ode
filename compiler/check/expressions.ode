@@ -9,6 +9,7 @@
 // need no cast. With nothing to go by it is `i32`, or `f32` with a `.`.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { alloc } from "std/mem";
 import { equals } from "std/text";
 import {
@@ -18,7 +19,7 @@ import {
 import { isReadyGlobal } from "./constants";
 import { checkEnumMember } from "./enums";
 import {
-  valueOf, checkTry, checkCoalesce, checkCatch, checkIs,
+  valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs,
 } from "./errors";
 import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
@@ -65,10 +66,11 @@ export fn checkExprAs(an: *Analyzer, node: i32, expected: Type): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  // Where a union is expected, a literal is its value.
+  // Where a union is expected, a literal is its value -- the one of its
+  // values that is a number, when it may hold several.
   let hint: Type = expected;
   if (expected.isUnion()) {
-    hint = valueOf(expected);
+    hint = literalHint(expected);
   }
   let type: Type = inferExprType(an, node, hint);
   an.types[node] = type;
@@ -79,6 +81,26 @@ export fn checkExprAs(an: *Analyzer, node: i32, expected: Type): Type {
   }
 
   return type;
+}
+
+fn literalHint(union: Type): Type {
+  let value: Type = valueOf(union);
+  if (!value.isUnion()) {
+    return value;
+  }
+  let values: *List<Type> = valuesOf(union);
+  let found: Type = Type.make(TypeKind.None, 0);
+  let numbers: i32 = 0;
+  for (index in 0..values.count) {
+    if (values.at(index).isInteger() || values.at(index).isFloat()) {
+      found = values.at(index);
+      numbers = numbers + 1;
+    }
+  }
+  if (numbers != 1) {
+    return Type.make(TypeKind.None, 0);
+  }
+  return found;
 }
 
 fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
