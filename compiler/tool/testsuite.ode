@@ -24,14 +24,17 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { exists } from "std/fs";
 import { Builder, equals, slice, endsWith, contains } from "std/text";
-import { STDOUT } from "../support/libc";
-import { writeBuilder } from "../support/text";
-import { fail } from "../support/diagnostics";
+import { fail } from "../diagnostics/report";
+import { line } from "../driver/options";
 import {
-  TextList, StderrMode, runCommand, setEnvironment, isTerminal, joinPath,
-  withSuffix, parentDirectory, isExecutable, readBytes, writeBytes, sameBytes,
-  makeDirectories, removeTree, listDirectory, splitLines, makeTempDirectory,
-} from "../support/system";
+  joinPath, withSuffix, parentDirectory, isExecutable, readBytes, writeBytes,
+  sameBytes, makeDirectories, removeTree, listDirectory, splitLines,
+  makeTempDirectory,
+} from "../os/files";
+import { STDOUT, writeBuilder } from "../os/output";
+import {
+  TextList, StderrMode, runCommand, setEnvironment, isTerminal,
+} from "../os/process";
 import { Workspace, complain, commandBuild } from "./build";
 
 export struct TestOptions {

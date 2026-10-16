@@ -1,0 +1,433 @@
+// ---------------------------------------------------------------------------
+// Types.
+//
+// A value type is a base kind plus a pointer depth: `i32` is {I32, 0}, `*i32`
+// is {I32, 1}, `**i8` is {I8, 2}. Structs carry their name as well.
+//
+// Types are passed by value, which Ode allows between its own functions, so
+// a `Type` is a small value with methods rather than a pointer to one.
+// ---------------------------------------------------------------------------
+
+import { alloc, grow } from "std/mem";
+import { Builder, equals, indexOf } from "std/text";
+import { unionAccepts } from "../check/errors";
+
+export enum TypeKind {
+  // Not a type: what an expression the analyzer could not type is given.
+  None,
+  I8,
+  U8,
+  I16,
+  U16,
+  I32,
+  U32,
+  I64,
+  U64,
+  F32,
+  F64,
+  Bool,
+  Void,
+  Struct,
+  // The type of `null`, which every pointer type accepts and nothing else does.
+  Null,
+  // An enum, named like a struct. Its values are i32 underneath.
+  Enum,
+  // A function, `fn(i32): bool`. Its signature, written out, is its name,
+  // and two function types are the same when their signatures are.
+  Function,
+  // A value or one of some errors, `i64 | ParseError`. Written out
+  // canonically, that is its name; see semantics/errors.ode.
+  Union,
+}
+// Not a type: the entry for a node that is not an expression.
+
+
+let MAX_U64: u64 = 18446744073709551615;
+
+export struct Type {
+  kind: TypeKind,
+  pointerDepth: i32,
+  // Only meaningful when kind is TY_STRUCT.
+  structName: *i8,
+
+  fn make(kind: TypeKind, pointerDepth: i32): Type {
+    return Type { kind: kind, pointerDepth: pointerDepth,
+                  structName: null };
+  }
+
+  fn ofStruct(name: *i8, pointerDepth: i32): Type {
+    return Type { kind: TypeKind.Struct, pointerDepth: pointerDepth,
+                  structName: name };
+  }
+  fn ofEnum(name: *i8, pointerDepth: i32): Type {
+    return Type { kind: TypeKind.Enum, pointerDepth: pointerDepth,
+                  structName: name };
+  }
+
+  fn isPointer(self: Type): bool {
+    return self.pointerDepth > 0;
+  }
+
+  fn isUnion(self: Type): bool {
+    return self.kind == TypeKind.Union && self.pointerDepth == 0;
+  }
+
+  fn isFunction(self: Type): bool {
+    return self.kind == TypeKind.Function && self.pointerDepth == 0;
+  }
+
+  fn isEnum(self: Type): bool {
+    return self.kind == TypeKind.Enum && self.pointerDepth == 0;
+  }
+
+  fn isNull(self: Type): bool {
+    return self.kind == TypeKind.Null && self.pointerDepth == 0;
+  }
+
+  // Whether a value of type `value` can be stored where `self` is expected.
+  // There are no implicit conversions, so that is equality -- except that
+  // `null` goes wherever any pointer does.
+  fn accepts(self: Type, value: Type): bool {
+    if (value.isNull()) {
+      return self.isPointer() || self.isNull() || self.isFunction();
+    }
+    if (self.isUnion()) {
+      return unionAccepts(self, value);
+    }
+
+    return self.equals(value);
+  }
+
+  fn isStruct(self: Type): bool {
+    return !self.isPointer() && self.kind == TypeKind.Struct;
+  }
+
+  fn isVoid(self: Type): bool {
+    return !self.isPointer() && self.kind == TypeKind.Void;
+  }
+
+  fn isBool(self: Type): bool {
+    return !self.isPointer() && self.kind == TypeKind.Bool;
+  }
+
+  fn isInteger(self: Type): bool {
+    if (self.isPointer()) {
+      return false;
+    }
+
+    match (self.kind) {
+      TypeKind.I8, TypeKind.U8, TypeKind.I16, TypeKind.U16, TypeKind.I32,
+      TypeKind.U32, TypeKind.I64, TypeKind.U64 => {
+        return true;
+      }
+      else => {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  fn isFloat(self: Type): bool {
+    if (self.isPointer()) {
+      return false;
+    }
+
+    return self.kind == TypeKind.F32 || self.kind == TypeKind.F64;
+  }
+
+  fn isNumeric(self: Type): bool {
+    return self.isInteger() || self.isFloat();
+  }
+
+  // Unsigned kinds use zero-extension, unsigned division and unsigned
+  // comparisons; everything else is treated as signed.
+  fn isSigned(self: Type): bool {
+    if (!self.isInteger()) {
+      return false;
+    }
+
+    if (self.kind == TypeKind.U8 || self.kind == TypeKind.U16) {
+      return false;
+    }
+
+    return self.kind != TypeKind.U32 && self.kind != TypeKind.U64;
+  }
+
+  // Zero for anything without a width of its own: bool, void, structs.
+  fn bitWidth(self: Type): i32 {
+    match (self.kind) {
+      TypeKind.I8, TypeKind.U8 => { return 8; }
+      TypeKind.I16, TypeKind.U16 => { return 16; }
+      TypeKind.I32, TypeKind.U32 => { return 32; }
+      TypeKind.Enum => { return 32; }
+      TypeKind.F32 => { return 32; }
+      TypeKind.I64, TypeKind.U64 => { return 64; }
+      TypeKind.F64 => { return 64; }
+      else => {}
+    }
+
+    return 0;
+  }
+
+  fn pointee(self: Type): Type {
+    return Type { kind: self.kind, pointerDepth: self.pointerDepth - 1,
+                  structName: self.structName };
+  }
+
+  // What the pointers, if any, lead to in the end.
+  fn base(self: Type): Type {
+    return Type { kind: self.kind, pointerDepth: 0,
+                  structName: self.structName };
+  }
+
+  fn pointerTo(self: Type): Type {
+    return Type { kind: self.kind, pointerDepth: self.pointerDepth + 1,
+                  structName: self.structName };
+  }
+
+  fn equals(self: Type, b: Type): bool {
+    if (self.kind != b.kind || self.pointerDepth != b.pointerDepth) {
+      return false;
+    }
+
+    // Only a struct or an enum has a name, and two of them are the same type
+    // only when they are the same declaration.
+    if (self.kind != TypeKind.Struct && self.kind != TypeKind.Enum &&
+        self.kind != TypeKind.Function && self.kind != TypeKind.Union) {
+      return true;
+    }
+
+    return equals(self.structName, b.structName);
+  }
+
+  fn baseName(self: Type): *i8 {
+    match (self.kind) {
+      TypeKind.I8 => { return "i8"; }
+      TypeKind.U8 => { return "u8"; }
+      TypeKind.I16 => { return "i16"; }
+      TypeKind.U16 => { return "u16"; }
+      TypeKind.I32 => { return "i32"; }
+      TypeKind.U32 => { return "u32"; }
+      TypeKind.I64 => { return "i64"; }
+      TypeKind.U64 => { return "u64"; }
+      TypeKind.F32 => { return "f32"; }
+      TypeKind.F64 => { return "f64"; }
+      TypeKind.Bool => { return "bool"; }
+      TypeKind.Void => { return "void"; }
+      TypeKind.Struct => { return self.structName; }
+      TypeKind.Null => { return "null"; }
+      TypeKind.Enum => { return self.structName; }
+      TypeKind.Function => { return self.structName; }
+      TypeKind.Union => { return self.structName; }
+      else => {}
+    }
+
+    return "unknown";
+  }
+
+  fn toText(self: Type): *i8 {
+    let out: *Builder = Builder.new();
+
+    let depth: i32 = 0;
+    while (depth < self.pointerDepth) {
+      out.push('*');
+      depth = depth + 1;
+    }
+
+    out.add(self.baseName());
+
+    return out.take();
+  }
+}
+
+// Returns TY_NONE when the name is not a built-in type keyword. `usize` is a
+// second spelling of u64.
+export fn typeKindFromName(name: *i8): TypeKind {
+  if (equals(name, "i8")) { return TypeKind.I8; }
+  if (equals(name, "u8")) { return TypeKind.U8; }
+  if (equals(name, "i16")) { return TypeKind.I16; }
+  if (equals(name, "u16")) { return TypeKind.U16; }
+  if (equals(name, "i32")) { return TypeKind.I32; }
+  if (equals(name, "u32")) { return TypeKind.U32; }
+  if (equals(name, "i64")) { return TypeKind.I64; }
+  if (equals(name, "u64")) { return TypeKind.U64; }
+  if (equals(name, "usize")) { return TypeKind.U64; }
+  if (equals(name, "f32")) { return TypeKind.F32; }
+  if (equals(name, "f64")) { return TypeKind.F64; }
+  if (equals(name, "bool")) { return TypeKind.Bool; }
+  if (equals(name, "void")) { return TypeKind.Void; }
+
+  return TypeKind.None;
+}
+
+// ---------------------------------------------------------------------------
+// Integer literal range checking. There is no `~` operator, so the maxima are
+// built by shifting rather than by complementing zero.
+// ---------------------------------------------------------------------------
+
+fn unsignedMax(bits: i32): u64 {
+  if (bits >= 64) {
+    return MAX_U64;
+  }
+
+  return (1 << bits as u64) - 1;
+}
+
+fn signedMax(bits: i32): u64 {
+  if (bits >= 64) {
+    return MAX_U64 / 2;
+  }
+
+  return (1 << (bits - 1) as u64) - 1;
+}
+
+// The lexer folds a leading `-` into a number token where the position allows
+// it, so a literal carries its own sign. A negative one only fits a signed
+// type, and reaches one further from zero than the positive maximum does.
+export fn fitsIn(magnitude: u64, negative: bool, type: Type): bool {
+  let bits: i32 = type.bitWidth();
+
+  if (!type.isSigned()) {
+    if (negative) {
+      return false;
+    }
+    return magnitude <= unsignedMax(bits);
+  }
+
+  let max: u64 = signedMax(bits);
+  if (negative) {
+    return magnitude <= max + 1;
+  }
+
+  return magnitude <= max;
+}
+
+// Reads decimal digits into a u64, reporting overflow through `overflowed`
+// rather than wrapping.
+export fn parseMagnitude(text: *i8, start: i64, length: i64,
+                         overflowed: *bool): u64 {
+  let value: u64 = 0;
+  let index: i64 = start;
+  *overflowed = false;
+
+  while (index < length) {
+    let digit: u64 = (text[index] as i64 - '0') as u64;
+
+    if (value > (MAX_U64 - digit) / 10) {
+      *overflowed = true;
+      return 0;
+    }
+
+    value = value * 10 + digit;
+    index = index + 1;
+  }
+
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// Struct layouts. Field order is declaration order, which is also the order of
+// the LLVM struct's elements, so a field's position here is its GEP index.
+// ---------------------------------------------------------------------------
+
+struct FieldDef {
+  name: *i8,
+  type: Type,
+}
+
+struct StructLayout {
+  name: *i8,
+  fields: *FieldDef,
+  count: i32,
+  capacity: i32,
+}
+
+export struct StructTable {
+  items: *StructLayout,
+  count: i32,
+  capacity: i32,
+
+  fn new(): *StructTable {
+    let table: *StructTable = alloc<StructTable>(1);
+    table.capacity = 16;
+    table.count = 0;
+    table.items =
+        alloc<StructLayout>(table.capacity as i64);
+
+    return table;
+  }
+
+  // Returns -1 when no struct of that name has been declared.
+  fn indexOf(self: *StructTable, name: *i8): i32 {
+    for (index in 0..self.count) {
+      if (equals(self.items[index].name, name)) {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  fn add(self: *StructTable, name: *i8): i32 {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items =
+          grow<StructLayout>(self.items, self.capacity as i64);
+    }
+
+    let index: i32 = self.count;
+    self.items[index].name = name;
+    self.items[index].count = 0;
+    self.items[index].capacity = 4;
+    self.items[index].fields =
+        alloc<FieldDef>(4);
+    self.count = self.count + 1;
+
+    return index;
+  }
+
+  // Returns -1 when the struct has no such field.
+  fn fieldIndex(self: *StructTable, structIndex: i32,
+                name: *i8): i32 {
+    for (index in 0..self.items[structIndex].count) {
+      if (equals(self.items[structIndex].fields[index].name, name)) {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  fn addField(self: *StructTable, structIndex: i32, name: *i8,
+              type: Type): void {
+    if (self.items[structIndex].count == self.items[structIndex].capacity) {
+      self.items[structIndex].capacity =
+          self.items[structIndex].capacity * 2;
+      self.items[structIndex].fields =
+          grow<FieldDef>(self.items[structIndex].fields, self.items[structIndex].capacity as i64);
+    }
+
+    let index: i32 = self.items[structIndex].count;
+    self.items[structIndex].fields[index].name = name;
+    self.items[structIndex].fields[index].type = type;
+    self.items[structIndex].count = index + 1;
+  }
+}
+
+test "fitsIn knows each type's range" {
+  assert(fitsIn(127, false, Type.make(TypeKind.I8, 0)));
+  assert(!fitsIn(128, false, Type.make(TypeKind.I8, 0)));
+  assert(fitsIn(128, true, Type.make(TypeKind.I8, 0)));
+  assert(!fitsIn(1, true, Type.make(TypeKind.U8, 0)));
+  assert(fitsIn(255, false, Type.make(TypeKind.U8, 0)));
+  assert(fitsIn(MAX_U64, false, Type.make(TypeKind.U64, 0)));
+}
+
+test "parseMagnitude reports overflow" {
+  let overflowed: bool = false;
+  assertEq(parseMagnitude("18446744073709551615", 0, 20, &overflowed),
+           MAX_U64);
+  assert(!overflowed);
+  parseMagnitude("18446744073709551616", 0, 20, &overflowed);
+  assert(overflowed);
+}

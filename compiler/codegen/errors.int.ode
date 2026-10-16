@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { Builder } from "std/text";
-import { mentions, outputOf } from "../testkit";
+import { mentions, outputOf } from "../testkit/testkit";
 
 let PRELUDE: *i8 = `
   import { printf } from "std/c";

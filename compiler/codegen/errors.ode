@@ -7,19 +7,20 @@
 // ---------------------------------------------------------------------------
 
 import { Builder, fromInt } from "std/text";
-import { Type } from "../semantics/types";
-import { analyzerParseType } from "../semantics/analyzer";
-import { unionInfo, valueOf, errorCodeRange } from "../semantics/errors";
+import { analyzerParseType } from "../check/analyzer";
+import { unionInfo, valueOf, errorCodeRange } from "../check/errors";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
   emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
   localTypeOf, variableAddress,
 } from "./emitter";
-import { llvmTypeName } from "./layout";
 import {
   typeOfNode, emitAssign, emitLoad, emitStore, genExpr,
 } from "./expressions";
+import { llvmTypeName } from "./layout";
 import { genStatement } from "./statements";
+import { line } from "../driver/options";
+import { Type } from "../types/types";
 
 // `value`, of type `from`, as the union `union`: an error becomes the code
 // it is, and a value the value with code 0.

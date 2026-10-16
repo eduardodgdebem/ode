@@ -24,26 +24,37 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { readFile, exists } from "std/fs";
 import { Builder, equals, slice, fromInt } from "std/text";
-import { STDOUT, STDERR } from "../support/libc";
-import { writeText } from "../support/text";
-import {
-  SOURCE_PATH, Diagnostics, DIAGS, FAILED,
-} from "../support/diagnostics";
-import {
-  TextList, StderrMode, runCommand, environment, setEnvironment,
-  currentDirectory, joinPath, withSuffix, parentDirectory, isExecutable,
-  absolutePath, readBytes, writeBytes, sameBytes, makeDirectories, removeTree,
-  moveFile,
-} from "../support/system";
-import { NodeKind, Ast } from "../syntax/ast";
-import { moduleCount, modulePath, STD_DIRECTORY } from "../semantics/modules";
-import { quoted } from "../semantics/analyzer";
+import { quoted } from "../check/analyzer";
 import { hexDigit } from "../codegen/emitter";
 import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
-import { loadProgram } from "../pipeline";
+import { SOURCE_PATH, Diagnostics, DIAGS, FAILED } from "../diagnostics/report";
+import { loadProgram } from "../driver/pipeline";
+import { moduleCount, modulePath, STD_DIRECTORY } from "../link/modules";
+import {
+  joinPath, withSuffix, parentDirectory, isExecutable, absolutePath, readBytes,
+  writeBytes, sameBytes, makeDirectories, removeTree, moveFile,
+} from "../os/files";
+import { STDOUT, STDERR, writeText } from "../os/output";
+import {
+  TextList, StderrMode, runCommand, environment, setEnvironment,
+  currentDirectory,
+} from "../os/process";
+import { NodeKind, Ast } from "../syntax/ast";
 import { TestOptions, commandTest } from "./testsuite";
 
-let BUILD_USAGE: *i8 = "usage: ode build [build | test | bootstrap | seed] [--force] [--filter <text>] [--update] [--ode <compiler>]\n\n  build       build build/ode from compiler/main.ode (the default)\n  test        build, then run the regression suite\n  bootstrap   build, then rebuild twice and require a fixed point\n  seed        build, then refresh bootstrap/ode.ll\n\n  --force           build even when nothing has changed\n  --filter <text>   test: run only the cases whose name contains <text>\n  --update          test: rewrite the expectations from what happens now\n  --ode <compiler>  test: test this compiler instead of building one\n";
+let BUILD_USAGE: *i8 = `
+  usage: ode build [build | test | bootstrap | seed] [--force] [--filter <text>] [--update] [--ode <compiler>]
+
+    build       build build/ode from compiler/main.ode (the default)
+    test        build, then run the regression suite
+    bootstrap   build, then rebuild twice and require a fixed point
+    seed        build, then refresh bootstrap/ode.ll
+
+    --force           build even when nothing has changed
+    --filter <text>   test: run only the cases whose name contains <text>
+    --update          test: rewrite the expectations from what happens now
+    --ode <compiler>  test: test this compiler instead of building one
+`;
 
 export struct Workspace {
   root: *i8,
@@ -157,7 +168,7 @@ export fn complain(text: *i8): void {
 }
 
 // `path` relative to the repository, which is how messages name things.
-fn shown(ws: *Workspace, path: *i8): *i8 {
+export fn shown(ws: *Workspace, path: *i8): *i8 {
   let length: i64 = strlen(ws.root);
   if (strlen(path) > length && path[length] == '/' &&
       equals(slice(path, 0, length), ws.root)) {

@@ -1,0 +1,148 @@
+// ---------------------------------------------------------------------------
+// The symbol table.
+//
+// Scopes are a flat stack of symbols plus the index each scope starts at,
+// rather than a stack of maps: entering a scope pushes a marker and leaving
+// one truncates back to it. Lookup walks backwards, so an inner declaration
+// shadows an outer one for free.
+// ---------------------------------------------------------------------------
+
+import { alloc, grow } from "std/mem";
+import { List } from "std/list";
+import { equals } from "std/text";
+import { Problem, Facts } from "../diagnostics/problems";
+import { report } from "../diagnostics/report";
+import { line } from "../driver/options";
+import { Type } from "./types";
+
+export enum SymbolKind {
+  Var,
+  Fn,
+}
+
+export struct Symbol {
+  name: *i8,
+  kind: SymbolKind,
+  // For a function this is the return type.
+  type: Type,
+  params: *Type,
+  paramCount: i32,
+  // What the IR calls a top-level declaration, which differs from `name` when
+  // two files use one name or when an import renames it. Null for a local.
+  linkName: *i8,
+  // For an extern declared with `...`: it takes more arguments than `params`.
+  variadic: bool,
+  // The type a variable was declared with. `type` differs from it where
+  // `is` has narrowed the variable; see semantics/errors.ode.
+  declared: Type,
+}
+
+export struct SymbolTable {
+  items: *Symbol,
+  count: i32,
+  capacity: i32,
+  // Where each open scope's symbols start, innermost last.
+  scopeStarts: *List<i32>,
+
+  fn new(): *SymbolTable {
+    let table: *SymbolTable = alloc<SymbolTable>(1);
+    table.capacity = 64;
+    table.count = 0;
+    table.items = alloc<Symbol>(table.capacity as i64);
+    table.scopeStarts = List<i32>.new();
+
+    table.enterScope();
+
+    return table;
+  }
+
+  fn enterScope(self: *SymbolTable): void {
+    self.scopeStarts.push(self.count);
+  }
+
+  // How many scopes are open, for undoing the ones a failure left open.
+  fn depth(self: *SymbolTable): i32 {
+    return self.scopeStarts.count as i32;
+  }
+
+  fn exitScope(self: *SymbolTable): void {
+    if (self.scopeStarts.count == 0) {
+      return;
+    }
+
+    self.count = self.scopeStarts.pop();
+  }
+
+  // Innermost first, so a shadowing declaration wins.
+  // Undoes the scopes an abandoned statement left open.
+  fn truncateScopes(self: *SymbolTable, depth: i32): void {
+    while (self.scopeStarts.count > depth as i64) {
+      self.exitScope();
+    }
+  }
+
+  fn find(self: *SymbolTable, name: *i8): i32 {
+    let index: i32 = self.count - 1;
+
+    while (index >= 0) {
+      if (equals(self.items[index].name, name)) {
+        return index;
+      }
+      index = index - 1;
+    }
+
+    return -1;
+  }
+
+  // Only the innermost scope, which is what a redeclaration check needs: the
+  // same name in an enclosing scope is shadowing, not a conflict.
+  fn findInScope(self: *SymbolTable, name: *i8): i32 {
+    let start: i32 = self.scopeStarts.last();
+    let index: i32 = self.count - 1;
+
+    while (index >= start) {
+      if (equals(self.items[index].name, name)) {
+        return index;
+      }
+      index = index - 1;
+    }
+
+    return -1;
+  }
+
+  fn declare(self: *SymbolTable, name: *i8, kind: SymbolKind, type: Type,
+             params: *Type, paramCount: i32, line: i32,
+             column: i32): void {
+    if (self.findInScope(name) >= 0) {
+      report(Problem.AlreadyDeclared, line, column, Facts.about(name));
+      return;
+    }
+
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = grow<Symbol>(self.items, self.capacity as i64);
+    }
+
+    let index: i32 = self.count;
+    self.items[index].name = name;
+    self.items[index].kind = kind;
+    self.items[index].type = type;
+    self.items[index].params = params;
+    self.items[index].paramCount = paramCount;
+    self.items[index].linkName = null;
+    self.items[index].variadic = false;
+    self.items[index].declared = type;
+    self.count = index + 1;
+  }
+
+  // Pushes a symbol already checked for conflicts, as it was declared.
+  fn push(self: *SymbolTable, symbol: Symbol): void {
+    if (self.count == self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.items = grow<Symbol>(self.items, self.capacity as i64);
+    }
+
+    self.items[self.count] = symbol;
+    self.count = self.count + 1;
+  }
+}

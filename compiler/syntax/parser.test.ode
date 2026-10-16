@@ -7,9 +7,9 @@
 // ---------------------------------------------------------------------------
 
 import { List } from "std/list";
-import { Problem } from "../support/problems";
-import { Diagnostic } from "../support/diagnostics";
-import { Scope } from "../testkit";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
 
 test "for missing in" {
   let found: *List<Diagnostic> = Scope.new()

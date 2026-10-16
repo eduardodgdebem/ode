@@ -14,7 +14,7 @@ import { exists } from "std/fs";
 import { Builder } from "std/text";
 import {
   TextList, StderrMode, runCommand, environment, setEnvironment,
-} from "../support/system";
+} from "../os/process";
 import { isSpace } from "../syntax/lexer";
 
 let SYSROOT_PROBED: bool = false;

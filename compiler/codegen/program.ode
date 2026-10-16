@@ -7,22 +7,23 @@
 // ---------------------------------------------------------------------------
 
 import { Builder, equals, fromInt } from "std/text";
-import { NO_NODE, NodeKind } from "../syntax/ast";
-import { Type } from "../semantics/types";
-import { NameSet } from "../semantics/modules";
-import { analyzerParseType } from "../semantics/analyzer";
-import { isTemplate } from "../semantics/generics";
-import { sizeOf } from "../semantics/layout";
-import { globalDeclOf } from "../semantics/constants";
-import { TEST_MODE, runsTestsOf } from "../semantics/testing";
+import { analyzerParseType } from "../check/analyzer";
+import { globalDeclOf } from "../check/constants";
+import { TEST_MODE, runsTestsOf } from "../check/testing";
 import {
   Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
   declareLocal, llvmName, internString,
 } from "./emitter";
-import { llvmTypeName, zeroValue } from "./layout";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
+import { llvmTypeName, zeroValue } from "./layout";
 import { genStatement } from "./statements";
 import { emitCheckSupport, emitTestMain, emitEnumNames } from "./testing";
+import { line } from "../driver/options";
+import { isTemplate } from "../link/generics";
+import { NameSet } from "../link/modules";
+import { NO_NODE, NodeKind } from "../syntax/ast";
+import { sizeOf } from "../types/layout";
+import { Type } from "../types/types";
 
 fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
   let returnType: Type = analyzerParseType(e.an, e.ast.nodes[node].a);

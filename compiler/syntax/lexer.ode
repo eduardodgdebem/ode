@@ -9,8 +9,9 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals, copy, slice } from "std/text";
-import { Problem, Facts } from "../support/problems";
-import { FAILED, report } from "../support/diagnostics";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED, report } from "../diagnostics/report";
+import { line } from "../driver/options";
 import { TokenKind, TokenList, kindName } from "./token";
 
 struct Lexer {

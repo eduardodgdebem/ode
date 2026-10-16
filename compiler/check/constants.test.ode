@@ -1,0 +1,66 @@
+// ---------------------------------------------------------------------------
+// Globals and their constant initialisers: what checking rejects.
+//
+// Each checks a fragment -- statements in a function body, or declarations
+// -- in a Scope that states what it can see, and asserts the problems found:
+// which, where in the fragment, and about what.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
+
+test "constant division by zero" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        let PARTS: i32 = 4;
+        let EACH: i32 = 100 / (PARTS - 4);
+      `)
+      .returning("i32")
+      .run(`
+        return EACH;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.ConstantDivisionByZero);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(0).column, 21);
+}
+
+test "global from later global" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        let FIRST: i32 = SECOND + 1;
+        let SECOND: i32 = 2;
+      `)
+      .returning("i32")
+      .run(`
+        return FIRST;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.GlobalDeclaredLater);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).facts.name, "FIRST");
+  assertEq(found.at(0).facts.other, "SECOND");
+}
+
+test "non constant global" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        fn seed(): i32 {
+          return 1;
+        }
+
+        let counter: i32 = seed();
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.GlobalNotConstant);
+  assertEq(found.at(0).line, 5);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(0).facts.name, "counter");
+}

@@ -8,11 +8,12 @@
 // ---------------------------------------------------------------------------
 
 import { equals } from "std/text";
-import { FAILED } from "../support/diagnostics";
-import { TokenKind, Token } from "./token";
+import { FAILED } from "../diagnostics/report";
+import { line } from "../driver/options";
 import { NO_NODE, NodeKind } from "./ast";
 import { Parser, parseType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
 import { parseBlock } from "./statements";
+import { TokenKind, Token } from "./token";
 
 // Expr -> Coalesce ('catch' '(' IDENT ')' Block)?
 export fn parseExpr(parser: *Parser): i32 {

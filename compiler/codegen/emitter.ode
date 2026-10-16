@@ -15,12 +15,13 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals } from "std/text";
-import { SOURCE_PATH, internalError } from "../support/diagnostics";
+import { Analyzer } from "../check/analyzer";
+import { TEST_MODE } from "../check/testing";
+import { SOURCE_PATH, internalError } from "../diagnostics/report";
+import { line } from "../driver/options";
+import { moduleDisplayPath } from "../link/modules";
 import { Ast } from "../syntax/ast";
-import { TypeKind, Type } from "../semantics/types";
-import { moduleDisplayPath } from "../semantics/modules";
-import { Analyzer } from "../semantics/analyzer";
-import { TEST_MODE } from "../semantics/testing";
+import { TypeKind, Type } from "../types/types";
 
 struct Local {
   name: *i8,

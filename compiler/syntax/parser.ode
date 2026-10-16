@@ -8,10 +8,10 @@
 
 import { alloc } from "std/mem";
 import { slice } from "std/text";
-import { Problem, Facts } from "../support/problems";
-import { FAILED, report, fail } from "../support/diagnostics";
-import { TokenKind, Token, TokenList } from "./token";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED, report, fail } from "../diagnostics/report";
 import { NodeKind, Ast } from "./ast";
+import { TokenKind, Token, TokenList } from "./token";
 
 export struct Parser {
   tokens: *TokenList,

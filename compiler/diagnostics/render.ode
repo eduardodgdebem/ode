@@ -1,0 +1,322 @@
+// ---------------------------------------------------------------------------
+// Printing diagnostics the way Zig does: where it is and what is wrong, the
+// line of source it is about with the spot underlined, and a note saying
+// more when there is more to say.
+//
+//   main.ode:4:10: error: wrong return type
+//     return true;
+//            ^~~~
+//   note: expected 'i32' but got 'bool'
+//
+// In colour on a terminal, unless NO_COLOR is set. The words come from
+// describe(), in problems.ode.
+// ---------------------------------------------------------------------------
+
+import { getenv } from "std/c";
+import { List } from "std/list";
+import { Builder, equals, slice, contains } from "std/text";
+import { Problem, Facts, Description, describe } from "./problems";
+import {
+  SOURCE_PATH, Diagnostic, Diagnostics, DIAGS, FAILED, report,
+} from "./report";
+import { line } from "../driver/options";
+import { STDERR, writeBuilder } from "../os/output";
+import { isatty } from "../os/process";
+import { colour } from "../tool/testsuite";
+import { TypeKind, Type } from "../types/types";
+
+struct Source {
+  path: *i8,
+  text: *i8,
+}
+
+let SOURCES: *List<Source> = null;
+
+// Forgets every source registered, for loading a program afresh.
+export fn forgetSources(): void {
+  SOURCES = null;
+}
+
+// Keeps the text of the file a diagnostic would name as `path`.
+export fn registerSource(path: *i8, text: *i8): void {
+  if (SOURCES == null) {
+    SOURCES = List<Source>.new();
+  }
+  SOURCES.push(Source { path: path, text: text });
+}
+
+fn sourceOf(path: *i8): *i8 {
+  if (SOURCES == null) {
+    return null;
+  }
+  for (index in 0..SOURCES.count) {
+    if (equals(SOURCES.at(index).path, path)) {
+      return SOURCES.at(index).text;
+    }
+  }
+  return null;
+}
+
+// Line `number` of `text`, counting from 1, without its newline; null past
+// the end.
+fn lineOf(text: *i8, number: i32): *i8 {
+  let start: i64 = 0;
+  let line: i32 = 1;
+  while (line < number) {
+    while (text[start] != '\n') {
+      if (text[start] == '\0') {
+        return null;
+      }
+      start = start + 1;
+    }
+    start = start + 1;
+    line = line + 1;
+  }
+
+  let end: i64 = start;
+  while (text[end] != '\n' && text[end] != '\0') {
+    end = end + 1;
+  }
+  return slice(text, start, end - start);
+}
+
+// How many columns to underline for the token starting at `at` in `line`:
+// a word or number whole, a string or character to its closing quote, a
+// two-character operator both characters, anything else one.
+fn tokenWidth(line: *i8, at: i64): i64 {
+  let first: i8 = line[at];
+  if (first == '\0') {
+    return 1;
+  }
+
+  if (isWordCharacter(first)) {
+    let end: i64 = at;
+    while (isWordCharacter(line[end]) || line[end] == '.' && isDecimalDigit(first)) {
+      end = end + 1;
+    }
+    return end - at;
+  }
+
+  if (first == '"' || first == '\'' || first == '`') {
+    let end: i64 = at + 1;
+    while (line[end] != first && line[end] != '\0') {
+      if (line[end] == '\\' && line[end + 1] != '\0') {
+        end = end + 1;
+      }
+      end = end + 1;
+    }
+    if (line[end] == first) {
+      end = end + 1;
+    }
+    return end - at;
+  }
+
+  let second: i8 = line[at + 1];
+  if (second == '=' && contains("=!<>+-*/%", slice(line, at, 1)) ||
+      (first == '&' && second == '&') || (first == '|' && second == '|') ||
+      (first == '<' && second == '<') || (first == '>' && second == '>') ||
+      (first == '=' && second == '>') || (first == '.' && second == '.')) {
+    return 2;
+  }
+  return 1;
+}
+
+fn isDecimalDigit(character: i8): bool {
+  return character >= '0' && character <= '9';
+}
+
+fn isWordCharacter(character: i8): bool {
+  return (character >= 'a' && character <= 'z') ||
+         (character >= 'A' && character <= 'Z') || isDecimalDigit(character) ||
+         character == '_';
+}
+
+// ---------------------------------------------------------------------------
+// Printing.
+// ---------------------------------------------------------------------------
+
+// Prints everything recorded to stderr, in colour when that is a terminal
+// and NO_COLOR is not set.
+export fn printDiagnostics(): void {
+  // NO_COLOR turns colour off when it is set to anything but nothing.
+  let noColour: *i8 = getenv("NO_COLOR");
+  let colour: bool = isatty(STDERR) != 0 &&
+                     (noColour == null || noColour[0] == '\0');
+  writeBuilder(STDERR, formatDiagnostics(colour));
+}
+
+// The escape sequences for one style, or nothing when colour is off.
+struct Style {
+  bold: *i8,
+  error: *i8,
+  note: *i8,
+  caret: *i8,
+  off: *i8,
+}
+
+fn styleFor(colour: bool): Style {
+  if (!colour) {
+    return Style { bold: "", error: "", note: "", caret: "", off: "" };
+  }
+  return Style {
+    bold: ansi("1"), error: ansi("1;31"), note: ansi("1;36"),
+    caret: ansi("1;32"), off: ansi("0"),
+  };
+}
+
+// The terminal escape sequence ESC [ code m.
+fn ansi(code: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.push(27);
+  out.push('[');
+  out.add(code);
+  out.push('m');
+  return out.take();
+}
+
+// Everything recorded, as printDiagnostics prints it.
+export fn formatDiagnostics(colour: bool): *Builder {
+  let style: Style = styleFor(colour);
+  let out: *Builder = Builder.new();
+
+  for (index in 0..DIAGS.count()) {
+    formatOne(out, DIAGS.at(index), style);
+  }
+
+  // A single error reads better on its own; a count is only worth printing
+  // once there is more than one thing to count.
+  if (DIAGS.total > DIAGS.count()) {
+    out.addInt(DIAGS.total as i64);
+    out.add(" errors generated, showing the first ");
+    out.addInt(DIAGS.count() as i64);
+    out.add(".\n");
+  } else if (DIAGS.total > 1) {
+    out.addInt(DIAGS.total as i64);
+    out.add(" errors generated.\n");
+  }
+
+  return out;
+}
+
+fn formatOne(out: *Builder, diagnostic: Diagnostic, style: Style): void {
+  let words: Description = describe(diagnostic.problem, diagnostic.facts);
+
+  // `file:line:column: error: message`, which most editors can jump to. A
+  // line of 0 means the position is unknown, which whole-program checks
+  // report; those name the file alone.
+  out.add(style.bold);
+  out.add(diagnostic.path);
+  if (diagnostic.line > 0) {
+    out.push(':');
+    out.addInt(diagnostic.line as i64);
+    out.push(':');
+    out.addInt(diagnostic.column as i64);
+  }
+  out.add(": ");
+  out.add(style.error);
+  out.add("error:");
+  out.add(style.off);
+  out.add(style.bold);
+  out.push(' ');
+  out.add(words.message);
+  out.add(style.off);
+  out.push('\n');
+
+  let text: *i8 = sourceOf(diagnostic.path);
+  if (diagnostic.line > 0 && text != null) {
+    let line: *i8 = lineOf(text, diagnostic.line);
+    if (line != null) {
+      out.add(line);
+      out.push('\n');
+
+      // The caret lines up under the column even past tabs, by copying them.
+      let at: i64 = diagnostic.column as i64 - 1;
+      for (column in 0..at) {
+        if (line[column] == '\t') {
+          out.push('\t');
+        } else {
+          out.push(' ');
+        }
+      }
+      out.add(style.caret);
+      out.push('^');
+      for (rest in 1..tokenWidth(line, at)) {
+        out.push('~');
+      }
+      out.add(style.off);
+      out.push('\n');
+    }
+  }
+
+  if (words.note != null) {
+    out.add(style.note);
+    out.add("note:");
+    out.add(style.off);
+    out.push(' ');
+    out.add(words.note);
+    out.push('\n');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fatal failure, for what cannot go on: an input that cannot be read, and
+// anything that has already been type-checked by the time codegen sees it.
+// ---------------------------------------------------------------------------
+
+test "lineOf finds each line, and nothing past the last" {
+  let text: *i8 = "first\n\nthird";
+  assertEq(lineOf(text, 1), "first");
+  assertEq(lineOf(text, 2), "");
+  assertEq(lineOf(text, 3), "third");
+  assertEq(lineOf(text, 4), null);
+}
+
+test "tokenWidth covers the token under the caret" {
+  assertEq(tokenWidth("return true;", 0), 6);
+  assertEq(tokenWidth("x = 3.25;", 4), 4);
+  assertEq(tokenWidth("print(\"a \\\" b\");", 6), 8);
+  assertEq(tokenWidth("a <= b", 2), 2);
+  assertEq(tokenWidth("a + b", 2), 1);
+  assertEq(tokenWidth("", 0), 1);
+}
+
+test "a diagnostic shows its line, the spot, and its note" {
+  DIAGS = Diagnostics.new();
+  registerSource("main.ode", "fn main(): i32 {\n\treturn true;\n}\n");
+  SOURCE_PATH = "main.ode";
+  report(Problem.WrongReturnType, 2, 2,
+         Facts.aboutTypes(Type.make(TypeKind.I32, 0), Type.make(TypeKind.Bool, 0)));
+  assertEq(formatDiagnostics(false).take(),
+           "main.ode:2:2: error: wrong return type\n\treturn true;\n\t^~~~~~\nnote: expected 'i32' but got 'bool'\n");
+}
+
+test "a diagnostic without a position names the file alone" {
+  DIAGS = Diagnostics.new();
+  SOURCE_PATH = "main.ode";
+  report(Problem.NoMain, 0, 0, Facts.none());
+  FAILED = false;
+  report(Problem.NoMain, 0, 0, Facts.none());
+  assertEq(formatDiagnostics(false).take(),
+           "main.ode: error: No main function found\nmain.ode: error: No main function found\n2 errors generated.\n");
+}
+
+test "colour wraps the location, the label, the caret and the note" {
+  DIAGS = Diagnostics.new();
+  registerSource("main.ode", "let x: i32 = y;\n");
+  SOURCE_PATH = "main.ode";
+  report(Problem.RecursiveStruct, 1, 14, Facts.about("Node"));
+  let text: *i8 = formatDiagnostics(true).take();
+  let off: *i8 = ansi("0");
+  assert(contains(text, concat(ansi("1;31"), "error:", off)));
+  assert(contains(text, concat(ansi("1;32"), "^", off)));
+  assert(contains(text, concat(ansi("1;36"), "note:", off)));
+  assert(contains(text, "use a pointer to break the cycle"));
+}
+
+fn concat(a: *i8, b: *i8, c: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.add(a);
+  out.add(b);
+  out.add(c);
+  return out.take();
+}

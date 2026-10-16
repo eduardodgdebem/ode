@@ -11,8 +11,9 @@
 // ---------------------------------------------------------------------------
 
 import { alloc, grow } from "std/mem";
+import { line } from "../driver/options";
 import { Token } from "./token";
-import { Type } from "../semantics/types";
+import { Type } from "../types/types";
 
 export let NO_NODE: i32 = -1;
 

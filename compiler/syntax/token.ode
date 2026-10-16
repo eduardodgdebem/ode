@@ -5,7 +5,8 @@
 // ---------------------------------------------------------------------------
 
 import { alloc, grow } from "std/mem";
-import { Type } from "../semantics/types";
+import { line } from "../driver/options";
+import { Type } from "../types/types";
 
 export enum TokenKind {
   // Not a token: the state before the first one has been read.

@@ -1,0 +1,103 @@
+// ---------------------------------------------------------------------------
+// `ode test <input.ode | directory> [filter]`: builds the program with its
+// tests and a runner for its `main`, in a scratch directory, and runs it.
+// The exit status is the runner's: 0 when every test that ran passed.
+// ---------------------------------------------------------------------------
+
+import { readFile } from "std/fs";
+import { Analyzer, analyze } from "../check/analyzer";
+import { TEST_MODE, RUNNER_MODULE, runnerSource } from "../check/testing";
+import { Emitter } from "../codegen/emitter";
+import { genProgram } from "../codegen/program";
+import { Problem } from "../diagnostics/problems";
+import { printDiagnostics } from "../diagnostics/render";
+import {
+  SOURCE_PATH, Diagnostics, DIAGS, hasErrors, fail,
+} from "../diagnostics/report";
+import {
+  USAGE, TestRunOptions, parseTestOptions, argumentsFrom,
+} from "./options";
+import {
+  loadModule, loadProgram, loadFiles, buildExecutable,
+} from "./pipeline";
+import { STD_DIRECTORY } from "../link/modules";
+import {
+  joinPath, removeTree, isDirectory, findSources, makeTempDirectory,
+} from "../os/files";
+import { STDERR, writeText } from "../os/output";
+import {
+  TextList, StderrMode, runCommand, setEnvironment,
+} from "../os/process";
+import { NodeKind, Ast } from "../syntax/ast";
+
+export fn testMain(argc: i32, argv: **i8): i32 {
+  let options: TestRunOptions =
+      parseTestOptions(argumentsFrom(argc, argv, 2)) catch (e) {
+        writeText(STDERR, USAGE);
+        return 2;
+      };
+  let path: *i8 = options.input;
+
+  TEST_MODE = true;
+  // The tests run elsewhere -- some compile programs of their own -- and
+  // need this run's standard library too.
+  if (STD_DIRECTORY != null) {
+    setEnvironment("ODE_STD", STD_DIRECTORY);
+  }
+  SOURCE_PATH = path;
+  DIAGS = Diagnostics.new();
+
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+
+  // A directory is tested whole: every file in it, at any depth, and what
+  // they import.
+  if (isDirectory(path)) {
+    let files: *TextList = findSources(path);
+    if (files.size() == 0) {
+      fail(Problem.NothingToTest);
+    }
+    loadFiles(ast, root, files);
+  } else {
+    let source: *i8 = readFile(path) catch (e) {
+      fail(Problem.CannotOpenInput);
+      return 1;
+    };
+    loadProgram(ast, root, path, source);
+  }
+  RUNNER_MODULE = loadModule(ast, root, "ode:testing", "ode:testing",
+                             runnerSource());
+  SOURCE_PATH = path;
+
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  let an: *Analyzer = Analyzer.new(ast);
+  analyze(an, root);
+
+  if (hasErrors()) {
+    printDiagnostics();
+    return 1;
+  }
+
+  let module: *i8 = genProgram(Emitter.new(ast, an), root);
+
+  let directory: *i8 = makeTempDirectory("ode-test");
+  if (directory == null) {
+    fail(Problem.CannotMakeScratchDirectory);
+  }
+  let program: *i8 = joinPath(directory, "tests");
+  buildExecutable(module, program, false);
+
+  let run: *TextList = TextList.new();
+  run.add(program);
+  if (options.filter != null) {
+    run.add(options.filter);
+  }
+  let status: i32 = runCommand(run, null, null, StderrMode.Inherit);
+
+  removeTree(directory);
+  return status;
+}

@@ -1,0 +1,168 @@
+// ---------------------------------------------------------------------------
+// Functions as values.
+//
+// A function's name, used anywhere but in front of a call, is a value of a
+// function type:
+//
+//     fn add(a: i32, b: i32): i32 { ... }
+//     let op: fn(i32, i32): i32 = add;
+//     print(op(1, 2));
+//
+// A function type is written `fn(i32, i32): i32`. Two are the same type when
+// their parameter and return types are, so the signature written out is the
+// type's name, and a table maps it back to the types it is made of.
+//
+// A value of a function type is called like a function, through a variable
+// (`op(1, 2)`), a struct field (`handlers.onClick(event)`), or any other
+// expression (`table[i](x)`). `null` is a function value too -- the absence
+// of one -- and function values compare with `==` and `!=`. Underneath they
+// are pointers to code, so they pass to and from C as its function pointers.
+// ---------------------------------------------------------------------------
+
+import { alloc } from "std/mem";
+import { Builder, equals } from "std/text";
+import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
+import { checkExpr, checkArguments } from "./expressions";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED, internalError } from "../diagnostics/report";
+import { TypeKind, Type } from "../types/types";
+
+export struct Signature {
+  // `fn(i32, *i8): bool`, which is also the type's name.
+  text: *i8,
+  params: *Type,
+  count: i32,
+  result: Type,
+}
+
+// What a call calls.
+export enum CallTarget {
+  // A function, by name.
+  Direct,
+  // A value of function type: a variable, or any other expression.
+  Value,
+  // A field of function type, written like a method call: `ops.apply(x)`.
+  Field,
+  // The built-in checks, `assert(cond)` and `assertEq(actual, expected)`. See
+  // testing.ode.
+  Assert,
+  AssertEq,
+  // `nameOf(Color.Red)`: the member's name.
+  NameOf,
+}
+
+fn signatureText(params: *Type, count: i32, result: Type): *i8 {
+  let out: *Builder = Builder.new();
+  out.add("fn(");
+
+  for (index in 0..count) {
+    if (index > 0) {
+      out.add(", ");
+    }
+    out.add(params[index].toText());
+  }
+
+  out.add("): ");
+  out.add(result.toText());
+
+  return out.take();
+}
+
+// The type of a function with these parameters and result, recorded so its
+// parts can be found again from the type alone.
+fn functionType(an: *Analyzer, params: *Type, count: i32, result: Type,
+                depth: i32): Type {
+  let text: *i8 = signatureText(params, count, result);
+
+  for (index in 0..an.signatures.count) {
+    if (equals(an.signatures.at(index).text, text)) {
+      return Type { kind: TypeKind.Function, pointerDepth: depth,
+                    structName: an.signatures.at(index).text };
+    }
+  }
+
+  an.signatures.push(Signature { text: text, params: params, count: count,
+                                 result: result });
+
+  return Type { kind: TypeKind.Function, pointerDepth: depth,
+                structName: text };
+}
+
+// Where the signature of a function type is in the table.
+export fn signatureIndex(an: *Analyzer, type: Type): i64 {
+  for (index in 0..an.signatures.count) {
+    if (equals(an.signatures.at(index).text, type.structName)) {
+      return index;
+    }
+  }
+
+  internalError(0, 0, "function type without a recorded signature");
+  return -1;
+}
+
+// `fn(i32, i32): i32`, written in a type position.
+export fn parseFunctionType(an: *Analyzer, node: i32): Type {
+  let count: i32 = an.ast.nodes[node].itemCount;
+  let params: *Type = null as *Type;
+  if (count > 0) {
+    params = alloc<Type>(count as i64);
+  }
+
+  for (index in 0..count) {
+    params[index] = analyzerParseType(an, an.ast.nodes[node].items[index]);
+  }
+
+  let result: Type = analyzerParseType(an, an.ast.nodes[node].a);
+
+  return functionType(an, params, count, result, an.ast.nodes[node].extra);
+}
+
+// A function's name used as a value: its type is its signature.
+export fn checkFunctionRef(an: *Analyzer, node: i32, symbol: i32): Type {
+  // A function type has no `...`, so a variadic extern has no value as one.
+  if (an.symbols.items[symbol].variadic) {
+    analyzerFail(an, node, Problem.VariadicAsValue,
+                 Facts.about(an.symbols.items[symbol].name));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  an.functionRefs[node] = 1;
+  an.linkNames[node] = an.symbols.items[symbol].linkName;
+
+  return functionType(an, an.symbols.items[symbol].params,
+                      an.symbols.items[symbol].paramCount,
+                      an.symbols.items[symbol].type, 0);
+}
+
+// Checks a call through a value of type `callee`, which has to be a
+// function's. `name` is what the diagnostics call it.
+export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
+                           args: i32): Type {
+  if (!callee.isFunction()) {
+    analyzerFail(an, node, Problem.NotAFunction, Facts.about(name));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let signature: i64 = signatureIndex(an, callee);
+  let found: Signature = an.signatures.at(signature);
+  checkArguments(an, node, name, args, found.params, found.count);
+
+  return found.result;
+}
+
+// `table[i](x)`: a call of whatever an expression produces.
+export fn checkCallValue(an: *Analyzer, node: i32): Type {
+  let callee: Type = checkExpr(an, an.ast.nodes[node].a);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+
+  if (!callee.isFunction()) {
+    analyzerFail(an, node, Problem.CannotCall, Facts.aboutType(callee));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  an.callTargets[node] = CallTarget.Value;
+  return checkCallThrough(an, node, "function value", callee,
+                          an.ast.nodes[node].b);
+}

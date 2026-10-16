@@ -6,7 +6,7 @@
 // from checking alone is tested where the checking is.
 // ---------------------------------------------------------------------------
 
-import { outputOf } from "../testkit";
+import { outputOf } from "../testkit/testkit";
 
 test "arrays" {
   assertEq(outputOf(`

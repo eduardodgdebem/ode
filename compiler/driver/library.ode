@@ -1,0 +1,73 @@
+// ---------------------------------------------------------------------------
+// Finding the standard library: ODE_STD, or beside where the compiler is.
+// ---------------------------------------------------------------------------
+
+import { strlen } from "std/c";
+import { exists } from "std/fs";
+import { slice } from "std/text";
+import {
+  joinPath, parentDirectory, isExecutable, absolutePath,
+} from "../os/files";
+import { TextList, environment } from "../os/process";
+
+// The path this program was run as: argv[0] itself when it holds a `/`,
+// otherwise the first match on PATH, which is how a shell found it.
+fn executablePath(argv0: *i8): *i8 {
+  for (index in 0..strlen(argv0)) {
+    if (argv0[index] == '/') {
+      return absolutePath(argv0);
+    }
+  }
+
+  let search: *i8 = environment("PATH");
+  if (search == null) {
+    return null;
+  }
+
+  let start: i64 = 0;
+  let index: i64 = 0;
+  while (true) {
+    if (search[index] == ':' || search[index] == '\0') {
+      let candidate: *i8 = joinPath(slice(search, start, index - start),
+                                    argv0);
+      if (isExecutable(candidate)) {
+        return absolutePath(candidate);
+      }
+      if (search[index] == '\0') {
+        return null;
+      }
+      start = index + 1;
+    }
+    index = index + 1;
+  }
+
+  return null;
+}
+
+// The standard library: ODE_STD if set, otherwise `std` beside the
+// directory the compiler was run from -- build/ode finds the repository's
+// std/ -- or `lib/ode/std` there, where an install would put it.
+export fn findStdDirectory(argv0: *i8): *i8 {
+  let configured: *i8 = environment("ODE_STD");
+  if (configured != null) {
+    return configured;
+  }
+
+  let executable: *i8 = executablePath(argv0);
+  if (executable == null) {
+    return null;
+  }
+  let bin: *i8 = parentDirectory(executable);
+  let candidates: *TextList = TextList.new();
+  candidates.add(joinPath(bin, "../std"));
+  candidates.add(joinPath(bin, "../lib/ode/std"));
+  candidates.add(joinPath(bin, "std"));
+
+  for (index in 0..candidates.size()) {
+    if (exists(joinPath(candidates.at(index), "list.ode"))) {
+      return absolutePath(candidates.at(index));
+    }
+  }
+
+  return null;
+}
