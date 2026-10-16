@@ -147,7 +147,7 @@ export fn runCommand(command: *TextList, dir: *i8, out: *Builder,
 // child works on a copy of everything, so whatever `work` changes, or however
 // it ends, the caller's state is untouched. Returns the child's exit status,
 // 0 if `work` returned.
-export fn runInChild(work: fn(): void, out: *Builder): i32 | ProcessError {
+export fn runInChild(work: () => void, out: *Builder): i32 | ProcessError {
   let fds: *i32 = alloc<i32>(2);
   pipe(fds);
 

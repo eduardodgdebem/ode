@@ -9,7 +9,8 @@
 import { List } from "std/list";
 import { Problem } from "../diagnostics/problems";
 import { Diagnostic } from "../diagnostics/report";
-import { Scope } from "../testkit/testkit";
+import { NodeKind } from "./ast";
+import { Scope, Parsed, parse } from "../testkit/testkit";
 
 test "for missing in" {
   let found: *List<Diagnostic> = Scope.new()
@@ -234,4 +235,95 @@ test "test without body" {
   assertEq(found.at(0).line, 1);
   assertEq(found.at(0).column, 15);
   assertEq(found.at(0).facts.other, ";");
+}
+
+test "a pointer to a function type without parentheses is refused" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        let TABLE: *(i32) => i32 = null;
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.PointerToFunctionType);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 12);
+}
+
+test "the old fn(...) spelling of a function type costs one problem" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        fn apply(f: fn(i32): i32, x: i32): i32 {
+          return f(x);
+        }
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.OldFunctionType);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 13);
+}
+
+test "a function type without its arrow" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        let F: (i32) i32 = null;
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).column, 14);
+  assertEq(found.at(0).facts.name, "=>");
+  assertEq(found.at(0).facts.other, "i32");
+}
+
+test "parentheses hold only a function type" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        let N: (i32) = 1;
+      `)
+      .problems();
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).facts.name, "=>");
+  assertEq(found.at(0).facts.other, "=");
+}
+
+// The type written for the `index`th global in `tree`.
+fn declaredType(tree: Parsed, index: i32): i32 {
+  return tree.ast.nodes[tree.item(index)].a;
+}
+
+test "a function type's result runs to the end of the type" {
+  let tree: Parsed = parse("let F: (i32) => i32 | E = null;");
+  let type: i32 = declaredType(tree, 0);
+  assertEq(tree.kind(type), NodeKind.FnType);
+  assertEq(tree.ast.nodes[type].itemCount, 1);
+  assertEq(tree.kind(tree.ast.nodes[type].a), NodeKind.UnionType);
+}
+
+test "a union holding a function puts the function in parentheses" {
+  let tree: Parsed = parse("let F: ((i32) => i32) | E = null;");
+  let type: i32 = declaredType(tree, 0);
+  assertEq(tree.kind(type), NodeKind.UnionType);
+  let first: i32 = tree.ast.nodes[type].items[0];
+  assertEq(tree.kind(first), NodeKind.FnType);
+  assertEq(tree.kind(tree.ast.nodes[first].a), NodeKind.Type);
+}
+
+test "a function may return a function, take none, and be pointed to" {
+  let tree: Parsed = parse(`
+    let CURRIED: (i32) => (i32) => i32 = null;
+    let NOTHING: () => void = null;
+    let TABLE: **((i32, bool) => i32) = null;
+  `);
+  let curried: i32 = declaredType(tree, 0);
+  assertEq(tree.kind(tree.ast.nodes[curried].a), NodeKind.FnType);
+
+  let nothing: i32 = declaredType(tree, 1);
+  assertEq(tree.ast.nodes[nothing].itemCount, 0);
+
+  let table: i32 = declaredType(tree, 2);
+  assertEq(tree.kind(table), NodeKind.FnType);
+  assertEq(tree.ast.nodes[table].extra, 2);
+  assertEq(tree.ast.nodes[table].itemCount, 2);
 }

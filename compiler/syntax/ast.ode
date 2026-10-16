@@ -60,7 +60,7 @@ export enum NodeKind {
   EnumMember,
   Match,
   Arm,
-  // A function type, `fn(i32): bool`.
+  // A function type, `(i32) => bool`.
   FnType,
   // A call of a value rather than of a name: `table[i](x)`.
   CallValue,

@@ -26,6 +26,11 @@ export enum Problem {
   UnexpectedToken,
   // `name` is the construct: fn, struct, import...
   NotAtTopLevel,
+  // `*(i32) => i32`: a pointer to a function type, without the parentheses
+  // that say which is meant.
+  PointerToFunctionType,
+  // `fn(i32): i32`, the old spelling of `(i32) => i32`.
+  OldFunctionType,
 
   // Files, modules and the program as a whole. `name` is the import's text.
   CannotOpenInput,
@@ -360,6 +365,14 @@ export fn describe(problem: Problem, facts: Facts): Description {
 
     Problem.UnexpectedToken => {
       return says(text4("expected ", q(name), " but got ", q(other)));
+    }
+    Problem.PointerToFunctionType => {
+      return saysMore("a pointer to a function type needs parentheses",
+                      "write `*((i32) => i32)`; `*(i32) => i32` could be a function taking a pointer");
+    }
+    Problem.OldFunctionType => {
+      return saysMore("function types are written with `=>`",
+                      "write `(i32) => i32` for what was `fn(i32): i32`");
     }
     Problem.NotAtTopLevel => {
       return says(text2(q(name),

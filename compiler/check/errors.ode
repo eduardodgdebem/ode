@@ -83,8 +83,16 @@ fn unionOf(value: Type, errors: *List<*i8>): Type {
     }
   }
 
+  // A function's own result runs to the end of its type, so a function that
+  // is the value of a union is written in parentheses.
   let text: *Builder = Builder.new();
+  if (value.isFunction()) {
+    text.push('(');
+  }
   text.add(value.toText());
+  if (value.isFunction()) {
+    text.push(')');
+  }
   for (index in 0..sorted.count) {
     text.add(" | ");
     text.add(sorted.at(index));

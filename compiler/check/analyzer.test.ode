@@ -113,7 +113,7 @@ test "function type unknown struct" {
   let found: *List<Diagnostic> = Scope.new()
       .returning("i32")
       .run(`
-        let f: fn(Missing): i32 = null;
+        let f: (Missing) => i32 = null;
         return 0;
       `);
   assertEq(found.count, 1);

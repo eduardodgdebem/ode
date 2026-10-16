@@ -244,8 +244,6 @@ of memory -- stops the program. A test cannot say that it expects to stop; such 
 - `is` narrows a local variable, in the branches of the `if` it is the
   condition of, and after that `if` when its first branch always leaves; it
   does not narrow a field, a global, or through `&&`.
-- A function type cannot return a union yet, so a function that can fail is
-  not a value of any `fn(...)` type.
 - An error carries no data: it says what went wrong, not with what. Enums
   with data would be the way to add it.
 

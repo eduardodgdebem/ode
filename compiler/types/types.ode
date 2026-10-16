@@ -32,7 +32,7 @@ export enum TypeKind {
   Null,
   // An enum, named like a struct. Its values are i32 underneath.
   Enum,
-  // A function, `fn(i32): bool`. Its signature, written out, is its name,
+  // A function, `(i32) => bool`. Its signature, written out, is its name,
   // and two function types are the same when their signatures are.
   Function,
   // A value or one of some errors, `i64 | ParseError`. Written out
@@ -234,7 +234,16 @@ export struct Type {
       depth = depth + 1;
     }
 
+    // `*(i32) => i32` would read as a function taking a pointer, so a pointer
+    // to a function keeps its type in parentheses.
+    let grouped: bool = self.kind == TypeKind.Function && self.pointerDepth > 0;
+    if (grouped) {
+      out.push('(');
+    }
     out.add(self.baseName());
+    if (grouped) {
+      out.push(')');
+    }
 
     return out.take();
   }
@@ -430,4 +439,13 @@ test "parseMagnitude reports overflow" {
   assert(!overflowed);
   parseMagnitude("18446744073709551616", 0, 20, &overflowed);
   assert(overflowed);
+}
+
+test "a pointer to a function type is written with its parentheses" {
+  let function: Type = Type { kind: TypeKind.Function, pointerDepth: 0,
+                              structName: "(i32) => i32" };
+  assertEq(function.toText(), "(i32) => i32");
+  assertEq(function.pointerTo().toText(), "*((i32) => i32)");
+  assertEq(function.pointerTo().pointerTo().toText(), "**((i32) => i32)");
+  assertEq(Type.make(TypeKind.I32, 2).toText(), "**i32");
 }
