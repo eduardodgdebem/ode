@@ -34,7 +34,7 @@ export fn genStatement(e: *Emitter, node: i32): void {
     return;
   }
 
-  if (kind == NodeKind.Enum) {
+  if (kind == NodeKind.Enum || kind == NodeKind.TypeAlias) {
     return;
   }
 

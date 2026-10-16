@@ -70,6 +70,8 @@ export struct Analyzer {
   nextErrorCode: i64,
   // Every function type seen, so that a type's signature can be read back.
   signatures: *List<Signature>,
+  // Every `type` alias's declaration, found by its IR name.
+  aliases: *List<i32>,
   // Per node: 1 for a function's name used as a value.
   functionRefs: *i8,
   // Per call of a variadic extern: one more than the number of parameters it
@@ -112,6 +114,7 @@ export struct Analyzer {
     an.errorEnums = NameSet.new();
     an.nextErrorCode = 1;
     an.signatures = List<Signature>.new();
+    an.aliases = List<i32>.new();
     an.globals = List<i32>.new();
     an.program = NO_NODE;
     an.moduleSymbols =
@@ -257,9 +260,15 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
   let depth: i32 = an.ast.nodes[node].extra;
   let kind: TypeKind = typeKindFromName(name);
 
-  // A built-in type lexes as its own token kind; anything else is a struct
-  // or enum name, which lexes as an identifier.
+  // A built-in type lexes as its own token kind; anything else is a struct,
+  // enum or alias name, which lexes as an identifier.
   if (kind == TypeKind.None) {
+    let alias: i32 = aliasNamed(an, name);
+    if (alias != NO_NODE) {
+      let meant: Type = resolveAlias(an, alias);
+      return Type { kind: meant.kind, pointerDepth: meant.pointerDepth + depth,
+                    structName: meant.structName };
+    }
     if (an.enumNames.has(name)) {
       return Type.ofEnum(name, depth);
     }
@@ -267,6 +276,91 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
   }
 
   return Type.make(kind, depth);
+}
+
+// ---------------------------------------------------------------------------
+// Aliases: `type Shape = Circle | Rect;` gives a type a second name, and the
+// name means exactly that type. It is resolved where it is used, so an alias
+// may name a struct or another alias declared after it.
+// ---------------------------------------------------------------------------
+
+export fn registerAlias(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NodeKind.TypeAlias) {
+    return;
+  }
+  let name: *i8 = an.ast.nodes[node].text;
+  if (an.enumNames.has(name) || aliasNamed(an, name) != NO_NODE) {
+    analyzerFail(an, node, Problem.DuplicateAlias, Facts.about(name));
+    return;
+  }
+  an.aliases.push(node);
+}
+
+// Checks what an alias stands for, once, where it is declared.
+export fn checkAlias(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind != NodeKind.TypeAlias) {
+    return;
+  }
+  let type: Type = resolveAlias(an, node);
+  if (!FAILED) {
+    analyzerValidateType(an, node, type,
+                         quoted("in type alias ", an.ast.nodes[node].text, ""));
+  }
+}
+
+// `name`, or when it is an alias of a struct or an enum, that struct's or
+// enum's: what `P { x: 1 }`, `P.new()` or `C.Red` mean when `P` and `C` are
+// aliases.
+export fn throughAlias(an: *Analyzer, name: *i8): *i8 {
+  if (name == null) {
+    return null;
+  }
+  let alias: i32 = aliasNamed(an, name);
+  if (alias == NO_NODE) {
+    return name;
+  }
+  let type: Type = resolveAlias(an, alias);
+  if (type.pointerDepth == 0 &&
+      (type.kind == TypeKind.Struct || type.kind == TypeKind.Enum)) {
+    return type.structName;
+  }
+  return name;
+}
+
+fn aliasNamed(an: *Analyzer, name: *i8): i32 {
+  for (index in 0..an.aliases.count) {
+    if (equals(an.ast.nodes[an.aliases.at(index)].text, name)) {
+      return an.aliases.at(index);
+    }
+  }
+  return NO_NODE;
+}
+
+// The type an alias stands for. One that comes back to itself --
+// `type A = B; type B = *A;` -- stands for nothing, and is reported once.
+fn resolveAlias(an: *Analyzer, alias: i32): Type {
+  // isConstant marks an alias being resolved (3) or found to go round (2).
+  if (an.isConstant[alias] == 2) {
+    FAILED = true;
+    return Type.make(TypeKind.None, 0);
+  }
+  if (an.isConstant[alias] == 3) {
+    an.isConstant[alias] = 2;
+    analyzerFail(an, alias, Problem.AliasCycle,
+                 Facts.about(an.ast.nodes[alias].text));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  an.isConstant[alias] = 3;
+  let type: Type = analyzerParseType(an, an.ast.nodes[alias].a);
+  if (an.isConstant[alias] == 3) {
+    an.isConstant[alias] = 0;
+  }
+  if (an.isConstant[alias] == 2) {
+    FAILED = true;
+    return Type.make(TypeKind.None, 0);
+  }
+  return type;
 }
 
 export fn analyzerValidateType(an: *Analyzer, node: i32, type: Type,
@@ -332,7 +426,8 @@ fn registerStructName(an: *Analyzer, node: i32): void {
   }
 
   let name: *i8 = an.ast.nodes[node].text;
-  if (an.structs.indexOf(name) >= 0 || an.enumNames.has(name)) {
+  if (an.structs.indexOf(name) >= 0 || an.enumNames.has(name) ||
+      aliasNamed(an, name) != NO_NODE) {
     analyzerFail(an, node, Problem.DuplicateStruct, Facts.about(name));
   }
 
@@ -552,6 +647,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
   let index: i32 = 0;
   for (index in 0..count) {
     registerEnum(an, an.ast.nodes[program].items[index]);
+    registerAlias(an, an.ast.nodes[program].items[index]);
     FAILED = false;
   }
 
@@ -571,6 +667,11 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
   rejectStructCycles(an, program);
   FAILED = false;
+
+  for (index in 0..count) {
+    checkAlias(an, an.ast.nodes[program].items[index]);
+    FAILED = false;
+  }
 
   for (index in 0..count) {
     registerMethods(an, an.ast.nodes[program].items[index]);

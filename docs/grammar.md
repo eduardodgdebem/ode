@@ -3,7 +3,7 @@
 ## Program Structure
 
 - **Program** → TopLevel*
-- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | ErrorEnumDecl | TestDecl | Statement
+- **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | ErrorEnumDecl | TypeAliasDecl | TestDecl | Statement
 - **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
@@ -50,6 +50,7 @@ cycles.
 - **ExternDecl** → `extern` `fn` IDENT `(` ParamList? `)` `:` Type `;`
 - **ErrorEnumDecl** → `error` EnumDecl, whose members have no written values — `error` is an IDENT anywhere `enum` does not follow it
 - **DeclaredType** → Type (`|` Type)* — the type of a variable, parameter, field or return; a union is a value type, then error enums
+- **TypeAliasDecl** → `type` IDENT `=` DeclaredType `;` — `type` is an IDENT anywhere a name and `=` do not follow it
 - **TestDecl** → `test` STRING Block — `test` is an IDENT anywhere a STRING does not follow it
 - **StructDecl** → `struct` IDENT TypeParams? `{` (FieldDecl | FuncDecl)* `}`
 - **FieldDecl** → IDENT `:` Type `,`?
@@ -225,6 +226,13 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   method of that name), or any expression (`table[i](x)`) -- compares with
   `==` and `!=`, accepts `null`, and converts to and from pointers with `as`.
   It is a pointer to code, so it passes to C as a function pointer.
+- A type alias is a second name for a type and means exactly it: `Count`
+  and `i64` are one type after `type Count = i64;`. It shares the type
+  namespace with structs and enums, is exported and imported like them, may
+  name a type declared after it, and may not come back to itself. An alias of
+  a struct or an enum also stands in for its name in a literal, a static call
+  or a member: `Where { x: 1 }`, `Where.new()`, `Hue.Red`. An alias takes no
+  type parameters.
 - A `(` starts a Lambda when the `)` matching it is followed by `=>` or `:`;
   otherwise it groups an expression. A lambda is a function without a name,
   and a constant like one. Where a function type is expected, the types it

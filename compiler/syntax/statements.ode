@@ -129,6 +129,10 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
     let node: i32 = parseTestDecl(parser);
     return requireTopLevel(parser, start, "test", node);
   }
+  if (startsTypeAlias(parser)) {
+    let node: i32 = parseTypeAliasDecl(parser);
+    return requireTopLevel(parser, start, "type", node);
+  }
 
   return parseExprStmt(parser);
 }
@@ -592,7 +596,7 @@ fn parseImportDecl(parser: *Parser): i32 {
 }
 
 // ExportDecl -> 'export' (FuncDecl | ExternDecl | StructDecl | EnumDecl |
-//                         VarDecl)
+//                         VarDecl | TypeAliasDecl)
 fn parseExportDecl(parser: *Parser): i32 {
   parser.expect(TokenKind.Export, "export");
 
@@ -611,6 +615,8 @@ fn parseExportDecl(parser: *Parser): i32 {
     node = parseEnumDecl(parser);
   } else if (startsErrorEnum(parser)) {
     node = parseErrorEnumDecl(parser);
+  } else if (startsTypeAlias(parser)) {
+    node = parseTypeAliasDecl(parser);
   } else {
     parser.fail("declaration");
     return parser.errorNode();
@@ -738,4 +744,31 @@ export fn parseModuleInto(parser: *Parser, program: i32): void {
       parser.ast.addItem(program, statement);
     }
   }
+}
+
+// `type` is not a keyword: it starts an alias only when a name and `=`
+// follow it, so `let type: Type` and `type = next` keep their meaning.
+fn startsTypeAlias(parser: *Parser): bool {
+  let name: *Token = parser.current();
+  return name.kind == TokenKind.Ident && equals(name.text, "type") &&
+         parser.peek().kind == TokenKind.Ident &&
+         parser.tokens.at(parser.pos + 2).kind == TokenKind.Assign;
+}
+
+// TypeAliasDecl -> 'type' IDENT '=' DeclaredType ';'
+//
+// A second name for a type, which means exactly that type: `Shape` and
+// `Circle | Rect` are one type, used wherever either is written.
+fn parseTypeAliasDecl(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  parser.advance();
+  let name: *Token = parser.expect(TokenKind.Ident, "identifier");
+  parser.expect(TokenKind.Assign, "=");
+  let type: i32 = parseDeclaredType(parser);
+  parser.expect(TokenKind.Semicolon, ";");
+
+  let node: i32 = parser.ast.add(NodeKind.TypeAlias, start.line, start.column);
+  parser.ast.setText(node, name);
+  parser.ast.nodes[node].a = type;
+  return node;
 }

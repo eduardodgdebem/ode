@@ -187,6 +187,11 @@ export enum Problem {
   CatchFallsThrough,
   UnhandledError,
 
+  // `type A = B; type B = A;`: `name` is the alias.
+  AliasCycle,
+  // A second type of the same name as an alias or an enum.
+  DuplicateAlias,
+
   // Lambdas. `name` is the local or the parameter.
   LambdaCapture,
   LambdaParameterType,
@@ -858,6 +863,13 @@ export fn describe(problem: Problem, facts: Facts): Description {
     Problem.CatchFallsThrough => {
       return saysMore("a catch block must leave",
                       "end it with return, break or continue, or use ?? for a fallback value");
+    }
+    Problem.DuplicateAlias => {
+      return says(text3("type ", q(name), " is declared more than once"));
+    }
+    Problem.AliasCycle => {
+      return saysMore(text3("the type alias ", q(name), " stands for itself"),
+                      "an alias names a type that already exists; one that goes round in a circle names none");
     }
     Problem.LambdaCapture => {
       return saysMore(text3("a lambda cannot use ", q(name),

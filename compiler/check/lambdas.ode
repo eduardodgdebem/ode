@@ -18,7 +18,9 @@
 
 import { alloc } from "std/mem";
 import { Builder } from "std/text";
-import { Analyzer, analyzerFail, analyzerParseType, analyzerValidateType } from "./analyzer";
+import {
+  Analyzer, analyzerFail, analyzerParseType, analyzerValidateType, quoted,
+} from "./analyzer";
 import { alwaysReturns, valueOf } from "./errors";
 import { signatureIndex, functionType } from "./functions";
 import { analyzeStatement } from "./statements";
@@ -60,7 +62,9 @@ export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
     let param: i32 = an.ast.nodes[params].items[index];
     if (an.ast.nodes[param].a != NO_NODE) {
       types[index] = analyzerParseType(an, an.ast.nodes[param].a);
-      analyzerValidateType(an, param, types[index], "for a parameter");
+      analyzerValidateType(an, param, types[index],
+                           quoted("in parameter ", an.ast.nodes[param].text,
+                                  " of a lambda"));
     } else if (context) {
       types[index] = contextParams[index];
     } else {
@@ -77,7 +81,7 @@ export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
   let result: Type = contextResult;
   if (an.ast.nodes[node].a != NO_NODE) {
     result = analyzerParseType(an, an.ast.nodes[node].a);
-    analyzerValidateType(an, node, result, "for a return type");
+    analyzerValidateType(an, node, result, "in the return type of a lambda");
   } else if (!context) {
     analyzerFail(an, node, Problem.LambdaReturnType, Facts.none());
     return Type.make(TypeKind.None, 0);
