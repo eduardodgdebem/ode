@@ -3,8 +3,11 @@
 // fall back from them and catch them actually do.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { Builder } from "std/text";
-import { mentions, outputOf } from "../testkit/testkit";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { mentions, outputOf, problemsIn } from "../testkit/testkit";
 
 let PRELUDE: *i8 = `
   import { printf } from "std/c";
@@ -215,4 +218,54 @@ test "assertEq on a union that holds its value shows the value" {
   `));
   assert(mentions(output, "actual:   12\n"));
   assert(mentions(output, "expected: ParseError.Empty"));
+}
+
+// Falling off the end of `half` used to give back a zero, and with it code
+// 0: success, holding 0. It is refused instead, main's own missing return
+// with it.
+test "a function that may fail cannot succeed by falling off its end" {
+  let found: *List<Diagnostic> = problemsIn(`
+    import { printf } from "std/c";
+    error enum Bad { Oops }
+    fn half(n: i32): i32 | Bad {
+      if (n % 2 == 0) { return n / 2; }
+    }
+    fn main(): i32 {
+      let r: i32 = half(3) catch (e) { printf("failed\n"); return 1; };
+      printf("got %d\n", r);
+    }
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.MissingReturn);
+  assertEq(found.at(0).facts.name, "half");
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).column, 1);
+  assertEq(found.at(1).problem, Problem.MissingReturn);
+  assertEq(found.at(1).facts.name, "main");
+  assertEq(found.at(1).line, 6);
+}
+
+test "a function returning on every path gives its error back" {
+  assertEq(outputOf(`
+    import { printf } from "std/c";
+    error enum Bad { Oops }
+    fn half(n: i32): i32 | Bad {
+      if (n % 2 == 0) { return n / 2; }
+      return Bad.Oops;
+    }
+    fn halves(n: i32): i32 {
+      // Never ends but by returning, so it needs no return after it.
+      let count: i32 = 0;
+      while (true) {
+        n = half(n) catch (e) { return count; };
+        count = count + 1;
+      }
+    }
+    fn main(): i32 {
+      printf("%d\n", halves(40));
+      let r: i32 = half(3) catch (e) { printf("failed\n"); return 1; };
+      printf("got %d\n", r);
+      return 0;
+    }
+  `), "3\nfailed\nexit 1\n");
 }

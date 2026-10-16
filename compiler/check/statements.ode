@@ -7,6 +7,7 @@
 // one run reports every error rather than the first.
 // ---------------------------------------------------------------------------
 
+import { equals } from "std/text";
 import {
   Analyzer, analyzerFail, analyzerFailAtValue, quoted, analyzerParseType,
   analyzerValidateType, analyzerParamTypes,
@@ -14,7 +15,8 @@ import {
 import { foldInteger, laterGlobalIn } from "./constants";
 import { analyzeMatch } from "./enums";
 import {
-  valueOf, alwaysLeaves, narrowedLocal, declaredTypeOf, narrow, narrowedTypes,
+  valueOf, alwaysLeaves, alwaysReturns, narrowedLocal, declaredTypeOf, narrow,
+  narrowedTypes,
 } from "./errors";
 import {
   checkExpr, checkExprAs, checkAssignTarget, isConstantExpr, isNumberLiteral,
@@ -24,7 +26,7 @@ import { analyzeMethodBodies } from "./methods";
 import { TEST_MODE, runsTestsOf } from "./testing";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { isTemplate } from "../link/generics";
+import { isTemplate, isInstance } from "../link/generics";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
@@ -52,8 +54,13 @@ export fn analyzeRecovering(an: *Analyzer, node: i32): void {
 }
 
 export fn analyzeStatement(an: *Analyzer, node: i32): void {
-  // A generic is checked as its instances, not as itself.
-  if (FAILED || isTemplate(an, node)) {
+  if (FAILED) {
+    return;
+  }
+  // A generic is checked as its instances, not as itself -- but for whether
+  // it returns, which is the same in every instance.
+  if (isTemplate(an, node)) {
+    requireReturns(an, node);
     return;
   }
 
@@ -92,6 +99,9 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
   // left is the bodies of its methods.
   if (kind == NodeKind.Struct) {
     analyzeMethodBodies(an, node);
+    if (!isInstance(an, node)) {
+      requireReturns(an, node);
+    }
     return;
   }
 
@@ -369,6 +379,44 @@ fn analyzeFuncDecl(an: *Analyzer, node: i32): void {
   }
 
   analyzeFunctionBody(an, node);
+  if (!isInstance(an, node)) {
+    requireReturns(an, node);
+  }
+}
+
+// A function that returns a value returns one on every path: falling off
+// its end would give back a zero, and for `i32 | SomeError` that zero says
+// it succeeded. A void function may fall off its end, and so may a `void |
+// SomeError` one, where that is succeeding.
+//
+// `node` is a function, or a struct whose methods are each asked. It is
+// asked as written, so a generic is asked once, not once per instance.
+fn requireReturns(an: *Analyzer, node: i32): void {
+  if (an.ast.nodes[node].kind == NodeKind.Struct) {
+    for (index in 0..an.ast.nodes[node].itemCount) {
+      let method: i32 = an.ast.nodes[node].items[index];
+      if (an.ast.nodes[method].kind == NodeKind.Fn) {
+        requireReturns(an, method);
+        FAILED = false;
+      }
+    }
+    return;
+  }
+
+  if (returnsNothing(an, an.ast.nodes[node].a) ||
+      alwaysReturns(an, an.ast.nodes[node].c)) {
+    return;
+  }
+  analyzerFail(an, node, Problem.MissingReturn, Facts.about(an.ast.nodes[node].text));
+}
+
+// Whether a return type, as written, is `void` or `void | SomeError`.
+fn returnsNothing(an: *Analyzer, type: i32): bool {
+  if (an.ast.nodes[type].kind == NodeKind.UnionType) {
+    return returnsNothing(an, an.ast.nodes[type].items[0]);
+  }
+  return an.ast.nodes[type].kind == NodeKind.Type && an.ast.nodes[type].extra == 0 &&
+         equals(an.ast.nodes[type].text, "void");
 }
 
 // Checks a function's body in a scope holding its parameters. The function

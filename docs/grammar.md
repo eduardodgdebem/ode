@@ -287,12 +287,14 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   are rejected outside a loop. In a `for`, `continue` moves on to the next
   value. A function written inside a loop does not see it.
 - `return;` is only valid in a `void` function, and `return expr;` only in a
+  non-void one, where the expression's type must match the declared return
+  type. A non-void function must return on every path: its body's last
+  reachable statement is a `return`, an `if` with an `else` or a `match` whose
+  every branch returns, or a `while (true)` with no `break` of its own. A
+  `void` or `void | E` function may fall off its end.
 - `assert(cond)`, `assert(cond, message)` and `assertEq(actual, expected)` are
   built-in calls, unless the program declares a function of that name. They
   return `void`. `assertEq` takes two values of one type — a literal takes the
   other's — that is not a struct, and compares two `*i8`s by their text.
 - A TestDecl is checked and compiled only by `ode test`, as a `void`
   function with no parameters.
-  non-void one, where the expression's type must match the declared return
-  type. Falling off the end of a non-void function is still permitted and
-  yields a zero value; there is no all-paths-return analysis.
