@@ -23,6 +23,7 @@ import {
 import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
 } from "./functions";
+import { checkLambda, isCaptured } from "./lambdas";
 import { checkMethodCall } from "./methods";
 import {
   isAssert, checkAssert, isAssertEq, checkAssertEq, isNameOf, checkNameOf,
@@ -93,6 +94,7 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     NodeKind.Try => { return checkTry(an, node); }
     NodeKind.Catch => { return checkCatch(an, node); }
     NodeKind.Is => { return checkIs(an, node); }
+    NodeKind.Lambda => { return checkLambda(an, node, expected); }
     else => {}
   }
 
@@ -145,6 +147,10 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
 
     if (symbol < 0) {
       analyzerFail(an, node, Problem.UndefinedVariable, Facts.about(name));
+      return Type.make(TypeKind.None, 0);
+    }
+    if (isCaptured(an, symbol)) {
+      analyzerFail(an, node, Problem.LambdaCapture, Facts.about(name));
       return Type.make(TypeKind.None, 0);
     }
     // A function's name, used other than to call it, is its value.
@@ -825,7 +831,8 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   if (kind == NodeKind.Number || kind == NodeKind.Bool || kind == NodeKind.String) {
     return true;
   }
-  if (kind == NodeKind.Null) {
+  // A lambda, like a function's name, is the address of its code.
+  if (kind == NodeKind.Null || kind == NodeKind.Lambda) {
     return true;
   }
   if (kind == NodeKind.FieldAccess) {

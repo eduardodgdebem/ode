@@ -92,6 +92,13 @@ export struct Analyzer {
   // tested, or is only a fragment a test checks.
   requireMain: bool,
   currentReturnType: Type,
+  // Where the locals of the function being checked start among the symbols,
+  // its parameters first; past the end outside any function.
+  localsFrom: i32,
+  // Inside a lambda, the symbols it may not use: the locals of the functions
+  // it is written in, from captureFrom up to captureTo. Empty elsewhere.
+  captureFrom: i32,
+  captureTo: i32,
 
   fn new(ast: *Ast): *Analyzer {
     let an: *Analyzer = alloc<Analyzer>(1);
@@ -113,6 +120,9 @@ export struct Analyzer {
     an.inFunction = false;
     an.requireMain = true;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
+    an.localsFrom = 2147483647;
+    an.captureFrom = 0;
+    an.captureTo = 0;
 
     return an;
   }

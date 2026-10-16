@@ -1,0 +1,44 @@
+// Lambdas: functions written where they are used. The types they leave out
+// come from where they are used, and they capture nothing, so each one is a
+// plain pointer to code -- C's qsort calls one back below.
+
+import { printf } from "std/c";
+import { alloc } from "std/mem";
+
+extern fn qsort(base: *i8, count: i64, size: i64, compare: (*i8, *i8) => i32): void;
+
+fn each(values: *i32, count: i32, visit: (i32) => void): void {
+  for (index in 0..count) {
+    visit(values[index]);
+  }
+}
+
+fn fold(values: *i32, count: i32, start: i32, step: (i32, i32) => i32): i32 {
+  let total: i32 = start;
+  for (index in 0..count) {
+    total = step(total, values[index]);
+  }
+  return total;
+}
+
+fn main(): i32 {
+  let values: *i32 = alloc<i32>(5);
+  values[0] = 5;
+  values[1] = 3;
+  values[2] = 9;
+  values[3] = 1;
+  values[4] = 7;
+
+  qsort(values as *i8, 5, 4, (a, b) => *(a as *i32) - *(b as *i32));
+  each(values, 5, (value) => printf("%d ", value));
+  printf("\n");
+
+  printf("sum %d\n", fold(values, 5, 0, (total, value) => total + value));
+  printf("max %d\n", fold(values, 5, 0, (best, value) => {
+    if (value > best) {
+      return value;
+    }
+    return best;
+  }));
+  return 0;
+}

@@ -9,7 +9,7 @@
 import { List } from "std/list";
 import { Problem } from "../diagnostics/problems";
 import { Diagnostic } from "../diagnostics/report";
-import { NodeKind } from "./ast";
+import { NO_NODE, NodeKind } from "./ast";
 import { Scope, Parsed, parse } from "../testkit/testkit";
 
 test "for missing in" {
@@ -326,4 +326,66 @@ test "a function may return a function, take none, and be pointed to" {
   assertEq(tree.kind(table), NodeKind.FnType);
   assertEq(tree.ast.nodes[table].extra, 2);
   assertEq(tree.ast.nodes[table].itemCount, 2);
+}
+
+// The `index`th statement of the first function in `tree`.
+fn statementOf(tree: Parsed, index: i32): i32 {
+  let body: i32 = tree.ast.nodes[tree.item(0)].c;
+  return tree.ast.nodes[body].items[index];
+}
+
+test "a lambda's expression body is a block that returns it" {
+  let tree: Parsed = parse("fn main(): void { let f: (i32) => i32 = (x) => x + 1; }");
+  let lambda: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
+  assertEq(tree.kind(lambda), NodeKind.Lambda);
+  assertEq(tree.ast.nodes[lambda].extra, 1);
+  assertEq(tree.ast.nodes[lambda].a, NO_NODE);
+
+  let param: i32 = tree.ast.nodes[tree.ast.nodes[lambda].b].items[0];
+  assertEq(tree.ast.nodes[param].text, "x");
+  assertEq(tree.ast.nodes[param].a, NO_NODE);
+
+  let body: i32 = tree.ast.nodes[lambda].c;
+  assertEq(tree.kind(body), NodeKind.Block);
+  let returned: i32 = tree.ast.nodes[body].items[0];
+  assertEq(tree.kind(returned), NodeKind.Return);
+  assertEq(tree.kind(tree.ast.nodes[returned].a), NodeKind.Binary);
+}
+
+test "a lambda may write its types, and take a block" {
+  let tree: Parsed = parse(`
+    fn main(): void {
+      let f: (i32, bool) => i32 = (x: i32, flag: bool): i32 => { return x; };
+      let g: () => void = () => {};
+    }
+  `);
+  let lambda: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
+  assertEq(tree.ast.nodes[lambda].extra, 0);
+  assertEq(tree.kind(tree.ast.nodes[lambda].a), NodeKind.Type);
+  assertEq(tree.ast.nodes[tree.ast.nodes[lambda].b].itemCount, 2);
+  let flag: i32 = tree.ast.nodes[tree.ast.nodes[lambda].b].items[1];
+  assertEq(tree.kind(tree.ast.nodes[flag].a), NodeKind.Type);
+
+  let empty: i32 = tree.ast.nodes[statementOf(tree, 1)].b;
+  assertEq(tree.kind(empty), NodeKind.Lambda);
+  assertEq(tree.ast.nodes[tree.ast.nodes[empty].b].itemCount, 0);
+}
+
+test "parentheses without an arrow after them are still grouping" {
+  let tree: Parsed = parse("fn main(): void { let n: i32 = (1 + 2) * (3); }");
+  let value: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
+  assertEq(tree.kind(value), NodeKind.Binary);
+  assertEq(tree.kind(tree.ast.nodes[value].a), NodeKind.Binary);
+}
+
+test "a lambda's parameters are names" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run(`
+        let f: (i32) => i32 = (1) => 1;
+      `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 24);
+  assertEq(found.at(0).facts.name, "parameter name");
 }

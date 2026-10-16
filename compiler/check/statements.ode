@@ -422,6 +422,8 @@ fn returnsNothing(an: *Analyzer, type: i32): bool {
 // Checks a function's body in a scope holding its parameters. The function
 // itself has already been declared, or, for a method, needs no declaring.
 export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
+  let localsFrom: i32 = an.localsFrom;
+  an.localsFrom = an.symbols.count;
   an.symbols.enterScope();
 
   let paramList: i32 = an.ast.nodes[node].b;
@@ -454,6 +456,7 @@ export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
   an.loopDepth = previousLoopDepth;
 
   an.symbols.exitScope();
+  an.localsFrom = localsFrom;
 }
 
 fn analyzeExternDecl(an: *Analyzer, node: i32): void {

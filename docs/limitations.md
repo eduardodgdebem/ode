@@ -247,6 +247,14 @@ of memory -- stops the program. A test cannot say that it expects to stop; such 
 - An error carries no data: it says what went wrong, not with what. Enums
   with data would be the way to add it.
 
+### 6.10 Lambdas capture nothing
+
+A lambda may use its parameters, globals and functions, not the locals of
+the function it is written in. Its value stays one pointer to code -- no
+allocation, nothing to free, and C can call it -- and what it needs is
+passed in. State that has to travel with a function goes in a parameter:
+`each(list, context, (context, item) => ...)`.
+
 ## 7. Codegen and runtime
 
 ### 7.1 No runtime checks

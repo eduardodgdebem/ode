@@ -418,7 +418,8 @@ fn breaksOut(an: *Analyzer, node: i32): bool {
   if (kind == NodeKind.Break) {
     return true;
   }
-  if (kind == NodeKind.While || kind == NodeKind.For || kind == NodeKind.Fn) {
+  if (kind == NodeKind.While || kind == NodeKind.For || kind == NodeKind.Fn ||
+      kind == NodeKind.Lambda) {
     return false;
   }
   if (breaksOut(an, an.ast.nodes[node].a) || breaksOut(an, an.ast.nodes[node].b) ||

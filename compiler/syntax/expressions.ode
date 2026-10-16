@@ -11,7 +11,7 @@ import { equals } from "std/text";
 import { FAILED } from "../diagnostics/report";
 import { line } from "../driver/options";
 import { NO_NODE, NodeKind } from "./ast";
-import { Parser, parseType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
+import { Parser, parseType, parseDeclaredType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
 import { parseBlock } from "./statements";
 import { TokenKind, Token } from "./token";
 
@@ -366,6 +366,10 @@ fn parseLiteral(parser: *Parser, kind: NodeKind): i32 {
 fn parsePrimary(parser: *Parser): i32 {
   let kind: TokenKind = parser.kind();
 
+  if (kind == TokenKind.LParen && looksLikeLambda(parser)) {
+    return parseLambda(parser);
+  }
+
   if (kind == TokenKind.LParen) {
     parser.advance();
     let expr: i32 = parseExpr(parser);
@@ -523,6 +527,97 @@ fn parseStructLiteralBody(parser: *Parser, name: *Token, typeNode: i32): i32 {
   }
 
   parser.expect(TokenKind.RBrace, "}");
+
+  return node;
+}
+
+// Whether the `(` at the cursor opens a lambda rather than an expression in
+// parentheses: it does when the `)` matching it is followed by `=>`, or by
+// the `:` of a return type. Neither can follow a parenthesised expression.
+fn looksLikeLambda(parser: *Parser): bool {
+  let index: i32 = parser.pos;
+  let depth: i32 = 0;
+
+  while (true) {
+    let kind: TokenKind = parser.tokens.at(index).kind;
+    if (kind == TokenKind.End) {
+      return false;
+    }
+    if (kind == TokenKind.LParen) {
+      depth = depth + 1;
+    }
+    if (kind == TokenKind.RParen) {
+      depth = depth - 1;
+      if (depth == 0) {
+        break;
+      }
+    }
+    index = index + 1;
+  }
+
+  let next: TokenKind = parser.tokens.at(index + 1).kind;
+  return next == TokenKind.Arrow || next == TokenKind.Colon;
+}
+
+// Lambda -> '(' (LambdaParam (',' LambdaParam)*)? ')' (':' DeclaredType)?
+//           '=>' (Block | Expr)
+// LambdaParam -> IDENT (':' DeclaredType)?
+//
+// The types left out are the ones the context gives: in
+// `let f: (i32) => i32 = (x) => x * 2;`, `x` is an i32 and so is the
+// result. The body runs as far as an expression would, so `(x) => x + 1`
+// returns `x + 1`.
+fn parseLambda(parser: *Parser): i32 {
+  let start: *Token = parser.current();
+  let params: i32 = parser.ast.add(NodeKind.Params, start.line, start.column);
+  parser.expect(TokenKind.LParen, "(");
+
+  if (parser.kind() != TokenKind.RParen) {
+    while (true) {
+      let name: *Token = parser.expect(TokenKind.Ident, "parameter name");
+      if (FAILED) {
+        break;
+      }
+      let param: i32 = parser.ast.add(NodeKind.Param, name.line, name.column);
+      parser.ast.setText(param, name);
+      if (parser.kind() == TokenKind.Colon) {
+        parser.advance();
+        parser.ast.nodes[param].a = parseDeclaredType(parser);
+      }
+      parser.ast.addItem(params, param);
+
+      if (parser.kind() != TokenKind.Comma) {
+        break;
+      }
+      parser.advance();
+    }
+  }
+  parser.expect(TokenKind.RParen, ")");
+
+  let node: i32 = parser.ast.add(NodeKind.Lambda, start.line, start.column);
+  parser.ast.nodes[node].b = params;
+  if (parser.kind() == TokenKind.Colon) {
+    parser.advance();
+    parser.ast.nodes[node].a = parseDeclaredType(parser);
+  }
+  parser.expect(TokenKind.Arrow, "=>");
+  if (FAILED) {
+    return node;
+  }
+
+  if (parser.kind() == TokenKind.LBrace) {
+    parser.ast.nodes[node].c = parseBlock(parser);
+    return node;
+  }
+
+  let at: *Token = parser.current();
+  let value: i32 = parseExpr(parser);
+  let returned: i32 = parser.ast.add(NodeKind.Return, at.line, at.column);
+  parser.ast.nodes[returned].a = value;
+  let body: i32 = parser.ast.add(NodeKind.Block, at.line, at.column);
+  parser.ast.addItem(body, returned);
+  parser.ast.nodes[node].c = body;
+  parser.ast.nodes[node].extra = 1;
 
   return node;
 }

@@ -41,7 +41,7 @@ with the pieces around them on either side:
 | `syntax/` | tokens, the lexer, the AST, the parser -- `expressions.ode` one function per precedence level, `statements.ode` declarations and imports -- and `dump.ode` for the `--dump-*` flags |
 | `link/` | `modules.ode`: files into one program, each with its own scope and IR names; `generics.ode`: each generic's instances, before checking |
 | `types/` | `types.ode` (`Type` and struct layouts), `layout.ode` (sizes and alignment), `symbols.ode` (the scoped symbol table) |
-| `check/` | `analyzer.ode` (the passes over the top level), and a file per family of rules: `expressions`, `statements`, `functions`, `methods`, `enums`, `constants`, `errors` (error enums, unions, `try`, `??`, `catch`, `is`), `testing` (`test`, `assert`, `assertEq`) |
+| `check/` | `analyzer.ode` (the passes over the top level), and a file per family of rules: `expressions`, `statements`, `functions`, `lambdas`, `methods`, `enums`, `constants`, `errors` (error enums, unions, `try`, `??`, `catch`, `is`), `testing` (`test`, `assert`, `assertEq`) |
 | `codegen/` | the IR emitter: `emitter.ode` (state, labels, locals), `expressions`, `statements`, `program` (functions and the module), `errors`, `testing`, `layout` (LLVM type names), `toolchain` (which C compiler links) |
 | `diagnostics/` | `problems.ode` (every `Problem`, its `Facts`, and `describe()`, the only place one becomes words), `report.ode` (collecting them), `render.ode` (printing them as Zig does) |
 | `os/` | `process.ode` (running programs, forking, the environment), `files.ode` (paths, directories, scratch space), `output.ode` |
