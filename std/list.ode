@@ -80,10 +80,170 @@ export struct List<T> {
     return self.count == 0;
   }
 
+  // A new list holding the same items, which changes apart from this one.
+  fn copy(self: *List<T>): *List<T> {
+    let copied: *List<T> = List<T>.withCapacity(self.count);
+    for (index in 0..self.count) {
+      copied.push(self.items[index]);
+    }
+    return copied;
+  }
+
   // Frees the items and the list; neither may be used afterwards.
   fn release(self: *List<T>): void {
     release<T>(self.items);
     release<List<T>>(self);
+  }
+
+  // -------------------------------------------------------------------------
+  // With a function: each takes one written on the spot, `(item) => ...`,
+  // or any function of the right type.
+  // -------------------------------------------------------------------------
+
+  fn each(self: *List<T>, visit: (T) => void): void {
+    for (index in 0..self.count) {
+      visit(self.items[index]);
+    }
+  }
+
+  // A new list of the items `keep` says yes to, in their order. This one is
+  // left as it is.
+  fn filter(self: *List<T>, keep: (T) => bool): *List<T> {
+    let kept: *List<T> = List<T>.new();
+    for (index in 0..self.count) {
+      if (keep(self.items[index])) {
+        kept.push(self.items[index]);
+      }
+    }
+    return kept;
+  }
+
+  // The first item `matches` says yes to.
+  fn find(self: *List<T>, matches: (T) => bool): T | ListError {
+    for (index in 0..self.count) {
+      if (matches(self.items[index])) {
+        return self.items[index];
+      }
+    }
+    return ListError.NotFound;
+  }
+
+  // Where the first item `matches` says yes to is.
+  fn findIndex(self: *List<T>, matches: (T) => bool): i64 | ListError {
+    for (index in 0..self.count) {
+      if (matches(self.items[index])) {
+        return index;
+      }
+    }
+    return ListError.NotFound;
+  }
+
+  // Whether `matches` says yes to some item; never, for an empty list.
+  fn any(self: *List<T>, matches: (T) => bool): bool {
+    for (index in 0..self.count) {
+      if (matches(self.items[index])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Whether `matches` says yes to every item; always, for an empty list.
+  fn all(self: *List<T>, matches: (T) => bool): bool {
+    for (index in 0..self.count) {
+      if (!matches(self.items[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Puts the items in order, in place. `compare(a, b)` is below zero when
+  // `a` goes first, above when `b` does, and zero when either may, as for
+  // C's qsort: `(a, b) => a - b` is ascending. Items that compare equal keep
+  // the order they had.
+  //
+  // A merge sort, bottom up: runs of 1, then 2, then 4..., merged back and
+  // forth between the items and one scratch array of the same size. Always
+  // n log n, and no recursion.
+  fn sort(self: *List<T>, compare: (T, T) => i32): void {
+    if (self.count < 2) {
+      return;
+    }
+
+    let scratch: *T = alloc<T>(self.count);
+    let from: *T = self.items;
+    let to: *T = scratch;
+    let width: i64 = 1;
+    while (width < self.count) {
+      let start: i64 = 0;
+      while (start < self.count) {
+        let middle: i64 = start + width;
+        if (middle > self.count) {
+          middle = self.count;
+        }
+        let end: i64 = start + width * 2;
+        if (end > self.count) {
+          end = self.count;
+        }
+        mergeRuns<T>(from, to, start, middle, end, compare);
+        start = end;
+      }
+      let sorted: *T = to;
+      to = from;
+      from = sorted;
+      width = width * 2;
+    }
+
+    if (from != self.items) {
+      for (index in 0..self.count) {
+        self.items[index] = from[index];
+      }
+    }
+    release<T>(scratch);
+  }
+}
+
+export error enum ListError {
+  // No item was the one asked for.
+  NotFound,
+}
+
+// A new list of what `f` makes of each item, in their order:
+// `map<Point, i32>(points, (point) => point.x)`.
+export fn map<T, U>(list: *List<T>, f: (T) => U): *List<U> {
+  let made: *List<U> = List<U>.withCapacity(list.count);
+  for (index in 0..list.count) {
+    made.push(f(list.items[index]));
+  }
+  return made;
+}
+
+// The items folded into one value, from `start`, first item first:
+// `reduce<i32, i64>(numbers, 0, (total, n) => total + n as i64)`.
+export fn reduce<T, U>(list: *List<T>, start: U, step: (U, T) => U): U {
+  let result: U = start;
+  for (index in 0..list.count) {
+    result = step(result, list.items[index]);
+  }
+  return result;
+}
+
+// Merges the sorted runs from[start..middle] and from[middle..end] into
+// to[start..end]. On a tie the first run's item goes first, which is what
+// keeps the sort stable.
+fn mergeRuns<T>(from: *T, to: *T, start: i64, middle: i64, end: i64,
+                compare: (T, T) => i32): void {
+  let left: i64 = start;
+  let right: i64 = middle;
+  for (index in start..end) {
+    if (left < middle && (right >= end || compare(from[left], from[right]) <= 0)) {
+      to[index] = from[left];
+      left = left + 1;
+    } else {
+      to[index] = from[right];
+      right = right + 1;
+    }
   }
 }
 
@@ -117,6 +277,18 @@ test "pop, set, truncate and clear" {
   numbers.release();
 }
 
+test "a copy changes apart from the list it was made from" {
+  let first: *List<i32> = List<i32>.new();
+  first.push(1);
+  let second: *List<i32> = first.copy();
+  second.push(2);
+  second.set(0, 10);
+  assertEq(first.count, 1);
+  assertEq(first.at(0), 1);
+  assertEq(second.at(0), 10);
+  assertEq(List<i32>.new().copy().count, 0);
+}
+
 test "a list holds structs" {
   let points: *List<Point> = List<Point>.new();
   points.push(Point { x: 1, y: 2 });
@@ -124,3 +296,164 @@ test "a list holds structs" {
   assertEq(points.at(1).y, 4);
 }
 
+
+fn numbers(values: *i32, count: i32): *List<i32> {
+  let list: *List<i32> = List<i32>.new();
+  for (index in 0..count) {
+    list.push(values[index]);
+  }
+  return list;
+}
+
+fn oneToFive(): *List<i32> {
+  let list: *List<i32> = List<i32>.new();
+  for (index in 1..6) {
+    list.push(index);
+  }
+  return list;
+}
+
+let VISITED: i64 = 0;
+
+test "each visits every item, in order, and an empty list not at all" {
+  VISITED = 0;
+  oneToFive().each((n) => {
+    VISITED = VISITED * 10 + n as i64;
+  });
+  assertEq(VISITED, 12345);
+
+  VISITED = 0;
+  List<i32>.new().each((n) => {
+    VISITED = 99;
+  });
+  assertEq(VISITED, 0);
+}
+
+test "filter keeps what it is told to, in order, and leaves the list alone" {
+  let all: *List<i32> = oneToFive();
+  let odd: *List<i32> = all.filter((n) => n % 2 == 1);
+  assertEq(odd.count, 3);
+  assertEq(odd.at(0), 1);
+  assertEq(odd.at(1), 3);
+  assertEq(odd.at(2), 5);
+  assertEq(all.count, 5);
+
+  assertEq(all.filter((n) => n > 100).count, 0);
+  assertEq(List<i32>.new().filter((n) => true).count, 0);
+}
+
+test "find gives the first match, or says there is none" {
+  let all: *List<i32> = oneToFive();
+  assertEq(all.find((n) => n > 2), 3);
+  assertEq(all.findIndex((n) => n > 2), 2);
+  assertEq(all.find((n) => n > 5), ListError.NotFound);
+  assertEq(all.findIndex((n) => n > 5), ListError.NotFound);
+  assertEq(List<i32>.new().find((n) => true), ListError.NotFound);
+  assertEq(all.find((n) => n == 9) ?? -1, -1);
+}
+
+test "any and all, and what they say of an empty list" {
+  let all: *List<i32> = oneToFive();
+  assert(all.any((n) => n == 5));
+  assert(!all.any((n) => n == 6));
+  assert(all.all((n) => n > 0));
+  assert(!all.all((n) => n < 5));
+
+  let none: *List<i32> = List<i32>.new();
+  assert(!none.any((n) => true));
+  assert(none.all((n) => false));
+}
+
+test "map makes a list of another type, and reduce folds one" {
+  let all: *List<i32> = oneToFive();
+  let points: *List<Point> = map<i32, Point>(all, (n) => Point { x: n, y: n * n });
+  assertEq(points.count, 5);
+  assertEq(points.at(4).y, 25);
+  let even: *List<bool> = map<i32, bool>(all, (n) => n % 2 == 0);
+  assert(even.at(1) && !even.at(2));
+  assertEq(map<i32, i64>(List<i32>.new(), (n) => n as i64).count, 0);
+
+  assertEq(reduce<i32, i64>(all, 0, (total, n) => total + n as i64), 15);
+  assertEq(reduce<Point, i32>(points, 0, (best, point) => {
+    if (point.y > best) {
+      return point.y;
+    }
+    return best;
+  }), 25);
+  assertEq(reduce<i32, i32>(List<i32>.new(), 7, (total, n) => total + n), 7);
+}
+
+test "sort puts items in order, in place" {
+  let values: *i32 = alloc<i32>(7);
+  values[0] = 5;
+  values[1] = -3;
+  values[2] = 9;
+  values[3] = 0;
+  values[4] = 9;
+  values[5] = 2;
+  values[6] = -3;
+  let list: *List<i32> = numbers(values, 7);
+  list.sort((a, b) => a - b);
+  assertEq(list.at(0), -3);
+  assertEq(list.at(1), -3);
+  assertEq(list.at(2), 0);
+  assertEq(list.at(3), 2);
+  assertEq(list.at(4), 5);
+  assertEq(list.at(5), 9);
+  assertEq(list.at(6), 9);
+
+  list.sort((a, b) => b - a);
+  assertEq(list.at(0), 9);
+  assertEq(list.at(6), -3);
+}
+
+test "sort leaves an empty list, a single item and a sorted list as they were" {
+  let empty: *List<i32> = List<i32>.new();
+  empty.sort((a, b) => a - b);
+  assertEq(empty.count, 0);
+
+  let single: *List<i32> = List<i32>.new();
+  single.push(4);
+  single.sort((a, b) => a - b);
+  assertEq(single.at(0), 4);
+
+  let sorted: *List<i32> = oneToFive();
+  sorted.sort((a, b) => a - b);
+  for (index in 0..5) {
+    assertEq(sorted.at(index as i64), index + 1);
+  }
+}
+
+test "sort keeps the order of items that compare equal" {
+  let points: *List<Point> = List<Point>.new();
+  for (index in 0..40) {
+    // x is the key, with many ties; y remembers where each item was.
+    points.push(Point { x: (index * 7) % 5, y: index });
+  }
+  points.sort((a, b) => a.x - b.x);
+  for (index in 1..40) {
+    let before: Point = points.at(index as i64 - 1);
+    let after: Point = points.at(index as i64);
+    assert(before.x <= after.x, "not in order");
+    if (before.x == after.x) {
+      assert(before.y < after.y, "equal items changed places");
+    }
+  }
+}
+
+test "sort orders many items, every one kept" {
+  let list: *List<i64> = List<i64>.new();
+  let seed: i64 = 12345;
+  let sum: i64 = 0;
+  for (index in 0..1000) {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    list.push(seed % 1000);
+    sum = sum + seed % 1000;
+  }
+  list.sort((a, b) => (a - b) as i32);
+  assertEq(list.count, 1000);
+  for (index in 1..1000) {
+    assert(list.at(index as i64 - 1) <= list.at(index as i64), "not in order");
+  }
+  assertEq(reduce<i64, i64>(list, 0, (total, n) => total + n), sum);
+}

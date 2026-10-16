@@ -68,9 +68,42 @@ end stops the program.
 | `last()`, `pop()` | the last item; `pop` also removes it |
 | `truncate(count)`, `clear()` | drops items from the end |
 | `isEmpty()` | whether `count` is 0 |
+| `copy()` | a new list with the same items |
 | `release()` | frees the list |
+| `each(visit)` | calls `visit` on every item, in order |
+| `filter(keep)` | a new list of the items `keep` says yes to |
+| `find(matches)`, `findIndex(matches)` | the first match, or where it is; `ListError.NotFound` when none does |
+| `any(matches)`, `all(matches)` | whether some item, or every item, matches; `false` and `true` for an empty list |
+| `sort(compare)` | puts the items in order in place; stable, n log n |
 
 `count` is a field, so `for (index in 0..list.count)` walks it.
+
+The functions given to these are usually lambdas, written on the spot:
+
+```rust
+let names: *List<*i8> = List<*i8>.new();
+names.sort(strcmp);                                   // any function of the right type
+let long: *List<*i8> = names.filter((name) => length(name) > 8);
+let first: *i8 = names.find((name) => name[0] == 'a') ?? "nobody";
+let lengths: *List<i64> = map<*i8, i64>(names, (name) => length(name));
+let total: i64 = reduce<i64, i64>(lengths, 0, (sum, n) => sum + n);
+```
+
+`compare(a, b)` for `sort` is below zero when `a` goes first, above zero when
+`b` does, and zero when either may, as for C's `qsort` and TypeScript's
+`sort`: `(a, b) => a - b` is ascending. Items that compare equal keep their
+order.
+
+Two helpers make a list of another type, so they are functions with their
+type arguments written out rather than methods:
+
+| Function | Does |
+|---|---|
+| `map<T, U>(list, f)` | a new list of `f(item)` for each item |
+| `reduce<T, U>(list, start, step)` | folds the items into one value: `step(step(start, first), second)`... |
+
+A lambda captures nothing, so one that needs a value from around it -- the
+name being searched for, say -- cannot get it; that search is still a loop.
 
 ## `std/text`
 

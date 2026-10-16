@@ -57,29 +57,14 @@ let UNIONS: *List<UnionInfo> = null;
 
 // The union of `value` and `errors`, made the first time it is asked for.
 fn unionOf(value: Type, errors: *List<*i8>): Type {
+  // Each error once, by name, so that `A | B`, `B | A` and `A | B | A` are
+  // one union.
+  let names: *List<*i8> = errors.copy();
+  names.sort(strcmp);
   let sorted: *List<*i8> = List<*i8>.new();
-  for (index in 0..errors.count) {
-    let name: *i8 = errors.at(index);
-    let at: i64 = 0;
-    let repeated: bool = false;
-    while (at < sorted.count) {
-      let order: i32 = strcmp(sorted.at(at), name);
-      if (order == 0) {
-        repeated = true;
-      }
-      if (order >= 0) {
-        break;
-      }
-      at = at + 1;
-    }
-    if (!repeated) {
-      sorted.push(name);
-      let slot: i64 = sorted.count - 1;
-      while (slot > at) {
-        sorted.set(slot, sorted.at(slot - 1));
-        slot = slot - 1;
-      }
-      sorted.set(at, name);
+  for (index in 0..names.count) {
+    if (index == 0 || !equals(names.at(index), names.at(index - 1))) {
+      sorted.push(names.at(index));
     }
   }
 
