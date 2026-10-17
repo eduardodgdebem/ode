@@ -252,8 +252,13 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   or an error enum (all of its errors) that the union holds, once. A local
   variable matched on is narrowed in each arm to the members it names, and in
   `else` to the rest. Without `else`, every member must be named.
-- An `if` whose condition is `x is T` under any number of `!` narrows `x`
-  as `x is T` does, with the two branches swapped for each `!`.
+- A condition narrows what it asks about with `is`: where `x is T` holds,
+  `x` is a `T`, and where it fails, what else it may be. `!` swaps the two;
+  `a && b` holds where both do and `a || b` fails where both do, so each
+  narrows by both its sides there. The right side of `&&` is checked where
+  the left held, and of `||` where it failed. An `if` narrows its first
+  branch by where its condition holds, its second -- or what follows it,
+  when the first always leaves -- by where it fails.
 - What `is` and `match` narrow is a path: a variable, or a field of one,
   `a.b.c`, through pointers alike. Reading the same path where it is narrowed
   reads the member. Assigning a path, or a path it starts with, forgets every

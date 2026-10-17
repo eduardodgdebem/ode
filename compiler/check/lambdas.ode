@@ -26,13 +26,17 @@ import { signatureIndex, functionType } from "./functions";
 import { analyzeStatement } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, ExprStmt, Lambda, Return, Syntax, itemAt, itemCount, lambdaOf,
+  nodeName, paramOf,
+} from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
 export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
-  let params: i32 = an.ast.nodes[node].b;
-  let count: i32 = an.ast.nodes[params].itemCount;
+  let lambda: Lambda = lambdaOf(an.ast, node);
+  let params: i32 = lambda.params;
+  let count: i32 = itemCount(an.ast, params);
 
   // What the context says, when it is a function type: one taking another
   // number of parameters is no place for this lambda.
@@ -59,17 +63,17 @@ export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
     types = alloc<Type>(count as i64);
   }
   for (index in 0..count) {
-    let param: i32 = an.ast.nodes[params].items[index];
-    if (an.ast.nodes[param].a != NO_NODE) {
-      types[index] = analyzerParseType(an, an.ast.nodes[param].a);
+    let param: i32 = itemAt(an.ast, params, index);
+    if (paramOf(an.ast, param).type != NO_NODE) {
+      types[index] = analyzerParseType(an, paramOf(an.ast, param).type);
       analyzerValidateType(an, param, types[index],
-                           quoted("in parameter ", an.ast.nodes[param].text,
+                           quoted("in parameter ", nodeName(an.ast, param),
                                   " of a lambda"));
     } else if (context) {
       types[index] = contextParams[index];
     } else {
       analyzerFail(an, param, Problem.LambdaParameterType,
-                   Facts.about(an.ast.nodes[param].text));
+                   Facts.about(nodeName(an.ast, param)));
       return Type.make(TypeKind.None, 0);
     }
     if (FAILED) {
@@ -79,8 +83,8 @@ export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
   }
 
   let result: Type = contextResult;
-  if (an.ast.nodes[node].a != NO_NODE) {
-    result = analyzerParseType(an, an.ast.nodes[node].a);
+  if (lambda.returnType != NO_NODE) {
+    result = analyzerParseType(an, lambda.returnType);
     analyzerValidateType(an, node, result, "in the return type of a lambda");
   } else if (!context) {
     analyzerFail(an, node, Problem.LambdaReturnType, Facts.none());
@@ -92,11 +96,16 @@ export fn checkLambda(an: *Analyzer, node: i32, expected: Type): Type {
 
   // A body written as an expression, in a lambda that returns nothing, is
   // that expression run for what it does: `(x) => printf("%d", x)`.
-  let body: i32 = an.ast.nodes[node].c;
+  let body: i32 = lambda.body;
   let returnsNothing: bool = result.isVoid() ||
       (result.isUnion() && valueOf(result).isVoid());
-  if (an.ast.nodes[node].extra == 1 && returnsNothing) {
-    an.ast.nodes[an.ast.nodes[body].items[0]].kind = NodeKind.ExprStmt;
+  if (lambda.expressionBody && returnsNothing) {
+    let returned: i32 = itemAt(an.ast, body, 0);
+    let value: Syntax = an.ast.nodes[returned].syntax;
+    if (value is Return) {
+      an.ast.nodes[returned].kind = NodeKind.ExprStmt;
+      an.ast.nodes[returned].syntax = ExprStmt { value: value.value };
+    }
   }
 
   checkBody(an, node, types, count, result);
@@ -131,14 +140,14 @@ fn checkBody(an: *Analyzer, node: i32, types: *Type, count: i32, result: Type): 
   an.loopDepth = 0;
 
   an.symbols.enterScope();
-  let params: i32 = an.ast.nodes[node].b;
+  let params: i32 = lambdaOf(an.ast, node).params;
   for (index in 0..count) {
-    let param: i32 = an.ast.nodes[params].items[index];
-    an.symbols.declare(an.ast.nodes[param].text, SymbolKind.Var, types[index],
+    let param: i32 = itemAt(an.ast, params, index);
+    an.symbols.declare(nodeName(an.ast, param), SymbolKind.Var, types[index],
                        null, 0, an.ast.nodes[param].line,
                        an.ast.nodes[param].column);
   }
-  analyzeStatement(an, an.ast.nodes[node].c);
+  analyzeStatement(an, lambdaOf(an.ast, node).body);
   an.symbols.exitScope();
 
   an.captureFrom = captureFrom;

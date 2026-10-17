@@ -20,7 +20,7 @@ import { CallTarget } from "./functions";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { isLibraryModule } from "../link/modules";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import { NO_NODE, NodeKind, callOf, itemAt, itemCount, nodeName } from "../syntax/ast";
 import { TypeKind, Type } from "../types/types";
 
 // Set by `ode test`: tests are checked and compiled, and the program gets a
@@ -31,7 +31,7 @@ export let TEST_MODE: bool = false;
 // program declared.
 fn isBuiltin(an: *Analyzer, node: i32, name: *i8): bool {
   return an.ast.nodes[node].kind == NodeKind.Call &&
-         equals(an.ast.nodes[node].text, name) &&
+         equals(nodeName(an.ast, node), name) &&
          an.symbols.find(name) < 0;
 }
 
@@ -39,7 +39,7 @@ fn argumentCount(an: *Analyzer, args: i32): i32 {
   if (args == NO_NODE) {
     return 0;
   }
-  return an.ast.nodes[args].itemCount;
+  return itemCount(an.ast, args);
 }
 
 export fn isAssert(an: *Analyzer, node: i32): bool {
@@ -49,7 +49,7 @@ export fn isAssert(an: *Analyzer, node: i32): bool {
 // `assert(cond)` or `assert(cond, message)`: stops the program, or fails the
 // test, when `cond` is false.
 export fn checkAssert(an: *Analyzer, node: i32): Type {
-  let args: i32 = an.ast.nodes[node].a;
+  let args: i32 = callOf(an.ast, node).args;
   let count: i32 = argumentCount(an, args);
   an.callTargets[node] = CallTarget.Assert;
 
@@ -58,13 +58,13 @@ export fn checkAssert(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.Void, 0);
   }
 
-  let condition: Type = checkExpr(an, an.ast.nodes[args].items[0]);
+  let condition: Type = checkExpr(an, itemAt(an.ast, args, 0));
   if (!condition.isBool()) {
     analyzerFail(an, node, Problem.AssertNotBool, Facts.aboutType(condition));
   }
 
   if (count == 2) {
-    let message: Type = checkExpr(an, an.ast.nodes[args].items[1]);
+    let message: Type = checkExpr(an, itemAt(an.ast, args, 1));
     if (!message.equals(Type.make(TypeKind.I8, 1))) {
       analyzerFail(an, node, Problem.AssertMessageNotText, Facts.aboutType(message));
     }
@@ -80,7 +80,7 @@ export fn isAssertEq(an: *Analyzer, node: i32): bool {
 // `assertEq(actual, expected)`: like `assert(actual == expected)`, but a
 // failure shows both values -- and two strings compare by their text.
 export fn checkAssertEq(an: *Analyzer, node: i32): Type {
-  let args: i32 = an.ast.nodes[node].a;
+  let args: i32 = callOf(an.ast, node).args;
   an.callTargets[node] = CallTarget.AssertEq;
 
   if (argumentCount(an, args) != 2) {
@@ -89,8 +89,8 @@ export fn checkAssertEq(an: *Analyzer, node: i32): Type {
   }
 
   // Either side may be a bare literal, which takes the other side's type.
-  let actualNode: i32 = an.ast.nodes[args].items[0];
-  let expectedNode: i32 = an.ast.nodes[args].items[1];
+  let actualNode: i32 = itemAt(an.ast, args, 0);
+  let expectedNode: i32 = itemAt(an.ast, args, 1);
   let actual: Type = Type.make(TypeKind.None, 0);
   let expected: Type = Type.make(TypeKind.None, 0);
   if (isLiteralTree(an, actualNode) && !isLiteralTree(an, expectedNode)) {
@@ -150,7 +150,7 @@ export fn isNameOf(an: *Analyzer, node: i32): bool {
 // `nameOf(value)`: the name of the enum member `value` is, as a string --
 // "Red" for Color.Red -- for printing one.
 export fn checkNameOf(an: *Analyzer, node: i32): Type {
-  let args: i32 = an.ast.nodes[node].a;
+  let args: i32 = callOf(an.ast, node).args;
   an.callTargets[node] = CallTarget.NameOf;
   if (argumentCount(an, args) != 1) {
     analyzerFail(an, node, Problem.WrongArgumentCount,
@@ -159,7 +159,7 @@ export fn checkNameOf(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.I8, 1);
   }
 
-  let type: Type = checkExpr(an, an.ast.nodes[args].items[0]);
+  let type: Type = checkExpr(an, itemAt(an.ast, args, 0));
   if (!FAILED && !type.isEnum()) {
     analyzerFail(an, node, Problem.WrongArgumentType,
                  Facts.about("nameOf").withTypes(Type.ofEnum("enum", 0), type)

@@ -23,7 +23,9 @@ import {
 import { checkArmBody } from "./enums";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NodeKind, TypeRef, armOf, itemAt, itemCount, matchOf, nodeName,
+} from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
@@ -32,22 +34,22 @@ export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type,
   let handled: *List<Type> = List<Type>.new();
   let hasElse: bool = false;
 
-  for (arm in 0..an.ast.nodes[node].itemCount) {
-    let armNode: i32 = an.ast.nodes[node].items[arm];
+  for (arm in 0..itemCount(an.ast, node)) {
+    let armNode: i32 = itemAt(an.ast, node, arm);
     if (hasElse) {
       analyzerFail(an, armNode, Problem.ArmAfterElse, Facts.none());
       return;
     }
 
     let armType: Type = Type.make(TypeKind.None, 0);
-    if (an.ast.nodes[armNode].extra == 1) {
+    if (armOf(an.ast, armNode).isElse) {
       hasElse = true;
       armType = rest(subject, handled);
     } else {
       let values: *List<Type> = List<Type>.new();
       let errors: *List<*i8> = List<*i8>.new();
-      for (index in 0..an.ast.nodes[armNode].itemCount) {
-        let pattern: i32 = an.ast.nodes[armNode].items[index];
+      for (index in 0..itemCount(an.ast, armNode)) {
+        let pattern: i32 = itemAt(an.ast, armNode, index);
         let type: Type = patternType(an, pattern, subject);
         if (FAILED) {
           return;
@@ -73,7 +75,7 @@ export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type,
     }
 
     an.symbols.enterScope();
-    let matched: i32 = an.ast.nodes[node].a;
+    let matched: i32 = matchOf(an.ast, node).subject;
     if (isNarrowable(an, matched) && armType.kind != TypeKind.None) {
       narrow(an, matched, armType);
     }
@@ -101,11 +103,11 @@ fn patternType(an: *Analyzer, pattern: i32, subject: Type): Type {
   if (kind == NodeKind.Ident) {
     // Linking recorded the type the name means in the match's own file.
     let resolved: *i8 = an.structRefs[pattern];
-    an.ast.nodes[pattern].kind = NodeKind.Type;
-    an.ast.nodes[pattern].extra = 0;
-    if (resolved != null) {
-      an.ast.nodes[pattern].text = resolved;
+    if (resolved == null) {
+      resolved = nodeName(an.ast, pattern);
     }
+    an.ast.nodes[pattern].kind = NodeKind.Type;
+    an.ast.nodes[pattern].syntax = TypeRef { name: resolved, depth: 0, args: List<i32>.new() };
     kind = NodeKind.Type;
   }
   if (kind != NodeKind.Type && kind != NodeKind.FnType) {
@@ -165,6 +167,6 @@ fn isNarrowable(an: *Analyzer, node: i32): bool {
   if (an.ast.nodes[node].kind != NodeKind.Ident) {
     return false;
   }
-  let symbol: i32 = an.symbols.find(an.ast.nodes[node].text);
+  let symbol: i32 = an.symbols.find(nodeName(an.ast, node));
   return symbol >= an.localsFrom && an.symbols.items[symbol].kind == SymbolKind.Var;
 }

@@ -10,8 +10,12 @@
 import { equals } from "std/text";
 import { FAILED } from "../diagnostics/report";
 import { line } from "../driver/options";
+import { List } from "std/list";
 import {
-  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try, Is, Catch,
+  NO_NODE, NodeKind, Args, Binary, BinaryOp, Block, BoolLit, Call, CallValue, Cast,
+  Catch, CharLit, ErrorNode, FieldAccess, FieldInit, Ident, Index, Is, Lambda,
+  MethodCall, NullLit, NumberLit, Param, Params, Return, Sizeof, StringLit, StructLit,
+  Syntax, Try, TypeArgs, TypeRef, Unary, UnaryOp,
 } from "./ast";
 import { Parser, parseType, parseDeclaredType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
 import { parseBlock, parseMatch } from "./statements";
@@ -33,7 +37,7 @@ export fn parseExpr(parser: *Parser): i32 {
     return value;
   }
 
-  let node: i32 = parser.ast.add(NodeKind.Catch, at.line, at.column);
+  let node: i32 = parser.ast.add(NodeKind.Catch, at.line, at.column, ErrorNode {});
   let block: i32 = parseBlock(parser);
   parser.ast.nodes[node].syntax = Catch { value: value, name: name.text, block: block };
   return node;
@@ -58,7 +62,7 @@ fn parseCoalesce(parser: *Parser): i32 {
 // operators. `isLevelOp` is what distinguishes them.
 fn parseBinaryNode(parser: *Parser, left: i32, right: i32,
                    op: *Token): i32 {
-  let node: i32 = parser.ast.add(NodeKind.Binary, op.line, op.column);
+  let node: i32 = parser.ast.add(NodeKind.Binary, op.line, op.column, ErrorNode {});
   parser.ast.nodes[node].syntax = Binary { op: binaryOpOf(op.kind), left: left,
                                            right: right };
   return node;
@@ -192,7 +196,7 @@ fn parseComparison(parser: *Parser): i32 {
   if (parser.kind() == TokenKind.Ident && equals(parser.current().text, "is")) {
     let at: *Token = parser.current();
     parser.advance();
-    let node: i32 = parser.ast.add(NodeKind.Is, at.line, at.column);
+    let node: i32 = parser.ast.add(NodeKind.Is, at.line, at.column, ErrorNode {});
     let type: i32 = parseType(parser);
     parser.ast.nodes[node].syntax = Is { value: left, type: type };
     return node;
@@ -261,7 +265,7 @@ fn parseCast(parser: *Parser): i32 {
     parser.advance();
 
     let type: i32 = parseType(parser);
-    let node: i32 = parser.ast.add(NodeKind.Cast, line, column);
+    let node: i32 = parser.ast.add(NodeKind.Cast, line, column, ErrorNode {});
     parser.ast.nodes[node].syntax = Cast { value: expr, type: type };
     expr = node;
   }
@@ -278,7 +282,7 @@ fn parseUnary(parser: *Parser): i32 {
   if (kind == TokenKind.Try) {
     let at: *Token = parser.current();
     parser.advance();
-    let node: i32 = parser.ast.add(NodeKind.Try, at.line, at.column);
+    let node: i32 = parser.ast.add(NodeKind.Try, at.line, at.column, ErrorNode {});
     let value: i32 = parseUnary(parser);
     parser.ast.nodes[node].syntax = Try { value: value };
     return node;
@@ -292,7 +296,7 @@ fn parseUnary(parser: *Parser): i32 {
     parser.advance();
 
     let operand: i32 = parseUnary(parser);
-    let node: i32 = parser.ast.add(NodeKind.Unary, line, column);
+    let node: i32 = parser.ast.add(NodeKind.Unary, line, column, ErrorNode {});
     parser.ast.nodes[node].syntax = Unary { op: unaryOpOf(op.kind), operand: operand };
 
     return node;
@@ -321,10 +325,8 @@ fn parsePostfix(parser: *Parser): i32 {
         return expr;
       }
 
-      let call: i32 = parser.ast.add(NodeKind.CallValue, line, column);
-      parser.ast.nodes[call].a = expr;
-      parser.ast.nodes[call].b = args;
-      expr = call;
+      expr = parser.ast.add(NodeKind.CallValue, line, column,
+                            CallValue { callee: expr, args: args });
       continue;
     }
 
@@ -352,18 +354,13 @@ fn parsePostfix(parser: *Parser): i32 {
           return expr;
         }
 
-        let call: i32 = parser.ast.add(NodeKind.MethodCall, line, column);
-        parser.ast.setText(call, field);
-        parser.ast.nodes[call].a = expr;
-        parser.ast.nodes[call].b = args;
-        expr = call;
+        expr = parser.ast.add(NodeKind.MethodCall, line, column,
+                              MethodCall { receiver: expr, name: field.text, args: args });
         continue;
       }
 
-      let node: i32 = parser.ast.add(NodeKind.FieldAccess, line, column);
-      parser.ast.setText(node, field);
-      parser.ast.nodes[node].a = expr;
-      expr = node;
+      expr = parser.ast.add(NodeKind.FieldAccess, line, column,
+                            FieldAccess { object: expr, field: field.text });
       continue;
     }
 
@@ -379,7 +376,7 @@ fn parsePostfix(parser: *Parser): i32 {
         return expr;
       }
 
-      let node: i32 = parser.ast.add(NodeKind.Index, line, column);
+      let node: i32 = parser.ast.add(NodeKind.Index, line, column, ErrorNode {});
       parser.ast.nodes[node].syntax = Index { base: expr, index: index };
       expr = node;
       continue;
@@ -393,8 +390,15 @@ fn parsePostfix(parser: *Parser): i32 {
 
 fn parseLiteral(parser: *Parser, kind: NodeKind): i32 {
   let token: *Token = parser.current();
-  let node: i32 = parser.ast.add(kind, token.line, token.column);
-  parser.ast.setText(node, token);
+  let syntax: Syntax = match (kind) {
+    .Number => NumberLit { text: token.text, length: token.length },
+    .String => StringLit { text: token.text, length: token.length },
+    .Char => CharLit { text: token.text, length: token.length },
+    .Bool => BoolLit { value: equals(token.text, "true") },
+    .Null => NullLit {},
+    else => Ident { name: token.text },
+  };
+  let node: i32 = parser.ast.add(kind, token.line, token.column, syntax);
   parser.advance();
 
   return node;
@@ -423,9 +427,8 @@ fn parsePrimary(parser: *Parser): i32 {
     parser.advance();
     let member: *Token = parser.current();
     parser.advance();
-    let node: i32 = parser.ast.add(NodeKind.FieldAccess, dot.line, dot.column);
-    parser.ast.setText(node, member);
-    return node;
+    return parser.ast.add(NodeKind.FieldAccess, dot.line, dot.column,
+                          FieldAccess { object: NO_NODE, field: member.text });
   }
 
   if (kind == TokenKind.LParen) {
@@ -477,7 +480,7 @@ fn parseSizeOf(parser: *Parser): i32 {
   let type: i32 = parseType(parser);
   parser.expect(TokenKind.RParen, ")");
 
-  let node: i32 = parser.ast.add(NodeKind.Sizeof, line, column);
+  let node: i32 = parser.ast.add(NodeKind.Sizeof, line, column, ErrorNode {});
   parser.ast.nodes[node].syntax = Sizeof { type: type };
 
   return node;
@@ -493,16 +496,14 @@ fn parseFuncCall(parser: *Parser): i32 {
   let args: i32 = parseArgList(parser);
   parser.expect(TokenKind.RParen, ")");
 
-  let node: i32 = parser.ast.add(NodeKind.Call, line, column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = args;
-
-  return node;
+  return parser.ast.add(NodeKind.Call, line, column,
+                        Call { name: name.text, args: args, typeArgs: NO_NODE });
 }
 
 fn parseArgList(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.Args, start.line, start.column);
+  let node: i32 = parser.ast.add(NodeKind.Args, start.line, start.column,
+                                 Args { items: List<i32>.new() });
 
   if (parser.kind() == TokenKind.RParen) {
     return node;
@@ -525,23 +526,22 @@ fn parseArgList(parser: *Parser): i32 {
 // or the type in front of a static method call, `List<i32>.new()`.
 fn parseGenericPrimary(parser: *Parser): i32 {
   let name: *Token = parser.current();
-  let typeNode: i32 = parser.ast.add(NodeKind.Type, name.line, name.column);
-  parser.ast.setText(typeNode, name);
+  let typeArgs: *List<i32> = List<i32>.new();
+  let typeNode: i32 = parser.ast.add(NodeKind.Type, name.line, name.column,
+                                     TypeRef { name: name.text, depth: 0, args: typeArgs });
   parser.advance();
   parseTypeArgs(parser, typeNode);
 
   if (parser.kind() == TokenKind.LParen) {
     // The arguments belong to a function, not to a type of that name.
     parser.ast.nodes[typeNode].kind = NodeKind.TypeArgs;
+    parser.ast.nodes[typeNode].syntax = TypeArgs { types: typeArgs };
     parser.advance();
     let args: i32 = parseArgList(parser);
     parser.expect(TokenKind.RParen, ")");
 
-    let call: i32 = parser.ast.add(NodeKind.Call, name.line, name.column);
-    parser.ast.setText(call, name);
-    parser.ast.nodes[call].a = args;
-    parser.ast.nodes[call].b = typeNode;
-    return call;
+    return parser.ast.add(NodeKind.Call, name.line, name.column,
+                          Call { name: name.text, args: args, typeArgs: typeNode });
   }
 
   if (parser.kind() == TokenKind.LBrace) {
@@ -559,9 +559,9 @@ fn parseStructLiteral(parser: *Parser): i32 {
 // The `{ field: value, ... }` of a struct literal, for the struct `name`,
 // whose type arguments are in `typeNode` when it is generic.
 fn parseStructLiteralBody(parser: *Parser, name: *Token, typeNode: i32): i32 {
-  let node: i32 = parser.ast.add(NodeKind.StructLit, name.line, name.column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = typeNode;
+  let node: i32 = parser.ast.add(NodeKind.StructLit, name.line, name.column,
+                                 StructLit { name: name.text, type: typeNode,
+                                             fields: List<i32>.new() });
 
   parser.expect(TokenKind.LBrace, "{");
 
@@ -569,10 +569,9 @@ fn parseStructLiteralBody(parser: *Parser, name: *Token, typeNode: i32): i32 {
     let field: *Token = parser.expect(TokenKind.Ident, "field name");
     parser.expect(TokenKind.Colon, ":");
 
-    let init: i32 = parser.ast.add(NodeKind.FieldInit, field.line, field.column);
-    parser.ast.setText(init, field);
-    parser.ast.nodes[init].a = parseExpr(parser);
-    parser.ast.addItem(node, init);
+    let value: i32 = parseExpr(parser);
+    parser.ast.addItem(node, parser.ast.add(NodeKind.FieldInit, field.line, field.column,
+                                            FieldInit { name: field.text, value: value }));
 
     if (parser.kind() == TokenKind.Comma) {
       parser.advance();
@@ -627,7 +626,8 @@ fn looksLikeLambda(parser: *Parser): bool {
 // returns `x + 1`.
 fn parseLambda(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let params: i32 = parser.ast.add(NodeKind.Params, start.line, start.column);
+  let params: i32 = parser.ast.add(NodeKind.Params, start.line, start.column,
+                                   Params { list: List<i32>.new(), variadic: false });
   parser.expect(TokenKind.LParen, "(");
 
   if (parser.kind() != TokenKind.RParen) {
@@ -636,13 +636,13 @@ fn parseLambda(parser: *Parser): i32 {
       if (FAILED) {
         break;
       }
-      let param: i32 = parser.ast.add(NodeKind.Param, name.line, name.column);
-      parser.ast.setText(param, name);
+      let type: i32 = NO_NODE;
       if (parser.kind() == TokenKind.Colon) {
         parser.advance();
-        parser.ast.nodes[param].a = parseDeclaredType(parser);
+        type = parseDeclaredType(parser);
       }
-      parser.ast.addItem(params, param);
+      parser.ast.addItem(params, parser.ast.add(NodeKind.Param, name.line, name.column,
+                                                Param { name: name.text, type: type }));
 
       if (parser.kind() != TokenKind.Comma) {
         break;
@@ -652,30 +652,33 @@ fn parseLambda(parser: *Parser): i32 {
   }
   parser.expect(TokenKind.RParen, ")");
 
-  let node: i32 = parser.ast.add(NodeKind.Lambda, start.line, start.column);
-  parser.ast.nodes[node].b = params;
+  let returnType: i32 = NO_NODE;
   if (parser.kind() == TokenKind.Colon) {
     parser.advance();
-    parser.ast.nodes[node].a = parseDeclaredType(parser);
+    returnType = parseDeclaredType(parser);
   }
   parser.expect(TokenKind.Arrow, "=>");
   if (FAILED) {
-    return node;
+    return parser.errorNode();
   }
 
   if (parser.kind() == TokenKind.LBrace) {
-    parser.ast.nodes[node].c = parseBlock(parser);
-    return node;
+    let block: i32 = parseBlock(parser);
+    return parser.ast.add(NodeKind.Lambda, start.line, start.column,
+                          Lambda { returnType: returnType, params: params, body: block,
+                                   expressionBody: false });
   }
 
   let at: *Token = parser.current();
   let value: i32 = parseExpr(parser);
-  let returned: i32 = parser.ast.add(NodeKind.Return, at.line, at.column);
-  parser.ast.nodes[returned].a = value;
-  let body: i32 = parser.ast.add(NodeKind.Block, at.line, at.column);
-  parser.ast.addItem(body, returned);
-  parser.ast.nodes[node].c = body;
-  parser.ast.nodes[node].extra = 1;
+  let returned: i32 = parser.ast.add(NodeKind.Return, at.line, at.column,
+                                     Return { value: value });
+  let statements: *List<i32> = List<i32>.new();
+  statements.push(returned);
+  let body: i32 = parser.ast.add(NodeKind.Block, at.line, at.column,
+                                 Block { items: statements });
 
-  return node;
+  return parser.ast.add(NodeKind.Lambda, start.line, start.column,
+                        Lambda { returnType: returnType, params: params, body: body,
+                                 expressionBody: true });
 }

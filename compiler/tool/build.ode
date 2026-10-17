@@ -20,6 +20,7 @@
 // fraction of a second anyway, so finer-grained tracking would buy nothing.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { readFile, exists } from "std/fs";
@@ -39,7 +40,7 @@ import {
   TextList, StderrMode, runCommand, ran, environment, setEnvironment,
   currentDirectory, command,
 } from "../os/process";
-import { NodeKind, Ast } from "../syntax/ast";
+import { NodeKind, Ast, Program } from "../syntax/ast";
 import { TestOptions, commandTest } from "./testsuite";
 
 let BUILD_USAGE: *i8 = `
@@ -130,7 +131,7 @@ fn hashInputs(ws: *Workspace): Inputs {
   };
 
   let ast: *Ast = Ast.new();
-  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
   loadProgram(ast, root, ws.entry, source);
   FAILED = false;
 

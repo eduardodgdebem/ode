@@ -416,3 +416,23 @@ test "a union narrowed through ! reads as what is left, or what was asked" {
     }
   `)), "3 -1 7 0\n");
 }
+
+test "a union narrowed through && and || reads as what was found out" {
+  assertEq(outputOf(program(`
+    fn describe(shape: Shape): *i8 {
+      if (shape is Circle && shape.radius > 5) {
+        return "big circle";
+      }
+      if (shape is Circle || shape.width > shape.height) {
+        return "round or wide";
+      }
+      return "tall";
+    }
+
+    fn main(): i32 {
+      printf("%s, %s, %s, %s\n", describe(Circle { radius: 9 }), describe(Circle { radius: 1 }),
+             describe(Rect { width: 5, height: 2 }), describe(Rect { width: 1, height: 3 }));
+      return 0;
+    }
+  `)), "big circle, round or wide, round or wide, tall\n");
+}

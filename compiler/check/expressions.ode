@@ -20,7 +20,7 @@ import { isReadyGlobal } from "./constants";
 import { checkEnumMember, checkShorthand, isShorthand, checkMatchValue } from "./enums";
 import {
   valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
-  narrowedPath,
+  narrowedPath, Narrowing, narrowingsOf, applyNarrowings,
 } from "./errors";
 import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
@@ -34,8 +34,10 @@ import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { functionTemplateIn } from "../link/generics";
 import {
-  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try,
-  Is, Catch, Unmoved, negated, binaryOpText,
+  NO_NODE, NodeKind, Binary, BinaryOp, BoolLit, Call, CallValue, Cast, Catch, CharLit,
+  FieldAccess, Ident, Index, Is, Lambda, MethodCall, NullLit, NumberLit, Sizeof,
+  StringLit, StructLit, Syntax, Try, Unary, UnaryOp, binaryOpText, fieldInitOf, itemAt,
+  itemCount, negated, nodeName, nodeTextLength, setNodeName,
 } from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type, fitsIn, parseMagnitude } from "../types/types";
@@ -127,60 +129,29 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     return expected;
   }
 
-  if (!(an.ast.nodes[node].syntax is Unmoved)) {
-    return checkSyntax(an, node, expected);
+  return checkSyntax(an, node, expected);
+}
+
+// A name read as a value: a variable's, or a function's.
+fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
+  let name: *i8 = ident.name;
+  let symbol: i32 = an.symbols.find(name);
+
+  if (symbol < 0) {
+    analyzerFail(an, node, Problem.UndefinedVariable, Facts.about(name));
+    return Type.make(TypeKind.None, 0);
+  }
+  if (isCaptured(an, symbol)) {
+    analyzerFail(an, node, Problem.LambdaCapture, Facts.about(name));
+    return Type.make(TypeKind.None, 0);
+  }
+  // A function's name, used other than to call it, is its value.
+  if (an.symbols.items[symbol].kind == SymbolKind.Fn) {
+    return checkFunctionRef(an, node, symbol);
   }
 
-  match (kind) {
-    .Lambda => { return checkLambda(an, node, expected); }
-    .FieldAccess => { return checkFieldAccess(an, node); }
-    .StructLit => { return checkStructLiteral(an, node); }
-    .Call => { return checkCall(an, node); }
-    .MethodCall => { return checkMethodCall(an, node); }
-    .CallValue => { return checkCallValue(an, node); }
-    else => {}
-  }
-  if (kind == NodeKind.Number) {
-    // An integer literal is a fine float; a float literal is no integer.
-    if (expected.isFloat()) {
-      return expected;
-    }
-    return checkNumberLiteral(an, node, Type.make(TypeKind.I32, 0));
-  }
-  if (kind == NodeKind.Bool) { return Type.make(TypeKind.Bool, 0); }
-  // A string literal is a pointer into a private constant, so it behaves like
-  // any other `*i8` from there on.
-  match (kind) {
-    .String => { return Type.make(TypeKind.I8, 1); }
-    .Null => { return Type.make(TypeKind.Null, 0); }
-    .Char => { return charType(expected); }
-    else => {}
-  }
-
-  if (kind == NodeKind.Ident) {
-    let name: *i8 = an.ast.nodes[node].text;
-    let symbol: i32 = an.symbols.find(name);
-
-    if (symbol < 0) {
-      analyzerFail(an, node, Problem.UndefinedVariable, Facts.about(name));
-      return Type.make(TypeKind.None, 0);
-    }
-    if (isCaptured(an, symbol)) {
-      analyzerFail(an, node, Problem.LambdaCapture, Facts.about(name));
-      return Type.make(TypeKind.None, 0);
-    }
-    // A function's name, used other than to call it, is its value.
-    if (an.symbols.items[symbol].kind == SymbolKind.Fn) {
-      return checkFunctionRef(an, node, symbol);
-    }
-
-    an.linkNames[node] = an.symbols.items[symbol].linkName;
-    return an.symbols.items[symbol].type;
-  }
-
-  analyzerFail(an, node, Problem.Internal,
-               Facts.about("unknown expression node type"));
-  return Type.make(TypeKind.Void, 0);
+  an.linkNames[node] = an.symbols.items[symbol].linkName;
+  return an.symbols.items[symbol].type;
 }
 
 // A character is a byte's value, so it is a number of whatever integer type
@@ -239,8 +210,8 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
   return type;
 }
 
-fn checkCall(an: *Analyzer, node: i32): Type {
-  let name: *i8 = an.ast.nodes[node].text;
+fn checkCall(an: *Analyzer, node: i32, call: Call): Type {
+  let name: *i8 = call.name;
   let symbol: i32 = an.symbols.find(name);
 
   if (symbol < 0 && isAssert(an, node)) {
@@ -268,15 +239,15 @@ fn checkCall(an: *Analyzer, node: i32): Type {
   if (an.symbols.items[symbol].kind == SymbolKind.Var) {
     an.callTargets[node] = CallTarget.Value;
     return checkCallThrough(an, node, name, an.symbols.items[symbol].type,
-                            an.ast.nodes[node].a);
+                            call.args);
   }
 
   if (an.symbols.items[symbol].variadic) {
-    checkVariadicArguments(an, node, name, an.ast.nodes[node].a,
+    checkVariadicArguments(an, node, name, call.args,
                            an.symbols.items[symbol].params,
                            an.symbols.items[symbol].paramCount);
   } else {
-    checkArguments(an, node, name, an.ast.nodes[node].a,
+    checkArguments(an, node, name, call.args,
                    an.symbols.items[symbol].params,
                    an.symbols.items[symbol].paramCount);
   }
@@ -290,7 +261,7 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
                          params: *Type, paramCount: i32): void {
   let argCount: i32 = 0;
   if (args != NO_NODE) {
-    argCount = an.ast.nodes[args].itemCount;
+    argCount = itemCount(an.ast, args);
   }
 
   if (argCount != paramCount) {
@@ -309,7 +280,7 @@ export fn checkArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
 fn checkArgumentTypes(an: *Analyzer, node: i32, name: *i8, args: i32,
                       params: *Type, count: i32): void {
   for (index in 0..count) {
-    let argument: i32 = an.ast.nodes[args].items[index];
+    let argument: i32 = itemAt(an.ast, args, index);
     let paramType: Type = params[index];
     let argType: Type = checkExprAs(an, argument, paramType);
 
@@ -328,7 +299,7 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
                           params: *Type, paramCount: i32): void {
   let argCount: i32 = 0;
   if (args != NO_NODE) {
-    argCount = an.ast.nodes[args].itemCount;
+    argCount = itemCount(an.ast, args);
   }
 
   if (argCount < paramCount) {
@@ -341,7 +312,7 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   checkArgumentTypes(an, node, name, args, params, paramCount);
 
   for (index in paramCount..argCount) {
-    let argument: i32 = an.ast.nodes[args].items[index];
+    let argument: i32 = itemAt(an.ast, args, index);
     let type: Type = checkExpr(an, argument);
     if (FAILED) {
       return;
@@ -369,7 +340,31 @@ fn checkSyntax(an: *Analyzer, node: i32, expected: Type): Type {
     Try => checkTry(an, node, syntax),
     Is => checkIs(an, node, syntax),
     Catch => checkCatch(an, node, syntax),
-    Unmoved => Type.make(TypeKind.None, 0),
+    Lambda => checkLambda(an, node, expected),
+    FieldAccess => checkFieldAccess(an, node, syntax),
+    StructLit => checkStructLiteral(an, node),
+    Call => checkCall(an, node, syntax),
+    MethodCall => checkMethodCall(an, node),
+    CallValue => checkCallValue(an, node, syntax),
+    // An integer literal is a fine float; a float literal is no integer.
+    NumberLit => {
+      if (expected.isFloat()) {
+        return expected;
+      }
+      return checkNumberLiteral(an, node, Type.make(TypeKind.I32, 0));
+    }
+    BoolLit => Type.make(TypeKind.Bool, 0),
+    // A string literal is a pointer into a private constant, so it behaves
+    // like any other `*i8` from there on.
+    StringLit => Type.make(TypeKind.I8, 1),
+    NullLit => Type.make(TypeKind.Null, 0),
+    CharLit => charType(expected),
+    Ident => checkIdent(an, node, syntax),
+    else => {
+      analyzerFail(an, node, Problem.Internal,
+                   Facts.about("unknown expression node type"));
+      return Type.make(TypeKind.Void, 0);
+    }
   };
 }
 
@@ -452,6 +447,9 @@ fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type
   let op: BinaryOp = binary.op;
   if (op == BinaryOp.Coalesce) {
     return checkCoalesce(an, node, binary);
+  }
+  if (op == .And || op == .Or) {
+    return checkLogical(an, node, binary);
   }
   let leftNode: i32 = binary.left;
   let rightNode: i32 = binary.right;
@@ -538,6 +536,26 @@ fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type
       return left;
     }
   }
+}
+
+// `a && b`, `a || b`. The right side runs only where the left has said
+// whether it holds, so it is checked knowing what the left found out:
+// `shape is Circle && shape.radius > 0`.
+fn checkLogical(an: *Analyzer, node: i32, binary: Binary): Type {
+  let left: Type = checkExpr(an, binary.left);
+  let found: *List<Narrowing> = List<Narrowing>.new();
+  if (!FAILED) {
+    narrowingsOf(an, binary.left, binary.op == .And, found);
+  }
+  an.symbols.enterScope();
+  applyNarrowings(an, found);
+  let right: Type = checkExpr(an, binary.right);
+  an.symbols.exitScope();
+
+  if (!left.isBool() || !right.isBool()) {
+    analyzerFail(an, node, Problem.LogicalNotBool, Facts.aboutTypes(left, right));
+  }
+  return Type.make(TypeKind.Bool, 0);
 }
 
 fn checkEquality(an: *Analyzer, node: i32, left: Type, right: Type): Type {
@@ -691,8 +709,8 @@ export fn textHasDot(text: *i8, length: i64): bool {
 }
 
 fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
-  let text: *i8 = an.ast.nodes[node].text;
-  let length: i64 = an.ast.nodes[node].textLength;
+  let text: *i8 = nodeName(an.ast, node);
+  let length: i64 = nodeTextLength(an.ast, node);
 
   if (textHasDot(text, length)) {
     if (target.isFloat()) {
@@ -745,22 +763,22 @@ fn checkNumberLiteral(an: *Analyzer, node: i32, target: Type): Type {
   return wanted;
 }
 
-fn checkFieldAccess(an: *Analyzer, node: i32): Type {
+fn checkFieldAccess(an: *Analyzer, node: i32, access: FieldAccess): Type {
   // `Color.Red`: the object is an enum's name rather than a value. A variable
   // of the same name wins, as it would anywhere else a name is read.
-  let object: i32 = an.ast.nodes[node].a;
+  let object: i32 = access.object;
   an.structRefs[node] = throughAlias(an, an.structRefs[node]);
   let typeName: *i8 = an.structRefs[node];
   if (an.ast.nodes[object].kind == NodeKind.Ident && typeName != null &&
       an.enumNames.has(typeName)) {
-    let symbol: i32 = an.symbols.find(an.ast.nodes[object].text);
+    let symbol: i32 = an.symbols.find(nodeName(an.ast, object));
     if (symbol < 0 || an.symbols.items[symbol].kind != SymbolKind.Var) {
       return checkEnumMember(an, node, typeName);
     }
   }
 
-  let field: *i8 = an.ast.nodes[node].text;
-  let objectType: Type = checkExpr(an, an.ast.nodes[node].a);
+  let field: *i8 = access.field;
+  let objectType: Type = checkExpr(an, object);
 
   // Pointers are followed automatically, however many there are, so
   // `p.field` works whether `p` is a struct or points at one.
@@ -824,8 +842,8 @@ fn checkIndex(an: *Analyzer, node: i32, index: Index): Type {
 }
 
 fn checkStructLiteral(an: *Analyzer, node: i32): Type {
-  an.ast.nodes[node].text = throughAlias(an, an.ast.nodes[node].text);
-  let name: *i8 = an.ast.nodes[node].text;
+  setNodeName(an.ast, node, throughAlias(an, nodeName(an.ast, node)));
+  let name: *i8 = nodeName(an.ast, node);
   let structIndex: i32 = an.structs.indexOf(name);
 
   if (structIndex < 0) {
@@ -843,9 +861,9 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
   }
 
   index = 0;
-  while (index < an.ast.nodes[node].itemCount) {
-    let init: i32 = an.ast.nodes[node].items[index];
-    let fieldName: *i8 = an.ast.nodes[init].text;
+  while (index < itemCount(an.ast, node)) {
+    let init: i32 = itemAt(an.ast, node, index);
+    let fieldName: *i8 = nodeName(an.ast, init);
     let fieldIndex: i32 = an.structs.fieldIndex(structIndex, fieldName);
 
     if (fieldIndex < 0) {
@@ -859,10 +877,10 @@ fn checkStructLiteral(an: *Analyzer, node: i32): Type {
 
     let fieldType: Type =
         an.structs.items[structIndex].fields[fieldIndex].type;
-    let valueType: Type = checkExprAs(an, an.ast.nodes[init].a, fieldType);
+    let valueType: Type = checkExprAs(an, fieldInitOf(an.ast, init).value, fieldType);
 
     if (!fieldType.accepts(valueType)) {
-      analyzerFailAtValue(an, an.ast.nodes[init].a, Problem.FieldWrongType,
+      analyzerFailAtValue(an, fieldInitOf(an.ast, init).value, Problem.FieldWrongType,
                           Facts.aboutTwo(fieldName, name)
                               .withTypes(fieldType, valueType));
     }
@@ -924,8 +942,8 @@ export fn isNumberLiteral(an: *Analyzer, node: i32): bool {
   }
 
   // A float literal is a literal, but not one an integer can take.
-  return !textHasDot(an.ast.nodes[literal].text,
-                     an.ast.nodes[literal].textLength);
+  return !textHasDot(nodeName(an.ast, literal),
+                     nodeTextLength(an.ast, literal));
 }
 
 // Types a number literal as `type` rather than as i32, provided it fits --
@@ -939,7 +957,7 @@ export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
     literal = negated(an.ast, node);
   }
 
-  let text: *i8 = an.ast.nodes[literal].text;
+  let text: *i8 = nodeName(an.ast, literal);
   let negative: bool = text[0] == '-';
   let start: i64 = 0;
   if (negative) {
@@ -948,7 +966,7 @@ export fn checkLiteralAs(an: *Analyzer, node: i32, type: Type): bool {
 
   let overflowed: bool = false;
   let magnitude: u64 = parseMagnitude(text, start,
-                                      an.ast.nodes[literal].textLength,
+                                      nodeTextLength(an.ast, literal),
                                       &overflowed);
   if (minus) {
     negative = !negative;

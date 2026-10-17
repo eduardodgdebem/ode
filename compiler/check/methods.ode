@@ -23,7 +23,10 @@ import { analyzeFunctionBody } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { isTemplate } from "../link/generics";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, itemAt, itemCount, methodCallOf, nodeName, paramsOf, returnTypeOf,
+  typeNodeOf,
+} from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
@@ -51,10 +54,10 @@ enum SelfKind {
 
 // The declaration of the struct whose IR name is `name`.
 export fn structDeclOf(an: *Analyzer, name: *i8): i32 {
-  for (index in 0..an.ast.nodes[an.program].itemCount) {
-    let item: i32 = an.ast.nodes[an.program].items[index];
+  for (index in 0..itemCount(an.ast, an.program)) {
+    let item: i32 = itemAt(an.ast, an.program, index);
     if (an.ast.nodes[item].kind == NodeKind.Struct &&
-        equals(an.ast.nodes[item].text, name)) {
+        equals(nodeName(an.ast, item), name)) {
       return item;
     }
   }
@@ -65,10 +68,10 @@ export fn structDeclOf(an: *Analyzer, name: *i8): i32 {
 // The first method of the struct declared at `structNode` named `name`, or
 // NO_NODE.
 fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
-  for (index in 0..an.ast.nodes[structNode].itemCount) {
-    let item: i32 = an.ast.nodes[structNode].items[index];
+  for (index in 0..itemCount(an.ast, structNode)) {
+    let item: i32 = itemAt(an.ast, structNode, index);
     if (an.ast.nodes[item].kind == NodeKind.Fn &&
-        equals(an.ast.nodes[item].text, name)) {
+        equals(nodeName(an.ast, item), name)) {
       return item;
     }
   }
@@ -79,27 +82,27 @@ fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
 // `Point.length`, which is how diagnostics name a method.
 fn methodName(an: *Analyzer, structNode: i32, method: i32): *i8 {
   let out: *Builder = Builder.new();
-  out.add(an.ast.nodes[structNode].text);
+  out.add(nodeName(an.ast, structNode));
   out.push('.');
-  out.add(an.ast.nodes[method].text);
+  out.add(nodeName(an.ast, method));
 
   return out.take();
 }
 
 fn methodSelf(an: *Analyzer, structNode: i32, method: i32): SelfKind {
-  let params: i32 = an.ast.nodes[method].b;
-  if (params == NO_NODE || an.ast.nodes[params].itemCount == 0) {
+  let params: i32 = paramsOf(an.ast, method);
+  if (params == NO_NODE || itemCount(an.ast, params) == 0) {
     return SelfKind.None;
   }
 
-  let first: i32 = an.ast.nodes[params].items[0];
-  if (!equals(an.ast.nodes[first].text, "self")) {
+  let first: i32 = itemAt(an.ast, params, 0);
+  if (!equals(nodeName(an.ast, first), "self")) {
     return SelfKind.None;
   }
 
-  let type: Type = analyzerParseType(an, an.ast.nodes[first].a);
+  let type: Type = analyzerParseType(an, typeNodeOf(an.ast, first));
   if (type.kind != TypeKind.Struct ||
-      !equals(type.structName, an.ast.nodes[structNode].text)) {
+      !equals(type.structName, nodeName(an.ast, structNode))) {
     return SelfKind.Invalid;
   }
   if (type.pointerDepth == 0) {
@@ -120,13 +123,13 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
   }
 
   let index: i32 = 0;
-  while (index < an.ast.nodes[node].itemCount) {
-    let method: i32 = an.ast.nodes[node].items[index];
+  while (index < itemCount(an.ast, node)) {
+    let method: i32 = itemAt(an.ast, node, index);
 
     if (an.ast.nodes[method].kind == NodeKind.Fn) {
       let name: *i8 = methodName(an, node, method);
 
-      if (findMethod(an, node, an.ast.nodes[method].text) != method) {
+      if (findMethod(an, node, nodeName(an.ast, method)) != method) {
         analyzerFail(an, method, Problem.DuplicateMethod, Facts.about(name));
       }
       if (isVariadic(an, method)) {
@@ -134,11 +137,11 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
       }
 
       analyzerValidateType(an, method,
-                           analyzerParseType(an, an.ast.nodes[method].a),
+                           analyzerParseType(an, returnTypeOf(an.ast, method)),
                            quoted("return type of ", name, ""));
 
       let paramCount: i32 = 0;
-      let params: *Type = analyzerParamTypes(an, an.ast.nodes[method].b,
+      let params: *Type = analyzerParamTypes(an, paramsOf(an.ast, method),
                                              &paramCount);
       for (param in 0..paramCount) {
         analyzerValidateType(an, method, params[param],
@@ -147,7 +150,7 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
 
       if (methodSelf(an, node, method) == SelfKind.Invalid) {
         analyzerFail(an, method, Problem.SelfWrongType,
-                     Facts.aboutTwo(name, an.ast.nodes[node].text));
+                     Facts.aboutTwo(name, nodeName(an.ast, node)));
       }
 
       FAILED = false;
@@ -160,8 +163,8 @@ export fn registerMethods(an: *Analyzer, node: i32): void {
 export fn analyzeMethodBodies(an: *Analyzer, node: i32): void {
   let index: i32 = 0;
 
-  while (index < an.ast.nodes[node].itemCount) {
-    let method: i32 = an.ast.nodes[node].items[index];
+  while (index < itemCount(an.ast, node)) {
+    let method: i32 = itemAt(an.ast, node, index);
 
     if (an.ast.nodes[method].kind == NodeKind.Fn) {
       let depth: i32 = an.symbols.depth();
@@ -175,12 +178,12 @@ export fn analyzeMethodBodies(an: *Analyzer, node: i32): void {
 }
 
 fn methodReturnType(an: *Analyzer, method: i32): Type {
-  return analyzerParseType(an, an.ast.nodes[method].a);
+  return analyzerParseType(an, returnTypeOf(an.ast, method));
 }
 
 export fn checkMethodCall(an: *Analyzer, node: i32): Type {
-  let object: i32 = an.ast.nodes[node].a;
-  let name: *i8 = an.ast.nodes[node].text;
+  let object: i32 = methodCallOf(an.ast, node).receiver;
+  let name: *i8 = nodeName(an.ast, node);
   an.structRefs[node] = throughAlias(an, an.structRefs[node]);
 
   // `Point.new(...)`: the receiver is a struct's name rather than a value. A
@@ -188,7 +191,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   // read.
   if (an.ast.nodes[object].kind == NodeKind.Ident &&
       an.structRefs[node] != null) {
-    let symbol: i32 = an.symbols.find(an.ast.nodes[object].text);
+    let symbol: i32 = an.symbols.find(nodeName(an.ast, object));
     if (symbol < 0 || an.symbols.items[symbol].kind != SymbolKind.Var) {
       return checkStaticCall(an, node, structDeclOf(an, an.structRefs[node]));
     }
@@ -235,7 +238,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
     if (field >= 0) {
       let fieldType: Type = an.structs.items[structIndex].fields[field].type;
       an.callTargets[node] = CallTarget.Field;
-      return checkCallThrough(an, node, name, fieldType, an.ast.nodes[node].b);
+      return checkCallThrough(an, node, name, fieldType, methodCallOf(an.ast, node).args);
     }
   }
 
@@ -273,11 +276,11 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   }
 
   let paramCount: i32 = 0;
-  let params: *Type = analyzerParamTypes(an, an.ast.nodes[method].b,
+  let params: *Type = analyzerParamTypes(an, paramsOf(an.ast, method),
                                          &paramCount);
 
   // `self` is the receiver, so the arguments line up with what follows it.
-  checkArguments(an, node, fullName, an.ast.nodes[node].b, params + 1,
+  checkArguments(an, node, fullName, methodCallOf(an.ast, node).args, params + 1,
                  paramCount - 1);
   an.linkNames[node] = an.linkNames[method];
 
@@ -287,22 +290,22 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
 // A method called on the struct's name, which takes every parameter as an
 // argument -- `self` included, when it has one.
 fn checkStaticCall(an: *Analyzer, node: i32, structNode: i32): Type {
-  let name: *i8 = an.ast.nodes[node].text;
+  let name: *i8 = nodeName(an.ast, node);
   let method: i32 = findMethod(an, structNode, name);
 
   if (method == NO_NODE) {
     analyzerFail(an, node, Problem.NoSuchMethod,
-                 Facts.aboutTwo(an.ast.nodes[structNode].text, name));
+                 Facts.aboutTwo(nodeName(an.ast, structNode), name));
     return Type.make(TypeKind.None, 0);
   }
 
   let paramCount: i32 = 0;
-  let params: *Type = analyzerParamTypes(an, an.ast.nodes[method].b,
+  let params: *Type = analyzerParamTypes(an, paramsOf(an.ast, method),
                                          &paramCount);
 
   an.receivers[node] = ReceiverMode.None;
   checkArguments(an, node, methodName(an, structNode, method),
-                 an.ast.nodes[node].b, params, paramCount);
+                 methodCallOf(an.ast, node).args, params, paramCount);
   an.linkNames[node] = an.linkNames[method];
 
   return methodReturnType(an, method);

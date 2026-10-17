@@ -5,13 +5,15 @@
 // pointer: the arena moves when it grows, so a held pointer would dangle. An
 // index of NO_NODE is the absent child.
 //
-// Every node is the same struct with a kind tag. What a node holds is moving
-// into `syntax`, a union with a struct per kind that says what each part is:
-// a Binary's `left` and `right`, where the older kinds still keep `a`, `b`
-// and `c`, which mean different things per kind, and `items`, the
-// variable-length child list that only some kinds use. Those are Unmoved.
+// What a node holds is its `syntax`: a union with a struct per kind that
+// names each part -- a Binary's `left` and `right`, an If's `condition`,
+// `then` and `otherwise` -- so a part is read as what it is, and a kind
+// added to the union is an error at every match that does not handle it.
+// The node itself keeps where it was written, the file it came from, and
+// its kind.
 // ---------------------------------------------------------------------------
 
+import { strlen } from "std/c";
 import { List } from "std/list";
 import { alloc, grow } from "std/mem";
 import { line } from "../driver/options";
@@ -55,6 +57,204 @@ export enum UnaryOp {
   Deref,
   // `&x`
   AddressOf,
+}
+
+// The program: every file's top level, one after the other.
+export struct Program {
+  items: *List<i32>,
+}
+
+export struct Block {
+  items: *List<i32>,
+}
+
+// `let name: type = value;`
+export struct VarDecl {
+  name: *i8,
+  type: i32,
+  value: i32,
+}
+
+// `target = value;`. `a += b` is `a = a + b`.
+export struct Assign {
+  target: i32,
+  value: i32,
+}
+
+export struct If {
+  condition: i32,
+  then: i32,
+  // NO_NODE without an `else`.
+  otherwise: i32,
+}
+
+export struct While {
+  condition: i32,
+  body: i32,
+}
+
+// `for (name in start..end) body`.
+export struct For {
+  name: *i8,
+  start: i32,
+  end: i32,
+  body: i32,
+}
+
+export struct Break {}
+
+export struct Continue {}
+
+export struct Return {
+  // NO_NODE for `return;`.
+  value: i32,
+}
+
+export struct ExprStmt {
+  value: i32,
+}
+
+// A `fn`, or a `test`, which is a void function named by its string.
+export struct Function {
+  name: *i8,
+  // The TypeParams of a generic, or NO_NODE.
+  typeParams: i32,
+  returnType: i32,
+  params: i32,
+  body: i32,
+}
+
+export struct Extern {
+  name: *i8,
+  returnType: i32,
+  params: i32,
+}
+
+export struct StructDecl {
+  name: *i8,
+  // The TypeParams of a generic, or NO_NODE.
+  typeParams: i32,
+  // Its fields and, mixed in, its methods.
+  members: *List<i32>,
+}
+
+export struct FieldDecl {
+  name: *i8,
+  type: i32,
+}
+
+export struct Params {
+  list: *List<i32>,
+  // Whether the list ends in `...`.
+  variadic: bool,
+}
+
+export struct Param {
+  name: *i8,
+  // NO_NODE for a lambda's parameter left to its context.
+  type: i32,
+}
+
+export struct EnumDecl {
+  name: *i8,
+  members: *List<i32>,
+  // `error enum`.
+  isError: bool,
+}
+
+export struct EnumMember {
+  name: *i8,
+  // The written value, or NO_NODE.
+  value: i32,
+}
+
+export struct Import {
+  path: *i8,
+  names: *List<i32>,
+  // The module it loads, once the driver has found it; -1 before.
+  module: i32,
+}
+
+// One name an import brings in.
+export struct ImportName {
+  name: *i8,
+  // An Ident: the name it is renamed to with `as`, or NO_NODE.
+  alias: i32,
+}
+
+export struct TypeAlias {
+  name: *i8,
+  type: i32,
+}
+
+export struct Match {
+  subject: i32,
+  arms: *List<i32>,
+  // Whether it is used as a value.
+  isValue: bool,
+}
+
+export struct Arm {
+  patterns: *List<i32>,
+  body: i32,
+  isElse: bool,
+}
+
+// `name(args)`, `name<T>(args)`.
+export struct Call {
+  name: *i8,
+  args: i32,
+  // A type node holding the type arguments of a generic call, or NO_NODE.
+  typeArgs: i32,
+}
+
+// A call of a value rather than of a name: `table[i](x)`.
+export struct CallValue {
+  callee: i32,
+  args: i32,
+}
+
+// `receiver.name(args)`. The receiver may be a struct's name, `Point.new()`,
+// or a type, `List<i32>.new()`.
+export struct MethodCall {
+  receiver: i32,
+  name: *i8,
+  args: i32,
+}
+
+// `object.field`. With no object -- NO_NODE -- it is `.Red`, a member of the
+// enum the context expects.
+export struct FieldAccess {
+  object: i32,
+  field: *i8,
+}
+
+// `Name { field: value, ... }`.
+export struct StructLit {
+  name: *i8,
+  // A generic's type node, `Pair<i32, bool>`, or NO_NODE.
+  type: i32,
+  fields: *List<i32>,
+}
+
+export struct FieldInit {
+  name: *i8,
+  value: i32,
+}
+
+export struct Args {
+  items: *List<i32>,
+}
+
+// `(params): returnType => body`.
+export struct Lambda {
+  // NO_NODE when left to the context.
+  returnType: i32,
+  params: i32,
+  // A Block; for a body written as an expression, one returning it.
+  body: i32,
+  // Whether the body was written as an expression.
+  expressionBody: bool,
 }
 
 // `left op right`.
@@ -105,51 +305,206 @@ export struct Catch {
   block: i32,
 }
 
-// A kind not moved into syntax of its own yet: its parts are in the node's
-// `a`, `b`, `c`, `text` and `items`.
-export struct Unmoved {}
+// Literals keep their decoded text, and its length, so that a `'\0'` in
+// one survives.
+export struct NumberLit {
+  text: *i8,
+  length: i64,
+}
 
-export type Syntax = Binary | Unary | Cast | Index | Sizeof | Try | Is | Catch | Unmoved;
+export struct StringLit {
+  text: *i8,
+  length: i64,
+}
 
-// The children a node's syntax holds, in order, for the walks that visit
-// every node without caring what each one is: cloning a generic, marking a
-// subtree. A walk also visits `a`, `b`, `c` and `items`, which an Unmoved
-// node keeps its children in.
-export fn syntaxChildren(syntax: Syntax): *List<i32> {
-  let children: *List<i32> = List<i32>.new();
-  match (syntax) {
-    Binary => {
-      children.push(syntax.left);
-      children.push(syntax.right);
-    }
-    Unary => children.push(syntax.operand),
-    Cast => {
-      children.push(syntax.value);
-      children.push(syntax.type);
-    }
-    Index => {
-      children.push(syntax.base);
-      children.push(syntax.index);
-    }
-    Sizeof => children.push(syntax.type),
-    Try => children.push(syntax.value),
-    Is => {
-      children.push(syntax.value);
-      children.push(syntax.type);
-    }
-    Catch => {
-      children.push(syntax.value);
-      children.push(syntax.block);
-    }
-    Unmoved => {}
+export struct CharLit {
+  text: *i8,
+  length: i64,
+}
+
+export struct BoolLit {
+  value: bool,
+}
+
+export struct NullLit {}
+
+export struct Ident {
+  name: *i8,
+}
+
+// A type as written: `i64`, `*Point`, `List<i32>`.
+export struct TypeRef {
+  name: *i8,
+  // How many `*` are in front of it.
+  depth: i32,
+  // The type arguments of a generic, `List<i32>`; empty otherwise.
+  args: *List<i32>,
+}
+
+// `(i32, bool) => i32`.
+export struct FnTypeRef {
+  params: *List<i32>,
+  result: i32,
+  depth: i32,
+}
+
+// `i64 | ParseError`.
+export struct UnionTypeRef {
+  members: *List<i32>,
+}
+
+// `<T, U>` after a generic declaration's name.
+export struct TypeParams {
+  names: *List<i32>,
+}
+
+export struct TypeParam {
+  name: *i8,
+}
+
+export struct TypeArgs {
+  types: *List<i32>,
+}
+
+// Stands in for a construct that did not parse.
+export struct ErrorNode {}
+
+export type Syntax = Program | Block | VarDecl | Assign | If | While | For | Break |
+    Continue | Return | ExprStmt | Function | Extern | StructDecl | FieldDecl |
+    Params | Param | EnumDecl | EnumMember | Import | ImportName | TypeAlias |
+    Match | Arm | Call | CallValue | MethodCall | FieldAccess | StructLit |
+    FieldInit | Args | Lambda | Binary | Unary | Cast | Index | Sizeof | Try |
+    Is | Catch | NumberLit | StringLit | CharLit | BoolLit | NullLit | Ident |
+    TypeRef | FnTypeRef | UnionTypeRef | TypeParams | TypeParam | TypeArgs |
+    ErrorNode;
+
+fn listOf(first: i32, second: i32): *List<i32> {
+  let list: *List<i32> = List<i32>.new();
+  list.push(first);
+  list.push(second);
+  return list;
+}
+
+fn joined(fixed: *List<i32>, items: *List<i32>): *List<i32> {
+  for (index in 0..items.count) {
+    fixed.push(items.at(index));
   }
-  return children;
+  return fixed;
+}
+
+fn single(child: i32): *List<i32> {
+  let list: *List<i32> = List<i32>.new();
+  list.push(child);
+  return list;
+}
+
+// Every child a node's syntax holds, in order -- its fixed parts first,
+// NO_NODE where one is absent, then its list -- for the walks that visit
+// every node without caring what each one is: cloning a generic, marking a
+// subtree, dumping.
+export fn syntaxChildren(syntax: Syntax): *List<i32> {
+  return match (syntax) {
+    Program => joined(List<i32>.new(), syntax.items),
+    Block => joined(List<i32>.new(), syntax.items),
+    VarDecl => listOf(syntax.type, syntax.value),
+    Assign => listOf(syntax.target, syntax.value),
+    If => joined(listOf(syntax.condition, syntax.then), single(syntax.otherwise)),
+    While => listOf(syntax.condition, syntax.body),
+    For => joined(listOf(syntax.start, syntax.end), single(syntax.body)),
+    Return => single(syntax.value),
+    ExprStmt => single(syntax.value),
+    Function => joined(listOf(syntax.typeParams, syntax.returnType),
+                       listOf(syntax.params, syntax.body)),
+    Extern => listOf(syntax.returnType, syntax.params),
+    StructDecl => joined(single(syntax.typeParams), syntax.members),
+    FieldDecl => single(syntax.type),
+    Params => joined(List<i32>.new(), syntax.list),
+    Param => single(syntax.type),
+    EnumDecl => joined(List<i32>.new(), syntax.members),
+    EnumMember => single(syntax.value),
+    Import => joined(List<i32>.new(), syntax.names),
+    ImportName => single(syntax.alias),
+    TypeAlias => single(syntax.type),
+    Match => joined(single(syntax.subject), syntax.arms),
+    Arm => joined(single(syntax.body), syntax.patterns),
+    Call => listOf(syntax.args, syntax.typeArgs),
+    CallValue => listOf(syntax.callee, syntax.args),
+    MethodCall => listOf(syntax.receiver, syntax.args),
+    FieldAccess => single(syntax.object),
+    StructLit => joined(single(syntax.type), syntax.fields),
+    FieldInit => single(syntax.value),
+    Args => joined(List<i32>.new(), syntax.items),
+    Lambda => joined(listOf(syntax.returnType, syntax.params), single(syntax.body)),
+    Binary => listOf(syntax.left, syntax.right),
+    Unary => single(syntax.operand),
+    Cast => listOf(syntax.value, syntax.type),
+    Index => listOf(syntax.base, syntax.index),
+    Sizeof => single(syntax.type),
+    Try => single(syntax.value),
+    Is => listOf(syntax.value, syntax.type),
+    Catch => listOf(syntax.value, syntax.block),
+    TypeRef => joined(List<i32>.new(), syntax.args),
+    FnTypeRef => joined(single(syntax.result), syntax.params),
+    UnionTypeRef => joined(List<i32>.new(), syntax.members),
+    TypeParams => joined(List<i32>.new(), syntax.names),
+    TypeArgs => joined(List<i32>.new(), syntax.types),
+    else => List<i32>.new(),
+  };
+}
+
+// The children after the first `from`, as a list of their own.
+fn rest(children: *List<i32>, from: i32): *List<i32> {
+  let list: *List<i32> = List<i32>.new();
+  for (index in from as i64..children.count) {
+    list.push(children.at(index));
+  }
+  return list;
 }
 
 // `syntax` with its children replaced by `children`, given in the order
-// syntaxChildren lists them.
+// syntaxChildren lists them. Its lists are new ones.
 export fn withChildren(syntax: Syntax, children: *List<i32>): Syntax {
   return match (syntax) {
+    Program => Program { items: rest(children, 0) },
+    Block => Block { items: rest(children, 0) },
+    VarDecl => VarDecl { name: syntax.name, type: children.at(0), value: children.at(1) },
+    Assign => Assign { target: children.at(0), value: children.at(1) },
+    If => If { condition: children.at(0), then: children.at(1), otherwise: children.at(2) },
+    While => While { condition: children.at(0), body: children.at(1) },
+    For => For { name: syntax.name, start: children.at(0), end: children.at(1),
+                 body: children.at(2) },
+    Return => Return { value: children.at(0) },
+    ExprStmt => ExprStmt { value: children.at(0) },
+    Function => Function { name: syntax.name, typeParams: children.at(0),
+                           returnType: children.at(1), params: children.at(2),
+                           body: children.at(3) },
+    Extern => Extern { name: syntax.name, returnType: children.at(0),
+                       params: children.at(1) },
+    StructDecl => StructDecl { name: syntax.name, typeParams: children.at(0),
+                               members: rest(children, 1) },
+    FieldDecl => FieldDecl { name: syntax.name, type: children.at(0) },
+    Params => Params { list: rest(children, 0), variadic: syntax.variadic },
+    Param => Param { name: syntax.name, type: children.at(0) },
+    EnumDecl => EnumDecl { name: syntax.name, members: rest(children, 0),
+                           isError: syntax.isError },
+    EnumMember => EnumMember { name: syntax.name, value: children.at(0) },
+    Import => Import { path: syntax.path, names: rest(children, 0), module: syntax.module },
+    ImportName => ImportName { name: syntax.name, alias: children.at(0) },
+    TypeAlias => TypeAlias { name: syntax.name, type: children.at(0) },
+    Match => Match { subject: children.at(0), arms: rest(children, 1),
+                     isValue: syntax.isValue },
+    Arm => Arm { patterns: rest(children, 1), body: children.at(0), isElse: syntax.isElse },
+    Call => Call { name: syntax.name, args: children.at(0), typeArgs: children.at(1) },
+    CallValue => CallValue { callee: children.at(0), args: children.at(1) },
+    MethodCall => MethodCall { receiver: children.at(0), name: syntax.name,
+                               args: children.at(1) },
+    FieldAccess => FieldAccess { object: children.at(0), field: syntax.field },
+    StructLit => StructLit { name: syntax.name, type: children.at(0),
+                             fields: rest(children, 1) },
+    FieldInit => FieldInit { name: syntax.name, value: children.at(0) },
+    Args => Args { items: rest(children, 0) },
+    Lambda => Lambda { returnType: children.at(0), params: children.at(1),
+                       body: children.at(2), expressionBody: syntax.expressionBody },
     Binary => Binary { op: syntax.op, left: children.at(0), right: children.at(1) },
     Unary => Unary { op: syntax.op, operand: children.at(0) },
     Cast => Cast { value: children.at(0), type: children.at(1) },
@@ -158,7 +513,188 @@ export fn withChildren(syntax: Syntax, children: *List<i32>): Syntax {
     Try => Try { value: children.at(0) },
     Is => Is { value: children.at(0), type: children.at(1) },
     Catch => Catch { value: children.at(0), name: syntax.name, block: children.at(1) },
-    Unmoved => syntax,
+    TypeRef => TypeRef { name: syntax.name, depth: syntax.depth, args: rest(children, 0) },
+    FnTypeRef => FnTypeRef { params: rest(children, 1), result: children.at(0),
+                             depth: syntax.depth },
+    UnionTypeRef => UnionTypeRef { members: rest(children, 0) },
+    TypeParams => TypeParams { names: rest(children, 0) },
+    TypeArgs => TypeArgs { types: rest(children, 0) },
+    else => syntax,
+  };
+}
+
+// The name a node has, for the kinds that have one -- a declaration's, a
+// reference's, a literal's text -- or null.
+export fn nodeName(ast: *Ast, node: i32): *i8 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    VarDecl => syntax.name,
+    For => syntax.name,
+    Function => syntax.name,
+    Extern => syntax.name,
+    StructDecl => syntax.name,
+    FieldDecl => syntax.name,
+    Param => syntax.name,
+    EnumDecl => syntax.name,
+    EnumMember => syntax.name,
+    Import => syntax.path,
+    ImportName => syntax.name,
+    TypeAlias => syntax.name,
+    Call => syntax.name,
+    MethodCall => syntax.name,
+    FieldAccess => syntax.field,
+    StructLit => syntax.name,
+    FieldInit => syntax.name,
+    Catch => syntax.name,
+    NumberLit => syntax.text,
+    StringLit => syntax.text,
+    CharLit => syntax.text,
+    Ident => syntax.name,
+    TypeRef => syntax.name,
+    TypeParam => syntax.name,
+    else => null,
+  };
+}
+
+// Renames a node that has a name: linking gives declarations and references
+// the names the IR knows them by.
+export fn setNodeName(ast: *Ast, node: i32, name: *i8): void {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  ast.nodes[node].syntax = match (syntax) {
+    VarDecl => VarDecl { name: name, type: syntax.type, value: syntax.value },
+    Function => Function { name: name, typeParams: syntax.typeParams,
+                           returnType: syntax.returnType, params: syntax.params,
+                           body: syntax.body },
+    Extern => Extern { name: name, returnType: syntax.returnType, params: syntax.params },
+    StructDecl => StructDecl { name: name, typeParams: syntax.typeParams,
+                               members: syntax.members },
+    EnumDecl => EnumDecl { name: name, members: syntax.members, isError: syntax.isError },
+    TypeAlias => TypeAlias { name: name, type: syntax.type },
+    Call => Call { name: name, args: syntax.args, typeArgs: syntax.typeArgs },
+    MethodCall => MethodCall { receiver: syntax.receiver, name: name, args: syntax.args },
+    StructLit => StructLit { name: name, type: syntax.type, fields: syntax.fields },
+    Ident => Ident { name: name },
+    TypeRef => TypeRef { name: name, depth: syntax.depth, args: syntax.args },
+    else => {
+      assert(false, "a node with no name to set");
+      return;
+    }
+  };
+}
+
+// The list a node keeps its items in -- a block's statements, a call's
+// arguments, a struct's members -- or an empty one, for a kind with none.
+export fn nodeItems(ast: *Ast, node: i32): *List<i32> {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    Program => syntax.items,
+    Block => syntax.items,
+    StructDecl => syntax.members,
+    Params => syntax.list,
+    EnumDecl => syntax.members,
+    Import => syntax.names,
+    Match => syntax.arms,
+    Arm => syntax.patterns,
+    StructLit => syntax.fields,
+    Args => syntax.items,
+    TypeRef => syntax.args,
+    FnTypeRef => syntax.params,
+    UnionTypeRef => syntax.members,
+    TypeParams => syntax.names,
+    TypeArgs => syntax.types,
+    else => List<i32>.new(),
+  };
+}
+
+// How many items a node keeps, and the one at `index`, for the walks that
+// count with an i32.
+export fn itemCount(ast: *Ast, node: i32): i32 {
+  return nodeItems(ast, node).count as i32;
+}
+
+export fn itemAt(ast: *Ast, node: i32, index: i32): i32 {
+  return nodeItems(ast, node).at(index as i64);
+}
+
+// The length of a node's name or text -- a literal's, which a `'\0'` in it
+// does not end -- or 0 for one with none.
+export fn nodeTextLength(ast: *Ast, node: i32): i64 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  let text: *i8 = nodeName(ast, node);
+  return match (syntax) {
+    NumberLit => syntax.length,
+    StringLit => syntax.length,
+    CharLit => syntax.length,
+    else => {
+      if (text == null) {
+        return 0;
+      }
+      return strlen(text);
+    }
+  };
+}
+
+// The module an import loads -- once the driver has found it -- or -1, for
+// an import not yet found or a node that is no import.
+export fn importModule(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Import) {
+    return syntax.module;
+  }
+  return -1;
+}
+
+// Records the module an import loads.
+export fn setImportModule(ast: *Ast, node: i32, module: i32): void {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Import) {
+    ast.nodes[node].syntax = Import { path: syntax.path, names: syntax.names, module: module };
+  }
+}
+
+// The type written for a declaration -- a variable, a parameter, a field, an
+// alias -- or NO_NODE.
+export fn typeNodeOf(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    VarDecl => syntax.type,
+    Param => syntax.type,
+    FieldDecl => syntax.type,
+    TypeAlias => syntax.type,
+    else => NO_NODE,
+  };
+}
+
+// The return type a function, an extern or a lambda was declared with, or
+// NO_NODE.
+export fn returnTypeOf(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    Function => syntax.returnType,
+    Extern => syntax.returnType,
+    Lambda => syntax.returnType,
+    else => NO_NODE,
+  };
+}
+
+// The Params of a function, an extern or a lambda, or NO_NODE.
+export fn paramsOf(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    Function => syntax.params,
+    Extern => syntax.params,
+    Lambda => syntax.params,
+    else => NO_NODE,
+  };
+}
+
+// A type node's pointer depth -- a TypeRef's or a FnTypeRef's -- or 0.
+export fn typeDepth(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    TypeRef => syntax.depth,
+    FnTypeRef => syntax.depth,
+    else => 0,
   };
 }
 
@@ -179,6 +715,108 @@ export fn unaryOf(ast: *Ast, node: i32): Unary {
   }
   assert(false, "not a unary operator");
   return Unary { op: UnaryOp.Plus, operand: NO_NODE };
+}
+
+export fn functionOf(ast: *Ast, node: i32): Function {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Function) {
+    return syntax;
+  }
+  assert(false, "not a function");
+  return Function { name: null, typeParams: NO_NODE, returnType: NO_NODE, params: NO_NODE,
+                    body: NO_NODE };
+}
+
+export fn paramOf(ast: *Ast, node: i32): Param {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Param) {
+    return syntax;
+  }
+  assert(false, "not a parameter");
+  return Param { name: null, type: NO_NODE };
+}
+
+export fn armOf(ast: *Ast, node: i32): Arm {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Arm) {
+    return syntax;
+  }
+  assert(false, "not an arm");
+  return Arm { patterns: List<i32>.new(), body: NO_NODE, isElse: false };
+}
+
+export fn callOf(ast: *Ast, node: i32): Call {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Call) {
+    return syntax;
+  }
+  assert(false, "not a call");
+  return Call { name: null, args: NO_NODE, typeArgs: NO_NODE };
+}
+
+export fn varDeclOf(ast: *Ast, node: i32): VarDecl {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is VarDecl) {
+    return syntax;
+  }
+  assert(false, "not a declaration");
+  return VarDecl { name: null, type: NO_NODE, value: NO_NODE };
+}
+
+export fn matchOf(ast: *Ast, node: i32): Match {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Match) {
+    return syntax;
+  }
+  assert(false, "not a match");
+  return Match { subject: NO_NODE, arms: List<i32>.new(), isValue: false };
+}
+
+export fn methodCallOf(ast: *Ast, node: i32): MethodCall {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is MethodCall) {
+    return syntax;
+  }
+  assert(false, "not a method call");
+  return MethodCall { receiver: NO_NODE, name: null, args: NO_NODE };
+}
+
+export fn fieldInitOf(ast: *Ast, node: i32): FieldInit {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is FieldInit) {
+    return syntax;
+  }
+  assert(false, "not a field initialiser");
+  return FieldInit { name: null, value: NO_NODE };
+}
+
+export fn lambdaOf(ast: *Ast, node: i32): Lambda {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Lambda) {
+    return syntax;
+  }
+  assert(false, "not a lambda");
+  return Lambda { returnType: NO_NODE, params: NO_NODE, body: NO_NODE,
+                  expressionBody: false };
+}
+
+export fn fieldAccessOf(ast: *Ast, node: i32): FieldAccess {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is FieldAccess) {
+    return syntax;
+  }
+  assert(false, "not a field access");
+  return FieldAccess { object: NO_NODE, field: null };
+}
+
+// The body of a function or a lambda.
+export fn bodyOf(ast: *Ast, node: i32): i32 {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  return match (syntax) {
+    Function => syntax.body,
+    Lambda => syntax.body,
+    else => NO_NODE,
+  };
 }
 
 export fn castOf(ast: *Ast, node: i32): Cast {
@@ -300,13 +938,9 @@ export enum NodeKind {
   Arm,
   // A function type, `(i32) => bool`.
   FnType,
-  // `type Shape = Circle | Rect;`: `text` the name, `a` the type it stands
-  // for.
+  // `type Shape = Circle | Rect;`
   TypeAlias,
-  // A function written where it is used, `(x) => x * 2`. Laid out like a Fn:
-  // `a` its return type or NO_NODE, `b` its Params -- each Param's type
-  // NO_NODE when left to the context -- and `c` its body, a Block. A body
-  // written as an expression becomes a block returning it, with `extra` 1.
+  // A function written where it is used, `(x) => x * 2`.
   Lambda,
   // A call of a value rather than of a name: `table[i](x)`.
   CallValue,
@@ -314,8 +948,7 @@ export enum NodeKind {
   // `<T, U>` after a generic declaration's name, and one of its names.
   TypeParams,
   TypeParam,
-  // The `<i64>` of a generic call, `max<i64>(a, b)`.
-  // `test "name" { ... }`, laid out like a fn.
+  // `test "name" { ... }`.
   Test,
   // `i64 | ParseError`: a value, or one of the errors, as a type.
   UnionType,
@@ -325,6 +958,7 @@ export enum NodeKind {
   Catch,
   // `value is ParseError`: whether a union holds that error.
   Is,
+  // The `<i64>` of a generic call, `max<i64>(a, b)`.
   TypeArgs,
 }
 
@@ -332,64 +966,11 @@ struct Node {
   kind: NodeKind,
   line: i32,
   column: i32,
-  // A name, an operator's spelling, or a literal's decoded text.
-  text: *i8,
-  textLength: i64,
-  // Fixed children, NO_NODE when absent:
-  //   vardecl  a=type   b=expr
-  //   assign   a=target b=expr
-  //   if       a=cond   b=then   c=else
-  //   while    a=cond   b=body
-  //   fn       a=type   b=params c=body
-  //   test     a=type   b=params c=body, all a void fn's, and its name
-  //   uniontype items=the value's type, then each error's
-  //   try      a=value
-  //   catch    a=value  b=block, and the error's name
-  //   is       a=value  b=type
-  //   extern   a=type   b=params
-  //   field    a=type
-  //   param    a=type
-  //   finit    a=value
-  //   call     a=args
-  //   return   a=expr
-  //   exprstmt a=expr
-  //   binary   a=left   b=right
-  //   unary    a=operand
-  //   cast     a=expr   b=type
-  //   field access a=object
-  //   index    a=base   b=index
-  //   sizeof   a=type
-  //   importname a=alias, an ident, when the name is renamed with `as`
-  //   methodcall a=receiver, or the struct's name b=args
-  //   enummember a=value, when one is written
-  //   match    a=subject, items=arms
-  //   arm      a=body,    items=patterns, none for the `else` arm
-  //   fntype   a=return type, items=parameter types
-  //   callvalue a=callee b=args
-  //   for      a=start  b=end    c=body, and the loop variable's name
-  //
-  // Generics: a generic struct or fn keeps its TypeParams node's index in
-  // `extra`. A type node naming a generic carries its type arguments as
-  // items -- `List<i32>` -- and so does the one a generic struct literal
-  // keeps in `a`. A generic call keeps its arguments in a typeargs node, `b`.
-  a: i32,
-  b: i32,
-  c: i32,
-  // Pointer depth, for a type node. For an import, the module it loads, once
-  // the driver has found it. For a match arm, 1 when it is the `else` arm.
-  // For a parameter list, 1 when it ends in `...`. For an enum, 1 when it is
-  // an `error enum`.
-  extra: i32,
-  // Child indices, for program, block, struct, structlit, params, args and
-  // import. A struct's items are its fields and then, mixed in, its methods.
-  items: *i32,
-  itemCount: i32,
-  itemCapacity: i32,
   // The source file this node was parsed from, as an index into MODULES.
   module: i32,
   // Set on a top-level declaration written with `export`.
   exported: bool,
-  // What the node holds, for the kinds moved into a struct of their own.
+  // What the node holds; see Syntax.
   syntax: Syntax,
 }
 
@@ -411,7 +992,8 @@ export struct Ast {
     return ast;
   }
 
-  fn add(self: *Ast, kind: NodeKind, line: i32, column: i32): i32 {
+  // A new node of `kind`, holding `syntax`.
+  fn add(self: *Ast, kind: NodeKind, line: i32, column: i32, syntax: Syntax): i32 {
     if (self.count == self.capacity) {
       self.capacity = self.capacity * 2;
       self.nodes = grow<Node>(self.nodes, self.capacity as i64);
@@ -421,45 +1003,17 @@ export struct Ast {
     self.nodes[index].kind = kind;
     self.nodes[index].line = line;
     self.nodes[index].column = column;
-    self.nodes[index].text = null;
-    self.nodes[index].textLength = 0;
-    self.nodes[index].a = NO_NODE;
-    self.nodes[index].b = NO_NODE;
-    self.nodes[index].c = NO_NODE;
-    self.nodes[index].extra = 0;
-    self.nodes[index].items = null;
-    self.nodes[index].itemCount = 0;
-    self.nodes[index].itemCapacity = 0;
     self.nodes[index].module = self.currentModule;
     self.nodes[index].exported = false;
-    self.nodes[index].syntax = Unmoved {};
+    self.nodes[index].syntax = syntax;
     self.count = self.count + 1;
 
     return index;
   }
 
-  // Copies a token's text onto a node, length included so a `'\0'` survives.
-  fn setText(self: *Ast, index: i32, token: *Token): void {
-    self.nodes[index].text = token.text;
-    self.nodes[index].textLength = token.length;
-  }
-
+  // Adds `child` to the end of the list `parent` keeps its items in.
   fn addItem(self: *Ast, parent: i32, child: i32): void {
-    if (self.nodes[parent].itemCount == self.nodes[parent].itemCapacity) {
-      if (self.nodes[parent].itemCapacity == 0) {
-        self.nodes[parent].itemCapacity = 4;
-        self.nodes[parent].items =
-            alloc<i32>(4);
-      } else {
-        self.nodes[parent].itemCapacity = self.nodes[parent].itemCapacity * 2;
-        self.nodes[parent].items =
-            grow<i32>(self.nodes[parent].items, self.nodes[parent].itemCapacity as i64);
-      }
-    }
-
-    let count: i32 = self.nodes[parent].itemCount;
-    self.nodes[parent].items[count] = child;
-    self.nodes[parent].itemCount = count + 1;
+    nodeItems(self, parent).push(child);
   }
 }
 
@@ -519,15 +1073,5 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     .TypeParams => "typeparams",
     .TypeParam => "typeparam",
     .TypeArgs => "typeargs",
-  };
-}
-
-// True for the kinds whose text is worth printing in a dump.
-export fn nodeCarriesText(kind: NodeKind): bool {
-  return match (kind) {
-    .VarDecl, .Fn, .Extern, .Struct, .Field, .Call, .FieldAccess, .StructLit,
-    .FieldInit, .Param, .Number, .String, .Char, .Import, .ImportName,
-    .MethodCall, .Enum, .EnumMember, .For, .TypeParam, .Bool, .Ident, .Type => true,
-    else => false,
   };
 }

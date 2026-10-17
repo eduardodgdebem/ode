@@ -7,6 +7,7 @@
 // one run reports every error rather than the first.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { equals } from "std/text";
 import {
   Analyzer, analyzerFail, analyzerFailAtValue, quoted, analyzerParseType,
@@ -15,8 +16,8 @@ import {
 import { foldInteger, laterGlobalIn } from "./constants";
 import { analyzeMatch } from "./enums";
 import {
-  valueOf, alwaysLeaves, alwaysReturns, narrowedLocal, declaredTypeOf, narrow,
-  narrowedTypes, pathOf, forget,
+  valueOf, alwaysLeaves, alwaysReturns, declaredTypeOf, narrow, pathOf, forget,
+  Narrowing, narrowingsOf, applyNarrowings,
 } from "./errors";
 import {
   checkExpr, checkExprAs, checkAssignTarget, isConstantExpr, isNumberLiteral,
@@ -27,7 +28,11 @@ import { TEST_MODE, runsTestsOf } from "./testing";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { isTemplate, isInstance } from "../link/generics";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Assign, Block, Break, Continue, EnumDecl, ExprStmt, Extern, For,
+  Function, If, Import, Match, Return, StructDecl, Syntax, TypeAlias, VarDecl, While,
+  functionOf, itemAt, itemCount, nodeName, paramOf, typeDepth,
+} from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
@@ -64,71 +69,57 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let kind: NodeKind = an.ast.nodes[node].kind;
-
-  match (kind) {
-    .Block => { analyzeBlock(an, node); return; }
-    .VarDecl => { analyzeVarDecl(an, node); return; }
-    .Assign => { analyzeAssign(an, node); return; }
-    .If => { analyzeIf(an, node); return; }
-    .While => { analyzeWhile(an, node); return; }
-    .For => { analyzeFor(an, node); return; }
-    .Fn => { analyzeFuncDecl(an, node); return; }
-    .Extern => { analyzeExternDecl(an, node); return; }
-    .Test => { analyzeTest(an, node); return; }
-    .Return => { analyzeReturn(an, node); return; }
-    .ExprStmt => { analyzeExpressionStatement(an, node); return; }
-    else => {}
-  }
-
-  if (kind == NodeKind.Break) {
-    if (an.loopDepth == 0) {
-      analyzerFail(an, node, Problem.BreakOutsideLoop, Facts.none());
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  match (syntax) {
+    Block => analyzeBlock(an, node),
+    VarDecl => analyzeVarDecl(an, node, syntax),
+    Assign => analyzeAssign(an, node, syntax),
+    If => analyzeIf(an, node, syntax),
+    While => analyzeWhile(an, node, syntax),
+    For => analyzeFor(an, node, syntax),
+    Function => {
+      if (an.ast.nodes[node].kind == NodeKind.Test) {
+        analyzeTest(an, node);
+      } else {
+        analyzeFuncDecl(an, node, syntax);
+      }
     }
-    return;
-  }
-
-  if (kind == NodeKind.Continue) {
-    if (an.loopDepth == 0) {
-      analyzerFail(an, node, Problem.ContinueOutsideLoop, Facts.none());
+    Extern => analyzeExternDecl(an, node, syntax),
+    Return => analyzeReturn(an, node, syntax),
+    ExprStmt => analyzeExpressionStatement(an, node, syntax),
+    Break => {
+      if (an.loopDepth == 0) {
+        analyzerFail(an, node, Problem.BreakOutsideLoop, Facts.none());
+      }
     }
-    return;
-  }
-
-  // A struct's fields were handled by the two registration passes; what is
-  // left is the bodies of its methods.
-  if (kind == NodeKind.Struct) {
-    analyzeMethodBodies(an, node);
-    if (!isInstance(an, node)) {
-      requireReturns(an, node);
+    Continue => {
+      if (an.loopDepth == 0) {
+        analyzerFail(an, node, Problem.ContinueOutsideLoop, Facts.none());
+      }
     }
-    return;
+    // A struct's fields were handled by the two registration passes; what is
+    // left is the bodies of its methods.
+    StructDecl => {
+      analyzeMethodBodies(an, node);
+      if (!isInstance(an, node)) {
+        requireReturns(an, node);
+      }
+    }
+    // An enum was registered before anything else was checked, an alias with
+    // it, and an import by linkModules and the module's scope.
+    EnumDecl, TypeAlias, Import => {}
+    Match => analyzeMatch(an, node),
+    else => {
+      analyzerFail(an, node, Problem.Internal,
+                   Facts.about("unknown statement node type"));
+    }
   }
-
-  // An enum was registered before anything else was checked, and an alias
-  // with it.
-  if (kind == NodeKind.Enum || kind == NodeKind.TypeAlias) {
-    return;
-  }
-
-  if (kind == NodeKind.Match) {
-    analyzeMatch(an, node);
-    return;
-  }
-
-  // An import was handled by linkModules and the module's scope.
-  if (kind == NodeKind.Import) {
-    return;
-  }
-
-  analyzerFail(an, node, Problem.Internal,
-               Facts.about("unknown statement node type"));
 }
 
 // A call made for what it does. One that may fail cannot have its error
 // dropped on the floor: it is passed on, replaced, or handled.
-fn analyzeExpressionStatement(an: *Analyzer, node: i32): void {
-  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+fn analyzeExpressionStatement(an: *Analyzer, node: i32, statement: ExprStmt): void {
+  let type: Type = checkExpr(an, statement.value);
   if (!FAILED && type.isUnion()) {
     analyzerFail(an, node, Problem.UnhandledError, Facts.aboutType(type));
   }
@@ -137,16 +128,16 @@ fn analyzeExpressionStatement(an: *Analyzer, node: i32): void {
 fn analyzeBlock(an: *Analyzer, node: i32): void {
   an.symbols.enterScope();
 
-  for (index in 0..an.ast.nodes[node].itemCount) {
-    analyzeRecovering(an, an.ast.nodes[node].items[index]);
+  for (index in 0..itemCount(an.ast, node)) {
+    analyzeRecovering(an, itemAt(an.ast, node, index));
   }
 
   an.symbols.exitScope();
 }
 
-fn analyzeVarDecl(an: *Analyzer, node: i32): void {
-  let name: *i8 = an.ast.nodes[node].text;
-  let declaredType: Type = analyzerParseType(an, an.ast.nodes[node].a);
+fn analyzeVarDecl(an: *Analyzer, node: i32, declaration: VarDecl): void {
+  let name: *i8 = declaration.name;
+  let declaredType: Type = analyzerParseType(an, declaration.type);
 
   analyzerValidateType(an, node, declaredType,
                        quoted("in declaration of ", name, ""));
@@ -156,17 +147,17 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
 
   // The initialiser is checked before the name is bound, so `let x = x + 1;`
   // cannot see the slot it is initialising.
-  let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, declaredType);
+  let exprType: Type = checkExprAs(an, declaration.value, declaredType);
 
   if (!FAILED && !declaredType.accepts(exprType)) {
-    analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.DeclarationMismatch,
+    analyzerFailAtValue(an, declaration.value, Problem.DeclarationMismatch,
                         Facts.about(name).withTypes(declaredType, exprType));
   }
 
   // Globals were declared during hoisting; all that is left is to confirm the
   // initialiser can be emitted as an LLVM constant.
   if (an.isGlobal[node] != 0) {
-    let init: i32 = an.ast.nodes[node].b;
+    let init: i32 = declaration.value;
     let constant: bool = false;
     if (declaredType.isInteger()) {
       constant = foldInteger(an, init);
@@ -177,7 +168,7 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
     let later: i32 = laterGlobalIn(an, init);
     if (!FAILED && !constant && later != NO_NODE) {
       analyzerFail(an, node, Problem.GlobalDeclaredLater,
-                   Facts.aboutTwo(name, an.ast.nodes[later].text));
+                   Facts.aboutTwo(name, nodeName(an.ast, later)));
     }
     if (!FAILED && !constant) {
       analyzerFail(an, node, Problem.GlobalNotConstant, Facts.about(name));
@@ -190,13 +181,13 @@ fn analyzeVarDecl(an: *Analyzer, node: i32): void {
                      an.ast.nodes[node].line, an.ast.nodes[node].column);
 }
 
-fn analyzeAssign(an: *Analyzer, node: i32): void {
-  let targetType: Type = checkAssignTarget(an, node, an.ast.nodes[node].a);
+fn analyzeAssign(an: *Analyzer, node: i32, assignment: Assign): void {
+  let targetType: Type = checkAssignTarget(an, node, assignment.target);
   // A variable narrowed by `is` is still stored as declared, and assigned
   // as declared.
-  let target: i32 = an.ast.nodes[node].a;
+  let target: i32 = assignment.target;
   if (an.ast.nodes[target].kind == NodeKind.Ident) {
-    let declared: Type = declaredTypeOf(an, an.ast.nodes[target].text);
+    let declared: Type = declaredTypeOf(an, nodeName(an.ast, target));
     if (declared.isUnion()) {
       targetType = declared;
       an.types[target] = declared;
@@ -209,10 +200,10 @@ fn analyzeAssign(an: *Analyzer, node: i32): void {
     an.types[target] = targetType;
     an.narrowedFrom[target] = Type.make(TypeKind.None, 0);
   }
-  let exprType: Type = checkExprAs(an, an.ast.nodes[node].b, targetType);
+  let exprType: Type = checkExprAs(an, assignment.value, targetType);
 
   if (!targetType.accepts(exprType)) {
-    analyzerFailAtValue(an, an.ast.nodes[node].b, Problem.AssignmentMismatch,
+    analyzerFailAtValue(an, assignment.value, Problem.AssignmentMismatch,
                         Facts.aboutTypes(targetType, exprType));
   }
 
@@ -223,8 +214,8 @@ fn analyzeAssign(an: *Analyzer, node: i32): void {
   }
 }
 
-fn analyzeIf(an: *Analyzer, node: i32): void {
-  let condType: Type = checkExpr(an, an.ast.nodes[node].a);
+fn analyzeIf(an: *Analyzer, node: i32, branch: If): void {
+  let condType: Type = checkExpr(an, branch.condition);
   if (!condType.isBool()) {
     analyzerFail(an, node, Problem.ConditionNotBool,
                  Facts.about("if").withType(condType));
@@ -232,47 +223,38 @@ fn analyzeIf(an: *Analyzer, node: i32): void {
 
   // `if (result is SomeError)` narrows `result`: to the error in the first
   // branch, and to what is left in the second -- or after the `if`, when the
-  // first branch always leaves.
-  let narrowed: i32 = NO_NODE;
+  // first branch always leaves. See narrowingsOf.
+  let held: *List<Narrowing> = List<Narrowing>.new();
+  let notHeld: *List<Narrowing> = List<Narrowing>.new();
   if (!FAILED) {
-    narrowed = narrowedLocal(an, an.ast.nodes[node].a);
+    narrowingsOf(an, branch.condition, true, held);
+    narrowingsOf(an, branch.condition, false, notHeld);
   }
-  if (narrowed == NO_NODE) {
-    analyzeStatement(an, an.ast.nodes[node].b);
-    if (an.ast.nodes[node].c != NO_NODE) {
-      analyzeStatement(an, an.ast.nodes[node].c);
-    }
-    return;
-  }
-
-  let held: Type = Type.make(TypeKind.None, 0);
-  let notHeld: Type = Type.make(TypeKind.None, 0);
-  narrowedTypes(an, an.ast.nodes[node].a, &held, &notHeld);
 
   an.symbols.enterScope();
-  narrow(an, narrowed, held);
-  analyzeStatement(an, an.ast.nodes[node].b);
+  applyNarrowings(an, held);
+  analyzeStatement(an, branch.then);
   an.symbols.exitScope();
 
-  if (an.ast.nodes[node].c != NO_NODE) {
+  if (branch.otherwise != NO_NODE) {
     an.symbols.enterScope();
-    narrow(an, narrowed, notHeld);
-    analyzeStatement(an, an.ast.nodes[node].c);
+    applyNarrowings(an, notHeld);
+    analyzeStatement(an, branch.otherwise);
     an.symbols.exitScope();
-  } else if (alwaysLeaves(an, an.ast.nodes[node].b)) {
-    narrow(an, narrowed, notHeld);
+  } else if (alwaysLeaves(an, branch.then)) {
+    applyNarrowings(an, notHeld);
   }
 }
 
-fn analyzeWhile(an: *Analyzer, node: i32): void {
-  let condType: Type = checkExpr(an, an.ast.nodes[node].a);
+fn analyzeWhile(an: *Analyzer, node: i32, loop: While): void {
+  let condType: Type = checkExpr(an, loop.condition);
   if (!condType.isBool()) {
     analyzerFail(an, node, Problem.ConditionNotBool,
                  Facts.about("while").withType(condType));
   }
 
   an.loopDepth = an.loopDepth + 1;
-  analyzeStatement(an, an.ast.nodes[node].b);
+  analyzeStatement(an, loop.body);
   an.loopDepth = an.loopDepth - 1;
 }
 
@@ -280,9 +262,9 @@ fn analyzeWhile(an: *Analyzer, node: i32): void {
 // bound that is not a bare literal decides -- so `0..count` counts in
 // count's type -- and the loop variable has that type, in a scope of its
 // own around the body.
-fn analyzeFor(an: *Analyzer, node: i32): void {
-  let start: i32 = an.ast.nodes[node].a;
-  let end: i32 = an.ast.nodes[node].b;
+fn analyzeFor(an: *Analyzer, node: i32, loop: For): void {
+  let start: i32 = loop.start;
+  let end: i32 = loop.end;
   let type: Type = Type.make(TypeKind.I32, 0);
   let decided: i32 = NO_NODE;
 
@@ -329,22 +311,22 @@ fn analyzeFor(an: *Analyzer, node: i32): void {
   }
 
   an.symbols.enterScope();
-  an.symbols.declare(an.ast.nodes[node].text, SymbolKind.Var, type, null, 0,
+  an.symbols.declare(loop.name, SymbolKind.Var, type, null, 0,
                      an.ast.nodes[node].line, an.ast.nodes[node].column);
 
   an.loopDepth = an.loopDepth + 1;
-  analyzeStatement(an, an.ast.nodes[node].c);
+  analyzeStatement(an, loop.body);
   an.loopDepth = an.loopDepth - 1;
 
   an.symbols.exitScope();
 }
 
-fn analyzeReturn(an: *Analyzer, node: i32): void {
+fn analyzeReturn(an: *Analyzer, node: i32, statement: Return): void {
   if (!an.inFunction) {
     analyzerFail(an, node, Problem.ReturnOutsideFunction, Facts.none());
   }
 
-  if (an.ast.nodes[node].a == NO_NODE) {
+  if (statement.value == NO_NODE) {
     // `void | IoError` succeeds with a bare return.
     let returnsNothing: bool = an.currentReturnType.isVoid() ||
         (an.currentReturnType.isUnion() &&
@@ -357,15 +339,14 @@ fn analyzeReturn(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let returned: Type = checkExprAs(an, an.ast.nodes[node].a,
-                                   an.currentReturnType);
+  let returned: Type = checkExprAs(an, statement.value, an.currentReturnType);
 
   if (an.currentReturnType.isVoid()) {
     analyzerFail(an, node, Problem.ReturnFromVoid, Facts.aboutType(returned));
   }
 
   if (!an.currentReturnType.accepts(returned)) {
-    analyzerFailAtValue(an, an.ast.nodes[node].a, Problem.WrongReturnType,
+    analyzerFailAtValue(an, statement.value, Problem.WrongReturnType,
                         Facts.aboutTypes(an.currentReturnType, returned));
   }
 }
@@ -377,16 +358,15 @@ fn analyzeTest(an: *Analyzer, node: i32): void {
   }
 }
 
-fn analyzeFuncDecl(an: *Analyzer, node: i32): void {
-  let name: *i8 = an.ast.nodes[node].text;
+fn analyzeFuncDecl(an: *Analyzer, node: i32, function: Function): void {
+  let name: *i8 = function.name;
 
   // Top-level functions were already recorded by the hoisting pass.
   if (an.symbols.find(name) < 0) {
     let paramCount: i32 = 0;
-    let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b,
-                                           &paramCount);
+    let params: *Type = analyzerParamTypes(an, function.params, &paramCount);
     an.symbols.declare(name, SymbolKind.Fn,
-                       analyzerParseType(an, an.ast.nodes[node].a), params,
+                       analyzerParseType(an, function.returnType), params,
                   paramCount, an.ast.nodes[node].line,
                   an.ast.nodes[node].column);
   }
@@ -406,8 +386,8 @@ fn analyzeFuncDecl(an: *Analyzer, node: i32): void {
 // asked as written, so a generic is asked once, not once per instance.
 fn requireReturns(an: *Analyzer, node: i32): void {
   if (an.ast.nodes[node].kind == NodeKind.Struct) {
-    for (index in 0..an.ast.nodes[node].itemCount) {
-      let method: i32 = an.ast.nodes[node].items[index];
+    for (index in 0..itemCount(an.ast, node)) {
+      let method: i32 = itemAt(an.ast, node, index);
       if (an.ast.nodes[method].kind == NodeKind.Fn) {
         requireReturns(an, method);
         FAILED = false;
@@ -416,20 +396,20 @@ fn requireReturns(an: *Analyzer, node: i32): void {
     return;
   }
 
-  if (returnsNothing(an, an.ast.nodes[node].a) ||
-      alwaysReturns(an, an.ast.nodes[node].c)) {
+  let function: Function = functionOf(an.ast, node);
+  if (returnsNothing(an, function.returnType) || alwaysReturns(an, function.body)) {
     return;
   }
-  analyzerFail(an, node, Problem.MissingReturn, Facts.about(an.ast.nodes[node].text));
+  analyzerFail(an, node, Problem.MissingReturn, Facts.about(nodeName(an.ast, node)));
 }
 
 // Whether a return type, as written, is `void` or `void | SomeError`.
 fn returnsNothing(an: *Analyzer, type: i32): bool {
   if (an.ast.nodes[type].kind == NodeKind.UnionType) {
-    return returnsNothing(an, an.ast.nodes[type].items[0]);
+    return returnsNothing(an, itemAt(an.ast, type, 0));
   }
-  return an.ast.nodes[type].kind == NodeKind.Type && an.ast.nodes[type].extra == 0 &&
-         equals(an.ast.nodes[type].text, "void");
+  return an.ast.nodes[type].kind == NodeKind.Type && typeDepth(an.ast, type) == 0 &&
+         equals(nodeName(an.ast, type), "void");
 }
 
 // Checks a function's body in a scope holding its parameters. The function
@@ -439,13 +419,14 @@ export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
   an.localsFrom = an.symbols.count;
   an.symbols.enterScope();
 
-  let paramList: i32 = an.ast.nodes[node].b;
+  let function: Function = functionOf(an.ast, node);
+  let paramList: i32 = function.params;
   if (paramList != NO_NODE) {
     let index: i32 = 0;
-    while (index < an.ast.nodes[paramList].itemCount) {
-      let param: i32 = an.ast.nodes[paramList].items[index];
-      let paramType: Type = analyzerParseType(an, an.ast.nodes[param].a);
-      an.symbols.declare(an.ast.nodes[param].text, SymbolKind.Var, paramType,
+    while (index < itemCount(an.ast, paramList)) {
+      let param: i32 = itemAt(an.ast, paramList, index);
+      let paramType: Type = analyzerParseType(an, paramOf(an.ast, param).type);
+      an.symbols.declare(nodeName(an.ast, param), SymbolKind.Var, paramType,
                          null, 0, an.ast.nodes[param].line,
                     an.ast.nodes[param].column);
       index = index + 1;
@@ -459,10 +440,10 @@ export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
   let previousLoopDepth: i32 = an.loopDepth;
 
   an.inFunction = true;
-  an.currentReturnType = analyzerParseType(an, an.ast.nodes[node].a);
+  an.currentReturnType = analyzerParseType(an, function.returnType);
   an.loopDepth = 0;
 
-  analyzeStatement(an, an.ast.nodes[node].c);
+  analyzeStatement(an, function.body);
 
   an.inFunction = wasInFunction;
   an.currentReturnType = previousReturnType;
@@ -472,14 +453,14 @@ export fn analyzeFunctionBody(an: *Analyzer, node: i32): void {
   an.localsFrom = localsFrom;
 }
 
-fn analyzeExternDecl(an: *Analyzer, node: i32): void {
-  let name: *i8 = an.ast.nodes[node].text;
+fn analyzeExternDecl(an: *Analyzer, node: i32, declaration: Extern): void {
+  let name: *i8 = declaration.name;
   let paramCount: i32 = 0;
-  let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
+  let params: *Type = analyzerParamTypes(an, declaration.params, &paramCount);
 
   if (an.symbols.find(name) < 0) {
     an.symbols.declare(name, SymbolKind.Fn,
-                       analyzerParseType(an, an.ast.nodes[node].a), params,
+                       analyzerParseType(an, declaration.returnType), params,
                   paramCount, an.ast.nodes[node].line,
                   an.ast.nodes[node].column);
   }

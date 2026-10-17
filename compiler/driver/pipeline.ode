@@ -18,7 +18,9 @@ import {
 } from "../link/modules";
 import { withSuffix, realpath } from "../os/files";
 import { TextList, StderrMode, runCommand, ran } from "../os/process";
-import { NodeKind, Ast } from "../syntax/ast";
+import {
+  NodeKind, Ast, importModule, itemAt, itemCount, nodeName, setImportModule,
+} from "../syntax/ast";
 import { tokenize } from "../syntax/lexer";
 import { Parser } from "../syntax/parser";
 import { parseModuleInto } from "../syntax/statements";
@@ -48,7 +50,7 @@ export fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
 // Finds the file an import names, loading it the first time any file asks.
 fn loadImport(ast: *Ast, program: i32, item: i32): void {
   let importer: *i8 = modulePath(ast.nodes[item].module);
-  let spec: *i8 = ast.nodes[item].text;
+  let spec: *i8 = nodeName(ast, item);
   let path: *i8 = resolveImportPath(importer, spec);
   let real: *i8 = null;
   if (path != null) {
@@ -59,7 +61,7 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
   if (real != null) {
     let loaded: i32 = moduleFind(real);
     if (loaded >= 0) {
-      ast.nodes[item].extra = loaded;
+      setImportModule(ast, item, loaded);
       return;
     }
     // A file that cannot be read is reported below as one that is missing.
@@ -79,11 +81,11 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
            Facts.about(spec));
     FAILED = false;
     // Tried, and reported: not to be tried again.
-    ast.nodes[item].extra = -2;
+    setImportModule(ast, item, -2);
     return;
   }
 
-  ast.nodes[item].extra = loadModule(ast, program, path, real, source);
+  setImportModule(ast, item, loadModule(ast, program, path, real, source));
 }
 
 // Parses the file at `path`, whose tokens are `tokens`, and every file it
@@ -142,10 +144,10 @@ export fn loadFiles(ast: *Ast, root: i32, paths: *TextList): void {
 // program's list, so walking the list to its end reaches every file's.
 fn loadImports(ast: *Ast, root: i32): void {
   let item: i32 = 0;
-  while (item < ast.nodes[root].itemCount) {
-    let statement: i32 = ast.nodes[root].items[item];
+  while (item < itemCount(ast, root)) {
+    let statement: i32 = itemAt(ast, root, item);
     if (ast.nodes[statement].kind == NodeKind.Import &&
-        ast.nodes[statement].extra < 0) {
+        importModule(ast, statement) < 0) {
       loadImport(ast, root, statement);
     }
     item = item + 1;

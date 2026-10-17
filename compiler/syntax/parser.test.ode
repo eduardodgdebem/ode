@@ -10,8 +10,10 @@ import { List } from "std/list";
 import { Problem } from "../diagnostics/problems";
 import { Diagnostic } from "../diagnostics/report";
 import {
-  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try,
-  Is, Catch, binaryOf, unaryOf, isOf, syntaxChildren,
+  NO_NODE, NodeKind, Binary, BinaryOp, Cast, Catch, FnTypeRef, Index, Is, Lambda,
+  Return, Sizeof, Syntax, Try, Unary, UnaryOp, armOf, binaryOf, fieldAccessOf,
+  functionOf, isOf, itemAt, itemCount, lambdaOf, matchOf, nodeName, paramOf,
+  syntaxChildren, typeDepth, typeNodeOf, unaryOf, varDeclOf,
 } from "./ast";
 import { Scope, Parsed, parse } from "../testkit/testkit";
 
@@ -293,24 +295,33 @@ test "parentheses hold only a function type" {
 
 // The type written for the `index`th global in `tree`.
 fn declaredType(tree: Parsed, index: i32): i32 {
-  return tree.ast.nodes[tree.item(index)].a;
+  return varDeclOf(tree.ast, tree.item(index)).type;
+}
+
+// What a function type returns.
+fn resultOf(tree: Parsed, type: i32): i32 {
+  let syntax: Syntax = tree.ast.nodes[type].syntax;
+  if (syntax is FnTypeRef) {
+    return syntax.result;
+  }
+  return NO_NODE;
 }
 
 test "a function type's result runs to the end of the type" {
   let tree: Parsed = parse("let F: (i32) => i32 | E = null;");
   let type: i32 = declaredType(tree, 0);
   assertEq(tree.kind(type), NodeKind.FnType);
-  assertEq(tree.ast.nodes[type].itemCount, 1);
-  assertEq(tree.kind(tree.ast.nodes[type].a), NodeKind.UnionType);
+  assertEq(itemCount(tree.ast, type), 1);
+  assertEq(tree.kind(resultOf(tree, type)), NodeKind.UnionType);
 }
 
 test "a union holding a function puts the function in parentheses" {
   let tree: Parsed = parse("let F: ((i32) => i32) | E = null;");
   let type: i32 = declaredType(tree, 0);
   assertEq(tree.kind(type), NodeKind.UnionType);
-  let first: i32 = tree.ast.nodes[type].items[0];
+  let first: i32 = itemAt(tree.ast, type, 0);
   assertEq(tree.kind(first), NodeKind.FnType);
-  assertEq(tree.kind(tree.ast.nodes[first].a), NodeKind.Type);
+  assertEq(tree.kind(resultOf(tree, first)), NodeKind.Type);
 }
 
 test "a function may return a function, take none, and be pointed to" {
@@ -320,39 +331,46 @@ test "a function may return a function, take none, and be pointed to" {
     let TABLE: **((i32, bool) => i32) = null;
   `);
   let curried: i32 = declaredType(tree, 0);
-  assertEq(tree.kind(tree.ast.nodes[curried].a), NodeKind.FnType);
+  assertEq(tree.kind(resultOf(tree, curried)), NodeKind.FnType);
 
   let nothing: i32 = declaredType(tree, 1);
-  assertEq(tree.ast.nodes[nothing].itemCount, 0);
+  assertEq(itemCount(tree.ast, nothing), 0);
 
   let table: i32 = declaredType(tree, 2);
   assertEq(tree.kind(table), NodeKind.FnType);
-  assertEq(tree.ast.nodes[table].extra, 2);
-  assertEq(tree.ast.nodes[table].itemCount, 2);
+  assertEq(typeDepth(tree.ast, table), 2);
+  assertEq(itemCount(tree.ast, table), 2);
 }
 
 // The `index`th statement of the first function in `tree`.
 fn statementOf(tree: Parsed, index: i32): i32 {
-  let body: i32 = tree.ast.nodes[tree.item(0)].c;
-  return tree.ast.nodes[body].items[index];
+  let body: i32 = functionOf(tree.ast, tree.item(0)).body;
+  return itemAt(tree.ast, body, index);
+}
+
+// The value the `index`th statement -- a `let` -- gives its variable.
+fn declaredValue(tree: Parsed, index: i32): i32 {
+  return varDeclOf(tree.ast, statementOf(tree, index)).value;
 }
 
 test "a lambda's expression body is a block that returns it" {
   let tree: Parsed = parse("fn main(): void { let f: (i32) => i32 = (x) => x + 1; }");
-  let lambda: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
-  assertEq(tree.kind(lambda), NodeKind.Lambda);
-  assertEq(tree.ast.nodes[lambda].extra, 1);
-  assertEq(tree.ast.nodes[lambda].a, NO_NODE);
+  let node: i32 = declaredValue(tree, 0);
+  assertEq(tree.kind(node), NodeKind.Lambda);
+  let lambda: Lambda = lambdaOf(tree.ast, node);
+  assert(lambda.expressionBody);
+  assertEq(lambda.returnType, NO_NODE);
 
-  let param: i32 = tree.ast.nodes[tree.ast.nodes[lambda].b].items[0];
-  assertEq(tree.ast.nodes[param].text, "x");
-  assertEq(tree.ast.nodes[param].a, NO_NODE);
+  let param: i32 = itemAt(tree.ast, lambda.params, 0);
+  assertEq(nodeName(tree.ast, param), "x");
+  assertEq(paramOf(tree.ast, param).type, NO_NODE);
 
-  let body: i32 = tree.ast.nodes[lambda].c;
-  assertEq(tree.kind(body), NodeKind.Block);
-  let returned: i32 = tree.ast.nodes[body].items[0];
-  assertEq(tree.kind(returned), NodeKind.Return);
-  assertEq(tree.kind(tree.ast.nodes[returned].a), NodeKind.Binary);
+  assertEq(tree.kind(lambda.body), NodeKind.Block);
+  let returned: Syntax = tree.ast.nodes[itemAt(tree.ast, lambda.body, 0)].syntax;
+  assert(returned is Return);
+  if (returned is Return) {
+    assertEq(tree.kind(returned.value), NodeKind.Binary);
+  }
 }
 
 test "a lambda may write its types, and take a block" {
@@ -362,21 +380,21 @@ test "a lambda may write its types, and take a block" {
       let g: () => void = () => {};
     }
   `);
-  let lambda: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
-  assertEq(tree.ast.nodes[lambda].extra, 0);
-  assertEq(tree.kind(tree.ast.nodes[lambda].a), NodeKind.Type);
-  assertEq(tree.ast.nodes[tree.ast.nodes[lambda].b].itemCount, 2);
-  let flag: i32 = tree.ast.nodes[tree.ast.nodes[lambda].b].items[1];
-  assertEq(tree.kind(tree.ast.nodes[flag].a), NodeKind.Type);
+  let lambda: Lambda = lambdaOf(tree.ast, declaredValue(tree, 0));
+  assert(!lambda.expressionBody);
+  assertEq(tree.kind(lambda.returnType), NodeKind.Type);
+  assertEq(itemCount(tree.ast, lambda.params), 2);
+  let flag: i32 = itemAt(tree.ast, lambda.params, 1);
+  assertEq(tree.kind(paramOf(tree.ast, flag).type), NodeKind.Type);
 
-  let empty: i32 = tree.ast.nodes[statementOf(tree, 1)].b;
+  let empty: i32 = declaredValue(tree, 1);
   assertEq(tree.kind(empty), NodeKind.Lambda);
-  assertEq(tree.ast.nodes[tree.ast.nodes[empty].b].itemCount, 0);
+  assertEq(itemCount(tree.ast, lambdaOf(tree.ast, empty).params), 0);
 }
 
 test "parentheses without an arrow after them are still grouping" {
   let tree: Parsed = parse("fn main(): void { let n: i32 = (1 + 2) * (3); }");
-  let value: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
+  let value: i32 = declaredValue(tree, 0);
   let product: Binary = binaryOf(tree.ast, value);
   assertEq(product.op, BinaryOp.Multiply);
   assertEq(binaryOf(tree.ast, product.left).op, BinaryOp.Add);
@@ -390,7 +408,7 @@ test "an operator's node says which operator, and holds its operands" {
       count += 1;
     }
   `);
-  let not: Unary = unaryOf(tree.ast, tree.ast.nodes[statementOf(tree, 0)].b);
+  let not: Unary = unaryOf(tree.ast, declaredValue(tree, 0));
   assertEq(not.op, UnaryOp.Not);
   let coalesce: Binary = binaryOf(tree.ast, not.operand);
   assertEq(coalesce.op, BinaryOp.Coalesce);
@@ -401,9 +419,9 @@ test "an operator's node says which operator, and holds its operands" {
   assertEq(binaryOf(tree.ast, less.right).op, BinaryOp.ShiftLeft);
 
   // `count += 1` is `count = count + 1`.
-  let sum: Binary = binaryOf(tree.ast, tree.ast.nodes[statementOf(tree, 1)].b);
+  let sum: Binary = binaryOf(tree.ast, declaredValue(tree, 1));
   assertEq(sum.op, BinaryOp.Add);
-  assertEq(tree.ast.nodes[sum.left].text, "count");
+  assertEq(nodeName(tree.ast, sum.left), "count");
 }
 
 test "a lambda's parameters are names" {
@@ -425,8 +443,8 @@ test "a type alias names a type, and may be exported" {
   `);
   let reader: i32 = tree.item(0);
   assertEq(tree.kind(reader), NodeKind.TypeAlias);
-  assertEq(tree.ast.nodes[reader].text, "Reader");
-  assertEq(tree.kind(tree.ast.nodes[reader].a), NodeKind.FnType);
+  assertEq(nodeName(tree.ast, reader), "Reader");
+  assertEq(tree.kind(typeNodeOf(tree.ast, reader)), NodeKind.FnType);
 
   let count: i32 = tree.item(1);
   assertEq(tree.kind(count), NodeKind.TypeAlias);
@@ -467,11 +485,11 @@ test "a match arm may name built-in types and pointers" {
     }
   `);
   let switchNode: i32 = statementOf(tree, 0);
-  let first: i32 = tree.ast.nodes[switchNode].items[0];
-  assertEq(tree.kind(tree.ast.nodes[first].items[0]), NodeKind.Type);
-  assertEq(tree.ast.nodes[tree.ast.nodes[first].items[1]].extra, 1);
-  let second: i32 = tree.ast.nodes[switchNode].items[1];
-  assertEq(tree.kind(tree.ast.nodes[second].items[0]), NodeKind.Ident);
+  let first: i32 = itemAt(tree.ast, switchNode, 0);
+  assertEq(tree.kind(itemAt(tree.ast, first, 0)), NodeKind.Type);
+  assertEq(typeDepth(tree.ast, itemAt(tree.ast, first, 1)), 1);
+  let second: i32 = itemAt(tree.ast, switchNode, 1);
+  assertEq(tree.kind(itemAt(tree.ast, second, 0)), NodeKind.Ident);
 }
 
 test "an arm runs an expression or a block, and a match may be a value" {
@@ -488,20 +506,20 @@ test "an arm runs an expression or a block, and a match may be a value" {
     }
   `);
   let statement: i32 = statementOf(tree, 0);
-  let first: i32 = tree.ast.nodes[statement].items[0];
+  let first: i32 = itemAt(tree.ast, statement, 0);
   // In a statement, an expression arm is run as an expression statement.
-  assertEq(tree.kind(tree.ast.nodes[first].a), NodeKind.ExprStmt);
-  let pattern: i32 = tree.ast.nodes[first].items[0];
+  assertEq(tree.kind(armOf(tree.ast, first).body), NodeKind.ExprStmt);
+  let pattern: i32 = itemAt(tree.ast, first, 0);
   assertEq(tree.kind(pattern), NodeKind.FieldAccess);
-  assertEq(tree.ast.nodes[pattern].a, NO_NODE);
-  assertEq(tree.ast.nodes[pattern].text, "Add");
-  assertEq(tree.ast.nodes[statement].itemCount, 3);
+  assertEq(fieldAccessOf(tree.ast, pattern).object, NO_NODE);
+  assertEq(nodeName(tree.ast, pattern), "Add");
+  assertEq(itemCount(tree.ast, statement), 3);
 
-  let value: i32 = tree.ast.nodes[statementOf(tree, 1)].b;
+  let value: i32 = declaredValue(tree, 1);
   assertEq(tree.kind(value), NodeKind.Match);
-  assertEq(tree.ast.nodes[value].extra, 1);
-  let arm: i32 = tree.ast.nodes[value].items[0];
-  assertEq(tree.kind(tree.ast.nodes[arm].a), NodeKind.String);
+  assert(matchOf(tree.ast, value).isValue);
+  let arm: i32 = itemAt(tree.ast, value, 0);
+  assertEq(tree.kind(armOf(tree.ast, arm).body), NodeKind.String);
 }
 
 test "a pattern in parentheses is never a lambda" {
@@ -545,35 +563,35 @@ test "casts, indexing, sizes, try, is and catch hold their parts by name" {
       };
     }
   `);
-  let cast: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 0)].b].syntax;
+  let cast: Syntax = tree.ast.nodes[declaredValue(tree, 0)].syntax;
   assert(cast is Cast);
   if (cast is Cast) {
     assertEq(tree.kind(cast.type), NodeKind.Type);
     let index: Syntax = tree.ast.nodes[cast.value].syntax;
     assert(index is Index);
     if (index is Index) {
-      assertEq(tree.ast.nodes[index.base].text, "values");
+      assertEq(nodeName(tree.ast, index.base), "values");
       assertEq(tree.kind(index.index), NodeKind.Number);
     }
   }
 
-  let size: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 1)].b].syntax;
+  let size: Syntax = tree.ast.nodes[declaredValue(tree, 1)].syntax;
   assert(size is Sizeof);
   if (size is Sizeof) {
-    assertEq(tree.ast.nodes[size.type].text, "Point");
+    assertEq(nodeName(tree.ast, size.type), "Point");
   }
 
-  let attempt: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 2)].b].syntax;
+  let attempt: Syntax = tree.ast.nodes[declaredValue(tree, 2)].syntax;
   assert(attempt is Try);
   if (attempt is Try) {
     assertEq(tree.kind(attempt.value), NodeKind.Call);
   }
 
-  let question: Is = isOf(tree.ast, tree.ast.nodes[statementOf(tree, 3)].b);
-  assertEq(tree.ast.nodes[question.value].text, "c");
-  assertEq(tree.ast.nodes[question.type].text, "ParseError");
+  let question: Is = isOf(tree.ast, declaredValue(tree, 3));
+  assertEq(nodeName(tree.ast, question.value), "c");
+  assertEq(nodeName(tree.ast, question.type), "ParseError");
 
-  let caught: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 4)].b].syntax;
+  let caught: Syntax = tree.ast.nodes[declaredValue(tree, 4)].syntax;
   assert(caught is Catch);
   if (caught is Catch) {
     assertEq(caught.name, "problem");
@@ -583,7 +601,7 @@ test "casts, indexing, sizes, try, is and catch hold their parts by name" {
 
 test "the parts a node's syntax holds are its children, types included" {
   let tree: Parsed = parse("fn main(): void { let a: i64 = x as i64; }");
-  let cast: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
+  let cast: i32 = declaredValue(tree, 0);
   let children: *List<i32> = syntaxChildren(tree.ast.nodes[cast].syntax);
   assertEq(children.count, 2);
   assertEq(tree.kind(children.at(0)), NodeKind.Ident);

@@ -32,7 +32,10 @@ import { Problem, Facts } from "../diagnostics/problems";
 import { SOURCE_PATH, FAILED, report } from "../diagnostics/report";
 import { markTemplates, instantiateGenerics } from "./generics";
 import { stemOf, realpath } from "../os/files";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, FieldAccess, ImportName, MethodCall, Syntax, importModule, itemAt,
+  itemCount, nodeName, setNodeName,
+} from "../syntax/ast";
 import { Symbol, SymbolTable } from "../types/symbols";
 import { TypeKind, typeKindFromName } from "../types/types";
 
@@ -292,12 +295,12 @@ fn isValueDecl(kind: NodeKind): bool {
 // `wantStruct` and of a value otherwise, or NO_NODE.
 export fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
                 wantStruct: bool): i32 {
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
+  for (index in 0..itemCount(an.ast, program)) {
+    let item: i32 = itemAt(an.ast, program, index);
     let kind: NodeKind = an.ast.nodes[item].kind;
 
     if (an.ast.nodes[item].module == module &&
-        equals(an.ast.nodes[item].text, name)) {
+        equals(nodeName(an.ast, item), name)) {
       if (wantStruct && isTypeDecl(kind)) {
         return item;
       }
@@ -311,7 +314,7 @@ export fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
 }
 
 fn assignLinkNames(an: *Analyzer, program: i32): void {
-  let count: i32 = an.ast.nodes[program].itemCount;
+  let count: i32 = itemCount(an.ast, program);
   let values: *NameSet = NameSet.new();
   let structs: *NameSet = NameSet.new();
 
@@ -319,9 +322,9 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   // this compiler's to change. Several files may declare the same one.
   let index: i32 = 0;
   for (index in 0..count) {
-    let item: i32 = an.ast.nodes[program].items[index];
+    let item: i32 = itemAt(an.ast, program, index);
     if (an.ast.nodes[item].kind == NodeKind.Extern) {
-      let name: *i8 = an.ast.nodes[item].text;
+      let name: *i8 = nodeName(an.ast, item);
       an.linkNames[item] = name;
       if (!values.has(name)) {
         values.add(name);
@@ -332,9 +335,9 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   // Module by module, so the entry file, which is module 0, claims first.
   for (module in 0..moduleCount()) {
     for (index in 0..count) {
-      let item: i32 = an.ast.nodes[program].items[index];
+      let item: i32 = itemAt(an.ast, program, index);
       let kind: NodeKind = an.ast.nodes[item].kind;
-      let name: *i8 = an.ast.nodes[item].text;
+      let name: *i8 = nodeName(an.ast, item);
 
       if (an.ast.nodes[item].module == module) {
         if (kind == NodeKind.Fn || kind == NodeKind.VarDecl) {
@@ -359,18 +362,18 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
   // function can be called. Claiming it still guards against a file whose
   // stem happens to be a struct's name.
   for (index in 0..count) {
-    let item: i32 = an.ast.nodes[program].items[index];
+    let item: i32 = itemAt(an.ast, program, index);
 
     if (an.ast.nodes[item].kind == NodeKind.Struct) {
       let member: i32 = 0;
-      while (member < an.ast.nodes[item].itemCount) {
-        let method: i32 = an.ast.nodes[item].items[member];
+      while (member < itemCount(an.ast, item)) {
+        let method: i32 = itemAt(an.ast, item, member);
 
         if (an.ast.nodes[method].kind == NodeKind.Fn) {
           let name: *Builder = Builder.new();
           name.add(an.linkNames[item]);
           name.push('.');
-          name.add(an.ast.nodes[method].text);
+          name.add(nodeName(an.ast, method));
           an.linkNames[method] =
               values.claim(an.ast.nodes[item].module, name.take());
         }
@@ -387,12 +390,16 @@ fn assignLinkNames(an: *Analyzer, program: i32): void {
 
 // The name an imported binding goes by in the importing file.
 export fn importLocalName(an: *Analyzer, importName: i32): *i8 {
-  let alias: i32 = an.ast.nodes[importName].a;
+  let syntax: Syntax = an.ast.nodes[importName].syntax;
+  let alias: i32 = NO_NODE;
+  if (syntax is ImportName) {
+    alias = syntax.alias;
+  }
   if (alias != NO_NODE) {
-    return an.ast.nodes[alias].text;
+    return nodeName(an.ast, alias);
   }
 
-  return an.ast.nodes[importName].text;
+  return nodeName(an.ast, importName);
 }
 
 fn importFail(an: *Analyzer, at: i32, problem: Problem, facts: Facts): void {
@@ -405,15 +412,15 @@ fn importFail(an: *Analyzer, at: i32, problem: Problem, facts: Facts): void {
 fn checkImports(an: *Analyzer, program: i32): void {
   let index: i32 = 0;
 
-  while (index < an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
-    let target: i32 = an.ast.nodes[item].extra;
+  while (index < itemCount(an.ast, program)) {
+    let item: i32 = itemAt(an.ast, program, index);
+    let target: i32 = importModule(an.ast, item);
 
     if (an.ast.nodes[item].kind == NodeKind.Import && target >= 0) {
       let name: i32 = 0;
-      while (name < an.ast.nodes[item].itemCount) {
-        let importName: i32 = an.ast.nodes[item].items[name];
-        let text: *i8 = an.ast.nodes[importName].text;
+      while (name < itemCount(an.ast, item)) {
+        let importName: i32 = itemAt(an.ast, item, name);
+        let text: *i8 = nodeName(an.ast, importName);
 
         let asStruct: i32 = findTopLevel(an, program, target, text, true);
         let asValue: i32 = findTopLevel(an, program, target, text, false);
@@ -427,10 +434,10 @@ fn checkImports(an: *Analyzer, program: i32): void {
 
         if (asStruct == NO_NODE && asValue == NO_NODE) {
           importFail(an, importName, Problem.NoSuchExport,
-                     Facts.aboutTwo(an.ast.nodes[item].text, text));
+                     Facts.aboutTwo(nodeName(an.ast, item), text));
         } else if (!exported) {
           importFail(an, importName, Problem.NotExported,
-                     Facts.aboutTwo(text, an.ast.nodes[item].text));
+                     Facts.aboutTwo(text, nodeName(an.ast, item)));
         }
 
         name = name + 1;
@@ -450,20 +457,20 @@ fn resolveStructName(an: *Analyzer, program: i32, module: i32,
     return an.linkNames[own];
   }
 
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
-    let target: i32 = an.ast.nodes[item].extra;
+  for (index in 0..itemCount(an.ast, program)) {
+    let item: i32 = itemAt(an.ast, program, index);
+    let target: i32 = importModule(an.ast, item);
 
     if (an.ast.nodes[item].kind == NodeKind.Import &&
         an.ast.nodes[item].module == module && target >= 0) {
-      for (entry in 0..an.ast.nodes[item].itemCount) {
-        let importName: i32 = an.ast.nodes[item].items[entry];
+      for (entry in 0..itemCount(an.ast, item)) {
+        let importName: i32 = itemAt(an.ast, item, entry);
 
         if (equals(importLocalName(an, importName), name)) {
           // A private struct has been reported at the import already; it
           // still resolves, so that the import is the only error it causes.
           let declared: i32 = findTopLevel(an, program, target,
-                                           an.ast.nodes[importName].text, true);
+                                           nodeName(an.ast, importName), true);
           if (declared != NO_NODE) {
             return an.linkNames[declared];
           }
@@ -478,10 +485,10 @@ fn resolveStructName(an: *Analyzer, program: i32, module: i32,
 // The first struct declared anywhere under `name`, for the diagnostic that
 // says where a type the file forgot to import lives.
 fn findStructAnywhere(an: *Analyzer, program: i32, name: *i8): i32 {
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
+  for (index in 0..itemCount(an.ast, program)) {
+    let item: i32 = itemAt(an.ast, program, index);
     if (isTypeDecl(an.ast.nodes[item].kind) &&
-        equals(an.ast.nodes[item].text, name)) {
+        equals(nodeName(an.ast, item), name)) {
       return item;
     }
   }
@@ -490,12 +497,11 @@ fn findStructAnywhere(an: *Analyzer, program: i32, name: *i8): i32 {
 }
 
 fn setNodeText(an: *Analyzer, node: i32, text: *i8): void {
-  if (equals(an.ast.nodes[node].text, text)) {
+  if (equals(nodeName(an.ast, node), text)) {
     return;
   }
 
-  an.ast.nodes[node].text = text;
-  an.ast.nodes[node].textLength = strlen(text);
+  setNodeName(an.ast, node, text);
 }
 
 // Points every struct reference at the struct its own file can see, then
@@ -519,8 +525,8 @@ fn rewriteStructNames(an: *Analyzer, program: i32): void {
 // it was written with -- which is how a generic's instance, made after the
 // references, finds the structs its own file declared.
 fn renameTypeDecls(an: *Analyzer, program: i32): void {
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
+  for (index in 0..itemCount(an.ast, program)) {
+    let item: i32 = itemAt(an.ast, program, index);
     if (isTypeDecl(an.ast.nodes[item].kind)) {
       setNodeText(an, item, an.linkNames[item]);
     }
@@ -534,9 +540,9 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
   let kind: NodeKind = an.ast.nodes[node].kind;
   let names: bool = kind == NodeKind.StructLit;
   if (kind == NodeKind.Type) {
-    names = typeKindFromName(an.ast.nodes[node].text) == TypeKind.None;
+    names = typeKindFromName(nodeName(an.ast, node)) == TypeKind.None;
   }
-  if (names && skip != null && skip.has(an.ast.nodes[node].text)) {
+  if (names && skip != null && skip.has(nodeName(an.ast, node))) {
     names = false;
   }
 
@@ -548,22 +554,27 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
   // A match arm's bare name, `Circle =>`, names a type when the match is on
   // a union; that is the analyzer's to decide, so it is recorded the same way.
   if (kind == NodeKind.Arm) {
-    for (index in 0..an.ast.nodes[node].itemCount) {
-      let pattern: i32 = an.ast.nodes[node].items[index];
+    for (index in 0..itemCount(an.ast, node)) {
+      let pattern: i32 = itemAt(an.ast, node, index);
       if (an.ast.nodes[pattern].kind == NodeKind.Ident) {
         an.structRefs[pattern] =
             resolveStructName(an, program, an.ast.nodes[pattern].module,
-                              an.ast.nodes[pattern].text);
+                              nodeName(an.ast, pattern));
       }
     }
   }
 
   if (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) {
-    let receiver: i32 = an.ast.nodes[node].a;
+    let syntax: Syntax = an.ast.nodes[node].syntax;
+    let receiver: i32 = match (syntax) {
+      MethodCall => syntax.receiver,
+      FieldAccess => syntax.object,
+      else => NO_NODE,
+    };
     if (receiver != NO_NODE && an.ast.nodes[receiver].kind == NodeKind.Ident) {
       an.structRefs[node] =
           resolveStructName(an, program, an.ast.nodes[node].module,
-                            an.ast.nodes[receiver].text);
+                            nodeName(an.ast, receiver));
     }
   }
 
@@ -571,7 +582,7 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
     return;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
+  let name: *i8 = nodeName(an.ast, node);
   let module: i32 = an.ast.nodes[node].module;
   let resolved: *i8 = resolveStructName(an, program, module, name);
 
@@ -639,24 +650,24 @@ export struct SymbolList {
 export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
   let index: i32 = 0;
 
-  while (index < an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
-    let target: i32 = an.ast.nodes[item].extra;
+  while (index < itemCount(an.ast, program)) {
+    let item: i32 = itemAt(an.ast, program, index);
+    let target: i32 = importModule(an.ast, item);
 
     if (an.ast.nodes[item].kind == NodeKind.Import &&
         an.ast.nodes[item].module == module && target >= 0) {
       let entry: i32 = 0;
-      while (entry < an.ast.nodes[item].itemCount) {
-        let importName: i32 = an.ast.nodes[item].items[entry];
+      while (entry < itemCount(an.ast, item)) {
+        let importName: i32 = itemAt(an.ast, item, entry);
         let declared: i32 = findTopLevel(an, program, target,
-                                         an.ast.nodes[importName].text, false);
+                                         nodeName(an.ast, importName), false);
 
         // A struct import was dealt with on the tree, and a missing one has
         // already been reported. A private one has too, but is bound anyway,
         // so that its uses do not each report it again as undefined.
         if (declared != NO_NODE) {
           let symbols: SymbolList = an.moduleSymbols[target];
-          let found: i32 = symbols.find(an.ast.nodes[importName].text);
+          let found: i32 = symbols.find(nodeName(an.ast, importName));
 
           if (found >= 0) {
             let before: i32 = an.symbols.count;

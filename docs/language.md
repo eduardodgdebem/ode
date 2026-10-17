@@ -502,6 +502,10 @@ if (!(shape is Circle)) {
 return shape.radius;      // here, a Circle
 ```
 
+`&&` and `||` carry it through too: the right side of `&&` runs only where
+the left held, so `shape is Circle && shape.radius > 1` reads a Circle's
+radius, and an `if` on `a && b` knows both in its first branch.
+
 Assigning a narrowed variable or field -- or anything it is part of, such as
 the whole `holder` -- forgets what was found out about it, from there on: it
 may hold any member again until it is asked once more.

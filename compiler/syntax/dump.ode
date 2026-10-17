@@ -8,9 +8,10 @@
 
 import { List } from "std/list";
 import { Builder } from "std/text";
+import { strlen } from "std/c";
 import {
-  NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText, Syntax, Binary, Unary,
-  Catch, binaryOpText, unaryOpText, syntaxChildren,
+  NO_NODE, NodeKind, Ast, Binary, BoolLit, CharLit, NumberLit, StringLit, Syntax, Unary,
+  binaryOpText, nodeKindName, nodeName, syntaxChildren, typeDepth, unaryOpText,
 } from "./ast";
 import { TokenKind, Token, TokenList, kindName } from "./token";
 import { TypeKind, Type } from "../types/types";
@@ -71,8 +72,8 @@ export fn dumpTokens(list: *TokenList, out: *Builder): void {
   }
 }
 
-// Children print in slot order -- a, then b, then c, then the item list --
-// which is the order every kind stores them in, so no kind needs its own case.
+// Children print in the order syntaxChildren gives them, so no kind needs a
+// case of its own here.
 //
 // `types` is the analyzer's resolved-type table, or null to dump the tree on
 // its own. A node the analyzer never typed prints without an annotation.
@@ -89,21 +90,31 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
   let kind: NodeKind = ast.nodes[index].kind;
   out.add(nodeKindName(kind));
 
-  if (nodeCarriesText(kind)) {
-    out.add(" '");
-    dumpEscaped(out, ast.nodes[index].text, ast.nodes[index].textLength);
-    out.push('\'');
-  }
+  // A name, a literal's text, or an operator's spelling.
   let syntax: Syntax = ast.nodes[index].syntax;
+  let length: i64 = match (syntax) {
+    NumberLit => syntax.length,
+    StringLit => syntax.length,
+    CharLit => syntax.length,
+    else => -1,
+  };
   let spelled: *i8 = match (syntax) {
     Binary => binaryOpText(syntax.op),
     Unary => unaryOpText(syntax.op),
-    Catch => syntax.name,
-    else => null,
+    else => nodeName(ast, index),
   };
+  if (syntax is BoolLit) {
+    spelled = "false";
+    if (syntax.value) {
+      spelled = "true";
+    }
+  }
   if (spelled != null) {
+    if (length < 0) {
+      length = strlen(spelled);
+    }
     out.add(" '");
-    out.add(spelled);
+    dumpEscaped(out, spelled, length);
     out.push('\'');
   }
 
@@ -113,7 +124,7 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
 
   if (kind == NodeKind.Type) {
     out.add(" depth=");
-    out.addInt(ast.nodes[index].extra as i64);
+    out.addInt(typeDepth(ast, index) as i64);
   }
 
   out.push(' ');
@@ -130,13 +141,6 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
 
   out.push('\n');
 
-  dumpNode(ast, types, ast.nodes[index].a, depth + 1, out);
-  dumpNode(ast, types, ast.nodes[index].b, depth + 1, out);
-  dumpNode(ast, types, ast.nodes[index].c, depth + 1, out);
-
-  for (item in 0..ast.nodes[index].itemCount) {
-    dumpNode(ast, types, ast.nodes[index].items[item], depth + 1, out);
-  }
   let children: *List<i32> = syntaxChildren(syntax);
   for (child in 0..children.count) {
     dumpNode(ast, types, children.at(child), depth + 1, out);

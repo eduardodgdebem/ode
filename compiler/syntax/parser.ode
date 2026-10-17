@@ -10,7 +10,11 @@ import { alloc } from "std/mem";
 import { slice } from "std/text";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED, report, fail } from "../diagnostics/report";
-import { NodeKind, Ast } from "./ast";
+import { List } from "std/list";
+import {
+  NodeKind, Ast, ErrorNode, FnTypeRef, Syntax, TypeParam, TypeParams, TypeRef,
+  UnionTypeRef,
+} from "./ast";
 import { TokenKind, Token, TokenList } from "./token";
 
 export struct Parser {
@@ -65,7 +69,7 @@ export struct Parser {
 
   fn errorNode(self: *Parser): i32 {
     let token: *Token = self.current();
-    return self.ast.add(NodeKind.Error, token.line, token.column);
+    return self.ast.add(NodeKind.Error, token.line, token.column, ErrorNode {});
   }
 
   // Recovery is per statement: everything up to the next `;` or the start of
@@ -176,14 +180,13 @@ export fn parseType(parser: *Parser): i32 {
   // rest of the declaration.
   if (parser.kind() == TokenKind.Fn) {
     report(Problem.OldFunctionType, startLine, startColumn, Facts.none());
-    let node: i32 = parser.ast.add(NodeKind.FnType, startLine, startColumn);
-    parser.ast.nodes[node].extra = depth;
+    let params: *List<i32> = List<i32>.new();
     parser.advance();
     parser.expect(TokenKind.LParen, "(");
 
     if (parser.kind() != TokenKind.RParen) {
       while (true) {
-        parser.ast.addItem(node, parseType(parser));
+        params.push(parseType(parser));
         if (parser.kind() != TokenKind.Comma || FAILED) {
           break;
         }
@@ -193,23 +196,25 @@ export fn parseType(parser: *Parser): i32 {
 
     parser.expect(TokenKind.RParen, ")");
     parser.expect(TokenKind.Colon, ":");
-    parser.ast.nodes[node].a = parseType(parser);
+    let result: i32 = parseType(parser);
 
-    return node;
+    return parser.ast.add(NodeKind.FnType, startLine, startColumn,
+                          FnTypeRef { params: params, result: result, depth: depth });
   }
 
   if (parser.kind() != TokenKind.Type && parser.kind() != TokenKind.Ident) {
     parser.fail("type");
     // Same reason: the token that is not a type is the one recovery reads.
-    return parser.ast.add(NodeKind.Type, startLine, startColumn);
+    return parser.ast.add(NodeKind.Type, startLine, startColumn,
+                          TypeRef { name: "", depth: 0, args: List<i32>.new() });
   }
 
   let name: *Token = parser.current();
   parser.advance();
 
-  let node: i32 = parser.ast.add(NodeKind.Type, startLine, startColumn);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].extra = depth;
+  let node: i32 = parser.ast.add(NodeKind.Type, startLine, startColumn,
+                                 TypeRef { name: name.text, depth: depth,
+                                           args: List<i32>.new() });
 
   // `List<i32>`: in a type, a `<` can only open type arguments.
   if (name.kind == TokenKind.Ident && parser.kind() == TokenKind.Lt) {
@@ -228,13 +233,12 @@ export fn parseType(parser: *Parser): i32 {
 // `*((i32) => i32)`. Without them, `*(i32) => i32` could as well be a
 // function taking a pointer, so it is refused rather than read one way.
 fn parseFnType(parser: *Parser, depth: i32, line: i32, column: i32): i32 {
-  let node: i32 = parser.ast.add(NodeKind.FnType, line, column);
-  parser.ast.nodes[node].extra = depth;
+  let params: *List<i32> = List<i32>.new();
   parser.expect(TokenKind.LParen, "(");
 
   if (parser.kind() != TokenKind.RParen) {
     while (true) {
-      parser.ast.addItem(node, parseDeclaredType(parser));
+      params.push(parseDeclaredType(parser));
       if (parser.kind() != TokenKind.Comma || FAILED) {
         break;
       }
@@ -243,12 +247,12 @@ fn parseFnType(parser: *Parser, depth: i32, line: i32, column: i32): i32 {
   }
   parser.expect(TokenKind.RParen, ")");
 
-  if (parser.kind() != TokenKind.Arrow && parser.ast.nodes[node].itemCount == 1 &&
-      !FAILED) {
-    let inner: i32 = parser.ast.nodes[node].items[0];
-    if (parser.ast.nodes[inner].kind == NodeKind.FnType) {
-      parser.ast.nodes[inner].extra = parser.ast.nodes[inner].extra + depth;
-      return inner;
+  if (parser.kind() != TokenKind.Arrow && params.count == 1 && !FAILED) {
+    let inner: Syntax = parser.ast.nodes[params.at(0)].syntax;
+    if (inner is FnTypeRef) {
+      parser.ast.nodes[params.at(0)].syntax =
+          FnTypeRef { params: inner.params, result: inner.result, depth: inner.depth + depth };
+      return params.at(0);
     }
   }
 
@@ -256,9 +260,10 @@ fn parseFnType(parser: *Parser, depth: i32, line: i32, column: i32): i32 {
     report(Problem.PointerToFunctionType, line, column, Facts.none());
   }
   parser.expect(TokenKind.Arrow, "=>");
-  parser.ast.nodes[node].a = parseDeclaredType(parser);
+  let result: i32 = parseDeclaredType(parser);
 
-  return node;
+  return parser.ast.add(NodeKind.FnType, line, column,
+                        FnTypeRef { params: params, result: result, depth: depth });
 }
 
 // DeclaredType -> Type ('|' Type)*
@@ -272,9 +277,9 @@ export fn parseDeclaredType(parser: *Parser): i32 {
     return first;
   }
 
-  let node: i32 = parser.ast.add(NodeKind.UnionType,
-                                 parser.ast.nodes[first].line,
-                                 parser.ast.nodes[first].column);
+  let node: i32 = parser.ast.add(NodeKind.UnionType, parser.ast.nodes[first].line,
+                                 parser.ast.nodes[first].column,
+                                 UnionTypeRef { members: List<i32>.new() });
   parser.ast.addItem(node, first);
   while (parser.kind() == TokenKind.Pipe && !FAILED) {
     parser.advance();
@@ -319,7 +324,8 @@ fn expectCloseAngle(parser: *Parser): void {
 // TypeParams -> '<' IDENT (',' IDENT)* '>'
 export fn parseTypeParams(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.TypeParams, start.line, start.column);
+  let node: i32 = parser.ast.add(NodeKind.TypeParams, start.line, start.column,
+                                 TypeParams { names: List<i32>.new() });
   parser.expect(TokenKind.Lt, "<");
 
   while (true) {
@@ -327,9 +333,8 @@ export fn parseTypeParams(parser: *Parser): i32 {
     if (FAILED) {
       break;
     }
-    let param: i32 = parser.ast.add(NodeKind.TypeParam, name.line, name.column);
-    parser.ast.setText(param, name);
-    parser.ast.addItem(node, param);
+    parser.ast.addItem(node, parser.ast.add(NodeKind.TypeParam, name.line, name.column,
+                                            TypeParam { name: name.text }));
 
     if (parser.kind() != TokenKind.Comma) {
       break;

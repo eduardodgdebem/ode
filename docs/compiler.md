@@ -77,13 +77,18 @@ files, and a method has to be written inside its struct.
 
 Nodes live in one arena and refer to each other by index rather than by
 pointer, because the arena moves when it grows and a held pointer would
-dangle. Enums cannot carry data, so every node is the same struct with a
-`NodeKind`: `a`, `b` and `c` are the fixed children and mean different things per
-kind -- `syntax/ast.ode` lists them -- and `items` is the child list that only
-some kinds use. A struct's items are its fields and its methods.
+dangle. What a node holds is its `syntax`: a union with a struct per kind --
+`If { condition, then, otherwise }`, `Call { name, args, typeArgs }` -- so
+every part is read by its name, and a kind added to the union is an error
+at every `match` on it that does not handle it. The node keeps its kind,
+where it was written, and the file it came from.
 
-Children are stored in the order they print, so the dumper walks `a`, `b`, `c`
-and then `items` for every kind without a case per node type.
+The checker and code generation dispatch on a node's syntax once and hand
+each kind its own struct. The walks that go through every node without
+caring what each is -- cloning a generic, marking a template, dumping --
+ask `syntaxChildren` and `withChildren`, the one place that knows where each
+kind keeps its children; linking, which renames, asks `nodeName` and
+`setNodeName`.
 
 ## Types
 
@@ -143,8 +148,6 @@ that means:
 - Dispatch on a kind is a `match` rather than a table of handlers: function
   values exist now, but a `match` is checked for every kind and a table is
   not.
-- No enums with data, so a node is one struct with a `NodeKind` and generic
-  children.
 - No implicit conversions, so widths change through `as`.
 - No variadic `extern`, so there is no printf and numbers are formatted by
   hand.
