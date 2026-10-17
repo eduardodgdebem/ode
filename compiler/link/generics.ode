@@ -476,7 +476,7 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
         changed = true;
       }
       if ((kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) &&
-          an.ast.nodes[typeNode].kind == NodeKind.Type &&
+          typeNode != NO_NODE && an.ast.nodes[typeNode].kind == NodeKind.Type &&
           an.ast.nodes[typeNode].itemCount == 0 &&
           an.structRefs[node] == null) {
         an.structRefs[node] = an.ast.nodes[typeNode].text;

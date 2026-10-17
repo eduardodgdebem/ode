@@ -440,20 +440,18 @@ fn foldsNegative(lastKind: TokenKind): bool {
     return true;
   }
 
-  match (lastKind) {
-    TokenKind.Eq, TokenKind.Ne => { return true; }
-    TokenKind.Lt, TokenKind.Le => { return true; }
-    TokenKind.Gt, TokenKind.Ge => { return true; }
-    TokenKind.Plus, TokenKind.Minus => { return true; }
-    TokenKind.Star, TokenKind.Slash => { return true; }
-    TokenKind.AndAnd, TokenKind.OrOr => { return true; }
-    TokenKind.LParen, TokenKind.LBrace => { return true; }
-    TokenKind.Comma, TokenKind.Colon => { return true; }
-    TokenKind.Coalesce, TokenKind.Try => { return true; }
-    else => {}
-  }
-
-  return lastKind == TokenKind.Return;
+  return match (lastKind) {
+    .Eq, .Ne => true,
+    .Lt, .Le => true,
+    .Gt, .Ge => true,
+    .Plus, .Minus => true,
+    .Star, .Slash => true,
+    .AndAnd, .OrOr => true,
+    .LParen, .LBrace => true,
+    .Comma, .Colon => true,
+    .Coalesce, .Try => true,
+    else => lastKind == TokenKind.Return,
+  };
 }
 
 // A block of text, written indented to match the code around it, as the text

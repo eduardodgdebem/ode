@@ -266,3 +266,118 @@ test "match pattern wrong type" {
   assertEq(found.at(0).line, 3);
   assertEq(found.at(0).column, 3);
 }
+
+let OPS: *i8 = `
+  enum Op { Add, Sub, Mul }
+  error enum ParseError { Empty, Bad }
+  error enum ReadError { Empty }
+
+  fn run(op: Op): i32 {
+    return 0;
+  }
+`;
+
+fn ops(): *Scope {
+  return Scope.new().declare(OPS).local("op", "Op");
+}
+
+test "a member is named without its enum wherever the enum is expected" {
+  let found: *List<Diagnostic> = ops().returning("i64 | ParseError").run(`
+    let chosen: Op = .Sub;
+    op = .Mul;
+    run(.Add);
+    if (op == .Add || .Sub == op) {
+      return .Bad;
+    }
+    match (op) {
+      .Add, .Sub => {}
+      .Mul => {}
+    }
+    return 0;
+  `);
+  assertEq(found.count, 0);
+  assertEq(ops().check("op == .Add").type.toText(), "bool");
+}
+
+test "a member named without its enum needs one, and one that has it" {
+  let found: *List<Diagnostic> = ops().returning("i64 | ParseError | ReadError").run(`
+    let number: i32 = .Add;
+    let wrong: Op = .Div;
+    return .Empty;
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.ShorthandWithoutEnum);
+  assertEq(found.at(0).line, 1);
+  assertEq(found.at(0).column, 19);
+  assertEq(found.at(0).facts.name, "Add");
+  assertEq(found.at(1).problem, Problem.NoSuchMember);
+  assertEq(found.at(1).facts.other, "Div");
+  assertEq(found.at(2).problem, Problem.ShorthandWithoutEnum);
+  assertEq(found.at(2).facts.got.toText(), "i64 | ParseError | ReadError");
+}
+
+test "a match used as a value gives each arm's value" {
+  let scope: *Scope = ops();
+  assertEq(scope.check("match (op) { .Add => 1, else => 2 }").type.toText(), "i32");
+  assertEq(scope.check("match (op) { .Add => \"add\", .Sub => \"sub\", .Mul => \"mul\" }")
+               .type.toText(), "*i8");
+  let found: *List<Diagnostic> = scope.returning("i64").run(`
+    let wide: i64 = match (op) {
+      .Add => 1,
+      .Sub => {
+        return 5;
+      }
+      else => 3,
+    };
+    let fallible: i64 | ParseError = match (op) {
+      .Add => .Empty,
+      else => 4,
+    };
+    return wide;
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a match used as a value has a value from every arm, of one type" {
+  let found: *List<Diagnostic> = ops().run(`
+    let a: i32 = match (op) {
+      .Add => {
+        run(op);
+      }
+      else => 1,
+    };
+    let b: i32 = match (op) {
+      .Add => 1,
+    };
+    let c: bool = match (op) {
+      .Add => true,
+      else => 1,
+    };
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.ArmFallsThrough);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(1).problem, Problem.UnhandledMember);
+  assertEq(found.at(1).line, 7);
+  assertEq(found.at(2).problem, Problem.ArmTypes);
+  assertEq(found.at(2).line, 12);
+  assertEq(found.at(2).facts.got.toText(), "i32");
+}
+
+test "an expression arm in a statement still handles its errors" {
+  let found: *List<Diagnostic> = Scope.new().declare(`
+    error enum Bad { Oops }
+
+    fn fails(): i64 | Bad {
+      return .Oops;
+    }
+  `).local("n", "i32").run(`
+    match (n) {
+      1 => fails(),
+      else => 0,
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.UnhandledError);
+  assertEq(found.at(0).line, 2);
+}

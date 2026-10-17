@@ -67,17 +67,17 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
   let kind: NodeKind = an.ast.nodes[node].kind;
 
   match (kind) {
-    NodeKind.Block => { analyzeBlock(an, node); return; }
-    NodeKind.VarDecl => { analyzeVarDecl(an, node); return; }
-    NodeKind.Assign => { analyzeAssign(an, node); return; }
-    NodeKind.If => { analyzeIf(an, node); return; }
-    NodeKind.While => { analyzeWhile(an, node); return; }
-    NodeKind.For => { analyzeFor(an, node); return; }
-    NodeKind.Fn => { analyzeFuncDecl(an, node); return; }
-    NodeKind.Extern => { analyzeExternDecl(an, node); return; }
-    NodeKind.Test => { analyzeTest(an, node); return; }
-    NodeKind.Return => { analyzeReturn(an, node); return; }
-    NodeKind.ExprStmt => { analyzeExpressionStatement(an, node); return; }
+    .Block => { analyzeBlock(an, node); return; }
+    .VarDecl => { analyzeVarDecl(an, node); return; }
+    .Assign => { analyzeAssign(an, node); return; }
+    .If => { analyzeIf(an, node); return; }
+    .While => { analyzeWhile(an, node); return; }
+    .For => { analyzeFor(an, node); return; }
+    .Fn => { analyzeFuncDecl(an, node); return; }
+    .Extern => { analyzeExternDecl(an, node); return; }
+    .Test => { analyzeTest(an, node); return; }
+    .Return => { analyzeReturn(an, node); return; }
+    .ExprStmt => { analyzeExpressionStatement(an, node); return; }
     else => {}
   }
 

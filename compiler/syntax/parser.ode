@@ -20,6 +20,9 @@ export struct Parser {
   // False as soon as a block is opened: `fn`, `extern` and `struct` are
   // file-level constructs, and a body is not the file level.
   atTopLevel: bool,
+  // True while a match arm's pattern is read, where `(1)` is a number in
+  // parentheses and never a lambda.
+  inPattern: bool,
 
   fn new(tokens: *TokenList, ast: *Ast): *Parser {
     let parser: *Parser = alloc<Parser>(1);
@@ -27,6 +30,7 @@ export struct Parser {
     parser.ast = ast;
     parser.pos = 0;
     parser.atTopLevel = true;
+    parser.inPattern = false;
 
     return parser;
   }
@@ -352,11 +356,11 @@ export fn looksLikeTypeArgs(parser: *Parser): bool {
   while (true) {
     let kind: TokenKind = parser.tokens.at(index).kind;
     match (kind) {
-      TokenKind.Lt => { depth = depth + 1; }
-      TokenKind.Gt => { depth = depth - 1; }
-      TokenKind.Shr => { depth = depth - 2; }
-      TokenKind.Type, TokenKind.Ident, TokenKind.Star, TokenKind.Comma,
-      TokenKind.LParen, TokenKind.RParen, TokenKind.Arrow, TokenKind.Pipe => {}
+      .Lt => { depth = depth + 1; }
+      .Gt => { depth = depth - 1; }
+      .Shr => { depth = depth - 2; }
+      .Type, .Ident, .Star, .Comma,
+      .LParen, .RParen, .Arrow, .Pipe => {}
       else => {
         return false;
       }

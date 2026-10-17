@@ -45,29 +45,25 @@ export fn llvmTypeName(type: Type): *i8 {
     return out.take();
   }
 
-  match (type.kind) {
-    TypeKind.I8, TypeKind.U8 => { return "i8"; }
-    TypeKind.I16, TypeKind.U16 => { return "i16"; }
-    TypeKind.I32, TypeKind.U32 => { return "i32"; }
-    TypeKind.I64, TypeKind.U64 => { return "i64"; }
-    TypeKind.F32 => { return "float"; }
-    TypeKind.F64 => { return "double"; }
-    TypeKind.Bool => { return "i1"; }
-    TypeKind.Void => { return "void"; }
-    else => {}
-  }
-
-  return "void";
+  return match (type.kind) {
+    .I8, .U8 => "i8",
+    .I16, .U16 => "i16",
+    .I32, .U32 => "i32",
+    .I64, .U64 => "i64",
+    .F32 => "float",
+    .F64 => "double",
+    .Bool => "i1",
+    .Void => "void",
+    else => "void",
+  };
 }
 
 export fn zeroValue(type: Type): *i8 {
   if (type.isPointer() || type.isFunction()) { return "null"; }
-  match (type.kind) {
-    TypeKind.Struct, TypeKind.Union => { return "zeroinitializer"; }
-    TypeKind.Bool => { return "false"; }
-    TypeKind.F32, TypeKind.F64 => { return "0.0"; }
-    else => {}
-  }
-
-  return "0";
+  return match (type.kind) {
+    .Struct, .Union => "zeroinitializer",
+    .Bool => "false",
+    .F32, .F64 => "0.0",
+    else => "0",
+  };
 }

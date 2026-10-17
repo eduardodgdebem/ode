@@ -560,7 +560,7 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
 
   if (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) {
     let receiver: i32 = an.ast.nodes[node].a;
-    if (an.ast.nodes[receiver].kind == NodeKind.Ident) {
+    if (receiver != NO_NODE && an.ast.nodes[receiver].kind == NodeKind.Ident) {
       an.structRefs[node] =
           resolveStructName(an, program, an.ast.nodes[node].module,
                             an.ast.nodes[receiver].text);

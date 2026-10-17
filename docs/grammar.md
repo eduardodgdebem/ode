@@ -56,8 +56,9 @@ cycles.
 - **FieldDecl** → IDENT `:` Type `,`?
 - **EnumDecl** → `enum` IDENT `{` (EnumMember (`,` EnumMember)* `,`?)? `}`
 - **EnumMember** → IDENT (`=` `-`? NUMBER)?
-- **MatchStmt** → `match` `(` Expr `)` `{` MatchArm* `}`
-- **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` Block
+- **MatchStmt** → Match
+- **Match** → `match` `(` Expr `)` `{` (MatchArm `,`?)* `}`
+- **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` (Block | Expr) — an Expr arm is followed by `,` unless it is the last
 - **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR | Type — a Type only in a match on a union, where a bare IDENT names a type too
 - **TryExpr** → `try` Unary
 - **CatchExpr** → Coalesce `catch` `(` IDENT `)` Block — the lowest precedence; the block must leave
@@ -95,7 +96,7 @@ cycles.
 - **Cast** → Unary (`as` Type)*
 - **Unary** → (`-` | `+` | `!` | `*` | `&`) Unary | Postfix
 - **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]` | `(` ArgList? `)`)*
-- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | Lambda | `(` Expr `)`
+- **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | Lambda | Match | `.` IDENT | `(` Expr `)`
 - **Lambda** → `(` (LambdaParam (`,` LambdaParam)*)? `)` (`:` DeclaredType)? `=>` (Block | Expr)
 - **LambdaParam** → IDENT (`:` DeclaredType)?
 - **StructLiteral** → IDENT TypeArgs? `{` FieldInit* `}`
@@ -237,6 +238,16 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   the value; one of several values is `{ i32 code, [n x i64] }`, the value
   kept in as many words as the largest needs and the code below zero, one
   per type across the program. An error's code is above zero either way.
+- A match is a statement where one may start, and a value anywhere else. As
+  a value, each arm is an expression of the type expected -- or of the first
+  arm's, when nothing is -- or a block that always leaves; as a statement,
+  an expression arm is run as an expression statement. Either way every
+  value must be handled: every member, or an `else`.
+- `.Name` is the member `Name` of the enum the context expects: a variable's
+  or parameter's type, a return type, the other operand of `==` or `!=`, a
+  match's subject. Where a union is expected it is the member of the one
+  enum among its members that has one of that name.
+- A pattern in parentheses, `(1)`, is that pattern, never a Lambda.
 - A match on a union has one arm per member: each pattern names a value type
   or an error enum (all of its errors) that the union holds, once. A local
   variable matched on is narrowed in each arm to the members it names, and in

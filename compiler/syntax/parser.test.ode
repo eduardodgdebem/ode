@@ -472,3 +472,62 @@ test "a match arm may name built-in types and pointers" {
   let second: i32 = tree.ast.nodes[switchNode].items[1];
   assertEq(tree.kind(tree.ast.nodes[second].items[0]), NodeKind.Ident);
 }
+
+test "an arm runs an expression or a block, and a match may be a value" {
+  let tree: Parsed = parse(`
+    fn main(): void {
+      match (op) {
+        .Add => print(1),
+        .Sub => {
+          print(2);
+        }
+        else => print(3)
+      }
+      let name: *i8 = match (op) { .Add => "add", else => "other" };
+    }
+  `);
+  let statement: i32 = statementOf(tree, 0);
+  let first: i32 = tree.ast.nodes[statement].items[0];
+  // In a statement, an expression arm is run as an expression statement.
+  assertEq(tree.kind(tree.ast.nodes[first].a), NodeKind.ExprStmt);
+  let pattern: i32 = tree.ast.nodes[first].items[0];
+  assertEq(tree.kind(pattern), NodeKind.FieldAccess);
+  assertEq(tree.ast.nodes[pattern].a, NO_NODE);
+  assertEq(tree.ast.nodes[pattern].text, "Add");
+  assertEq(tree.ast.nodes[statement].itemCount, 3);
+
+  let value: i32 = tree.ast.nodes[statementOf(tree, 1)].b;
+  assertEq(tree.kind(value), NodeKind.Match);
+  assertEq(tree.ast.nodes[value].extra, 1);
+  let arm: i32 = tree.ast.nodes[value].items[0];
+  assertEq(tree.kind(tree.ast.nodes[arm].a), NodeKind.String);
+}
+
+test "a pattern in parentheses is never a lambda" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run(`
+        match (1) {
+          (1) => {}
+          else => {}
+        }
+      `);
+  assertEq(found.count, 0);
+}
+
+test "an expression arm ends at a comma, or at the closing brace" {
+  let found: *List<Diagnostic> = Scope.new()
+      .run(`
+        let n: i32 = 1;
+        match (n) {
+          1 => n = 2
+          else => {}
+        }
+      `);
+  // Assigning is a statement, so the arm's expression is `n`, and what
+  // follows it has to end the arm.
+  assert(found.count >= 1);
+  assertEq(found.at(0).problem, Problem.UnexpectedToken);
+  assertEq(found.at(0).line, 3);
+  assertEq(found.at(0).facts.name, ",");
+  assertEq(found.at(0).facts.other, "=");
+}

@@ -17,7 +17,7 @@ import {
   analyzerValidateType, throughAlias,
 } from "./analyzer";
 import { isReadyGlobal } from "./constants";
-import { checkEnumMember } from "./enums";
+import { checkEnumMember, checkShorthand, isShorthand, checkMatchValue } from "./enums";
 import {
   valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
   narrowedPath,
@@ -76,7 +76,17 @@ export fn checkExprAs(an: *Analyzer, node: i32, expected: Type): Type {
   if (expected.isUnion()) {
     hint = literalHint(expected);
   }
-  let type: Type = inferExprType(an, node, hint);
+  let type: Type = Type.make(TypeKind.None, 0);
+  // `.Red` and a match's value are given what is expected whole: an error's
+  // member is found among a union's errors, and a match's arms may each give
+  // a different member.
+  if (isShorthand(an, node)) {
+    type = checkShorthand(an, node, expected);
+  } else if (an.ast.nodes[node].kind == NodeKind.Match) {
+    type = checkMatchValue(an, node, expected);
+  } else {
+    type = inferExprType(an, node, hint);
+  }
   an.types[node] = type;
   // A value or an error given where a union is wanted becomes the union
   // there; codegen wraps it.
@@ -117,24 +127,24 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
   }
 
   match (kind) {
-    NodeKind.Try => { return checkTry(an, node); }
-    NodeKind.Catch => { return checkCatch(an, node); }
-    NodeKind.Is => { return checkIs(an, node); }
-    NodeKind.Lambda => { return checkLambda(an, node, expected); }
+    .Try => { return checkTry(an, node); }
+    .Catch => { return checkCatch(an, node); }
+    .Is => { return checkIs(an, node); }
+    .Lambda => { return checkLambda(an, node, expected); }
     else => {}
   }
 
   match (kind) {
-    NodeKind.Binary, NodeKind.Unary => {
+    .Binary, .Unary => {
       return checkOperator(an, node, expected);
     }
-    NodeKind.Cast => { return checkCast(an, node); }
-    NodeKind.FieldAccess => { return checkFieldAccess(an, node); }
-    NodeKind.Index => { return checkIndex(an, node); }
-    NodeKind.StructLit => { return checkStructLiteral(an, node); }
-    NodeKind.Call => { return checkCall(an, node); }
-    NodeKind.MethodCall => { return checkMethodCall(an, node); }
-    NodeKind.CallValue => { return checkCallValue(an, node); }
+    .Cast => { return checkCast(an, node); }
+    .FieldAccess => { return checkFieldAccess(an, node); }
+    .Index => { return checkIndex(an, node); }
+    .StructLit => { return checkStructLiteral(an, node); }
+    .Call => { return checkCall(an, node); }
+    .MethodCall => { return checkMethodCall(an, node); }
+    .CallValue => { return checkCallValue(an, node); }
     else => {}
   }
   if (kind == NodeKind.Number) {
@@ -148,9 +158,9 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
   // A string literal is a pointer into a private constant, so it behaves like
   // any other `*i8` from there on.
   match (kind) {
-    NodeKind.String => { return Type.make(TypeKind.I8, 1); }
-    NodeKind.Null => { return Type.make(TypeKind.Null, 0); }
-    NodeKind.Char => { return charType(expected); }
+    .String => { return Type.make(TypeKind.I8, 1); }
+    .Null => { return Type.make(TypeKind.Null, 0); }
+    .Char => { return charType(expected); }
     else => {}
   }
 
@@ -209,7 +219,7 @@ fn charType(expected: Type): Type {
 export fn isLiteralTree(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
   if (kind == NodeKind.Number || kind == NodeKind.Sizeof ||
-      kind == NodeKind.Char) {
+      kind == NodeKind.Char || isShorthand(an, node)) {
     return true;
   }
   let syntax: Syntax = an.ast.nodes[node].syntax;
@@ -230,16 +240,11 @@ export fn isLiteralTree(an: *Analyzer, node: i32): bool {
 
 // The operators whose result has their operands' type.
 fn isArithmetic(op: BinaryOp): bool {
-  match (op) {
-    BinaryOp.Add, BinaryOp.Subtract, BinaryOp.Multiply, BinaryOp.Divide,
-    BinaryOp.Remainder, BinaryOp.BitAnd, BinaryOp.BitOr, BinaryOp.BitXor,
-    BinaryOp.ShiftLeft, BinaryOp.ShiftRight => {
-      return true;
-    }
-    else => {
-      return false;
-    }
-  }
+  return match (op) {
+    .Add, .Subtract, .Multiply, .Divide, .Remainder, .BitAnd, .BitOr, .BitXor,
+    .ShiftLeft, .ShiftRight => true,
+    else => false,
+  };
 }
 
 // `at` is the assignment being checked. The failure is reported there rather
@@ -422,25 +427,25 @@ fn checkUnaryOp(an: *Analyzer, node: i32, unary: Unary, expected: Type): Type {
   let operandType: Type = checkExprAs(an, operand, operandExpected);
 
   match (unary.op) {
-    UnaryOp.Negate => {
+    .Negate => {
       if (!operandType.isNumeric()) {
         analyzerFail(an, node, Problem.UnaryMinusNotNumeric, Facts.aboutType(operandType));
       }
       return operandType;
     }
-    UnaryOp.Plus => {
+    .Plus => {
       if (!operandType.isNumeric()) {
         analyzerFail(an, node, Problem.UnaryPlusNotNumeric, Facts.aboutType(operandType));
       }
       return operandType;
     }
-    UnaryOp.Not => {
+    .Not => {
       if (!operandType.isBool()) {
         analyzerFail(an, node, Problem.NotNotBool, Facts.aboutType(operandType));
       }
       return Type.make(TypeKind.Bool, 0);
     }
-    UnaryOp.Deref => {
+    .Deref => {
       if (!operandType.isPointer()) {
         analyzerFail(an, node, Problem.DereferenceNonPointer, Facts.aboutType(operandType));
       }
@@ -450,7 +455,7 @@ fn checkUnaryOp(an: *Analyzer, node: i32, unary: Unary, expected: Type): Type {
       return operandType.pointee();
     }
     // Handled above, before its operand was checked as a value.
-    UnaryOp.AddressOf => {
+    .AddressOf => {
       return operandType.pointerTo();
     }
   }
@@ -483,16 +488,16 @@ fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type
   }
 
   match (op) {
-    BinaryOp.Or, BinaryOp.And => {
+    .Or, .And => {
       if (!left.isBool() || !right.isBool()) {
         analyzerFail(an, node, Problem.LogicalNotBool, Facts.aboutTypes(left, right));
       }
       return Type.make(TypeKind.Bool, 0);
     }
-    BinaryOp.Equal, BinaryOp.NotEqual => {
+    .Equal, .NotEqual => {
       return checkEquality(an, node, left, right);
     }
-    BinaryOp.Less, BinaryOp.LessEqual, BinaryOp.Greater, BinaryOp.GreaterEqual => {
+    .Less, .LessEqual, .Greater, .GreaterEqual => {
       if (!left.equals(right)) {
         analyzerFail(an, node, Problem.ComparisonTypes, Facts.aboutTypes(left, right));
       }
@@ -510,7 +515,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type
       }
       return Type.make(TypeKind.Bool, 0);
     }
-    BinaryOp.Add, BinaryOp.Subtract, BinaryOp.Multiply, BinaryOp.Divide => {
+    .Add, .Subtract, .Multiply, .Divide => {
       if ((op == BinaryOp.Add || op == BinaryOp.Subtract) &&
           (left.isPointer() || right.isPointer())) {
         return checkPointerArithmetic(an, node, op, left, right);
@@ -529,8 +534,8 @@ fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type
     // Remainder, the bitwise operators and the shifts all lower to an LLVM
     // instruction that wants two integers of one width, which is also what
     // the absence of implicit conversions would demand anyway.
-    BinaryOp.Remainder, BinaryOp.BitAnd, BinaryOp.BitOr, BinaryOp.BitXor,
-    BinaryOp.ShiftLeft, BinaryOp.ShiftRight => {
+    .Remainder, .BitAnd, .BitOr, .BitXor,
+    .ShiftLeft, .ShiftRight => {
       if (!left.equals(right)) {
         analyzerFail(an, node, Problem.OperatorTypes,
                      Facts.about(binaryOpText(op)).withTypes(left, right));
@@ -542,7 +547,7 @@ fn checkBinaryOp(an: *Analyzer, node: i32, binary: Binary, expected: Type): Type
       return left;
     }
     // Checked by checkCoalesce, before its operands were.
-    BinaryOp.Coalesce => {
+    .Coalesce => {
       return left;
     }
   }
@@ -612,7 +617,7 @@ fn checkPointerArithmetic(an: *Analyzer, node: i32, op: BinaryOp, left: Type,
 // What a literal operand is offered: the other side's type when that is a
 // number, so `n + 1` is in n's type, or else whatever the whole is.
 fn operandHint(other: Type, wanted: Type): Type {
-  if (other.isNumeric()) {
+  if (other.isNumeric() || other.isEnum()) {
     return other;
   }
   return wanted;

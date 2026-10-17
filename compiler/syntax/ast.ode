@@ -144,37 +144,37 @@ export fn negated(ast: *Ast, node: i32): i32 {
 
 // How an operator is written, for what a diagnostic quotes.
 export fn binaryOpText(op: BinaryOp): *i8 {
-  match (op) {
-    BinaryOp.Add => { return "+"; }
-    BinaryOp.Subtract => { return "-"; }
-    BinaryOp.Multiply => { return "*"; }
-    BinaryOp.Divide => { return "/"; }
-    BinaryOp.Remainder => { return "%"; }
-    BinaryOp.Equal => { return "=="; }
-    BinaryOp.NotEqual => { return "!="; }
-    BinaryOp.Less => { return "<"; }
-    BinaryOp.LessEqual => { return "<="; }
-    BinaryOp.Greater => { return ">"; }
-    BinaryOp.GreaterEqual => { return ">="; }
-    BinaryOp.And => { return "&&"; }
-    BinaryOp.Or => { return "||"; }
-    BinaryOp.BitAnd => { return "&"; }
-    BinaryOp.BitOr => { return "|"; }
-    BinaryOp.BitXor => { return "^"; }
-    BinaryOp.ShiftLeft => { return "<<"; }
-    BinaryOp.ShiftRight => { return ">>"; }
-    BinaryOp.Coalesce => { return "??"; }
-  }
+  return match (op) {
+    .Add => "+",
+    .Subtract => "-",
+    .Multiply => "*",
+    .Divide => "/",
+    .Remainder => "%",
+    .Equal => "==",
+    .NotEqual => "!=",
+    .Less => "<",
+    .LessEqual => "<=",
+    .Greater => ">",
+    .GreaterEqual => ">=",
+    .And => "&&",
+    .Or => "||",
+    .BitAnd => "&",
+    .BitOr => "|",
+    .BitXor => "^",
+    .ShiftLeft => "<<",
+    .ShiftRight => ">>",
+    .Coalesce => "??",
+  };
 }
 
 export fn unaryOpText(op: UnaryOp): *i8 {
-  match (op) {
-    UnaryOp.Negate => { return "-"; }
-    UnaryOp.Plus => { return "+"; }
-    UnaryOp.Not => { return "!"; }
-    UnaryOp.Deref => { return "*"; }
-    UnaryOp.AddressOf => { return "&"; }
-  }
+  return match (op) {
+    .Negate => "-",
+    .Plus => "+",
+    .Not => "!",
+    .Deref => "*",
+    .AddressOf => "&",
+  };
 }
 
 export enum NodeKind {
@@ -386,90 +386,70 @@ export struct Ast {
 }
 
 export fn nodeKindName(kind: NodeKind): *i8 {
-  match (kind) {
-    NodeKind.Program => { return "program"; }
-    NodeKind.Block => { return "block"; }
-    NodeKind.VarDecl => { return "vardecl"; }
-    NodeKind.Assign => { return "assign"; }
-    NodeKind.If => { return "if"; }
-    NodeKind.While => { return "while"; }
-    NodeKind.Break => { return "break"; }
-    NodeKind.Continue => { return "continue"; }
-    NodeKind.Fn => { return "fn"; }
-    NodeKind.Extern => { return "extern"; }
-    NodeKind.Struct => { return "struct"; }
-    NodeKind.Field => { return "field"; }
-    NodeKind.Call => { return "call"; }
-    NodeKind.Return => { return "return"; }
-    NodeKind.ExprStmt => { return "exprstmt"; }
-    NodeKind.Binary => { return "binary"; }
-    NodeKind.Unary => { return "unary"; }
-    NodeKind.Cast => { return "cast"; }
-    NodeKind.FieldAccess => { return "fieldaccess"; }
-    NodeKind.Index => { return "index"; }
-    NodeKind.StructLit => { return "structlit"; }
-    NodeKind.FieldInit => { return "finit"; }
-    NodeKind.Sizeof => { return "sizeof"; }
-    NodeKind.Number => { return "number"; }
-    NodeKind.String => { return "string"; }
-    NodeKind.Char => { return "char"; }
-    NodeKind.Bool => { return "bool"; }
-    NodeKind.Ident => { return "ident"; }
-    NodeKind.Type => { return "type"; }
-    NodeKind.Params => { return "params"; }
-    NodeKind.Param => { return "param"; }
-    NodeKind.Args => { return "args"; }
-    NodeKind.UnionType => { return "uniontype"; }
-    NodeKind.Try => { return "try"; }
-    NodeKind.Catch => { return "catch"; }
-    NodeKind.Is => { return "is"; }
-    NodeKind.Test => { return "test"; }
-    NodeKind.Error => { return "error"; }
-    NodeKind.Import => { return "import"; }
-    NodeKind.ImportName => { return "importname"; }
-    NodeKind.MethodCall => { return "methodcall"; }
-    NodeKind.Null => { return "null"; }
-    NodeKind.Enum => { return "enum"; }
-    NodeKind.EnumMember => { return "enummember"; }
-    NodeKind.Match => { return "match"; }
-    NodeKind.Arm => { return "arm"; }
-    NodeKind.FnType => { return "fntype"; }
-    NodeKind.Lambda => { return "lambda"; }
-    NodeKind.TypeAlias => { return "typealias"; }
-    NodeKind.CallValue => { return "callvalue"; }
-    NodeKind.For => { return "for"; }
-    NodeKind.TypeParams => { return "typeparams"; }
-    NodeKind.TypeParam => { return "typeparam"; }
-    NodeKind.TypeArgs => { return "typeargs"; }
-  }
-
-  return "?";
+  return match (kind) {
+    .Program => "program",
+    .Block => "block",
+    .VarDecl => "vardecl",
+    .Assign => "assign",
+    .If => "if",
+    .While => "while",
+    .Break => "break",
+    .Continue => "continue",
+    .Fn => "fn",
+    .Extern => "extern",
+    .Struct => "struct",
+    .Field => "field",
+    .Call => "call",
+    .Return => "return",
+    .ExprStmt => "exprstmt",
+    .Binary => "binary",
+    .Unary => "unary",
+    .Cast => "cast",
+    .FieldAccess => "fieldaccess",
+    .Index => "index",
+    .StructLit => "structlit",
+    .FieldInit => "finit",
+    .Sizeof => "sizeof",
+    .Number => "number",
+    .String => "string",
+    .Char => "char",
+    .Bool => "bool",
+    .Ident => "ident",
+    .Type => "type",
+    .Params => "params",
+    .Param => "param",
+    .Args => "args",
+    .UnionType => "uniontype",
+    .Try => "try",
+    .Catch => "catch",
+    .Is => "is",
+    .Test => "test",
+    .Error => "error",
+    .Import => "import",
+    .ImportName => "importname",
+    .MethodCall => "methodcall",
+    .Null => "null",
+    .Enum => "enum",
+    .EnumMember => "enummember",
+    .Match => "match",
+    .Arm => "arm",
+    .FnType => "fntype",
+    .Lambda => "lambda",
+    .TypeAlias => "typealias",
+    .CallValue => "callvalue",
+    .For => "for",
+    .TypeParams => "typeparams",
+    .TypeParam => "typeparam",
+    .TypeArgs => "typeargs",
+  };
 }
 
 // True for the kinds whose text is worth printing in a dump.
 export fn nodeCarriesText(kind: NodeKind): bool {
-  if (kind == NodeKind.VarDecl || kind == NodeKind.Fn || kind == NodeKind.Extern) {
-    return true;
-  }
-  if (kind == NodeKind.Struct || kind == NodeKind.Field || kind == NodeKind.Call) {
-    return true;
-  }
-  if (kind == NodeKind.FieldAccess) {
-    return true;
-  }
-  if (kind == NodeKind.StructLit || kind == NodeKind.FieldInit || kind == NodeKind.Param) {
-    return true;
-  }
-  if (kind == NodeKind.Number || kind == NodeKind.String || kind == NodeKind.Char) {
-    return true;
-  }
-  if (kind == NodeKind.Import || kind == NodeKind.ImportName || kind == NodeKind.MethodCall) {
-    return true;
-  }
-  if (kind == NodeKind.Enum || kind == NodeKind.EnumMember ||
-      kind == NodeKind.For || kind == NodeKind.TypeParam) {
-    return true;
-  }
-
-  return kind == NodeKind.Bool || kind == NodeKind.Ident || kind == NodeKind.Type;
+  return match (kind) {
+    .VarDecl, .Fn, .Extern, .Struct, .Field, .Call, .FieldAccess, .StructLit,
+    .FieldInit, .Param, .Number, .String, .Char, .Import, .ImportName,
+    .MethodCall, .Enum, .EnumMember, .For, .TypeParam, .Bool, .Ident, .Type => true,
+    else => false,
+  };
 }

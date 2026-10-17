@@ -17,16 +17,14 @@ import { TokenKind, Token } from "./token";
 // `a op= b` is sugar for `a = a op b`; this names the binary operator each
 // compound token stands for, or TK_NONE when the token is not one.
 fn compoundAssignOp(kind: TokenKind): TokenKind {
-  match (kind) {
-    TokenKind.PlusAssign => { return TokenKind.Plus; }
-    TokenKind.MinusAssign => { return TokenKind.Minus; }
-    TokenKind.StarAssign => { return TokenKind.Star; }
-    TokenKind.SlashAssign => { return TokenKind.Slash; }
-    TokenKind.PercentAssign => { return TokenKind.Percent; }
-    else => {}
-  }
-
-  return TokenKind.None;
+  return match (kind) {
+    .PlusAssign => TokenKind.Plus,
+    .MinusAssign => TokenKind.Minus,
+    .StarAssign => TokenKind.Star,
+    .SlashAssign => TokenKind.Slash,
+    .PercentAssign => TokenKind.Percent,
+    else => TokenKind.None,
+  };
 }
 
 // Parses the expression starting at `start` again and leaves the position
@@ -83,14 +81,14 @@ fn parseStatementInner(parser: *Parser, start: *Token): i32 {
   let kind: TokenKind = parser.kind();
 
   match (kind) {
-    TokenKind.Let => { return parseVarDecl(parser); }
-    TokenKind.LBrace => { return parseBlock(parser); }
-    TokenKind.If => { return parseIfStmt(parser); }
-    TokenKind.While => { return parseWhileStmt(parser); }
-    TokenKind.For => { return parseForStmt(parser); }
-    TokenKind.Break => { return parseBreakStmt(parser); }
-    TokenKind.Continue => { return parseContinueStmt(parser); }
-    TokenKind.Return => { return parseReturnStmt(parser); }
+    .Let => { return parseVarDecl(parser); }
+    .LBrace => { return parseBlock(parser); }
+    .If => { return parseIfStmt(parser); }
+    .While => { return parseWhileStmt(parser); }
+    .For => { return parseForStmt(parser); }
+    .Break => { return parseBreakStmt(parser); }
+    .Continue => { return parseContinueStmt(parser); }
+    .Return => { return parseReturnStmt(parser); }
     else => {}
   }
 
@@ -691,8 +689,22 @@ fn parseEnumDecl(parser: *Parser): i32 {
 // MatchStmt -> 'match' '(' Expr ')' '{' MatchArm* '}'
 // MatchArm  -> (Expr (',' Expr)* | 'else') '=>' Block
 fn parseMatchStmt(parser: *Parser): i32 {
+  return parseMatch(parser, false);
+}
+
+// Match -> 'match' '(' Expr ')' '{' (Arm ','?)* '}'
+// Arm   -> (Pattern (',' Pattern)* | 'else') '=>' (Block | Expr)
+//
+// An arm runs a block, or one expression. In a match used as a value -- an
+// `expression` -- that expression is the value; in a statement it is run as
+// one, so the parser makes it an expression statement. Arms are separated by
+// commas, which a block arm may leave out.
+export fn parseMatch(parser: *Parser, expression: bool): i32 {
   let start: *Token = parser.current();
   let node: i32 = parser.ast.add(NodeKind.Match, start.line, start.column);
+  if (expression) {
+    parser.ast.nodes[node].extra = 1;
+  }
 
   parser.expect(TokenKind.Match, "match");
   parser.expect(TokenKind.LParen, "(");
@@ -708,6 +720,7 @@ fn parseMatchStmt(parser: *Parser): i32 {
       parser.advance();
       parser.ast.nodes[arm].extra = 1;
     } else {
+      parser.inPattern = true;
       while (true) {
         // A match on a union names types: `i64`, `*i8` and `Circle` alike.
         // A built-in type or a pointer can only be a type here.
@@ -721,10 +734,28 @@ fn parseMatchStmt(parser: *Parser): i32 {
         }
         parser.advance();
       }
+      parser.inPattern = false;
     }
 
     parser.expect(TokenKind.Arrow, "=>");
-    parser.ast.nodes[arm].a = parseBlock(parser);
+    if (parser.kind() == TokenKind.LBrace) {
+      parser.ast.nodes[arm].a = parseBlock(parser);
+    } else {
+      let at: *Token = parser.current();
+      let value: i32 = parseExpr(parser);
+      if (!expression) {
+        let statement: i32 = parser.ast.add(NodeKind.ExprStmt, at.line, at.column);
+        parser.ast.nodes[statement].a = value;
+        value = statement;
+      }
+      parser.ast.nodes[arm].a = value;
+      if (parser.kind() != TokenKind.RBrace) {
+        parser.expect(TokenKind.Comma, ",");
+      }
+    }
+    if (parser.kind() == TokenKind.Comma) {
+      parser.advance();
+    }
     parser.ast.addItem(node, arm);
 
     if (FAILED) {

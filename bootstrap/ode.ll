@@ -35,7 +35,7 @@
 %Suite = type { ptr, ptr, ptr, ptr, i1, i32, i32, i32, i32, i32, ptr, ptr, ptr, ptr, ptr }
 %UnionInfo = type { ptr, ptr, ptr }
 %Signature = type { ptr, ptr, i32, %Type }
-%Parser = type { ptr, ptr, i32, i1 }
+%Parser = type { ptr, ptr, i32, i1, i1 }
 %Token = type { i32, ptr, i64, i32, i32 }
 %TokenList = type { ptr, i32, i32 }
 %"List<Module>" = type { ptr, i64, i64 }
@@ -488,1248 +488,1259 @@ declare i32 @fileno(ptr)
 @.str.352 = private unnamed_addr constant [46 x i8] c"match works on enums, integers and characters\00"
 @.str.353 = private unnamed_addr constant [41 x i8] c"an arm after 'else' can never be reached\00"
 @.str.354 = private unnamed_addr constant [52 x i8] c"this value is already handled by an earlier pattern\00"
-@.str.355 = private unnamed_addr constant [10 x i8] c"match on \00"
-@.str.356 = private unnamed_addr constant [18 x i8] c" does not handle \00"
-@.str.357 = private unnamed_addr constant [36 x i8] c"add an arm for it, or an 'else' arm\00"
-@.str.358 = private unnamed_addr constant [49 x i8] c"a match on a union names the types it may hold: \00"
-@.str.359 = private unnamed_addr constant [68 x i8] c"write a member's type, `Circle => { ... }`, or an error enum's name\00"
-@.str.360 = private unnamed_addr constant [10 x i8] c"match on \00"
-@.str.361 = private unnamed_addr constant [18 x i8] c" does not handle \00"
-@.str.362 = private unnamed_addr constant [2 x i8] c".\00"
-@.str.363 = private unnamed_addr constant [36 x i8] c"add an arm for it, or an 'else' arm\00"
+@.str.355 = private unnamed_addr constant [2 x i8] c".\00"
+@.str.356 = private unnamed_addr constant [55 x i8] c" names a member of the enum expected here, and none is\00"
+@.str.357 = private unnamed_addr constant [64 x i8] c"name its enum, `Color.Red`, or use it where an enum is expected\00"
+@.str.358 = private unnamed_addr constant [16 x i8] c"no one enum in \00"
+@.str.359 = private unnamed_addr constant [15 x i8] c" has a member \00"
+@.str.360 = private unnamed_addr constant [34 x i8] c"name its enum, `ParseError.Empty`\00"
+@.str.361 = private unnamed_addr constant [34 x i8] c"this arm gives the match no value\00"
+@.str.362 = private unnamed_addr constant [74 x i8] c"end its block with return, break or continue, or write the value after =>\00"
+@.str.363 = private unnamed_addr constant [54 x i8] c"the arms of this match give values of different types\00"
 @.str.364 = private unnamed_addr constant [10 x i8] c"match on \00"
-@.str.365 = private unnamed_addr constant [21 x i8] c" needs an 'else' arm\00"
-@.str.366 = private unnamed_addr constant [52 x i8] c"no list of arms can cover every value of an integer\00"
-@.str.367 = private unnamed_addr constant [8 x i8] c"method \00"
-@.str.368 = private unnamed_addr constant [28 x i8] c" is declared more than once\00"
-@.str.369 = private unnamed_addr constant [11 x i8] c"'self' of \00"
-@.str.370 = private unnamed_addr constant [20 x i8] c" has the wrong type\00"
-@.str.371 = private unnamed_addr constant [12 x i8] c"it must be \00"
-@.str.372 = private unnamed_addr constant [5 x i8] c" or \00"
-@.str.373 = private unnamed_addr constant [2 x i8] c"*\00"
-@.str.374 = private unnamed_addr constant [48 x i8] c"only a struct's methods can be called on a type\00"
-@.str.375 = private unnamed_addr constant [20 x i8] c"cannot call method \00"
-@.str.376 = private unnamed_addr constant [17 x i8] c" is not a struct\00"
-@.str.377 = private unnamed_addr constant [8 x i8] c"struct \00"
-@.str.378 = private unnamed_addr constant [16 x i8] c" has no method \00"
-@.str.379 = private unnamed_addr constant [25 x i8] c" has no 'self' parameter\00"
-@.str.380 = private unnamed_addr constant [33 x i8] c"call it on the struct instead: '\00"
-@.str.381 = private unnamed_addr constant [7 x i8] c"(...)'\00"
-@.str.382 = private unnamed_addr constant [13 x i8] c"cannot call \00"
-@.str.383 = private unnamed_addr constant [22 x i8] c" on a temporary value\00"
-@.str.384 = private unnamed_addr constant [53 x i8] c"it takes 'self' by pointer, so store the value first\00"
-@.str.385 = private unnamed_addr constant [2 x i8] c"s\00"
-@.str.386 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.387 = private unnamed_addr constant [2 x i8] c" \00"
-@.str.388 = private unnamed_addr constant [8 x i8] c" takes \00"
-@.str.389 = private unnamed_addr constant [15 x i8] c" type argument\00"
-@.str.390 = private unnamed_addr constant [10 x i8] c" but got \00"
-@.str.391 = private unnamed_addr constant [8 x i8] c"struct \00"
-@.str.392 = private unnamed_addr constant [16 x i8] c" is not generic\00"
-@.str.393 = private unnamed_addr constant [27 x i8] c" is not a generic function\00"
-@.str.394 = private unnamed_addr constant [16 x i8] c"generic struct \00"
-@.str.395 = private unnamed_addr constant [30 x i8] c" needs type arguments: write \00"
-@.str.396 = private unnamed_addr constant [6 x i8] c"<...>\00"
-@.str.397 = private unnamed_addr constant [18 x i8] c"generic function \00"
-@.str.398 = private unnamed_addr constant [30 x i8] c" needs type arguments: write \00"
-@.str.399 = private unnamed_addr constant [11 x i8] c"<...>(...)\00"
-@.str.400 = private unnamed_addr constant [9 x i8] c"generic \00"
-@.str.401 = private unnamed_addr constant [45 x i8] c" keeps asking for bigger instances of itself\00"
-@.str.402 = private unnamed_addr constant [65 x i8] c"an instance's body uses one with more type arguments around them\00"
-@.str.403 = private unnamed_addr constant [8 x i8] c"member \00"
-@.str.404 = private unnamed_addr constant [30 x i8] c" of an error enum has a value\00"
-@.str.405 = private unnamed_addr constant [67 x i8] c"an error's value is given to it, so that every error is told apart\00"
-@.str.406 = private unnamed_addr constant [39 x i8] c"void cannot be one of a union's values\00"
-@.str.407 = private unnamed_addr constant [85 x i8] c"`void | SomeError` is a union that holds no value; one with values holds one of them\00"
-@.str.408 = private unnamed_addr constant [54 x i8] c"a union needs a value as well as its errors, such as \00"
-@.str.409 = private unnamed_addr constant [75 x i8] c"write the type of what it holds when it holds no error: `i64 | ParseError`\00"
-@.str.410 = private unnamed_addr constant [39 x i8] c"try needs a value that may be an error\00"
-@.str.411 = private unnamed_addr constant [70 x i8] c"try passes an error on to a caller, and is only allowed in a function\00"
-@.str.412 = private unnamed_addr constant [29 x i8] c"this function cannot return \00"
-@.str.413 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.414 = private unnamed_addr constant [12 x i8] c"it returns \00"
-@.str.415 = private unnamed_addr constant [10 x i8] c"; add `| \00"
-@.str.416 = private unnamed_addr constant [36 x i8] c"` to that, or handle the error here\00"
-@.str.417 = private unnamed_addr constant [46 x i8] c"?? needs a value that may be an error or null\00"
-@.str.418 = private unnamed_addr constant [41 x i8] c"the fallback after ?? has the wrong type\00"
-@.str.419 = private unnamed_addr constant [41 x i8] c"catch needs a value that may be an error\00"
-@.str.420 = private unnamed_addr constant [36 x i8] c"catch takes one kind of error, not \00"
-@.str.421 = private unnamed_addr constant [51 x i8] c"keep the value and tell the errors apart with `is`\00"
-@.str.422 = private unnamed_addr constant [25 x i8] c"a catch block must leave\00"
-@.str.423 = private unnamed_addr constant [70 x i8] c"end it with return, break or continue, or use ?? for a fallback value\00"
-@.str.424 = private unnamed_addr constant [6 x i8] c"type \00"
-@.str.425 = private unnamed_addr constant [28 x i8] c" is declared more than once\00"
-@.str.426 = private unnamed_addr constant [16 x i8] c"the type alias \00"
-@.str.427 = private unnamed_addr constant [19 x i8] c" stands for itself\00"
-@.str.428 = private unnamed_addr constant [86 x i8] c"an alias names a type that already exists; one that goes round in a circle names none\00"
-@.str.429 = private unnamed_addr constant [21 x i8] c"a lambda cannot use \00"
-@.str.430 = private unnamed_addr constant [43 x i8] c", a local of the function it is written in\00"
-@.str.431 = private unnamed_addr constant [61 x i8] c"a lambda captures nothing: pass what it needs as a parameter\00"
-@.str.432 = private unnamed_addr constant [13 x i8] c"the type of \00"
-@.str.433 = private unnamed_addr constant [14 x i8] c" is not known\00"
-@.str.434 = private unnamed_addr constant [81 x i8] c"write it, `(x: i32) => ...`, or use the lambda where a function type is expected\00"
-@.str.435 = private unnamed_addr constant [44 x i8] c"the return type of this lambda is not known\00"
-@.str.436 = private unnamed_addr constant [86 x i8] c"write it, `(x: i32): i32 => ...`, or use the lambda where a function type is expected\00"
-@.str.437 = private unnamed_addr constant [26 x i8] c"this lambda does not fit \00"
-@.str.438 = private unnamed_addr constant [16 x i8] c"the type takes \00"
-@.str.439 = private unnamed_addr constant [25 x i8] c" parameters, the lambda \00"
-@.str.440 = private unnamed_addr constant [42 x i8] c"this lambda does not return on every path\00"
-@.str.441 = private unnamed_addr constant [32 x i8] c"an error from this is ignored: \00"
-@.str.442 = private unnamed_addr constant [70 x i8] c"pass it on with try, give a fallback with ??, or handle it with catch\00"
-@.str.443 = private unnamed_addr constant [50 x i8] c"a value that may be an error cannot be compared: \00"
-@.str.444 = private unnamed_addr constant [67 x i8] c"take its value with ?? or try, or ask which error it holds with is\00"
-@.str.445 = private unnamed_addr constant [71 x i8] c"is asks which of a union's members a value holds, and this is no union\00"
-@.str.446 = private unnamed_addr constant [3 x i8] c"a \00"
-@.str.447 = private unnamed_addr constant [15 x i8] c" can never be \00"
-@.str.448 = private unnamed_addr constant [27 x i8] c" is not one of its members\00"
-@.str.449 = private unnamed_addr constant [38 x i8] c"wrong number of arguments to 'assert'\00"
-@.str.450 = private unnamed_addr constant [48 x i8] c"expected a condition and, optionally, a message\00"
-@.str.451 = private unnamed_addr constant [33 x i8] c"assert needs a boolean condition\00"
-@.str.452 = private unnamed_addr constant [34 x i8] c"assert's message must be a string\00"
-@.str.453 = private unnamed_addr constant [40 x i8] c"wrong number of arguments to 'assertEq'\00"
-@.str.454 = private unnamed_addr constant [47 x i8] c"expected the actual value and the expected one\00"
-@.str.455 = private unnamed_addr constant [42 x i8] c"assertEq compares values of the same type\00"
-@.str.456 = private unnamed_addr constant [34 x i8] c"assertEq cannot compare this type\00"
-@.str.457 = private unnamed_addr constant [10 x i8] c"=!<>+-*/%\00"
-@.str.458 = private unnamed_addr constant [9 x i8] c"NO_COLOR\00"
-@.str.459 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.460 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.461 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.462 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.463 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.464 = private unnamed_addr constant [2 x i8] c"1\00"
-@.str.465 = private unnamed_addr constant [5 x i8] c"1;31\00"
-@.str.466 = private unnamed_addr constant [5 x i8] c"1;36\00"
-@.str.467 = private unnamed_addr constant [5 x i8] c"1;32\00"
-@.str.468 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.469 = private unnamed_addr constant [38 x i8] c" errors generated, showing the first \00"
-@.str.470 = private unnamed_addr constant [3 x i8] c".\0A\00"
-@.str.471 = private unnamed_addr constant [20 x i8] c" errors generated.\0A\00"
-@.str.472 = private unnamed_addr constant [3 x i8] c": \00"
-@.str.473 = private unnamed_addr constant [7 x i8] c"error:\00"
-@.str.474 = private unnamed_addr constant [6 x i8] c"note:\00"
-@.str.475 = private unnamed_addr constant [14 x i8] c"--dump-tokens\00"
-@.str.476 = private unnamed_addr constant [11 x i8] c"--dump-ast\00"
-@.str.477 = private unnamed_addr constant [13 x i8] c"--dump-types\00"
-@.str.478 = private unnamed_addr constant [12 x i8] c"--emit-llvm\00"
-@.str.479 = private unnamed_addr constant [21 x i8] c"--keep-intermediates\00"
-@.str.480 = private unnamed_addr constant [3 x i8] c"-o\00"
-@.str.481 = private unnamed_addr constant [4 x i8] c".ll\00"
-@.str.482 = private unnamed_addr constant [3 x i8] c".o\00"
-@.str.483 = private unnamed_addr constant [3 x i8] c"-c\00"
-@.str.484 = private unnamed_addr constant [3 x i8] c"-o\00"
-@.str.485 = private unnamed_addr constant [21 x i8] c"-Wno-override-module\00"
-@.str.486 = private unnamed_addr constant [3 x i8] c"-o\00"
-@.str.487 = private unnamed_addr constant [2 x i8] c".\00"
-@.str.488 = private unnamed_addr constant [2 x i8] c"/\00"
-@.str.489 = private unnamed_addr constant [3 x i8] c"rb\00"
-@.str.490 = private unnamed_addr constant [3 x i8] c"wb\00"
-@.str.491 = private unnamed_addr constant [3 x i8] c"rm\00"
-@.str.492 = private unnamed_addr constant [4 x i8] c"-rf\00"
-@.str.493 = private unnamed_addr constant [2 x i8] c".\00"
-@.str.494 = private unnamed_addr constant [5 x i8] c".ode\00"
-@.str.495 = private unnamed_addr constant [3 x i8] c"ls\00"
-@.str.496 = private unnamed_addr constant [3 x i8] c"-1\00"
-@.str.497 = private unnamed_addr constant [7 x i8] c"TMPDIR\00"
-@.str.498 = private unnamed_addr constant [5 x i8] c"/tmp\00"
-@.str.499 = private unnamed_addr constant [8 x i8] c".XXXXXX\00"
-@.str.500 = private unnamed_addr constant [12 x i8] c"ode-os-test\00"
-@.str.501 = private unnamed_addr constant [78 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/os/files.ode:265:5\00"
-@.str.502 = private unnamed_addr constant [32 x i8] c"cannot make a scratch directory\00"
-@.str.503 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.504 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.505 = private unnamed_addr constant [80 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/syntax/ast.ode:120:3\00"
-@.str.506 = private unnamed_addr constant [22 x i8] c"not a binary operator\00"
-@.str.507 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.508 = private unnamed_addr constant [80 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/syntax/ast.ode:129:3\00"
-@.str.509 = private unnamed_addr constant [21 x i8] c"not a unary operator\00"
-@.str.510 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.511 = private unnamed_addr constant [2 x i8] c"+\00"
-@.str.512 = private unnamed_addr constant [2 x i8] c"-\00"
-@.str.513 = private unnamed_addr constant [2 x i8] c"*\00"
-@.str.514 = private unnamed_addr constant [2 x i8] c"/\00"
-@.str.515 = private unnamed_addr constant [2 x i8] c"%\00"
-@.str.516 = private unnamed_addr constant [3 x i8] c"==\00"
-@.str.517 = private unnamed_addr constant [3 x i8] c"!=\00"
-@.str.518 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.519 = private unnamed_addr constant [3 x i8] c"<=\00"
-@.str.520 = private unnamed_addr constant [2 x i8] c">\00"
-@.str.521 = private unnamed_addr constant [3 x i8] c">=\00"
-@.str.522 = private unnamed_addr constant [3 x i8] c"&&\00"
-@.str.523 = private unnamed_addr constant [3 x i8] c"||\00"
-@.str.524 = private unnamed_addr constant [2 x i8] c"&\00"
-@.str.525 = private unnamed_addr constant [2 x i8] c"|\00"
-@.str.526 = private unnamed_addr constant [2 x i8] c"^\00"
-@.str.527 = private unnamed_addr constant [3 x i8] c"<<\00"
-@.str.528 = private unnamed_addr constant [3 x i8] c">>\00"
-@.str.529 = private unnamed_addr constant [3 x i8] c"??\00"
-@.str.530 = private unnamed_addr constant [2 x i8] c"-\00"
-@.str.531 = private unnamed_addr constant [2 x i8] c"+\00"
-@.str.532 = private unnamed_addr constant [2 x i8] c"!\00"
-@.str.533 = private unnamed_addr constant [2 x i8] c"*\00"
-@.str.534 = private unnamed_addr constant [2 x i8] c"&\00"
-@.str.535 = private unnamed_addr constant [8 x i8] c"program\00"
-@.str.536 = private unnamed_addr constant [6 x i8] c"block\00"
-@.str.537 = private unnamed_addr constant [8 x i8] c"vardecl\00"
-@.str.538 = private unnamed_addr constant [7 x i8] c"assign\00"
-@.str.539 = private unnamed_addr constant [3 x i8] c"if\00"
-@.str.540 = private unnamed_addr constant [6 x i8] c"while\00"
-@.str.541 = private unnamed_addr constant [6 x i8] c"break\00"
-@.str.542 = private unnamed_addr constant [9 x i8] c"continue\00"
-@.str.543 = private unnamed_addr constant [3 x i8] c"fn\00"
-@.str.544 = private unnamed_addr constant [7 x i8] c"extern\00"
-@.str.545 = private unnamed_addr constant [7 x i8] c"struct\00"
-@.str.546 = private unnamed_addr constant [6 x i8] c"field\00"
-@.str.547 = private unnamed_addr constant [5 x i8] c"call\00"
-@.str.548 = private unnamed_addr constant [7 x i8] c"return\00"
-@.str.549 = private unnamed_addr constant [9 x i8] c"exprstmt\00"
-@.str.550 = private unnamed_addr constant [7 x i8] c"binary\00"
-@.str.551 = private unnamed_addr constant [6 x i8] c"unary\00"
-@.str.552 = private unnamed_addr constant [5 x i8] c"cast\00"
-@.str.553 = private unnamed_addr constant [12 x i8] c"fieldaccess\00"
-@.str.554 = private unnamed_addr constant [6 x i8] c"index\00"
-@.str.555 = private unnamed_addr constant [10 x i8] c"structlit\00"
-@.str.556 = private unnamed_addr constant [6 x i8] c"finit\00"
-@.str.557 = private unnamed_addr constant [7 x i8] c"sizeof\00"
-@.str.558 = private unnamed_addr constant [7 x i8] c"number\00"
-@.str.559 = private unnamed_addr constant [7 x i8] c"string\00"
-@.str.560 = private unnamed_addr constant [5 x i8] c"char\00"
-@.str.561 = private unnamed_addr constant [5 x i8] c"bool\00"
-@.str.562 = private unnamed_addr constant [6 x i8] c"ident\00"
-@.str.563 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.564 = private unnamed_addr constant [7 x i8] c"params\00"
-@.str.565 = private unnamed_addr constant [6 x i8] c"param\00"
-@.str.566 = private unnamed_addr constant [5 x i8] c"args\00"
-@.str.567 = private unnamed_addr constant [10 x i8] c"uniontype\00"
-@.str.568 = private unnamed_addr constant [4 x i8] c"try\00"
-@.str.569 = private unnamed_addr constant [6 x i8] c"catch\00"
-@.str.570 = private unnamed_addr constant [3 x i8] c"is\00"
-@.str.571 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.572 = private unnamed_addr constant [6 x i8] c"error\00"
-@.str.573 = private unnamed_addr constant [7 x i8] c"import\00"
-@.str.574 = private unnamed_addr constant [11 x i8] c"importname\00"
-@.str.575 = private unnamed_addr constant [11 x i8] c"methodcall\00"
-@.str.576 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.577 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.578 = private unnamed_addr constant [11 x i8] c"enummember\00"
-@.str.579 = private unnamed_addr constant [6 x i8] c"match\00"
-@.str.580 = private unnamed_addr constant [4 x i8] c"arm\00"
-@.str.581 = private unnamed_addr constant [7 x i8] c"fntype\00"
-@.str.582 = private unnamed_addr constant [7 x i8] c"lambda\00"
-@.str.583 = private unnamed_addr constant [10 x i8] c"typealias\00"
-@.str.584 = private unnamed_addr constant [10 x i8] c"callvalue\00"
-@.str.585 = private unnamed_addr constant [4 x i8] c"for\00"
-@.str.586 = private unnamed_addr constant [11 x i8] c"typeparams\00"
-@.str.587 = private unnamed_addr constant [10 x i8] c"typeparam\00"
-@.str.588 = private unnamed_addr constant [9 x i8] c"typeargs\00"
-@.str.589 = private unnamed_addr constant [2 x i8] c"?\00"
-@.str.590 = private unnamed_addr constant [3 x i8] c"\5C\5C\00"
-@.str.591 = private unnamed_addr constant [3 x i8] c"\5Cn\00"
-@.str.592 = private unnamed_addr constant [3 x i8] c"\5Ct\00"
-@.str.593 = private unnamed_addr constant [3 x i8] c"\5Cr\00"
-@.str.594 = private unnamed_addr constant [3 x i8] c"\5C'\00"
-@.str.595 = private unnamed_addr constant [3 x i8] c"\5C0\00"
-@.str.596 = private unnamed_addr constant [3 x i8] c" '\00"
-@.str.597 = private unnamed_addr constant [3 x i8] c"  \00"
-@.str.598 = private unnamed_addr constant [3 x i8] c" '\00"
-@.str.599 = private unnamed_addr constant [3 x i8] c" '\00"
-@.str.600 = private unnamed_addr constant [3 x i8] c" '\00"
-@.str.601 = private unnamed_addr constant [8 x i8] c" export\00"
-@.str.602 = private unnamed_addr constant [8 x i8] c" depth=\00"
-@.str.603 = private unnamed_addr constant [4 x i8] c" : \00"
-@.str.604 = private unnamed_addr constant [4 x i8] c"...\00"
-@.str.605 = private unnamed_addr constant [4 x i8] c"let\00"
-@.str.606 = private unnamed_addr constant [3 x i8] c"if\00"
-@.str.607 = private unnamed_addr constant [5 x i8] c"else\00"
-@.str.608 = private unnamed_addr constant [3 x i8] c"fn\00"
-@.str.609 = private unnamed_addr constant [7 x i8] c"extern\00"
-@.str.610 = private unnamed_addr constant [7 x i8] c"struct\00"
-@.str.611 = private unnamed_addr constant [7 x i8] c"sizeof\00"
-@.str.612 = private unnamed_addr constant [7 x i8] c"return\00"
-@.str.613 = private unnamed_addr constant [4 x i8] c"try\00"
-@.str.614 = private unnamed_addr constant [6 x i8] c"catch\00"
-@.str.615 = private unnamed_addr constant [6 x i8] c"while\00"
-@.str.616 = private unnamed_addr constant [6 x i8] c"break\00"
-@.str.617 = private unnamed_addr constant [9 x i8] c"continue\00"
-@.str.618 = private unnamed_addr constant [3 x i8] c"as\00"
-@.str.619 = private unnamed_addr constant [7 x i8] c"import\00"
-@.str.620 = private unnamed_addr constant [7 x i8] c"export\00"
-@.str.621 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.622 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.623 = private unnamed_addr constant [6 x i8] c"match\00"
-@.str.624 = private unnamed_addr constant [4 x i8] c"for\00"
-@.str.625 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.626 = private unnamed_addr constant [6 x i8] c"false\00"
-@.str.627 = private unnamed_addr constant [3 x i8] c"i8\00"
-@.str.628 = private unnamed_addr constant [3 x i8] c"u8\00"
-@.str.629 = private unnamed_addr constant [4 x i8] c"i16\00"
-@.str.630 = private unnamed_addr constant [4 x i8] c"u16\00"
-@.str.631 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.632 = private unnamed_addr constant [4 x i8] c"u32\00"
-@.str.633 = private unnamed_addr constant [4 x i8] c"i64\00"
-@.str.634 = private unnamed_addr constant [4 x i8] c"u64\00"
-@.str.635 = private unnamed_addr constant [6 x i8] c"usize\00"
-@.str.636 = private unnamed_addr constant [4 x i8] c"f32\00"
-@.str.637 = private unnamed_addr constant [4 x i8] c"f64\00"
-@.str.638 = private unnamed_addr constant [5 x i8] c"bool\00"
-@.str.639 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.640 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.641 = private unnamed_addr constant [10 x i8] c"/dev/null\00"
-@.str.642 = private unnamed_addr constant [2 x i8] c"w\00"
-@.str.643 = private unnamed_addr constant [16 x i8] c"from the child\0A\00"
-@.str.644 = private unnamed_addr constant [16 x i8] c"and its stderr\0A\00"
-@.str.645 = private unnamed_addr constant [7 x i8] c"assert\00"
-@.str.646 = private unnamed_addr constant [9 x i8] c"assertEq\00"
-@.str.647 = private unnamed_addr constant [7 x i8] c"nameOf\00"
-@.str.648 = private unnamed_addr constant [7 x i8] c"nameOf\00"
-@.str.649 = private unnamed_addr constant [7 x i8] c"nameOf\00"
-@.str.650 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.651 = private unnamed_addr constant [24 x i8] c"extern fn fork(): i32;\0A\00"
-@.str.652 = private unnamed_addr constant [63 x i8] c"extern fn waitpid(pid: i32, status: *i32, options: i32): i32;\0A\00"
-@.str.653 = private unnamed_addr constant [34 x i8] c"extern fn exit(code: i32): void;\0A\00"
-@.str.654 = private unnamed_addr constant [37 x i8] c"extern fn fflush(stream: *i8): i32;\0A\00"
-@.str.655 = private unnamed_addr constant [42 x i8] c"extern fn printf(format: *i8, ...): i32;\0A\00"
-@.str.656 = private unnamed_addr constant [46 x i8] c"extern fn strstr(text: *i8, part: *i8): *i8;\0A\00"
-@.str.657 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.658 = private unnamed_addr constant [67 x i8] c"export fn runTests(count: i32, names: **i8, tests: *(() => void),\0A\00"
-@.str.659 = private unnamed_addr constant [50 x i8] c"                   argc: i32, argv: **i8): i32 {\0A\00"
-@.str.660 = private unnamed_addr constant [27 x i8] c"  let filter: *i8 = null;\0A\00"
-@.str.661 = private unnamed_addr constant [19 x i8] c"  if (argc > 1) {\0A\00"
-@.str.662 = private unnamed_addr constant [23 x i8] c"    filter = argv[1];\0A\00"
-@.str.663 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
-@.str.664 = private unnamed_addr constant [24 x i8] c"  let passed: i32 = 0;\0A\00"
-@.str.665 = private unnamed_addr constant [24 x i8] c"  let failed: i32 = 0;\0A\00"
-@.str.666 = private unnamed_addr constant [25 x i8] c"  let skipped: i32 = 0;\0A\00"
-@.str.667 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.668 = private unnamed_addr constant [29 x i8] c"  for (index in 0..count) {\0A\00"
-@.str.669 = private unnamed_addr constant [67 x i8] c"    if (filter != null && strstr(names[index], filter) == null) {\0A\00"
-@.str.670 = private unnamed_addr constant [21 x i8] c"      skipped += 1;\0A\00"
-@.str.671 = private unnamed_addr constant [17 x i8] c"      continue;\0A\00"
-@.str.672 = private unnamed_addr constant [7 x i8] c"    }\0A\00"
-@.str.673 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.674 = private unnamed_addr constant [19 x i8] c"    fflush(null);\0A\00"
-@.str.675 = private unnamed_addr constant [30 x i8] c"    let child: i32 = fork();\0A\00"
-@.str.676 = private unnamed_addr constant [23 x i8] c"    if (child == 0) {\0A\00"
-@.str.677 = private unnamed_addr constant [44 x i8] c"      let test: () => void = tests[index];\0A\00"
-@.str.678 = private unnamed_addr constant [15 x i8] c"      test();\0A\00"
-@.str.679 = private unnamed_addr constant [16 x i8] c"      exit(0);\0A\00"
-@.str.680 = private unnamed_addr constant [7 x i8] c"    }\0A\00"
-@.str.681 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.682 = private unnamed_addr constant [26 x i8] c"    let status: i32 = 0;\0A\00"
-@.str.683 = private unnamed_addr constant [33 x i8] c"    waitpid(child, &status, 0);\0A\00"
-@.str.684 = private unnamed_addr constant [37 x i8] c"    let signal: i32 = status & 127;\0A\00"
-@.str.685 = private unnamed_addr constant [24 x i8] c"    if (status == 0) {\0A\00"
-@.str.686 = private unnamed_addr constant [49 x i8] c"      printf(\22test %s ... ok\5Cn\22, names[index]);\0A\00"
-@.str.687 = private unnamed_addr constant [20 x i8] c"      passed += 1;\0A\00"
-@.str.688 = private unnamed_addr constant [31 x i8] c"    } else if (signal != 0) {\0A\00"
-@.str.689 = private unnamed_addr constant [74 x i8] c"      printf(\22test %s ... CRASHED (signal %d)\5Cn\22, names[index], signal);\0A\00"
-@.str.690 = private unnamed_addr constant [20 x i8] c"      failed += 1;\0A\00"
-@.str.691 = private unnamed_addr constant [14 x i8] c"    } else {\0A\00"
-@.str.692 = private unnamed_addr constant [53 x i8] c"      printf(\22test %s ... FAILED\5Cn\22, names[index]);\0A\00"
-@.str.693 = private unnamed_addr constant [20 x i8] c"      failed += 1;\0A\00"
-@.str.694 = private unnamed_addr constant [7 x i8] c"    }\0A\00"
-@.str.695 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
-@.str.696 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.697 = private unnamed_addr constant [53 x i8] c"  printf(\22\5Cn%d passed; %d failed\22, passed, failed);\0A\00"
-@.str.698 = private unnamed_addr constant [22 x i8] c"  if (skipped > 0) {\0A\00"
-@.str.699 = private unnamed_addr constant [43 x i8] c"    printf(\22; %d filtered out\22, skipped);\0A\00"
-@.str.700 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
-@.str.701 = private unnamed_addr constant [17 x i8] c"  printf(\22\5Cn\22);\0A\00"
-@.str.702 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.703 = private unnamed_addr constant [21 x i8] c"  if (failed > 0) {\0A\00"
-@.str.704 = private unnamed_addr constant [15 x i8] c"    return 1;\0A\00"
-@.str.705 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
-@.str.706 = private unnamed_addr constant [13 x i8] c"  return 0;\0A\00"
-@.str.707 = private unnamed_addr constant [3 x i8] c"}\0A\00"
-@.str.708 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.709 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.710 = private unnamed_addr constant [7 x i8] c"struct\00"
-@.str.711 = private unnamed_addr constant [9 x i8] c"function\00"
-@.str.712 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.713 = private unnamed_addr constant [3 x i8] c"i8\00"
-@.str.714 = private unnamed_addr constant [3 x i8] c"u8\00"
-@.str.715 = private unnamed_addr constant [4 x i8] c"i16\00"
-@.str.716 = private unnamed_addr constant [4 x i8] c"u16\00"
-@.str.717 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.718 = private unnamed_addr constant [4 x i8] c"u32\00"
-@.str.719 = private unnamed_addr constant [4 x i8] c"i64\00"
-@.str.720 = private unnamed_addr constant [4 x i8] c"u64\00"
-@.str.721 = private unnamed_addr constant [4 x i8] c"f32\00"
-@.str.722 = private unnamed_addr constant [4 x i8] c"f64\00"
-@.str.723 = private unnamed_addr constant [5 x i8] c"bool\00"
-@.str.724 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.725 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.726 = private unnamed_addr constant [8 x i8] c"unknown\00"
-@.str.727 = private unnamed_addr constant [3 x i8] c"i8\00"
-@.str.728 = private unnamed_addr constant [3 x i8] c"u8\00"
-@.str.729 = private unnamed_addr constant [4 x i8] c"i16\00"
-@.str.730 = private unnamed_addr constant [4 x i8] c"u16\00"
-@.str.731 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.732 = private unnamed_addr constant [4 x i8] c"u32\00"
-@.str.733 = private unnamed_addr constant [4 x i8] c"i64\00"
-@.str.734 = private unnamed_addr constant [4 x i8] c"u64\00"
-@.str.735 = private unnamed_addr constant [6 x i8] c"usize\00"
-@.str.736 = private unnamed_addr constant [4 x i8] c"f32\00"
-@.str.737 = private unnamed_addr constant [4 x i8] c"f64\00"
-@.str.738 = private unnamed_addr constant [5 x i8] c"bool\00"
-@.str.739 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.740 = private unnamed_addr constant [7 x i8] c"ODE_CC\00"
-@.str.741 = private unnamed_addr constant [6 x i8] c"clang\00"
-@.str.742 = private unnamed_addr constant [8 x i8] c"SDKROOT\00"
-@.str.743 = private unnamed_addr constant [15 x i8] c"/usr/bin/xcrun\00"
-@.str.744 = private unnamed_addr constant [6 x i8] c"xcrun\00"
-@.str.745 = private unnamed_addr constant [16 x i8] c"--show-sdk-path\00"
-@.str.746 = private unnamed_addr constant [10 x i8] c"-isysroot\00"
-@.str.747 = private unnamed_addr constant [8 x i8] c"SDKROOT\00"
-@.str.748 = private unnamed_addr constant [3 x i8] c"  \00"
-@.str.749 = private unnamed_addr constant [3 x i8] c"ok\00"
-@.str.750 = private unnamed_addr constant [3 x i8] c": \00"
-@.str.751 = private unnamed_addr constant [3 x i8] c"  \00"
-@.str.752 = private unnamed_addr constant [5 x i8] c"FAIL\00"
-@.str.753 = private unnamed_addr constant [3 x i8] c"  \00"
-@.str.754 = private unnamed_addr constant [30 x i8] c"cannot record the expectation\00"
-@.str.755 = private unnamed_addr constant [8 x i8] c".actual\00"
-@.str.756 = private unnamed_addr constant [5 x i8] c"diff\00"
-@.str.757 = private unnamed_addr constant [3 x i8] c"-u\00"
-@.str.758 = private unnamed_addr constant [8 x i8] c"--label\00"
-@.str.759 = private unnamed_addr constant [9 x i8] c"expected\00"
-@.str.760 = private unnamed_addr constant [8 x i8] c"--label\00"
-@.str.761 = private unnamed_addr constant [7 x i8] c"actual\00"
-@.str.762 = private unnamed_addr constant [5 x i8] c"    \00"
-@.str.763 = private unnamed_addr constant [19 x i8] c"compilation failed\00"
-@.str.764 = private unnamed_addr constant [28 x i8] c"program exited with status \00"
-@.str.765 = private unnamed_addr constant [48 x i8] c"no expected output recorded (run with --update)\00"
-@.str.766 = private unnamed_addr constant [15 x i8] c"stdout differs\00"
-@.str.767 = private unnamed_addr constant [5 x i8] c".ode\00"
-@.str.768 = private unnamed_addr constant [7 x i8] c"runner\00"
-@.str.769 = private unnamed_addr constant [21 x i8] c"cannot read the case\00"
-@.str.770 = private unnamed_addr constant [7 x i8] c"runner\00"
-@.str.771 = private unnamed_addr constant [31 x i8] c"cannot copy the case to run it\00"
-@.str.772 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.773 = private unnamed_addr constant [6 x i8] c"exit \00"
-@.str.774 = private unnamed_addr constant [7 x i8] c"runner\00"
-@.str.775 = private unnamed_addr constant [5 x i8] c".out\00"
-@.str.776 = private unnamed_addr constant [48 x i8] c"no expected output recorded (run with --update)\00"
-@.str.777 = private unnamed_addr constant [15 x i8] c"output differs\00"
-@.str.778 = private unnamed_addr constant [3 x i8] c"0\0A\00"
-@.str.779 = private unnamed_addr constant [26 x i8] c"tests/cli/prints_zero.ode\00"
-@.str.780 = private unnamed_addr constant [19 x i8] c"cli/nested/renamed\00"
-@.str.781 = private unnamed_addr constant [3 x i8] c"-o\00"
-@.str.782 = private unnamed_addr constant [4 x i8] c".ll\00"
-@.str.783 = private unnamed_addr constant [3 x i8] c".o\00"
-@.str.784 = private unnamed_addr constant [9 x i8] c"cli/kept\00"
-@.str.785 = private unnamed_addr constant [21 x i8] c"--keep-intermediates\00"
-@.str.786 = private unnamed_addr constant [3 x i8] c"-o\00"
-@.str.787 = private unnamed_addr constant [4 x i8] c".ll\00"
-@.str.788 = private unnamed_addr constant [3 x i8] c".o\00"
-@.str.789 = private unnamed_addr constant [29 x i8] c"cli/a b $(touch pwned);/prog\00"
+@.str.365 = private unnamed_addr constant [18 x i8] c" does not handle \00"
+@.str.366 = private unnamed_addr constant [36 x i8] c"add an arm for it, or an 'else' arm\00"
+@.str.367 = private unnamed_addr constant [49 x i8] c"a match on a union names the types it may hold: \00"
+@.str.368 = private unnamed_addr constant [68 x i8] c"write a member's type, `Circle => { ... }`, or an error enum's name\00"
+@.str.369 = private unnamed_addr constant [10 x i8] c"match on \00"
+@.str.370 = private unnamed_addr constant [18 x i8] c" does not handle \00"
+@.str.371 = private unnamed_addr constant [2 x i8] c".\00"
+@.str.372 = private unnamed_addr constant [36 x i8] c"add an arm for it, or an 'else' arm\00"
+@.str.373 = private unnamed_addr constant [10 x i8] c"match on \00"
+@.str.374 = private unnamed_addr constant [21 x i8] c" needs an 'else' arm\00"
+@.str.375 = private unnamed_addr constant [52 x i8] c"no list of arms can cover every value of an integer\00"
+@.str.376 = private unnamed_addr constant [8 x i8] c"method \00"
+@.str.377 = private unnamed_addr constant [28 x i8] c" is declared more than once\00"
+@.str.378 = private unnamed_addr constant [11 x i8] c"'self' of \00"
+@.str.379 = private unnamed_addr constant [20 x i8] c" has the wrong type\00"
+@.str.380 = private unnamed_addr constant [12 x i8] c"it must be \00"
+@.str.381 = private unnamed_addr constant [5 x i8] c" or \00"
+@.str.382 = private unnamed_addr constant [2 x i8] c"*\00"
+@.str.383 = private unnamed_addr constant [48 x i8] c"only a struct's methods can be called on a type\00"
+@.str.384 = private unnamed_addr constant [20 x i8] c"cannot call method \00"
+@.str.385 = private unnamed_addr constant [17 x i8] c" is not a struct\00"
+@.str.386 = private unnamed_addr constant [8 x i8] c"struct \00"
+@.str.387 = private unnamed_addr constant [16 x i8] c" has no method \00"
+@.str.388 = private unnamed_addr constant [25 x i8] c" has no 'self' parameter\00"
+@.str.389 = private unnamed_addr constant [33 x i8] c"call it on the struct instead: '\00"
+@.str.390 = private unnamed_addr constant [7 x i8] c"(...)'\00"
+@.str.391 = private unnamed_addr constant [13 x i8] c"cannot call \00"
+@.str.392 = private unnamed_addr constant [22 x i8] c" on a temporary value\00"
+@.str.393 = private unnamed_addr constant [53 x i8] c"it takes 'self' by pointer, so store the value first\00"
+@.str.394 = private unnamed_addr constant [2 x i8] c"s\00"
+@.str.395 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.396 = private unnamed_addr constant [2 x i8] c" \00"
+@.str.397 = private unnamed_addr constant [8 x i8] c" takes \00"
+@.str.398 = private unnamed_addr constant [15 x i8] c" type argument\00"
+@.str.399 = private unnamed_addr constant [10 x i8] c" but got \00"
+@.str.400 = private unnamed_addr constant [8 x i8] c"struct \00"
+@.str.401 = private unnamed_addr constant [16 x i8] c" is not generic\00"
+@.str.402 = private unnamed_addr constant [27 x i8] c" is not a generic function\00"
+@.str.403 = private unnamed_addr constant [16 x i8] c"generic struct \00"
+@.str.404 = private unnamed_addr constant [30 x i8] c" needs type arguments: write \00"
+@.str.405 = private unnamed_addr constant [6 x i8] c"<...>\00"
+@.str.406 = private unnamed_addr constant [18 x i8] c"generic function \00"
+@.str.407 = private unnamed_addr constant [30 x i8] c" needs type arguments: write \00"
+@.str.408 = private unnamed_addr constant [11 x i8] c"<...>(...)\00"
+@.str.409 = private unnamed_addr constant [9 x i8] c"generic \00"
+@.str.410 = private unnamed_addr constant [45 x i8] c" keeps asking for bigger instances of itself\00"
+@.str.411 = private unnamed_addr constant [65 x i8] c"an instance's body uses one with more type arguments around them\00"
+@.str.412 = private unnamed_addr constant [8 x i8] c"member \00"
+@.str.413 = private unnamed_addr constant [30 x i8] c" of an error enum has a value\00"
+@.str.414 = private unnamed_addr constant [67 x i8] c"an error's value is given to it, so that every error is told apart\00"
+@.str.415 = private unnamed_addr constant [39 x i8] c"void cannot be one of a union's values\00"
+@.str.416 = private unnamed_addr constant [85 x i8] c"`void | SomeError` is a union that holds no value; one with values holds one of them\00"
+@.str.417 = private unnamed_addr constant [54 x i8] c"a union needs a value as well as its errors, such as \00"
+@.str.418 = private unnamed_addr constant [75 x i8] c"write the type of what it holds when it holds no error: `i64 | ParseError`\00"
+@.str.419 = private unnamed_addr constant [39 x i8] c"try needs a value that may be an error\00"
+@.str.420 = private unnamed_addr constant [70 x i8] c"try passes an error on to a caller, and is only allowed in a function\00"
+@.str.421 = private unnamed_addr constant [29 x i8] c"this function cannot return \00"
+@.str.422 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.423 = private unnamed_addr constant [12 x i8] c"it returns \00"
+@.str.424 = private unnamed_addr constant [10 x i8] c"; add `| \00"
+@.str.425 = private unnamed_addr constant [36 x i8] c"` to that, or handle the error here\00"
+@.str.426 = private unnamed_addr constant [46 x i8] c"?? needs a value that may be an error or null\00"
+@.str.427 = private unnamed_addr constant [41 x i8] c"the fallback after ?? has the wrong type\00"
+@.str.428 = private unnamed_addr constant [41 x i8] c"catch needs a value that may be an error\00"
+@.str.429 = private unnamed_addr constant [36 x i8] c"catch takes one kind of error, not \00"
+@.str.430 = private unnamed_addr constant [51 x i8] c"keep the value and tell the errors apart with `is`\00"
+@.str.431 = private unnamed_addr constant [25 x i8] c"a catch block must leave\00"
+@.str.432 = private unnamed_addr constant [70 x i8] c"end it with return, break or continue, or use ?? for a fallback value\00"
+@.str.433 = private unnamed_addr constant [6 x i8] c"type \00"
+@.str.434 = private unnamed_addr constant [28 x i8] c" is declared more than once\00"
+@.str.435 = private unnamed_addr constant [16 x i8] c"the type alias \00"
+@.str.436 = private unnamed_addr constant [19 x i8] c" stands for itself\00"
+@.str.437 = private unnamed_addr constant [86 x i8] c"an alias names a type that already exists; one that goes round in a circle names none\00"
+@.str.438 = private unnamed_addr constant [21 x i8] c"a lambda cannot use \00"
+@.str.439 = private unnamed_addr constant [43 x i8] c", a local of the function it is written in\00"
+@.str.440 = private unnamed_addr constant [61 x i8] c"a lambda captures nothing: pass what it needs as a parameter\00"
+@.str.441 = private unnamed_addr constant [13 x i8] c"the type of \00"
+@.str.442 = private unnamed_addr constant [14 x i8] c" is not known\00"
+@.str.443 = private unnamed_addr constant [81 x i8] c"write it, `(x: i32) => ...`, or use the lambda where a function type is expected\00"
+@.str.444 = private unnamed_addr constant [44 x i8] c"the return type of this lambda is not known\00"
+@.str.445 = private unnamed_addr constant [86 x i8] c"write it, `(x: i32): i32 => ...`, or use the lambda where a function type is expected\00"
+@.str.446 = private unnamed_addr constant [26 x i8] c"this lambda does not fit \00"
+@.str.447 = private unnamed_addr constant [16 x i8] c"the type takes \00"
+@.str.448 = private unnamed_addr constant [25 x i8] c" parameters, the lambda \00"
+@.str.449 = private unnamed_addr constant [42 x i8] c"this lambda does not return on every path\00"
+@.str.450 = private unnamed_addr constant [32 x i8] c"an error from this is ignored: \00"
+@.str.451 = private unnamed_addr constant [70 x i8] c"pass it on with try, give a fallback with ??, or handle it with catch\00"
+@.str.452 = private unnamed_addr constant [50 x i8] c"a value that may be an error cannot be compared: \00"
+@.str.453 = private unnamed_addr constant [67 x i8] c"take its value with ?? or try, or ask which error it holds with is\00"
+@.str.454 = private unnamed_addr constant [71 x i8] c"is asks which of a union's members a value holds, and this is no union\00"
+@.str.455 = private unnamed_addr constant [3 x i8] c"a \00"
+@.str.456 = private unnamed_addr constant [15 x i8] c" can never be \00"
+@.str.457 = private unnamed_addr constant [27 x i8] c" is not one of its members\00"
+@.str.458 = private unnamed_addr constant [38 x i8] c"wrong number of arguments to 'assert'\00"
+@.str.459 = private unnamed_addr constant [48 x i8] c"expected a condition and, optionally, a message\00"
+@.str.460 = private unnamed_addr constant [33 x i8] c"assert needs a boolean condition\00"
+@.str.461 = private unnamed_addr constant [34 x i8] c"assert's message must be a string\00"
+@.str.462 = private unnamed_addr constant [40 x i8] c"wrong number of arguments to 'assertEq'\00"
+@.str.463 = private unnamed_addr constant [47 x i8] c"expected the actual value and the expected one\00"
+@.str.464 = private unnamed_addr constant [42 x i8] c"assertEq compares values of the same type\00"
+@.str.465 = private unnamed_addr constant [34 x i8] c"assertEq cannot compare this type\00"
+@.str.466 = private unnamed_addr constant [10 x i8] c"=!<>+-*/%\00"
+@.str.467 = private unnamed_addr constant [9 x i8] c"NO_COLOR\00"
+@.str.468 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.469 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.470 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.471 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.472 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.473 = private unnamed_addr constant [2 x i8] c"1\00"
+@.str.474 = private unnamed_addr constant [5 x i8] c"1;31\00"
+@.str.475 = private unnamed_addr constant [5 x i8] c"1;36\00"
+@.str.476 = private unnamed_addr constant [5 x i8] c"1;32\00"
+@.str.477 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.478 = private unnamed_addr constant [38 x i8] c" errors generated, showing the first \00"
+@.str.479 = private unnamed_addr constant [3 x i8] c".\0A\00"
+@.str.480 = private unnamed_addr constant [20 x i8] c" errors generated.\0A\00"
+@.str.481 = private unnamed_addr constant [3 x i8] c": \00"
+@.str.482 = private unnamed_addr constant [7 x i8] c"error:\00"
+@.str.483 = private unnamed_addr constant [6 x i8] c"note:\00"
+@.str.484 = private unnamed_addr constant [14 x i8] c"--dump-tokens\00"
+@.str.485 = private unnamed_addr constant [11 x i8] c"--dump-ast\00"
+@.str.486 = private unnamed_addr constant [13 x i8] c"--dump-types\00"
+@.str.487 = private unnamed_addr constant [12 x i8] c"--emit-llvm\00"
+@.str.488 = private unnamed_addr constant [21 x i8] c"--keep-intermediates\00"
+@.str.489 = private unnamed_addr constant [3 x i8] c"-o\00"
+@.str.490 = private unnamed_addr constant [4 x i8] c".ll\00"
+@.str.491 = private unnamed_addr constant [3 x i8] c".o\00"
+@.str.492 = private unnamed_addr constant [3 x i8] c"-c\00"
+@.str.493 = private unnamed_addr constant [3 x i8] c"-o\00"
+@.str.494 = private unnamed_addr constant [21 x i8] c"-Wno-override-module\00"
+@.str.495 = private unnamed_addr constant [3 x i8] c"-o\00"
+@.str.496 = private unnamed_addr constant [2 x i8] c".\00"
+@.str.497 = private unnamed_addr constant [2 x i8] c"/\00"
+@.str.498 = private unnamed_addr constant [3 x i8] c"rb\00"
+@.str.499 = private unnamed_addr constant [3 x i8] c"wb\00"
+@.str.500 = private unnamed_addr constant [3 x i8] c"rm\00"
+@.str.501 = private unnamed_addr constant [4 x i8] c"-rf\00"
+@.str.502 = private unnamed_addr constant [2 x i8] c".\00"
+@.str.503 = private unnamed_addr constant [5 x i8] c".ode\00"
+@.str.504 = private unnamed_addr constant [3 x i8] c"ls\00"
+@.str.505 = private unnamed_addr constant [3 x i8] c"-1\00"
+@.str.506 = private unnamed_addr constant [7 x i8] c"TMPDIR\00"
+@.str.507 = private unnamed_addr constant [5 x i8] c"/tmp\00"
+@.str.508 = private unnamed_addr constant [8 x i8] c".XXXXXX\00"
+@.str.509 = private unnamed_addr constant [12 x i8] c"ode-os-test\00"
+@.str.510 = private unnamed_addr constant [78 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/os/files.ode:265:5\00"
+@.str.511 = private unnamed_addr constant [32 x i8] c"cannot make a scratch directory\00"
+@.str.512 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.513 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.514 = private unnamed_addr constant [80 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/syntax/ast.ode:120:3\00"
+@.str.515 = private unnamed_addr constant [22 x i8] c"not a binary operator\00"
+@.str.516 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.517 = private unnamed_addr constant [80 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/syntax/ast.ode:129:3\00"
+@.str.518 = private unnamed_addr constant [21 x i8] c"not a unary operator\00"
+@.str.519 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.520 = private unnamed_addr constant [2 x i8] c"+\00"
+@.str.521 = private unnamed_addr constant [2 x i8] c"-\00"
+@.str.522 = private unnamed_addr constant [2 x i8] c"*\00"
+@.str.523 = private unnamed_addr constant [2 x i8] c"/\00"
+@.str.524 = private unnamed_addr constant [2 x i8] c"%\00"
+@.str.525 = private unnamed_addr constant [3 x i8] c"==\00"
+@.str.526 = private unnamed_addr constant [3 x i8] c"!=\00"
+@.str.527 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.528 = private unnamed_addr constant [3 x i8] c"<=\00"
+@.str.529 = private unnamed_addr constant [2 x i8] c">\00"
+@.str.530 = private unnamed_addr constant [3 x i8] c">=\00"
+@.str.531 = private unnamed_addr constant [3 x i8] c"&&\00"
+@.str.532 = private unnamed_addr constant [3 x i8] c"||\00"
+@.str.533 = private unnamed_addr constant [2 x i8] c"&\00"
+@.str.534 = private unnamed_addr constant [2 x i8] c"|\00"
+@.str.535 = private unnamed_addr constant [2 x i8] c"^\00"
+@.str.536 = private unnamed_addr constant [3 x i8] c"<<\00"
+@.str.537 = private unnamed_addr constant [3 x i8] c">>\00"
+@.str.538 = private unnamed_addr constant [3 x i8] c"??\00"
+@.str.539 = private unnamed_addr constant [2 x i8] c"-\00"
+@.str.540 = private unnamed_addr constant [2 x i8] c"+\00"
+@.str.541 = private unnamed_addr constant [2 x i8] c"!\00"
+@.str.542 = private unnamed_addr constant [2 x i8] c"*\00"
+@.str.543 = private unnamed_addr constant [2 x i8] c"&\00"
+@.str.544 = private unnamed_addr constant [8 x i8] c"program\00"
+@.str.545 = private unnamed_addr constant [6 x i8] c"block\00"
+@.str.546 = private unnamed_addr constant [8 x i8] c"vardecl\00"
+@.str.547 = private unnamed_addr constant [7 x i8] c"assign\00"
+@.str.548 = private unnamed_addr constant [3 x i8] c"if\00"
+@.str.549 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.550 = private unnamed_addr constant [6 x i8] c"break\00"
+@.str.551 = private unnamed_addr constant [9 x i8] c"continue\00"
+@.str.552 = private unnamed_addr constant [3 x i8] c"fn\00"
+@.str.553 = private unnamed_addr constant [7 x i8] c"extern\00"
+@.str.554 = private unnamed_addr constant [7 x i8] c"struct\00"
+@.str.555 = private unnamed_addr constant [6 x i8] c"field\00"
+@.str.556 = private unnamed_addr constant [5 x i8] c"call\00"
+@.str.557 = private unnamed_addr constant [7 x i8] c"return\00"
+@.str.558 = private unnamed_addr constant [9 x i8] c"exprstmt\00"
+@.str.559 = private unnamed_addr constant [7 x i8] c"binary\00"
+@.str.560 = private unnamed_addr constant [6 x i8] c"unary\00"
+@.str.561 = private unnamed_addr constant [5 x i8] c"cast\00"
+@.str.562 = private unnamed_addr constant [12 x i8] c"fieldaccess\00"
+@.str.563 = private unnamed_addr constant [6 x i8] c"index\00"
+@.str.564 = private unnamed_addr constant [10 x i8] c"structlit\00"
+@.str.565 = private unnamed_addr constant [6 x i8] c"finit\00"
+@.str.566 = private unnamed_addr constant [7 x i8] c"sizeof\00"
+@.str.567 = private unnamed_addr constant [7 x i8] c"number\00"
+@.str.568 = private unnamed_addr constant [7 x i8] c"string\00"
+@.str.569 = private unnamed_addr constant [5 x i8] c"char\00"
+@.str.570 = private unnamed_addr constant [5 x i8] c"bool\00"
+@.str.571 = private unnamed_addr constant [6 x i8] c"ident\00"
+@.str.572 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.573 = private unnamed_addr constant [7 x i8] c"params\00"
+@.str.574 = private unnamed_addr constant [6 x i8] c"param\00"
+@.str.575 = private unnamed_addr constant [5 x i8] c"args\00"
+@.str.576 = private unnamed_addr constant [10 x i8] c"uniontype\00"
+@.str.577 = private unnamed_addr constant [4 x i8] c"try\00"
+@.str.578 = private unnamed_addr constant [6 x i8] c"catch\00"
+@.str.579 = private unnamed_addr constant [3 x i8] c"is\00"
+@.str.580 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.581 = private unnamed_addr constant [6 x i8] c"error\00"
+@.str.582 = private unnamed_addr constant [7 x i8] c"import\00"
+@.str.583 = private unnamed_addr constant [11 x i8] c"importname\00"
+@.str.584 = private unnamed_addr constant [11 x i8] c"methodcall\00"
+@.str.585 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.586 = private unnamed_addr constant [5 x i8] c"enum\00"
+@.str.587 = private unnamed_addr constant [11 x i8] c"enummember\00"
+@.str.588 = private unnamed_addr constant [6 x i8] c"match\00"
+@.str.589 = private unnamed_addr constant [4 x i8] c"arm\00"
+@.str.590 = private unnamed_addr constant [7 x i8] c"fntype\00"
+@.str.591 = private unnamed_addr constant [7 x i8] c"lambda\00"
+@.str.592 = private unnamed_addr constant [10 x i8] c"typealias\00"
+@.str.593 = private unnamed_addr constant [10 x i8] c"callvalue\00"
+@.str.594 = private unnamed_addr constant [4 x i8] c"for\00"
+@.str.595 = private unnamed_addr constant [11 x i8] c"typeparams\00"
+@.str.596 = private unnamed_addr constant [10 x i8] c"typeparam\00"
+@.str.597 = private unnamed_addr constant [9 x i8] c"typeargs\00"
+@.str.598 = private unnamed_addr constant [2 x i8] c"?\00"
+@.str.599 = private unnamed_addr constant [3 x i8] c"\5C\5C\00"
+@.str.600 = private unnamed_addr constant [3 x i8] c"\5Cn\00"
+@.str.601 = private unnamed_addr constant [3 x i8] c"\5Ct\00"
+@.str.602 = private unnamed_addr constant [3 x i8] c"\5Cr\00"
+@.str.603 = private unnamed_addr constant [3 x i8] c"\5C'\00"
+@.str.604 = private unnamed_addr constant [3 x i8] c"\5C0\00"
+@.str.605 = private unnamed_addr constant [3 x i8] c" '\00"
+@.str.606 = private unnamed_addr constant [3 x i8] c"  \00"
+@.str.607 = private unnamed_addr constant [3 x i8] c" '\00"
+@.str.608 = private unnamed_addr constant [3 x i8] c" '\00"
+@.str.609 = private unnamed_addr constant [3 x i8] c" '\00"
+@.str.610 = private unnamed_addr constant [8 x i8] c" export\00"
+@.str.611 = private unnamed_addr constant [8 x i8] c" depth=\00"
+@.str.612 = private unnamed_addr constant [4 x i8] c" : \00"
+@.str.613 = private unnamed_addr constant [4 x i8] c"...\00"
+@.str.614 = private unnamed_addr constant [4 x i8] c"let\00"
+@.str.615 = private unnamed_addr constant [3 x i8] c"if\00"
+@.str.616 = private unnamed_addr constant [5 x i8] c"else\00"
+@.str.617 = private unnamed_addr constant [3 x i8] c"fn\00"
+@.str.618 = private unnamed_addr constant [7 x i8] c"extern\00"
+@.str.619 = private unnamed_addr constant [7 x i8] c"struct\00"
+@.str.620 = private unnamed_addr constant [7 x i8] c"sizeof\00"
+@.str.621 = private unnamed_addr constant [7 x i8] c"return\00"
+@.str.622 = private unnamed_addr constant [4 x i8] c"try\00"
+@.str.623 = private unnamed_addr constant [6 x i8] c"catch\00"
+@.str.624 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.625 = private unnamed_addr constant [6 x i8] c"break\00"
+@.str.626 = private unnamed_addr constant [9 x i8] c"continue\00"
+@.str.627 = private unnamed_addr constant [3 x i8] c"as\00"
+@.str.628 = private unnamed_addr constant [7 x i8] c"import\00"
+@.str.629 = private unnamed_addr constant [7 x i8] c"export\00"
+@.str.630 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.631 = private unnamed_addr constant [5 x i8] c"enum\00"
+@.str.632 = private unnamed_addr constant [6 x i8] c"match\00"
+@.str.633 = private unnamed_addr constant [4 x i8] c"for\00"
+@.str.634 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.635 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.636 = private unnamed_addr constant [3 x i8] c"i8\00"
+@.str.637 = private unnamed_addr constant [3 x i8] c"u8\00"
+@.str.638 = private unnamed_addr constant [4 x i8] c"i16\00"
+@.str.639 = private unnamed_addr constant [4 x i8] c"u16\00"
+@.str.640 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.641 = private unnamed_addr constant [4 x i8] c"u32\00"
+@.str.642 = private unnamed_addr constant [4 x i8] c"i64\00"
+@.str.643 = private unnamed_addr constant [4 x i8] c"u64\00"
+@.str.644 = private unnamed_addr constant [6 x i8] c"usize\00"
+@.str.645 = private unnamed_addr constant [4 x i8] c"f32\00"
+@.str.646 = private unnamed_addr constant [4 x i8] c"f64\00"
+@.str.647 = private unnamed_addr constant [5 x i8] c"bool\00"
+@.str.648 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.649 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.650 = private unnamed_addr constant [10 x i8] c"/dev/null\00"
+@.str.651 = private unnamed_addr constant [2 x i8] c"w\00"
+@.str.652 = private unnamed_addr constant [16 x i8] c"from the child\0A\00"
+@.str.653 = private unnamed_addr constant [16 x i8] c"and its stderr\0A\00"
+@.str.654 = private unnamed_addr constant [7 x i8] c"assert\00"
+@.str.655 = private unnamed_addr constant [9 x i8] c"assertEq\00"
+@.str.656 = private unnamed_addr constant [7 x i8] c"nameOf\00"
+@.str.657 = private unnamed_addr constant [7 x i8] c"nameOf\00"
+@.str.658 = private unnamed_addr constant [7 x i8] c"nameOf\00"
+@.str.659 = private unnamed_addr constant [5 x i8] c"enum\00"
+@.str.660 = private unnamed_addr constant [24 x i8] c"extern fn fork(): i32;\0A\00"
+@.str.661 = private unnamed_addr constant [63 x i8] c"extern fn waitpid(pid: i32, status: *i32, options: i32): i32;\0A\00"
+@.str.662 = private unnamed_addr constant [34 x i8] c"extern fn exit(code: i32): void;\0A\00"
+@.str.663 = private unnamed_addr constant [37 x i8] c"extern fn fflush(stream: *i8): i32;\0A\00"
+@.str.664 = private unnamed_addr constant [42 x i8] c"extern fn printf(format: *i8, ...): i32;\0A\00"
+@.str.665 = private unnamed_addr constant [46 x i8] c"extern fn strstr(text: *i8, part: *i8): *i8;\0A\00"
+@.str.666 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.667 = private unnamed_addr constant [67 x i8] c"export fn runTests(count: i32, names: **i8, tests: *(() => void),\0A\00"
+@.str.668 = private unnamed_addr constant [50 x i8] c"                   argc: i32, argv: **i8): i32 {\0A\00"
+@.str.669 = private unnamed_addr constant [27 x i8] c"  let filter: *i8 = null;\0A\00"
+@.str.670 = private unnamed_addr constant [19 x i8] c"  if (argc > 1) {\0A\00"
+@.str.671 = private unnamed_addr constant [23 x i8] c"    filter = argv[1];\0A\00"
+@.str.672 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
+@.str.673 = private unnamed_addr constant [24 x i8] c"  let passed: i32 = 0;\0A\00"
+@.str.674 = private unnamed_addr constant [24 x i8] c"  let failed: i32 = 0;\0A\00"
+@.str.675 = private unnamed_addr constant [25 x i8] c"  let skipped: i32 = 0;\0A\00"
+@.str.676 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.677 = private unnamed_addr constant [29 x i8] c"  for (index in 0..count) {\0A\00"
+@.str.678 = private unnamed_addr constant [67 x i8] c"    if (filter != null && strstr(names[index], filter) == null) {\0A\00"
+@.str.679 = private unnamed_addr constant [21 x i8] c"      skipped += 1;\0A\00"
+@.str.680 = private unnamed_addr constant [17 x i8] c"      continue;\0A\00"
+@.str.681 = private unnamed_addr constant [7 x i8] c"    }\0A\00"
+@.str.682 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.683 = private unnamed_addr constant [19 x i8] c"    fflush(null);\0A\00"
+@.str.684 = private unnamed_addr constant [30 x i8] c"    let child: i32 = fork();\0A\00"
+@.str.685 = private unnamed_addr constant [23 x i8] c"    if (child == 0) {\0A\00"
+@.str.686 = private unnamed_addr constant [44 x i8] c"      let test: () => void = tests[index];\0A\00"
+@.str.687 = private unnamed_addr constant [15 x i8] c"      test();\0A\00"
+@.str.688 = private unnamed_addr constant [16 x i8] c"      exit(0);\0A\00"
+@.str.689 = private unnamed_addr constant [7 x i8] c"    }\0A\00"
+@.str.690 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.691 = private unnamed_addr constant [26 x i8] c"    let status: i32 = 0;\0A\00"
+@.str.692 = private unnamed_addr constant [33 x i8] c"    waitpid(child, &status, 0);\0A\00"
+@.str.693 = private unnamed_addr constant [37 x i8] c"    let signal: i32 = status & 127;\0A\00"
+@.str.694 = private unnamed_addr constant [24 x i8] c"    if (status == 0) {\0A\00"
+@.str.695 = private unnamed_addr constant [49 x i8] c"      printf(\22test %s ... ok\5Cn\22, names[index]);\0A\00"
+@.str.696 = private unnamed_addr constant [20 x i8] c"      passed += 1;\0A\00"
+@.str.697 = private unnamed_addr constant [31 x i8] c"    } else if (signal != 0) {\0A\00"
+@.str.698 = private unnamed_addr constant [74 x i8] c"      printf(\22test %s ... CRASHED (signal %d)\5Cn\22, names[index], signal);\0A\00"
+@.str.699 = private unnamed_addr constant [20 x i8] c"      failed += 1;\0A\00"
+@.str.700 = private unnamed_addr constant [14 x i8] c"    } else {\0A\00"
+@.str.701 = private unnamed_addr constant [53 x i8] c"      printf(\22test %s ... FAILED\5Cn\22, names[index]);\0A\00"
+@.str.702 = private unnamed_addr constant [20 x i8] c"      failed += 1;\0A\00"
+@.str.703 = private unnamed_addr constant [7 x i8] c"    }\0A\00"
+@.str.704 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
+@.str.705 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.706 = private unnamed_addr constant [53 x i8] c"  printf(\22\5Cn%d passed; %d failed\22, passed, failed);\0A\00"
+@.str.707 = private unnamed_addr constant [22 x i8] c"  if (skipped > 0) {\0A\00"
+@.str.708 = private unnamed_addr constant [43 x i8] c"    printf(\22; %d filtered out\22, skipped);\0A\00"
+@.str.709 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
+@.str.710 = private unnamed_addr constant [17 x i8] c"  printf(\22\5Cn\22);\0A\00"
+@.str.711 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.712 = private unnamed_addr constant [21 x i8] c"  if (failed > 0) {\0A\00"
+@.str.713 = private unnamed_addr constant [15 x i8] c"    return 1;\0A\00"
+@.str.714 = private unnamed_addr constant [5 x i8] c"  }\0A\00"
+@.str.715 = private unnamed_addr constant [13 x i8] c"  return 0;\0A\00"
+@.str.716 = private unnamed_addr constant [3 x i8] c"}\0A\00"
+@.str.717 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.718 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.719 = private unnamed_addr constant [7 x i8] c"struct\00"
+@.str.720 = private unnamed_addr constant [9 x i8] c"function\00"
+@.str.721 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.722 = private unnamed_addr constant [3 x i8] c"i8\00"
+@.str.723 = private unnamed_addr constant [3 x i8] c"u8\00"
+@.str.724 = private unnamed_addr constant [4 x i8] c"i16\00"
+@.str.725 = private unnamed_addr constant [4 x i8] c"u16\00"
+@.str.726 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.727 = private unnamed_addr constant [4 x i8] c"u32\00"
+@.str.728 = private unnamed_addr constant [4 x i8] c"i64\00"
+@.str.729 = private unnamed_addr constant [4 x i8] c"u64\00"
+@.str.730 = private unnamed_addr constant [4 x i8] c"f32\00"
+@.str.731 = private unnamed_addr constant [4 x i8] c"f64\00"
+@.str.732 = private unnamed_addr constant [5 x i8] c"bool\00"
+@.str.733 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.734 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.735 = private unnamed_addr constant [8 x i8] c"unknown\00"
+@.str.736 = private unnamed_addr constant [3 x i8] c"i8\00"
+@.str.737 = private unnamed_addr constant [3 x i8] c"u8\00"
+@.str.738 = private unnamed_addr constant [4 x i8] c"i16\00"
+@.str.739 = private unnamed_addr constant [4 x i8] c"u16\00"
+@.str.740 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.741 = private unnamed_addr constant [4 x i8] c"u32\00"
+@.str.742 = private unnamed_addr constant [4 x i8] c"i64\00"
+@.str.743 = private unnamed_addr constant [4 x i8] c"u64\00"
+@.str.744 = private unnamed_addr constant [6 x i8] c"usize\00"
+@.str.745 = private unnamed_addr constant [4 x i8] c"f32\00"
+@.str.746 = private unnamed_addr constant [4 x i8] c"f64\00"
+@.str.747 = private unnamed_addr constant [5 x i8] c"bool\00"
+@.str.748 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.749 = private unnamed_addr constant [7 x i8] c"ODE_CC\00"
+@.str.750 = private unnamed_addr constant [6 x i8] c"clang\00"
+@.str.751 = private unnamed_addr constant [8 x i8] c"SDKROOT\00"
+@.str.752 = private unnamed_addr constant [15 x i8] c"/usr/bin/xcrun\00"
+@.str.753 = private unnamed_addr constant [6 x i8] c"xcrun\00"
+@.str.754 = private unnamed_addr constant [16 x i8] c"--show-sdk-path\00"
+@.str.755 = private unnamed_addr constant [10 x i8] c"-isysroot\00"
+@.str.756 = private unnamed_addr constant [8 x i8] c"SDKROOT\00"
+@.str.757 = private unnamed_addr constant [3 x i8] c"  \00"
+@.str.758 = private unnamed_addr constant [3 x i8] c"ok\00"
+@.str.759 = private unnamed_addr constant [3 x i8] c": \00"
+@.str.760 = private unnamed_addr constant [3 x i8] c"  \00"
+@.str.761 = private unnamed_addr constant [5 x i8] c"FAIL\00"
+@.str.762 = private unnamed_addr constant [3 x i8] c"  \00"
+@.str.763 = private unnamed_addr constant [30 x i8] c"cannot record the expectation\00"
+@.str.764 = private unnamed_addr constant [8 x i8] c".actual\00"
+@.str.765 = private unnamed_addr constant [5 x i8] c"diff\00"
+@.str.766 = private unnamed_addr constant [3 x i8] c"-u\00"
+@.str.767 = private unnamed_addr constant [8 x i8] c"--label\00"
+@.str.768 = private unnamed_addr constant [9 x i8] c"expected\00"
+@.str.769 = private unnamed_addr constant [8 x i8] c"--label\00"
+@.str.770 = private unnamed_addr constant [7 x i8] c"actual\00"
+@.str.771 = private unnamed_addr constant [5 x i8] c"    \00"
+@.str.772 = private unnamed_addr constant [19 x i8] c"compilation failed\00"
+@.str.773 = private unnamed_addr constant [28 x i8] c"program exited with status \00"
+@.str.774 = private unnamed_addr constant [48 x i8] c"no expected output recorded (run with --update)\00"
+@.str.775 = private unnamed_addr constant [15 x i8] c"stdout differs\00"
+@.str.776 = private unnamed_addr constant [5 x i8] c".ode\00"
+@.str.777 = private unnamed_addr constant [7 x i8] c"runner\00"
+@.str.778 = private unnamed_addr constant [21 x i8] c"cannot read the case\00"
+@.str.779 = private unnamed_addr constant [7 x i8] c"runner\00"
+@.str.780 = private unnamed_addr constant [31 x i8] c"cannot copy the case to run it\00"
+@.str.781 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.782 = private unnamed_addr constant [6 x i8] c"exit \00"
+@.str.783 = private unnamed_addr constant [7 x i8] c"runner\00"
+@.str.784 = private unnamed_addr constant [5 x i8] c".out\00"
+@.str.785 = private unnamed_addr constant [48 x i8] c"no expected output recorded (run with --update)\00"
+@.str.786 = private unnamed_addr constant [15 x i8] c"output differs\00"
+@.str.787 = private unnamed_addr constant [3 x i8] c"0\0A\00"
+@.str.788 = private unnamed_addr constant [26 x i8] c"tests/cli/prints_zero.ode\00"
+@.str.789 = private unnamed_addr constant [19 x i8] c"cli/nested/renamed\00"
 @.str.790 = private unnamed_addr constant [3 x i8] c"-o\00"
-@.str.791 = private unnamed_addr constant [6 x i8] c"pwned\00"
-@.str.792 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.793 = private unnamed_addr constant [9 x i8] c"compiler\00"
-@.str.794 = private unnamed_addr constant [6 x i8] c"tests\00"
-@.str.795 = private unnamed_addr constant [9 x i8] c"compiler\00"
-@.str.796 = private unnamed_addr constant [6 x i8] c"tests\00"
-@.str.797 = private unnamed_addr constant [9 x i8] c"compiler\00"
-@.str.798 = private unnamed_addr constant [30 x i8] c"a test of the compiler failed\00"
-@.str.799 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.800 = private unnamed_addr constant [6 x i8] c"tests\00"
-@.str.801 = private unnamed_addr constant [6 x i8] c"tests\00"
-@.str.802 = private unnamed_addr constant [14 x i8] c"a test failed\00"
-@.str.803 = private unnamed_addr constant [9 x i8] c"compiler\00"
-@.str.804 = private unnamed_addr constant [23 x i8] c"cannot open input file\00"
-@.str.805 = private unnamed_addr constant [16 x i8] c"empty-directory\00"
-@.str.806 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.807 = private unnamed_addr constant [27 x i8] c"no .ode files to test here\00"
+@.str.791 = private unnamed_addr constant [4 x i8] c".ll\00"
+@.str.792 = private unnamed_addr constant [3 x i8] c".o\00"
+@.str.793 = private unnamed_addr constant [9 x i8] c"cli/kept\00"
+@.str.794 = private unnamed_addr constant [21 x i8] c"--keep-intermediates\00"
+@.str.795 = private unnamed_addr constant [3 x i8] c"-o\00"
+@.str.796 = private unnamed_addr constant [4 x i8] c".ll\00"
+@.str.797 = private unnamed_addr constant [3 x i8] c".o\00"
+@.str.798 = private unnamed_addr constant [29 x i8] c"cli/a b $(touch pwned);/prog\00"
+@.str.799 = private unnamed_addr constant [3 x i8] c"-o\00"
+@.str.800 = private unnamed_addr constant [6 x i8] c"pwned\00"
+@.str.801 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.802 = private unnamed_addr constant [9 x i8] c"compiler\00"
+@.str.803 = private unnamed_addr constant [6 x i8] c"tests\00"
+@.str.804 = private unnamed_addr constant [9 x i8] c"compiler\00"
+@.str.805 = private unnamed_addr constant [6 x i8] c"tests\00"
+@.str.806 = private unnamed_addr constant [9 x i8] c"compiler\00"
+@.str.807 = private unnamed_addr constant [30 x i8] c"a test of the compiler failed\00"
 @.str.808 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.809 = private unnamed_addr constant [7 x i8] c"usage:\00"
-@.str.810 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.811 = private unnamed_addr constant [17 x i8] c"no-such-file.ode\00"
-@.str.812 = private unnamed_addr constant [23 x i8] c"cannot open input file\00"
-@.str.813 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.814 = private unnamed_addr constant [22 x i8] c"tests/runner/math.ode\00"
-@.str.815 = private unnamed_addr constant [22 x i8] c"no test is named this\00"
-@.str.816 = private unnamed_addr constant [35 x i8] c"0 passed; 0 failed; 5 filtered out\00"
-@.str.817 = private unnamed_addr constant [4 x i8] c"cli\00"
-@.str.818 = private unnamed_addr constant [4 x i8] c"cli\00"
-@.str.819 = private unnamed_addr constant [13 x i8] c"check failed\00"
-@.str.820 = private unnamed_addr constant [8 x i8] c"ODE_STD\00"
-@.str.821 = private unnamed_addr constant [4 x i8] c"std\00"
-@.str.822 = private unnamed_addr constant [10 x i8] c"ode-tests\00"
-@.str.823 = private unnamed_addr constant [36 x i8] c"cannot create a temporary directory\00"
-@.str.824 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.825 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.826 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.827 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.828 = private unnamed_addr constant [2 x i8] c"2\00"
-@.str.829 = private unnamed_addr constant [3 x i8] c"32\00"
-@.str.830 = private unnamed_addr constant [3 x i8] c"31\00"
-@.str.831 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.832 = private unnamed_addr constant [9 x i8] c"examples\00"
-@.str.833 = private unnamed_addr constant [15 x i8] c"tests/examples\00"
-@.str.834 = private unnamed_addr constant [27 x i8] c"cannot make tests/examples\00"
-@.str.835 = private unnamed_addr constant [5 x i8] c".ode\00"
-@.str.836 = private unnamed_addr constant [8 x i8] c"example\00"
-@.str.837 = private unnamed_addr constant [5 x i8] c".out\00"
-@.str.838 = private unnamed_addr constant [13 x i8] c"tests/runner\00"
-@.str.839 = private unnamed_addr constant [5 x i8] c".ode\00"
-@.str.840 = private unnamed_addr constant [9 x i8] c"compiler\00"
-@.str.841 = private unnamed_addr constant [4 x i8] c"std\00"
-@.str.842 = private unnamed_addr constant [4 x i8] c"std\00"
-@.str.843 = private unnamed_addr constant [4 x i8] c"std\00"
-@.str.844 = private unnamed_addr constant [12 x i8] c"output-flag\00"
-@.str.845 = private unnamed_addr constant [12 x i8] c"output-flag\00"
-@.str.846 = private unnamed_addr constant [24 x i8] c"keep-intermediates-flag\00"
-@.str.847 = private unnamed_addr constant [24 x i8] c"keep-intermediates-flag\00"
-@.str.848 = private unnamed_addr constant [20 x i8] c"hostile-output-path\00"
-@.str.849 = private unnamed_addr constant [20 x i8] c"hostile-output-path\00"
-@.str.850 = private unnamed_addr constant [14 x i8] c"no-input-file\00"
-@.str.851 = private unnamed_addr constant [14 x i8] c"no-input-file\00"
-@.str.852 = private unnamed_addr constant [16 x i8] c"directory-input\00"
-@.str.853 = private unnamed_addr constant [16 x i8] c"directory-input\00"
-@.str.854 = private unnamed_addr constant [19 x i8] c"test-without-input\00"
-@.str.855 = private unnamed_addr constant [19 x i8] c"test-without-input\00"
-@.str.856 = private unnamed_addr constant [29 x i8] c"test-filter-matching-nothing\00"
-@.str.857 = private unnamed_addr constant [29 x i8] c"test-filter-matching-nothing\00"
-@.str.858 = private unnamed_addr constant [11 x i8] c" example, \00"
-@.str.859 = private unnamed_addr constant [10 x i8] c" runner: \00"
-@.str.860 = private unnamed_addr constant [27 x i8] c" expectation(s) rewritten\0A\00"
-@.str.861 = private unnamed_addr constant [5 x i8] c"all \00"
-@.str.862 = private unnamed_addr constant [15 x i8] c" checks passed\00"
-@.str.863 = private unnamed_addr constant [3 x i8] c" (\00"
-@.str.864 = private unnamed_addr constant [11 x i8] c" example, \00"
-@.str.865 = private unnamed_addr constant [24 x i8] c" runner and test runs)\0A\00"
-@.str.866 = private unnamed_addr constant [5 x i8] c" of \00"
-@.str.867 = private unnamed_addr constant [15 x i8] c" checks failed\00"
-@.str.868 = private unnamed_addr constant [3 x i8] c"  \00"
-@.str.869 = private unnamed_addr constant [4 x i8] c" | \00"
-@.str.870 = private unnamed_addr constant [4 x i8] c" | \00"
-@.str.871 = private unnamed_addr constant [82 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/check/errors.ode:167:3\00"
-@.str.872 = private unnamed_addr constant [35 x i8] c"a union type no union was made for\00"
-@.str.873 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.874 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.875 = private unnamed_addr constant [6 x i8] c"going\00"
-@.str.876 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.877 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.878 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.879 = private unnamed_addr constant [6 x i8] c") => \00"
-@.str.880 = private unnamed_addr constant [43 x i8] c"function type without a recorded signature\00"
-@.str.881 = private unnamed_addr constant [15 x i8] c"function value\00"
-@.str.882 = private unnamed_addr constant [5 x i8] c"self\00"
-@.str.883 = private unnamed_addr constant [16 x i8] c"return type of \00"
-@.str.884 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.885 = private unnamed_addr constant [14 x i8] c"parameter of \00"
-@.str.886 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.887 = private unnamed_addr constant [28 x i8] c"unknown statement node type\00"
-@.str.888 = private unnamed_addr constant [19 x i8] c"in declaration of \00"
-@.str.889 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.890 = private unnamed_addr constant [3 x i8] c"if\00"
-@.str.891 = private unnamed_addr constant [6 x i8] c"while\00"
-@.str.892 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.893 = private unnamed_addr constant [4 x i8] c" = \00"
-@.str.894 = private unnamed_addr constant [6 x i8] c"load \00"
-@.str.895 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.896 = private unnamed_addr constant [7 x i8] c"store \00"
-@.str.897 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.898 = private unnamed_addr constant [9 x i8] c"ptrtoint\00"
-@.str.899 = private unnamed_addr constant [9 x i8] c"inttoptr\00"
-@.str.900 = private unnamed_addr constant [5 x i8] c"zext\00"
-@.str.901 = private unnamed_addr constant [9 x i8] c"icmp ne \00"
-@.str.902 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.903 = private unnamed_addr constant [6 x i8] c"trunc\00"
-@.str.904 = private unnamed_addr constant [5 x i8] c"sext\00"
-@.str.905 = private unnamed_addr constant [5 x i8] c"zext\00"
-@.str.906 = private unnamed_addr constant [7 x i8] c"sitofp\00"
-@.str.907 = private unnamed_addr constant [7 x i8] c"uitofp\00"
-@.str.908 = private unnamed_addr constant [7 x i8] c"fptosi\00"
-@.str.909 = private unnamed_addr constant [7 x i8] c"fptoui\00"
-@.str.910 = private unnamed_addr constant [6 x i8] c"fpext\00"
-@.str.911 = private unnamed_addr constant [8 x i8] c"fptrunc\00"
-@.str.912 = private unnamed_addr constant [23 x i8] c"cannot cast in codegen\00"
-@.str.913 = private unnamed_addr constant [5 x i8] c" to \00"
-@.str.914 = private unnamed_addr constant [51 x i8] c"expression does not denote an addressable location\00"
-@.str.915 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
-@.str.916 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.917 = private unnamed_addr constant [14 x i8] c", i32 0, i32 \00"
-@.str.918 = private unnamed_addr constant [14 x i8] c"extractvalue \00"
-@.str.919 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.920 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
-@.str.921 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.922 = private unnamed_addr constant [7 x i8] c", i64 \00"
-@.str.923 = private unnamed_addr constant [3 x i8] c"i1\00"
-@.str.924 = private unnamed_addr constant [9 x i8] c"sub i64 \00"
-@.str.925 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.926 = private unnamed_addr constant [10 x i8] c"sdiv i64 \00"
-@.str.927 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.928 = private unnamed_addr constant [12 x i8] c"sub i64 0, \00"
+@.str.809 = private unnamed_addr constant [6 x i8] c"tests\00"
+@.str.810 = private unnamed_addr constant [6 x i8] c"tests\00"
+@.str.811 = private unnamed_addr constant [14 x i8] c"a test failed\00"
+@.str.812 = private unnamed_addr constant [9 x i8] c"compiler\00"
+@.str.813 = private unnamed_addr constant [23 x i8] c"cannot open input file\00"
+@.str.814 = private unnamed_addr constant [16 x i8] c"empty-directory\00"
+@.str.815 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.816 = private unnamed_addr constant [27 x i8] c"no .ode files to test here\00"
+@.str.817 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.818 = private unnamed_addr constant [7 x i8] c"usage:\00"
+@.str.819 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.820 = private unnamed_addr constant [17 x i8] c"no-such-file.ode\00"
+@.str.821 = private unnamed_addr constant [23 x i8] c"cannot open input file\00"
+@.str.822 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.823 = private unnamed_addr constant [22 x i8] c"tests/runner/math.ode\00"
+@.str.824 = private unnamed_addr constant [22 x i8] c"no test is named this\00"
+@.str.825 = private unnamed_addr constant [35 x i8] c"0 passed; 0 failed; 5 filtered out\00"
+@.str.826 = private unnamed_addr constant [4 x i8] c"cli\00"
+@.str.827 = private unnamed_addr constant [4 x i8] c"cli\00"
+@.str.828 = private unnamed_addr constant [13 x i8] c"check failed\00"
+@.str.829 = private unnamed_addr constant [8 x i8] c"ODE_STD\00"
+@.str.830 = private unnamed_addr constant [4 x i8] c"std\00"
+@.str.831 = private unnamed_addr constant [10 x i8] c"ode-tests\00"
+@.str.832 = private unnamed_addr constant [36 x i8] c"cannot create a temporary directory\00"
+@.str.833 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.834 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.835 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.836 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.837 = private unnamed_addr constant [2 x i8] c"2\00"
+@.str.838 = private unnamed_addr constant [3 x i8] c"32\00"
+@.str.839 = private unnamed_addr constant [3 x i8] c"31\00"
+@.str.840 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.841 = private unnamed_addr constant [9 x i8] c"examples\00"
+@.str.842 = private unnamed_addr constant [15 x i8] c"tests/examples\00"
+@.str.843 = private unnamed_addr constant [27 x i8] c"cannot make tests/examples\00"
+@.str.844 = private unnamed_addr constant [5 x i8] c".ode\00"
+@.str.845 = private unnamed_addr constant [8 x i8] c"example\00"
+@.str.846 = private unnamed_addr constant [5 x i8] c".out\00"
+@.str.847 = private unnamed_addr constant [13 x i8] c"tests/runner\00"
+@.str.848 = private unnamed_addr constant [5 x i8] c".ode\00"
+@.str.849 = private unnamed_addr constant [9 x i8] c"compiler\00"
+@.str.850 = private unnamed_addr constant [4 x i8] c"std\00"
+@.str.851 = private unnamed_addr constant [4 x i8] c"std\00"
+@.str.852 = private unnamed_addr constant [4 x i8] c"std\00"
+@.str.853 = private unnamed_addr constant [12 x i8] c"output-flag\00"
+@.str.854 = private unnamed_addr constant [12 x i8] c"output-flag\00"
+@.str.855 = private unnamed_addr constant [24 x i8] c"keep-intermediates-flag\00"
+@.str.856 = private unnamed_addr constant [24 x i8] c"keep-intermediates-flag\00"
+@.str.857 = private unnamed_addr constant [20 x i8] c"hostile-output-path\00"
+@.str.858 = private unnamed_addr constant [20 x i8] c"hostile-output-path\00"
+@.str.859 = private unnamed_addr constant [14 x i8] c"no-input-file\00"
+@.str.860 = private unnamed_addr constant [14 x i8] c"no-input-file\00"
+@.str.861 = private unnamed_addr constant [16 x i8] c"directory-input\00"
+@.str.862 = private unnamed_addr constant [16 x i8] c"directory-input\00"
+@.str.863 = private unnamed_addr constant [19 x i8] c"test-without-input\00"
+@.str.864 = private unnamed_addr constant [19 x i8] c"test-without-input\00"
+@.str.865 = private unnamed_addr constant [29 x i8] c"test-filter-matching-nothing\00"
+@.str.866 = private unnamed_addr constant [29 x i8] c"test-filter-matching-nothing\00"
+@.str.867 = private unnamed_addr constant [11 x i8] c" example, \00"
+@.str.868 = private unnamed_addr constant [10 x i8] c" runner: \00"
+@.str.869 = private unnamed_addr constant [27 x i8] c" expectation(s) rewritten\0A\00"
+@.str.870 = private unnamed_addr constant [5 x i8] c"all \00"
+@.str.871 = private unnamed_addr constant [15 x i8] c" checks passed\00"
+@.str.872 = private unnamed_addr constant [3 x i8] c" (\00"
+@.str.873 = private unnamed_addr constant [11 x i8] c" example, \00"
+@.str.874 = private unnamed_addr constant [24 x i8] c" runner and test runs)\0A\00"
+@.str.875 = private unnamed_addr constant [5 x i8] c" of \00"
+@.str.876 = private unnamed_addr constant [15 x i8] c" checks failed\00"
+@.str.877 = private unnamed_addr constant [3 x i8] c"  \00"
+@.str.878 = private unnamed_addr constant [4 x i8] c" | \00"
+@.str.879 = private unnamed_addr constant [4 x i8] c" | \00"
+@.str.880 = private unnamed_addr constant [82 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/check/errors.ode:167:3\00"
+@.str.881 = private unnamed_addr constant [35 x i8] c"a union type no union was made for\00"
+@.str.882 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.883 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.884 = private unnamed_addr constant [6 x i8] c"going\00"
+@.str.885 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.886 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.887 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.888 = private unnamed_addr constant [6 x i8] c") => \00"
+@.str.889 = private unnamed_addr constant [43 x i8] c"function type without a recorded signature\00"
+@.str.890 = private unnamed_addr constant [15 x i8] c"function value\00"
+@.str.891 = private unnamed_addr constant [5 x i8] c"self\00"
+@.str.892 = private unnamed_addr constant [16 x i8] c"return type of \00"
+@.str.893 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.894 = private unnamed_addr constant [14 x i8] c"parameter of \00"
+@.str.895 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.896 = private unnamed_addr constant [28 x i8] c"unknown statement node type\00"
+@.str.897 = private unnamed_addr constant [19 x i8] c"in declaration of \00"
+@.str.898 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.899 = private unnamed_addr constant [3 x i8] c"if\00"
+@.str.900 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.901 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.902 = private unnamed_addr constant [4 x i8] c" = \00"
+@.str.903 = private unnamed_addr constant [6 x i8] c"load \00"
+@.str.904 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.905 = private unnamed_addr constant [7 x i8] c"store \00"
+@.str.906 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.907 = private unnamed_addr constant [9 x i8] c"ptrtoint\00"
+@.str.908 = private unnamed_addr constant [9 x i8] c"inttoptr\00"
+@.str.909 = private unnamed_addr constant [5 x i8] c"zext\00"
+@.str.910 = private unnamed_addr constant [9 x i8] c"icmp ne \00"
+@.str.911 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.912 = private unnamed_addr constant [6 x i8] c"trunc\00"
+@.str.913 = private unnamed_addr constant [5 x i8] c"sext\00"
+@.str.914 = private unnamed_addr constant [5 x i8] c"zext\00"
+@.str.915 = private unnamed_addr constant [7 x i8] c"sitofp\00"
+@.str.916 = private unnamed_addr constant [7 x i8] c"uitofp\00"
+@.str.917 = private unnamed_addr constant [7 x i8] c"fptosi\00"
+@.str.918 = private unnamed_addr constant [7 x i8] c"fptoui\00"
+@.str.919 = private unnamed_addr constant [6 x i8] c"fpext\00"
+@.str.920 = private unnamed_addr constant [8 x i8] c"fptrunc\00"
+@.str.921 = private unnamed_addr constant [23 x i8] c"cannot cast in codegen\00"
+@.str.922 = private unnamed_addr constant [5 x i8] c" to \00"
+@.str.923 = private unnamed_addr constant [51 x i8] c"expression does not denote an addressable location\00"
+@.str.924 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
+@.str.925 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.926 = private unnamed_addr constant [14 x i8] c", i32 0, i32 \00"
+@.str.927 = private unnamed_addr constant [14 x i8] c"extractvalue \00"
+@.str.928 = private unnamed_addr constant [3 x i8] c", \00"
 @.str.929 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
 @.str.930 = private unnamed_addr constant [7 x i8] c", ptr \00"
 @.str.931 = private unnamed_addr constant [7 x i8] c", i64 \00"
-@.str.932 = private unnamed_addr constant [5 x i8] c"fadd\00"
-@.str.933 = private unnamed_addr constant [4 x i8] c"add\00"
-@.str.934 = private unnamed_addr constant [5 x i8] c"fsub\00"
-@.str.935 = private unnamed_addr constant [4 x i8] c"sub\00"
-@.str.936 = private unnamed_addr constant [5 x i8] c"fmul\00"
-@.str.937 = private unnamed_addr constant [4 x i8] c"mul\00"
-@.str.938 = private unnamed_addr constant [5 x i8] c"fdiv\00"
-@.str.939 = private unnamed_addr constant [5 x i8] c"sdiv\00"
-@.str.940 = private unnamed_addr constant [5 x i8] c"udiv\00"
-@.str.941 = private unnamed_addr constant [5 x i8] c"srem\00"
-@.str.942 = private unnamed_addr constant [5 x i8] c"urem\00"
-@.str.943 = private unnamed_addr constant [4 x i8] c"and\00"
-@.str.944 = private unnamed_addr constant [3 x i8] c"or\00"
-@.str.945 = private unnamed_addr constant [4 x i8] c"xor\00"
-@.str.946 = private unnamed_addr constant [4 x i8] c"shl\00"
-@.str.947 = private unnamed_addr constant [5 x i8] c"ashr\00"
-@.str.948 = private unnamed_addr constant [5 x i8] c"lshr\00"
-@.str.949 = private unnamed_addr constant [9 x i8] c"fcmp oeq\00"
-@.str.950 = private unnamed_addr constant [8 x i8] c"icmp eq\00"
-@.str.951 = private unnamed_addr constant [9 x i8] c"fcmp one\00"
-@.str.952 = private unnamed_addr constant [8 x i8] c"icmp ne\00"
-@.str.953 = private unnamed_addr constant [9 x i8] c"fcmp olt\00"
-@.str.954 = private unnamed_addr constant [9 x i8] c"icmp slt\00"
-@.str.955 = private unnamed_addr constant [9 x i8] c"icmp ult\00"
-@.str.956 = private unnamed_addr constant [9 x i8] c"fcmp ole\00"
-@.str.957 = private unnamed_addr constant [9 x i8] c"icmp sle\00"
-@.str.958 = private unnamed_addr constant [9 x i8] c"icmp ule\00"
-@.str.959 = private unnamed_addr constant [9 x i8] c"fcmp ogt\00"
-@.str.960 = private unnamed_addr constant [9 x i8] c"icmp sgt\00"
-@.str.961 = private unnamed_addr constant [9 x i8] c"icmp ugt\00"
-@.str.962 = private unnamed_addr constant [9 x i8] c"fcmp oge\00"
-@.str.963 = private unnamed_addr constant [9 x i8] c"icmp sge\00"
-@.str.964 = private unnamed_addr constant [9 x i8] c"icmp uge\00"
-@.str.965 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.966 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.967 = private unnamed_addr constant [6 x i8] c"fneg \00"
-@.str.968 = private unnamed_addr constant [5 x i8] c"sub \00"
-@.str.969 = private unnamed_addr constant [5 x i8] c" 0, \00"
-@.str.970 = private unnamed_addr constant [8 x i8] c"xor i1 \00"
-@.str.971 = private unnamed_addr constant [7 x i8] c", true\00"
-@.str.972 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.973 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.932 = private unnamed_addr constant [3 x i8] c"i1\00"
+@.str.933 = private unnamed_addr constant [9 x i8] c"sub i64 \00"
+@.str.934 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.935 = private unnamed_addr constant [10 x i8] c"sdiv i64 \00"
+@.str.936 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.937 = private unnamed_addr constant [12 x i8] c"sub i64 0, \00"
+@.str.938 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
+@.str.939 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.940 = private unnamed_addr constant [7 x i8] c", i64 \00"
+@.str.941 = private unnamed_addr constant [5 x i8] c"fadd\00"
+@.str.942 = private unnamed_addr constant [4 x i8] c"add\00"
+@.str.943 = private unnamed_addr constant [5 x i8] c"fsub\00"
+@.str.944 = private unnamed_addr constant [4 x i8] c"sub\00"
+@.str.945 = private unnamed_addr constant [5 x i8] c"fmul\00"
+@.str.946 = private unnamed_addr constant [4 x i8] c"mul\00"
+@.str.947 = private unnamed_addr constant [5 x i8] c"fdiv\00"
+@.str.948 = private unnamed_addr constant [5 x i8] c"sdiv\00"
+@.str.949 = private unnamed_addr constant [5 x i8] c"udiv\00"
+@.str.950 = private unnamed_addr constant [5 x i8] c"srem\00"
+@.str.951 = private unnamed_addr constant [5 x i8] c"urem\00"
+@.str.952 = private unnamed_addr constant [4 x i8] c"and\00"
+@.str.953 = private unnamed_addr constant [3 x i8] c"or\00"
+@.str.954 = private unnamed_addr constant [4 x i8] c"xor\00"
+@.str.955 = private unnamed_addr constant [4 x i8] c"shl\00"
+@.str.956 = private unnamed_addr constant [5 x i8] c"ashr\00"
+@.str.957 = private unnamed_addr constant [5 x i8] c"lshr\00"
+@.str.958 = private unnamed_addr constant [9 x i8] c"fcmp oeq\00"
+@.str.959 = private unnamed_addr constant [8 x i8] c"icmp eq\00"
+@.str.960 = private unnamed_addr constant [9 x i8] c"fcmp one\00"
+@.str.961 = private unnamed_addr constant [8 x i8] c"icmp ne\00"
+@.str.962 = private unnamed_addr constant [9 x i8] c"fcmp olt\00"
+@.str.963 = private unnamed_addr constant [9 x i8] c"icmp slt\00"
+@.str.964 = private unnamed_addr constant [9 x i8] c"icmp ult\00"
+@.str.965 = private unnamed_addr constant [9 x i8] c"fcmp ole\00"
+@.str.966 = private unnamed_addr constant [9 x i8] c"icmp sle\00"
+@.str.967 = private unnamed_addr constant [9 x i8] c"icmp ule\00"
+@.str.968 = private unnamed_addr constant [9 x i8] c"fcmp ogt\00"
+@.str.969 = private unnamed_addr constant [9 x i8] c"icmp sgt\00"
+@.str.970 = private unnamed_addr constant [9 x i8] c"icmp ugt\00"
+@.str.971 = private unnamed_addr constant [9 x i8] c"fcmp oge\00"
+@.str.972 = private unnamed_addr constant [9 x i8] c"icmp sge\00"
+@.str.973 = private unnamed_addr constant [9 x i8] c"icmp uge\00"
 @.str.974 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.975 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.976 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.977 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.978 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.979 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.980 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.975 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.976 = private unnamed_addr constant [6 x i8] c"fneg \00"
+@.str.977 = private unnamed_addr constant [5 x i8] c"sub \00"
+@.str.978 = private unnamed_addr constant [5 x i8] c" 0, \00"
+@.str.979 = private unnamed_addr constant [8 x i8] c"xor i1 \00"
+@.str.980 = private unnamed_addr constant [7 x i8] c", true\00"
 @.str.981 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.982 = private unnamed_addr constant [4 x i8] c"ptr\00"
-@.str.983 = private unnamed_addr constant [4 x i8] c"ptr\00"
-@.str.984 = private unnamed_addr constant [6 x i8] c"call \00"
-@.str.985 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.986 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.987 = private unnamed_addr constant [6 x i8] c"...) \00"
-@.str.988 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.982 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.983 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.984 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.985 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.986 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.987 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.988 = private unnamed_addr constant [1 x i8] c"\00"
 @.str.989 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.990 = private unnamed_addr constant [6 x i8] c"undef\00"
-@.str.991 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
-@.str.992 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.993 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.994 = private unnamed_addr constant [3 x i8] c".0\00"
-@.str.995 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.996 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.997 = private unnamed_addr constant [6 x i8] c"false\00"
-@.str.998 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.999 = private unnamed_addr constant [42 x i8] c"unsupported expression in code generation\00"
-@.str.1000 = private unnamed_addr constant [4 x i8] c"ptr\00"
-@.str.1001 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1002 = private unnamed_addr constant [9 x i8] c"{ i32, [\00"
-@.str.1003 = private unnamed_addr constant [10 x i8] c" x i64] }\00"
-@.str.1004 = private unnamed_addr constant [8 x i8] c"{ i32 }\00"
-@.str.1005 = private unnamed_addr constant [8 x i8] c"{ i32, \00"
-@.str.1006 = private unnamed_addr constant [3 x i8] c" }\00"
-@.str.1007 = private unnamed_addr constant [3 x i8] c"i8\00"
-@.str.1008 = private unnamed_addr constant [4 x i8] c"i16\00"
-@.str.1009 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1010 = private unnamed_addr constant [4 x i8] c"i64\00"
-@.str.1011 = private unnamed_addr constant [6 x i8] c"float\00"
-@.str.1012 = private unnamed_addr constant [7 x i8] c"double\00"
-@.str.1013 = private unnamed_addr constant [3 x i8] c"i1\00"
-@.str.1014 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.1015 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.1016 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.1017 = private unnamed_addr constant [16 x i8] c"zeroinitializer\00"
-@.str.1018 = private unnamed_addr constant [6 x i8] c"false\00"
-@.str.1019 = private unnamed_addr constant [4 x i8] c"0.0\00"
-@.str.1020 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1021 = private unnamed_addr constant [5 x i8] c"ret \00"
-@.str.1022 = private unnamed_addr constant [17 x i8] c" zeroinitializer\00"
-@.str.1023 = private unnamed_addr constant [9 x i8] c"ret void\00"
-@.str.1024 = private unnamed_addr constant [5 x i8] c"ret \00"
-@.str.1025 = private unnamed_addr constant [41 x i8] c"unsupported statement in code generation\00"
-@.str.1026 = private unnamed_addr constant [8 x i8] c"switch \00"
-@.str.1027 = private unnamed_addr constant [10 x i8] c", label %\00"
-@.str.1028 = private unnamed_addr constant [3 x i8] c" [\00"
-@.str.1029 = private unnamed_addr constant [10 x i8] c", label %\00"
-@.str.1030 = private unnamed_addr constant [3 x i8] c" ]\00"
-@.str.1031 = private unnamed_addr constant [6 x i8] c"false\00"
-@.str.1032 = private unnamed_addr constant [7 x i8] c"or i1 \00"
-@.str.1033 = private unnamed_addr constant [12 x i8] c"unreachable\00"
-@.str.1034 = private unnamed_addr constant [10 x i8] c"icmp slt \00"
-@.str.1035 = private unnamed_addr constant [10 x i8] c"icmp ult \00"
-@.str.1036 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1037 = private unnamed_addr constant [5 x i8] c"add \00"
-@.str.1038 = private unnamed_addr constant [4 x i8] c", 1\00"
-@.str.1039 = private unnamed_addr constant [46 x i8] c"call i32 (i32, ptr, ...) @dprintf(i32 2, ptr \00"
-@.str.1040 = private unnamed_addr constant [23 x i8] c"call void @exit(i32 1)\00"
-@.str.1041 = private unnamed_addr constant [12 x i8] c"unreachable\00"
-@.str.1042 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1043 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1044 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1045 = private unnamed_addr constant [22 x i8] c"%s: assertion failed\0A\00"
-@.str.1046 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1047 = private unnamed_addr constant [29 x i8] c"call i1 @ode.textEquals(ptr \00"
-@.str.1048 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1049 = private unnamed_addr constant [10 x i8] c"fcmp oeq \00"
-@.str.1050 = private unnamed_addr constant [9 x i8] c"icmp eq \00"
-@.str.1051 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1052 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1053 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1054 = private unnamed_addr constant [13 x i8] c"icmp ne i32 \00"
-@.str.1055 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1056 = private unnamed_addr constant [7 x i8] c"or i1 \00"
-@.str.1057 = private unnamed_addr constant [8 x i8] c"and i1 \00"
-@.str.1058 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1059 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1060 = private unnamed_addr constant [8 x i8] c"and i1 \00"
-@.str.1061 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.990 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.991 = private unnamed_addr constant [4 x i8] c"ptr\00"
+@.str.992 = private unnamed_addr constant [4 x i8] c"ptr\00"
+@.str.993 = private unnamed_addr constant [6 x i8] c"call \00"
+@.str.994 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.995 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.996 = private unnamed_addr constant [6 x i8] c"...) \00"
+@.str.997 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.998 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.999 = private unnamed_addr constant [6 x i8] c"undef\00"
+@.str.1000 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
+@.str.1001 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1002 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1003 = private unnamed_addr constant [3 x i8] c".0\00"
+@.str.1004 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.1005 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.1006 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.1007 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.1008 = private unnamed_addr constant [42 x i8] c"unsupported expression in code generation\00"
+@.str.1009 = private unnamed_addr constant [4 x i8] c"ptr\00"
+@.str.1010 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1011 = private unnamed_addr constant [9 x i8] c"{ i32, [\00"
+@.str.1012 = private unnamed_addr constant [10 x i8] c" x i64] }\00"
+@.str.1013 = private unnamed_addr constant [8 x i8] c"{ i32 }\00"
+@.str.1014 = private unnamed_addr constant [8 x i8] c"{ i32, \00"
+@.str.1015 = private unnamed_addr constant [3 x i8] c" }\00"
+@.str.1016 = private unnamed_addr constant [3 x i8] c"i8\00"
+@.str.1017 = private unnamed_addr constant [4 x i8] c"i16\00"
+@.str.1018 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1019 = private unnamed_addr constant [4 x i8] c"i64\00"
+@.str.1020 = private unnamed_addr constant [6 x i8] c"float\00"
+@.str.1021 = private unnamed_addr constant [7 x i8] c"double\00"
+@.str.1022 = private unnamed_addr constant [3 x i8] c"i1\00"
+@.str.1023 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.1024 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.1025 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.1026 = private unnamed_addr constant [16 x i8] c"zeroinitializer\00"
+@.str.1027 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.1028 = private unnamed_addr constant [4 x i8] c"0.0\00"
+@.str.1029 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1030 = private unnamed_addr constant [5 x i8] c"ret \00"
+@.str.1031 = private unnamed_addr constant [17 x i8] c" zeroinitializer\00"
+@.str.1032 = private unnamed_addr constant [9 x i8] c"ret void\00"
+@.str.1033 = private unnamed_addr constant [5 x i8] c"ret \00"
+@.str.1034 = private unnamed_addr constant [41 x i8] c"unsupported statement in code generation\00"
+@.str.1035 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1036 = private unnamed_addr constant [8 x i8] c"switch \00"
+@.str.1037 = private unnamed_addr constant [10 x i8] c", label %\00"
+@.str.1038 = private unnamed_addr constant [3 x i8] c" [\00"
+@.str.1039 = private unnamed_addr constant [10 x i8] c", label %\00"
+@.str.1040 = private unnamed_addr constant [3 x i8] c" ]\00"
+@.str.1041 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.1042 = private unnamed_addr constant [7 x i8] c"or i1 \00"
+@.str.1043 = private unnamed_addr constant [12 x i8] c"unreachable\00"
+@.str.1044 = private unnamed_addr constant [10 x i8] c"icmp slt \00"
+@.str.1045 = private unnamed_addr constant [10 x i8] c"icmp ult \00"
+@.str.1046 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1047 = private unnamed_addr constant [5 x i8] c"add \00"
+@.str.1048 = private unnamed_addr constant [4 x i8] c", 1\00"
+@.str.1049 = private unnamed_addr constant [46 x i8] c"call i32 (i32, ptr, ...) @dprintf(i32 2, ptr \00"
+@.str.1050 = private unnamed_addr constant [23 x i8] c"call void @exit(i32 1)\00"
+@.str.1051 = private unnamed_addr constant [12 x i8] c"unreachable\00"
+@.str.1052 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1053 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1054 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1055 = private unnamed_addr constant [22 x i8] c"%s: assertion failed\0A\00"
+@.str.1056 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1057 = private unnamed_addr constant [29 x i8] c"call i1 @ode.textEquals(ptr \00"
+@.str.1058 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1059 = private unnamed_addr constant [10 x i8] c"fcmp oeq \00"
+@.str.1060 = private unnamed_addr constant [9 x i8] c"icmp eq \00"
+@.str.1061 = private unnamed_addr constant [3 x i8] c", \00"
 @.str.1062 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1063 = private unnamed_addr constant [8 x i8] c"and i1 \00"
-@.str.1064 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1065 = private unnamed_addr constant [14 x i8] c"icmp sgt i32 \00"
-@.str.1066 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1067 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1068 = private unnamed_addr constant [7 x i8] c"or i1 \00"
-@.str.1069 = private unnamed_addr constant [8 x i8] c"and i1 \00"
+@.str.1063 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1064 = private unnamed_addr constant [13 x i8] c"icmp ne i32 \00"
+@.str.1065 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1066 = private unnamed_addr constant [7 x i8] c"or i1 \00"
+@.str.1067 = private unnamed_addr constant [8 x i8] c"and i1 \00"
+@.str.1068 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1069 = private unnamed_addr constant [2 x i8] c"0\00"
 @.str.1070 = private unnamed_addr constant [8 x i8] c"and i1 \00"
-@.str.1071 = private unnamed_addr constant [14 x i8] c"extractvalue \00"
-@.str.1072 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1073 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1074 = private unnamed_addr constant [29 x i8] c"call ptr @ode.errorName(i32 \00"
-@.str.1075 = private unnamed_addr constant [3 x i8] c"a \00"
-@.str.1076 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1077 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1078 = private unnamed_addr constant [11 x i8] c"select i1 \00"
-@.str.1079 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1080 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1081 = private unnamed_addr constant [10 x i8] c"[64 x i8]\00"
-@.str.1082 = private unnamed_addr constant [45 x i8] c"call i32 (ptr, i64, ptr, ...) @snprintf(ptr \00"
-@.str.1083 = private unnamed_addr constant [15 x i8] c", i64 64, ptr \00"
-@.str.1084 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1085 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1086 = private unnamed_addr constant [11 x i8] c"select i1 \00"
-@.str.1087 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1088 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1089 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
-@.str.1090 = private unnamed_addr constant [11 x i8] c"select i1 \00"
-@.str.1091 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1092 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1093 = private unnamed_addr constant [3 x i8] c"a \00"
-@.str.1094 = private unnamed_addr constant [10 x i8] c"[64 x i8]\00"
-@.str.1095 = private unnamed_addr constant [45 x i8] c"call i32 (ptr, i64, ptr, ...) @snprintf(ptr \00"
-@.str.1096 = private unnamed_addr constant [15 x i8] c", i64 64, ptr \00"
-@.str.1097 = private unnamed_addr constant [11 x i8] c"select i1 \00"
+@.str.1071 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1072 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1073 = private unnamed_addr constant [8 x i8] c"and i1 \00"
+@.str.1074 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1075 = private unnamed_addr constant [14 x i8] c"icmp sgt i32 \00"
+@.str.1076 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1077 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1078 = private unnamed_addr constant [7 x i8] c"or i1 \00"
+@.str.1079 = private unnamed_addr constant [8 x i8] c"and i1 \00"
+@.str.1080 = private unnamed_addr constant [8 x i8] c"and i1 \00"
+@.str.1081 = private unnamed_addr constant [14 x i8] c"extractvalue \00"
+@.str.1082 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1083 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1084 = private unnamed_addr constant [29 x i8] c"call ptr @ode.errorName(i32 \00"
+@.str.1085 = private unnamed_addr constant [3 x i8] c"a \00"
+@.str.1086 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1087 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1088 = private unnamed_addr constant [11 x i8] c"select i1 \00"
+@.str.1089 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1090 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1091 = private unnamed_addr constant [10 x i8] c"[64 x i8]\00"
+@.str.1092 = private unnamed_addr constant [45 x i8] c"call i32 (ptr, i64, ptr, ...) @snprintf(ptr \00"
+@.str.1093 = private unnamed_addr constant [15 x i8] c", i64 64, ptr \00"
+@.str.1094 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1095 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1096 = private unnamed_addr constant [11 x i8] c"select i1 \00"
+@.str.1097 = private unnamed_addr constant [7 x i8] c", ptr \00"
 @.str.1098 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1099 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.1100 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1101 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.1099 = private unnamed_addr constant [13 x i8] c"icmp eq i32 \00"
+@.str.1100 = private unnamed_addr constant [11 x i8] c"select i1 \00"
+@.str.1101 = private unnamed_addr constant [7 x i8] c", ptr \00"
 @.str.1102 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1103 = private unnamed_addr constant [3 x i8] c"%s\00"
-@.str.1104 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1105 = private unnamed_addr constant [5 x i8] c"\22%s\22\00"
-@.str.1106 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1107 = private unnamed_addr constant [3 x i8] c"%s\00"
+@.str.1103 = private unnamed_addr constant [3 x i8] c"a \00"
+@.str.1104 = private unnamed_addr constant [10 x i8] c"[64 x i8]\00"
+@.str.1105 = private unnamed_addr constant [45 x i8] c"call i32 (ptr, i64, ptr, ...) @snprintf(ptr \00"
+@.str.1106 = private unnamed_addr constant [15 x i8] c", i64 64, ptr \00"
+@.str.1107 = private unnamed_addr constant [11 x i8] c"select i1 \00"
 @.str.1108 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1109 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1110 = private unnamed_addr constant [6 x i8] c"%s.%s\00"
-@.str.1111 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1112 = private unnamed_addr constant [3 x i8] c"%p\00"
-@.str.1113 = private unnamed_addr constant [10 x i8] c", double \00"
-@.str.1114 = private unnamed_addr constant [3 x i8] c"%g\00"
-@.str.1115 = private unnamed_addr constant [7 x i8] c", i64 \00"
-@.str.1116 = private unnamed_addr constant [5 x i8] c"%lld\00"
-@.str.1117 = private unnamed_addr constant [7 x i8] c", i64 \00"
-@.str.1118 = private unnamed_addr constant [5 x i8] c"%llu\00"
+@.str.1109 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.1110 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1111 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.1112 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1113 = private unnamed_addr constant [3 x i8] c"%s\00"
+@.str.1114 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1115 = private unnamed_addr constant [5 x i8] c"\22%s\22\00"
+@.str.1116 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1117 = private unnamed_addr constant [3 x i8] c"%s\00"
+@.str.1118 = private unnamed_addr constant [7 x i8] c", ptr \00"
 @.str.1119 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1120 = private unnamed_addr constant [33 x i8] c"%s: assertEq failed\0A  actual:   \00"
-@.str.1121 = private unnamed_addr constant [14 x i8] c"\0A  expected: \00"
-@.str.1122 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1123 = private unnamed_addr constant [8 x i8] c"dprintf\00"
-@.str.1124 = private unnamed_addr constant [37 x i8] c"declare i32 @dprintf(i32, ptr, ...)\0A\00"
-@.str.1125 = private unnamed_addr constant [5 x i8] c"exit\00"
-@.str.1126 = private unnamed_addr constant [25 x i8] c"declare void @exit(i32)\0A\00"
-@.str.1127 = private unnamed_addr constant [7 x i8] c"strcmp\00"
-@.str.1128 = private unnamed_addr constant [31 x i8] c"declare i32 @strcmp(ptr, ptr)\0A\00"
-@.str.1129 = private unnamed_addr constant [9 x i8] c"snprintf\00"
-@.str.1130 = private unnamed_addr constant [43 x i8] c"declare i32 @snprintf(ptr, i64, ptr, ...)\0A\00"
-@.str.1131 = private unnamed_addr constant [53 x i8] c"define private i1 @ode.textEquals(ptr %a, ptr %b) {\0A\00"
-@.str.1132 = private unnamed_addr constant [8 x i8] c"entry:\0A\00"
-@.str.1133 = private unnamed_addr constant [30 x i8] c"  %same = icmp eq ptr %a, %b\0A\00"
-@.str.1134 = private unnamed_addr constant [41 x i8] c"  br i1 %same, label %yes, label %check\0A\00"
-@.str.1135 = private unnamed_addr constant [8 x i8] c"check:\0A\00"
-@.str.1136 = private unnamed_addr constant [33 x i8] c"  %aNull = icmp eq ptr %a, null\0A\00"
-@.str.1137 = private unnamed_addr constant [33 x i8] c"  %bNull = icmp eq ptr %b, null\0A\00"
-@.str.1138 = private unnamed_addr constant [34 x i8] c"  %either = or i1 %aNull, %bNull\0A\00"
-@.str.1139 = private unnamed_addr constant [44 x i8] c"  br i1 %either, label %no, label %compare\0A\00"
-@.str.1140 = private unnamed_addr constant [10 x i8] c"compare:\0A\00"
-@.str.1141 = private unnamed_addr constant [45 x i8] c"  %order = call i32 @strcmp(ptr %a, ptr %b)\0A\00"
-@.str.1142 = private unnamed_addr constant [34 x i8] c"  %equal = icmp eq i32 %order, 0\0A\00"
-@.str.1143 = private unnamed_addr constant [17 x i8] c"  ret i1 %equal\0A\00"
-@.str.1144 = private unnamed_addr constant [6 x i8] c"yes:\0A\00"
-@.str.1145 = private unnamed_addr constant [15 x i8] c"  ret i1 true\0A\00"
-@.str.1146 = private unnamed_addr constant [5 x i8] c"no:\0A\00"
-@.str.1147 = private unnamed_addr constant [16 x i8] c"  ret i1 false\0A\00"
-@.str.1148 = private unnamed_addr constant [4 x i8] c"}\0A\0A\00"
-@.str.1149 = private unnamed_addr constant [9 x i8] c"runTests\00"
-@.str.1150 = private unnamed_addr constant [9 x i8] c" x ptr] \00"
-@.str.1151 = private unnamed_addr constant [36 x i8] c"@ode.test.names = private constant \00"
-@.str.1152 = private unnamed_addr constant [17 x i8] c"zeroinitializer\0A\00"
-@.str.1153 = private unnamed_addr constant [3 x i8] c"]\0A\00"
-@.str.1154 = private unnamed_addr constant [40 x i8] c"@ode.test.functions = private constant \00"
-@.str.1155 = private unnamed_addr constant [17 x i8] c"zeroinitializer\0A\00"
-@.str.1156 = private unnamed_addr constant [3 x i8] c"]\0A\00"
-@.str.1157 = private unnamed_addr constant [49 x i8] c"define i32 @main(i32 %argc, ptr %argv) {\0Aentry:\0A\00"
-@.str.1158 = private unnamed_addr constant [22 x i8] c"  %status = call i32 \00"
-@.str.1159 = private unnamed_addr constant [6 x i8] c"(i32 \00"
-@.str.1160 = private unnamed_addr constant [49 x i8] c", ptr @ode.test.names, ptr @ode.test.functions, \00"
-@.str.1161 = private unnamed_addr constant [23 x i8] c"i32 %argc, ptr %argv)\0A\00"
-@.str.1162 = private unnamed_addr constant [22 x i8] c"  ret i32 %status\0A}\0A\0A\00"
-@.str.1163 = private unnamed_addr constant [10 x i8] c"call ptr \00"
-@.str.1164 = private unnamed_addr constant [6 x i8] c"(i32 \00"
-@.str.1165 = private unnamed_addr constant [11 x i8] c"ode.names.\00"
-@.str.1166 = private unnamed_addr constant [20 x i8] c"define private ptr \00"
-@.str.1167 = private unnamed_addr constant [60 x i8] c"(i32 %value) {\0Aentry:\0A  switch i32 %value, label %unknown [\00"
-@.str.1168 = private unnamed_addr constant [6 x i8] c" i32 \00"
-@.str.1169 = private unnamed_addr constant [11 x i8] c", label %m\00"
-@.str.1170 = private unnamed_addr constant [2 x i8] c"m\00"
-@.str.1171 = private unnamed_addr constant [13 x i8] c":\0A  ret ptr \00"
-@.str.1172 = private unnamed_addr constant [4 x i8] c" ]\0A\00"
-@.str.1173 = private unnamed_addr constant [20 x i8] c"unknown:\0A  ret ptr \00"
-@.str.1174 = private unnamed_addr constant [2 x i8] c"?\00"
-@.str.1175 = private unnamed_addr constant [5 x i8] c"\0A}\0A\0A\00"
-@.str.1176 = private unnamed_addr constant [55 x i8] c"define private ptr @ode.errorName(i32 %code) {\0Aentry:\0A\00"
-@.str.1177 = private unnamed_addr constant [54 x i8] c"  switch i32 %code, label %unknown [ i32 0, label %ok\00"
+@.str.1120 = private unnamed_addr constant [6 x i8] c"%s.%s\00"
+@.str.1121 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1122 = private unnamed_addr constant [3 x i8] c"%p\00"
+@.str.1123 = private unnamed_addr constant [10 x i8] c", double \00"
+@.str.1124 = private unnamed_addr constant [3 x i8] c"%g\00"
+@.str.1125 = private unnamed_addr constant [7 x i8] c", i64 \00"
+@.str.1126 = private unnamed_addr constant [5 x i8] c"%lld\00"
+@.str.1127 = private unnamed_addr constant [7 x i8] c", i64 \00"
+@.str.1128 = private unnamed_addr constant [5 x i8] c"%llu\00"
+@.str.1129 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1130 = private unnamed_addr constant [33 x i8] c"%s: assertEq failed\0A  actual:   \00"
+@.str.1131 = private unnamed_addr constant [14 x i8] c"\0A  expected: \00"
+@.str.1132 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1133 = private unnamed_addr constant [8 x i8] c"dprintf\00"
+@.str.1134 = private unnamed_addr constant [37 x i8] c"declare i32 @dprintf(i32, ptr, ...)\0A\00"
+@.str.1135 = private unnamed_addr constant [5 x i8] c"exit\00"
+@.str.1136 = private unnamed_addr constant [25 x i8] c"declare void @exit(i32)\0A\00"
+@.str.1137 = private unnamed_addr constant [7 x i8] c"strcmp\00"
+@.str.1138 = private unnamed_addr constant [31 x i8] c"declare i32 @strcmp(ptr, ptr)\0A\00"
+@.str.1139 = private unnamed_addr constant [9 x i8] c"snprintf\00"
+@.str.1140 = private unnamed_addr constant [43 x i8] c"declare i32 @snprintf(ptr, i64, ptr, ...)\0A\00"
+@.str.1141 = private unnamed_addr constant [53 x i8] c"define private i1 @ode.textEquals(ptr %a, ptr %b) {\0A\00"
+@.str.1142 = private unnamed_addr constant [8 x i8] c"entry:\0A\00"
+@.str.1143 = private unnamed_addr constant [30 x i8] c"  %same = icmp eq ptr %a, %b\0A\00"
+@.str.1144 = private unnamed_addr constant [41 x i8] c"  br i1 %same, label %yes, label %check\0A\00"
+@.str.1145 = private unnamed_addr constant [8 x i8] c"check:\0A\00"
+@.str.1146 = private unnamed_addr constant [33 x i8] c"  %aNull = icmp eq ptr %a, null\0A\00"
+@.str.1147 = private unnamed_addr constant [33 x i8] c"  %bNull = icmp eq ptr %b, null\0A\00"
+@.str.1148 = private unnamed_addr constant [34 x i8] c"  %either = or i1 %aNull, %bNull\0A\00"
+@.str.1149 = private unnamed_addr constant [44 x i8] c"  br i1 %either, label %no, label %compare\0A\00"
+@.str.1150 = private unnamed_addr constant [10 x i8] c"compare:\0A\00"
+@.str.1151 = private unnamed_addr constant [45 x i8] c"  %order = call i32 @strcmp(ptr %a, ptr %b)\0A\00"
+@.str.1152 = private unnamed_addr constant [34 x i8] c"  %equal = icmp eq i32 %order, 0\0A\00"
+@.str.1153 = private unnamed_addr constant [17 x i8] c"  ret i1 %equal\0A\00"
+@.str.1154 = private unnamed_addr constant [6 x i8] c"yes:\0A\00"
+@.str.1155 = private unnamed_addr constant [15 x i8] c"  ret i1 true\0A\00"
+@.str.1156 = private unnamed_addr constant [5 x i8] c"no:\0A\00"
+@.str.1157 = private unnamed_addr constant [16 x i8] c"  ret i1 false\0A\00"
+@.str.1158 = private unnamed_addr constant [4 x i8] c"}\0A\0A\00"
+@.str.1159 = private unnamed_addr constant [9 x i8] c"runTests\00"
+@.str.1160 = private unnamed_addr constant [9 x i8] c" x ptr] \00"
+@.str.1161 = private unnamed_addr constant [36 x i8] c"@ode.test.names = private constant \00"
+@.str.1162 = private unnamed_addr constant [17 x i8] c"zeroinitializer\0A\00"
+@.str.1163 = private unnamed_addr constant [3 x i8] c"]\0A\00"
+@.str.1164 = private unnamed_addr constant [40 x i8] c"@ode.test.functions = private constant \00"
+@.str.1165 = private unnamed_addr constant [17 x i8] c"zeroinitializer\0A\00"
+@.str.1166 = private unnamed_addr constant [3 x i8] c"]\0A\00"
+@.str.1167 = private unnamed_addr constant [49 x i8] c"define i32 @main(i32 %argc, ptr %argv) {\0Aentry:\0A\00"
+@.str.1168 = private unnamed_addr constant [22 x i8] c"  %status = call i32 \00"
+@.str.1169 = private unnamed_addr constant [6 x i8] c"(i32 \00"
+@.str.1170 = private unnamed_addr constant [49 x i8] c", ptr @ode.test.names, ptr @ode.test.functions, \00"
+@.str.1171 = private unnamed_addr constant [23 x i8] c"i32 %argc, ptr %argv)\0A\00"
+@.str.1172 = private unnamed_addr constant [22 x i8] c"  ret i32 %status\0A}\0A\0A\00"
+@.str.1173 = private unnamed_addr constant [10 x i8] c"call ptr \00"
+@.str.1174 = private unnamed_addr constant [6 x i8] c"(i32 \00"
+@.str.1175 = private unnamed_addr constant [11 x i8] c"ode.names.\00"
+@.str.1176 = private unnamed_addr constant [20 x i8] c"define private ptr \00"
+@.str.1177 = private unnamed_addr constant [60 x i8] c"(i32 %value) {\0Aentry:\0A  switch i32 %value, label %unknown [\00"
 @.str.1178 = private unnamed_addr constant [6 x i8] c" i32 \00"
-@.str.1179 = private unnamed_addr constant [11 x i8] c", label %e\00"
-@.str.1180 = private unnamed_addr constant [2 x i8] c"e\00"
+@.str.1179 = private unnamed_addr constant [11 x i8] c", label %m\00"
+@.str.1180 = private unnamed_addr constant [2 x i8] c"m\00"
 @.str.1181 = private unnamed_addr constant [13 x i8] c":\0A  ret ptr \00"
-@.str.1182 = private unnamed_addr constant [18 x i8] c" ]\0Aok:\0A  ret ptr \00"
-@.str.1183 = private unnamed_addr constant [3 x i8] c"ok\00"
-@.str.1184 = private unnamed_addr constant [2 x i8] c"\0A\00"
-@.str.1185 = private unnamed_addr constant [20 x i8] c"unknown:\0A  ret ptr \00"
-@.str.1186 = private unnamed_addr constant [2 x i8] c"?\00"
-@.str.1187 = private unnamed_addr constant [5 x i8] c"\0A}\0A\0A\00"
-@.str.1188 = private unnamed_addr constant [12 x i8] c"end of file\00"
-@.str.1189 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1190 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1191 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1192 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.1193 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1194 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1195 = private unnamed_addr constant [3 x i8] c"=>\00"
-@.str.1196 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.1197 = private unnamed_addr constant [2 x i8] c">\00"
-@.str.1198 = private unnamed_addr constant [2 x i8] c">\00"
-@.str.1199 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.1200 = private unnamed_addr constant [15 x i8] c"type parameter\00"
-@.str.1201 = private unnamed_addr constant [3 x i8] c"fn\00"
-@.str.1202 = private unnamed_addr constant [7 x i8] c"extern\00"
-@.str.1203 = private unnamed_addr constant [7 x i8] c"struct\00"
-@.str.1204 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.1205 = private unnamed_addr constant [11 x i8] c"error enum\00"
-@.str.1206 = private unnamed_addr constant [7 x i8] c"import\00"
-@.str.1207 = private unnamed_addr constant [7 x i8] c"export\00"
-@.str.1208 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.1209 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.1210 = private unnamed_addr constant [4 x i8] c"let\00"
-@.str.1211 = private unnamed_addr constant [11 x i8] c"identifier\00"
-@.str.1212 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1213 = private unnamed_addr constant [2 x i8] c"=\00"
-@.str.1214 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1215 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1216 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1217 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1218 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1219 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1220 = private unnamed_addr constant [3 x i8] c"if\00"
-@.str.1221 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1222 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1223 = private unnamed_addr constant [4 x i8] c"for\00"
-@.str.1224 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1225 = private unnamed_addr constant [14 x i8] c"loop variable\00"
-@.str.1226 = private unnamed_addr constant [3 x i8] c"in\00"
-@.str.1227 = private unnamed_addr constant [3 x i8] c"in\00"
-@.str.1228 = private unnamed_addr constant [3 x i8] c"..\00"
-@.str.1229 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1230 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.1182 = private unnamed_addr constant [4 x i8] c" ]\0A\00"
+@.str.1183 = private unnamed_addr constant [20 x i8] c"unknown:\0A  ret ptr \00"
+@.str.1184 = private unnamed_addr constant [2 x i8] c"?\00"
+@.str.1185 = private unnamed_addr constant [5 x i8] c"\0A}\0A\0A\00"
+@.str.1186 = private unnamed_addr constant [55 x i8] c"define private ptr @ode.errorName(i32 %code) {\0Aentry:\0A\00"
+@.str.1187 = private unnamed_addr constant [54 x i8] c"  switch i32 %code, label %unknown [ i32 0, label %ok\00"
+@.str.1188 = private unnamed_addr constant [6 x i8] c" i32 \00"
+@.str.1189 = private unnamed_addr constant [11 x i8] c", label %e\00"
+@.str.1190 = private unnamed_addr constant [2 x i8] c"e\00"
+@.str.1191 = private unnamed_addr constant [13 x i8] c":\0A  ret ptr \00"
+@.str.1192 = private unnamed_addr constant [18 x i8] c" ]\0Aok:\0A  ret ptr \00"
+@.str.1193 = private unnamed_addr constant [3 x i8] c"ok\00"
+@.str.1194 = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.str.1195 = private unnamed_addr constant [20 x i8] c"unknown:\0A  ret ptr \00"
+@.str.1196 = private unnamed_addr constant [2 x i8] c"?\00"
+@.str.1197 = private unnamed_addr constant [5 x i8] c"\0A}\0A\0A\00"
+@.str.1198 = private unnamed_addr constant [12 x i8] c"end of file\00"
+@.str.1199 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1200 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1201 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1202 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.1203 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1204 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1205 = private unnamed_addr constant [3 x i8] c"=>\00"
+@.str.1206 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.1207 = private unnamed_addr constant [2 x i8] c">\00"
+@.str.1208 = private unnamed_addr constant [2 x i8] c">\00"
+@.str.1209 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.1210 = private unnamed_addr constant [15 x i8] c"type parameter\00"
+@.str.1211 = private unnamed_addr constant [3 x i8] c"fn\00"
+@.str.1212 = private unnamed_addr constant [7 x i8] c"extern\00"
+@.str.1213 = private unnamed_addr constant [7 x i8] c"struct\00"
+@.str.1214 = private unnamed_addr constant [5 x i8] c"enum\00"
+@.str.1215 = private unnamed_addr constant [11 x i8] c"error enum\00"
+@.str.1216 = private unnamed_addr constant [7 x i8] c"import\00"
+@.str.1217 = private unnamed_addr constant [7 x i8] c"export\00"
+@.str.1218 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.1219 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.1220 = private unnamed_addr constant [4 x i8] c"let\00"
+@.str.1221 = private unnamed_addr constant [11 x i8] c"identifier\00"
+@.str.1222 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1223 = private unnamed_addr constant [2 x i8] c"=\00"
+@.str.1224 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1225 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1226 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1227 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1228 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1229 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1230 = private unnamed_addr constant [3 x i8] c"if\00"
 @.str.1231 = private unnamed_addr constant [2 x i8] c"(\00"
 @.str.1232 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1233 = private unnamed_addr constant [6 x i8] c"break\00"
-@.str.1234 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1235 = private unnamed_addr constant [9 x i8] c"continue\00"
-@.str.1236 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1237 = private unnamed_addr constant [7 x i8] c"return\00"
-@.str.1238 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1239 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1240 = private unnamed_addr constant [15 x i8] c"parameter name\00"
-@.str.1241 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1233 = private unnamed_addr constant [4 x i8] c"for\00"
+@.str.1234 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1235 = private unnamed_addr constant [14 x i8] c"loop variable\00"
+@.str.1236 = private unnamed_addr constant [3 x i8] c"in\00"
+@.str.1237 = private unnamed_addr constant [3 x i8] c"in\00"
+@.str.1238 = private unnamed_addr constant [3 x i8] c"..\00"
+@.str.1239 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1240 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.1241 = private unnamed_addr constant [2 x i8] c"(\00"
 @.str.1242 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1243 = private unnamed_addr constant [3 x i8] c"fn\00"
-@.str.1244 = private unnamed_addr constant [11 x i8] c"identifier\00"
-@.str.1245 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1246 = private unnamed_addr constant [5 x i8] c"test\00"
-@.str.1247 = private unnamed_addr constant [10 x i8] c"test name\00"
-@.str.1248 = private unnamed_addr constant [5 x i8] c"void\00"
-@.str.1249 = private unnamed_addr constant [7 x i8] c"extern\00"
-@.str.1250 = private unnamed_addr constant [3 x i8] c"fn\00"
-@.str.1251 = private unnamed_addr constant [11 x i8] c"identifier\00"
-@.str.1252 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1253 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1254 = private unnamed_addr constant [7 x i8] c"struct\00"
-@.str.1255 = private unnamed_addr constant [12 x i8] c"struct name\00"
-@.str.1256 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1257 = private unnamed_addr constant [11 x i8] c"field name\00"
-@.str.1258 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1259 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1260 = private unnamed_addr constant [7 x i8] c"import\00"
-@.str.1261 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1262 = private unnamed_addr constant [14 x i8] c"imported name\00"
-@.str.1263 = private unnamed_addr constant [6 x i8] c"alias\00"
-@.str.1264 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1265 = private unnamed_addr constant [5 x i8] c"from\00"
-@.str.1266 = private unnamed_addr constant [5 x i8] c"from\00"
-@.str.1267 = private unnamed_addr constant [12 x i8] c"module path\00"
-@.str.1268 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1269 = private unnamed_addr constant [7 x i8] c"export\00"
-@.str.1270 = private unnamed_addr constant [12 x i8] c"declaration\00"
-@.str.1271 = private unnamed_addr constant [6 x i8] c"error\00"
-@.str.1272 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.1273 = private unnamed_addr constant [10 x i8] c"enum name\00"
-@.str.1274 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1275 = private unnamed_addr constant [12 x i8] c"enum member\00"
-@.str.1276 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1277 = private unnamed_addr constant [6 x i8] c"match\00"
-@.str.1278 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1279 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1280 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1281 = private unnamed_addr constant [3 x i8] c"=>\00"
-@.str.1282 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1283 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.1284 = private unnamed_addr constant [11 x i8] c"identifier\00"
-@.str.1285 = private unnamed_addr constant [2 x i8] c"=\00"
-@.str.1286 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1287 = private unnamed_addr constant [4 x i8] c"end\00"
-@.str.1288 = private unnamed_addr constant [6 x i8] c"ident\00"
-@.str.1289 = private unnamed_addr constant [7 x i8] c"number\00"
-@.str.1290 = private unnamed_addr constant [7 x i8] c"string\00"
-@.str.1291 = private unnamed_addr constant [5 x i8] c"char\00"
-@.str.1292 = private unnamed_addr constant [5 x i8] c"bool\00"
-@.str.1293 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.1294 = private unnamed_addr constant [4 x i8] c"let\00"
-@.str.1295 = private unnamed_addr constant [3 x i8] c"if\00"
-@.str.1296 = private unnamed_addr constant [5 x i8] c"else\00"
-@.str.1297 = private unnamed_addr constant [3 x i8] c"fn\00"
-@.str.1298 = private unnamed_addr constant [7 x i8] c"extern\00"
-@.str.1299 = private unnamed_addr constant [7 x i8] c"struct\00"
-@.str.1300 = private unnamed_addr constant [7 x i8] c"sizeof\00"
-@.str.1301 = private unnamed_addr constant [7 x i8] c"return\00"
-@.str.1302 = private unnamed_addr constant [4 x i8] c"try\00"
-@.str.1303 = private unnamed_addr constant [6 x i8] c"catch\00"
-@.str.1304 = private unnamed_addr constant [6 x i8] c"while\00"
-@.str.1305 = private unnamed_addr constant [6 x i8] c"break\00"
-@.str.1306 = private unnamed_addr constant [9 x i8] c"continue\00"
-@.str.1307 = private unnamed_addr constant [3 x i8] c"as\00"
-@.str.1308 = private unnamed_addr constant [7 x i8] c"import\00"
-@.str.1309 = private unnamed_addr constant [7 x i8] c"export\00"
-@.str.1310 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.1311 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.1312 = private unnamed_addr constant [6 x i8] c"match\00"
-@.str.1313 = private unnamed_addr constant [4 x i8] c"for\00"
-@.str.1314 = private unnamed_addr constant [2 x i8] c"=\00"
-@.str.1315 = private unnamed_addr constant [2 x i8] c"+\00"
-@.str.1316 = private unnamed_addr constant [2 x i8] c"-\00"
-@.str.1317 = private unnamed_addr constant [2 x i8] c"*\00"
-@.str.1318 = private unnamed_addr constant [2 x i8] c"/\00"
-@.str.1319 = private unnamed_addr constant [2 x i8] c"%\00"
-@.str.1320 = private unnamed_addr constant [2 x i8] c"!\00"
-@.str.1321 = private unnamed_addr constant [2 x i8] c"&\00"
-@.str.1322 = private unnamed_addr constant [2 x i8] c"|\00"
-@.str.1323 = private unnamed_addr constant [2 x i8] c"^\00"
-@.str.1324 = private unnamed_addr constant [3 x i8] c"<<\00"
-@.str.1325 = private unnamed_addr constant [3 x i8] c">>\00"
-@.str.1326 = private unnamed_addr constant [3 x i8] c"&&\00"
-@.str.1327 = private unnamed_addr constant [3 x i8] c"||\00"
-@.str.1328 = private unnamed_addr constant [3 x i8] c"==\00"
-@.str.1329 = private unnamed_addr constant [3 x i8] c"!=\00"
-@.str.1330 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.1331 = private unnamed_addr constant [3 x i8] c"<=\00"
-@.str.1332 = private unnamed_addr constant [2 x i8] c">\00"
-@.str.1333 = private unnamed_addr constant [3 x i8] c">=\00"
-@.str.1334 = private unnamed_addr constant [3 x i8] c"+=\00"
-@.str.1335 = private unnamed_addr constant [3 x i8] c"-=\00"
-@.str.1336 = private unnamed_addr constant [3 x i8] c"*=\00"
-@.str.1337 = private unnamed_addr constant [3 x i8] c"/=\00"
-@.str.1338 = private unnamed_addr constant [3 x i8] c"%=\00"
-@.str.1339 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1340 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1341 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1342 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1343 = private unnamed_addr constant [2 x i8] c"[\00"
-@.str.1344 = private unnamed_addr constant [2 x i8] c"]\00"
-@.str.1345 = private unnamed_addr constant [2 x i8] c".\00"
-@.str.1346 = private unnamed_addr constant [2 x i8] c";\00"
-@.str.1347 = private unnamed_addr constant [2 x i8] c",\00"
-@.str.1348 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1349 = private unnamed_addr constant [3 x i8] c"=>\00"
-@.str.1350 = private unnamed_addr constant [3 x i8] c"..\00"
-@.str.1351 = private unnamed_addr constant [4 x i8] c"...\00"
-@.str.1352 = private unnamed_addr constant [3 x i8] c"??\00"
-@.str.1353 = private unnamed_addr constant [2 x i8] c"?\00"
-@.str.1354 = private unnamed_addr constant [10 x i8] c"in sizeof\00"
-@.str.1355 = private unnamed_addr constant [29 x i8] c"unknown expression node type\00"
-@.str.1356 = private unnamed_addr constant [24 x i8] c"an operator without one\00"
-@.str.1357 = private unnamed_addr constant [7 x i8] c"field \00"
-@.str.1358 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1359 = private unnamed_addr constant [16 x i8] c"in literal for \00"
-@.str.1360 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1361 = private unnamed_addr constant [19 x i8] c"in a match pattern\00"
-@.str.1362 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
-@.str.1363 = private unnamed_addr constant [23 x i8] c" zeroinitializer, i32 \00"
-@.str.1364 = private unnamed_addr constant [4 x i8] c", 0\00"
-@.str.1365 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
-@.str.1366 = private unnamed_addr constant [19 x i8] c" zeroinitializer, \00"
-@.str.1367 = private unnamed_addr constant [4 x i8] c", 1\00"
-@.str.1368 = private unnamed_addr constant [3 x i8] c"eq\00"
-@.str.1369 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1370 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1371 = private unnamed_addr constant [3 x i8] c"eq\00"
-@.str.1372 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1373 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1374 = private unnamed_addr constant [8 x i8] c" x i64]\00"
-@.str.1375 = private unnamed_addr constant [6 x i8] c"load \00"
-@.str.1376 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1377 = private unnamed_addr constant [7 x i8] c"store \00"
-@.str.1378 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1379 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
-@.str.1380 = private unnamed_addr constant [7 x i8] c", ptr \00"
-@.str.1381 = private unnamed_addr constant [14 x i8] c", i32 0, i32 \00"
-@.str.1382 = private unnamed_addr constant [11 x i8] c"select i1 \00"
-@.str.1383 = private unnamed_addr constant [7 x i8] c", i32 \00"
-@.str.1384 = private unnamed_addr constant [7 x i8] c", i32 \00"
-@.str.1385 = private unnamed_addr constant [14 x i8] c"extractvalue \00"
-@.str.1386 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1387 = private unnamed_addr constant [6 x i8] c"icmp \00"
-@.str.1388 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1389 = private unnamed_addr constant [4 x i8] c"sgt\00"
-@.str.1390 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1391 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1392 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
-@.str.1393 = private unnamed_addr constant [23 x i8] c" zeroinitializer, i32 \00"
-@.str.1394 = private unnamed_addr constant [4 x i8] c", 0\00"
-@.str.1395 = private unnamed_addr constant [5 x i8] c"ret \00"
-@.str.1396 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1397 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1398 = private unnamed_addr constant [4 x i8] c"sle\00"
-@.str.1399 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1400 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1401 = private unnamed_addr constant [3 x i8] c"ne\00"
-@.str.1402 = private unnamed_addr constant [4 x i8] c"ptr\00"
-@.str.1403 = private unnamed_addr constant [5 x i8] c"null\00"
-@.str.1404 = private unnamed_addr constant [4 x i8] c"sgt\00"
-@.str.1405 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1406 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1407 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1408 = private unnamed_addr constant [12 x i8] c"unreachable\00"
-@.str.1409 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.1410 = private unnamed_addr constant [3 x i8] c"eq\00"
-@.str.1411 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1412 = private unnamed_addr constant [4 x i8] c"sle\00"
-@.str.1413 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1414 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.1415 = private unnamed_addr constant [4 x i8] c"sge\00"
+@.str.1243 = private unnamed_addr constant [6 x i8] c"break\00"
+@.str.1244 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1245 = private unnamed_addr constant [9 x i8] c"continue\00"
+@.str.1246 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1247 = private unnamed_addr constant [7 x i8] c"return\00"
+@.str.1248 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1249 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1250 = private unnamed_addr constant [15 x i8] c"parameter name\00"
+@.str.1251 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1252 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1253 = private unnamed_addr constant [3 x i8] c"fn\00"
+@.str.1254 = private unnamed_addr constant [11 x i8] c"identifier\00"
+@.str.1255 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1256 = private unnamed_addr constant [5 x i8] c"test\00"
+@.str.1257 = private unnamed_addr constant [10 x i8] c"test name\00"
+@.str.1258 = private unnamed_addr constant [5 x i8] c"void\00"
+@.str.1259 = private unnamed_addr constant [7 x i8] c"extern\00"
+@.str.1260 = private unnamed_addr constant [3 x i8] c"fn\00"
+@.str.1261 = private unnamed_addr constant [11 x i8] c"identifier\00"
+@.str.1262 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1263 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1264 = private unnamed_addr constant [7 x i8] c"struct\00"
+@.str.1265 = private unnamed_addr constant [12 x i8] c"struct name\00"
+@.str.1266 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1267 = private unnamed_addr constant [11 x i8] c"field name\00"
+@.str.1268 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1269 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1270 = private unnamed_addr constant [7 x i8] c"import\00"
+@.str.1271 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1272 = private unnamed_addr constant [14 x i8] c"imported name\00"
+@.str.1273 = private unnamed_addr constant [6 x i8] c"alias\00"
+@.str.1274 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1275 = private unnamed_addr constant [5 x i8] c"from\00"
+@.str.1276 = private unnamed_addr constant [5 x i8] c"from\00"
+@.str.1277 = private unnamed_addr constant [12 x i8] c"module path\00"
+@.str.1278 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1279 = private unnamed_addr constant [7 x i8] c"export\00"
+@.str.1280 = private unnamed_addr constant [12 x i8] c"declaration\00"
+@.str.1281 = private unnamed_addr constant [6 x i8] c"error\00"
+@.str.1282 = private unnamed_addr constant [5 x i8] c"enum\00"
+@.str.1283 = private unnamed_addr constant [10 x i8] c"enum name\00"
+@.str.1284 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1285 = private unnamed_addr constant [12 x i8] c"enum member\00"
+@.str.1286 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1287 = private unnamed_addr constant [6 x i8] c"match\00"
+@.str.1288 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1289 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1290 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1291 = private unnamed_addr constant [3 x i8] c"=>\00"
+@.str.1292 = private unnamed_addr constant [2 x i8] c",\00"
+@.str.1293 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1294 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.1295 = private unnamed_addr constant [11 x i8] c"identifier\00"
+@.str.1296 = private unnamed_addr constant [2 x i8] c"=\00"
+@.str.1297 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1298 = private unnamed_addr constant [4 x i8] c"end\00"
+@.str.1299 = private unnamed_addr constant [6 x i8] c"ident\00"
+@.str.1300 = private unnamed_addr constant [7 x i8] c"number\00"
+@.str.1301 = private unnamed_addr constant [7 x i8] c"string\00"
+@.str.1302 = private unnamed_addr constant [5 x i8] c"char\00"
+@.str.1303 = private unnamed_addr constant [5 x i8] c"bool\00"
+@.str.1304 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.1305 = private unnamed_addr constant [4 x i8] c"let\00"
+@.str.1306 = private unnamed_addr constant [3 x i8] c"if\00"
+@.str.1307 = private unnamed_addr constant [5 x i8] c"else\00"
+@.str.1308 = private unnamed_addr constant [3 x i8] c"fn\00"
+@.str.1309 = private unnamed_addr constant [7 x i8] c"extern\00"
+@.str.1310 = private unnamed_addr constant [7 x i8] c"struct\00"
+@.str.1311 = private unnamed_addr constant [7 x i8] c"sizeof\00"
+@.str.1312 = private unnamed_addr constant [7 x i8] c"return\00"
+@.str.1313 = private unnamed_addr constant [4 x i8] c"try\00"
+@.str.1314 = private unnamed_addr constant [6 x i8] c"catch\00"
+@.str.1315 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.1316 = private unnamed_addr constant [6 x i8] c"break\00"
+@.str.1317 = private unnamed_addr constant [9 x i8] c"continue\00"
+@.str.1318 = private unnamed_addr constant [3 x i8] c"as\00"
+@.str.1319 = private unnamed_addr constant [7 x i8] c"import\00"
+@.str.1320 = private unnamed_addr constant [7 x i8] c"export\00"
+@.str.1321 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.1322 = private unnamed_addr constant [5 x i8] c"enum\00"
+@.str.1323 = private unnamed_addr constant [6 x i8] c"match\00"
+@.str.1324 = private unnamed_addr constant [4 x i8] c"for\00"
+@.str.1325 = private unnamed_addr constant [2 x i8] c"=\00"
+@.str.1326 = private unnamed_addr constant [2 x i8] c"+\00"
+@.str.1327 = private unnamed_addr constant [2 x i8] c"-\00"
+@.str.1328 = private unnamed_addr constant [2 x i8] c"*\00"
+@.str.1329 = private unnamed_addr constant [2 x i8] c"/\00"
+@.str.1330 = private unnamed_addr constant [2 x i8] c"%\00"
+@.str.1331 = private unnamed_addr constant [2 x i8] c"!\00"
+@.str.1332 = private unnamed_addr constant [2 x i8] c"&\00"
+@.str.1333 = private unnamed_addr constant [2 x i8] c"|\00"
+@.str.1334 = private unnamed_addr constant [2 x i8] c"^\00"
+@.str.1335 = private unnamed_addr constant [3 x i8] c"<<\00"
+@.str.1336 = private unnamed_addr constant [3 x i8] c">>\00"
+@.str.1337 = private unnamed_addr constant [3 x i8] c"&&\00"
+@.str.1338 = private unnamed_addr constant [3 x i8] c"||\00"
+@.str.1339 = private unnamed_addr constant [3 x i8] c"==\00"
+@.str.1340 = private unnamed_addr constant [3 x i8] c"!=\00"
+@.str.1341 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.1342 = private unnamed_addr constant [3 x i8] c"<=\00"
+@.str.1343 = private unnamed_addr constant [2 x i8] c">\00"
+@.str.1344 = private unnamed_addr constant [3 x i8] c">=\00"
+@.str.1345 = private unnamed_addr constant [3 x i8] c"+=\00"
+@.str.1346 = private unnamed_addr constant [3 x i8] c"-=\00"
+@.str.1347 = private unnamed_addr constant [3 x i8] c"*=\00"
+@.str.1348 = private unnamed_addr constant [3 x i8] c"/=\00"
+@.str.1349 = private unnamed_addr constant [3 x i8] c"%=\00"
+@.str.1350 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1351 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1352 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1353 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1354 = private unnamed_addr constant [2 x i8] c"[\00"
+@.str.1355 = private unnamed_addr constant [2 x i8] c"]\00"
+@.str.1356 = private unnamed_addr constant [2 x i8] c".\00"
+@.str.1357 = private unnamed_addr constant [2 x i8] c";\00"
+@.str.1358 = private unnamed_addr constant [2 x i8] c",\00"
+@.str.1359 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1360 = private unnamed_addr constant [3 x i8] c"=>\00"
+@.str.1361 = private unnamed_addr constant [3 x i8] c"..\00"
+@.str.1362 = private unnamed_addr constant [4 x i8] c"...\00"
+@.str.1363 = private unnamed_addr constant [3 x i8] c"??\00"
+@.str.1364 = private unnamed_addr constant [2 x i8] c"?\00"
+@.str.1365 = private unnamed_addr constant [10 x i8] c"in sizeof\00"
+@.str.1366 = private unnamed_addr constant [29 x i8] c"unknown expression node type\00"
+@.str.1367 = private unnamed_addr constant [24 x i8] c"an operator without one\00"
+@.str.1368 = private unnamed_addr constant [7 x i8] c"field \00"
+@.str.1369 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1370 = private unnamed_addr constant [16 x i8] c"in literal for \00"
+@.str.1371 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1372 = private unnamed_addr constant [19 x i8] c"in a match pattern\00"
+@.str.1373 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
+@.str.1374 = private unnamed_addr constant [23 x i8] c" zeroinitializer, i32 \00"
+@.str.1375 = private unnamed_addr constant [4 x i8] c", 0\00"
+@.str.1376 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
+@.str.1377 = private unnamed_addr constant [19 x i8] c" zeroinitializer, \00"
+@.str.1378 = private unnamed_addr constant [4 x i8] c", 1\00"
+@.str.1379 = private unnamed_addr constant [3 x i8] c"eq\00"
+@.str.1380 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1381 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1382 = private unnamed_addr constant [3 x i8] c"eq\00"
+@.str.1383 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1384 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1385 = private unnamed_addr constant [8 x i8] c" x i64]\00"
+@.str.1386 = private unnamed_addr constant [6 x i8] c"load \00"
+@.str.1387 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1388 = private unnamed_addr constant [7 x i8] c"store \00"
+@.str.1389 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1390 = private unnamed_addr constant [24 x i8] c"getelementptr inbounds \00"
+@.str.1391 = private unnamed_addr constant [7 x i8] c", ptr \00"
+@.str.1392 = private unnamed_addr constant [14 x i8] c", i32 0, i32 \00"
+@.str.1393 = private unnamed_addr constant [11 x i8] c"select i1 \00"
+@.str.1394 = private unnamed_addr constant [7 x i8] c", i32 \00"
+@.str.1395 = private unnamed_addr constant [7 x i8] c", i32 \00"
+@.str.1396 = private unnamed_addr constant [14 x i8] c"extractvalue \00"
+@.str.1397 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1398 = private unnamed_addr constant [6 x i8] c"icmp \00"
+@.str.1399 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1400 = private unnamed_addr constant [4 x i8] c"sgt\00"
+@.str.1401 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1402 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1403 = private unnamed_addr constant [13 x i8] c"insertvalue \00"
+@.str.1404 = private unnamed_addr constant [23 x i8] c" zeroinitializer, i32 \00"
+@.str.1405 = private unnamed_addr constant [4 x i8] c", 0\00"
+@.str.1406 = private unnamed_addr constant [5 x i8] c"ret \00"
+@.str.1407 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1408 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1409 = private unnamed_addr constant [4 x i8] c"sle\00"
+@.str.1410 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1411 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1412 = private unnamed_addr constant [3 x i8] c"ne\00"
+@.str.1413 = private unnamed_addr constant [4 x i8] c"ptr\00"
+@.str.1414 = private unnamed_addr constant [5 x i8] c"null\00"
+@.str.1415 = private unnamed_addr constant [4 x i8] c"sgt\00"
 @.str.1416 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1417 = private unnamed_addr constant [4 x i8] c"sle\00"
+@.str.1417 = private unnamed_addr constant [2 x i8] c"0\00"
 @.str.1418 = private unnamed_addr constant [4 x i8] c"i32\00"
-@.str.1419 = private unnamed_addr constant [8 x i8] c"and i1 \00"
-@.str.1420 = private unnamed_addr constant [3 x i8] c", \00"
-@.str.1421 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1422 = private unnamed_addr constant [17 x i8] c"the error's name\00"
-@.str.1423 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1424 = private unnamed_addr constant [87 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/syntax/expressions.ode:91:3\00"
-@.str.1425 = private unnamed_addr constant [44 x i8] c"a binary operator token without an operator\00"
-@.str.1426 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1427 = private unnamed_addr constant [3 x i8] c"is\00"
-@.str.1428 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1429 = private unnamed_addr constant [11 x i8] c"field name\00"
-@.str.1430 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1431 = private unnamed_addr constant [2 x i8] c"]\00"
-@.str.1432 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1433 = private unnamed_addr constant [55 x i8] c"number, string, character, boolean, identifier, or '('\00"
-@.str.1434 = private unnamed_addr constant [7 x i8] c"sizeof\00"
-@.str.1435 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1436 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1437 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1438 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1419 = private unnamed_addr constant [12 x i8] c"unreachable\00"
+@.str.1420 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.1421 = private unnamed_addr constant [3 x i8] c"eq\00"
+@.str.1422 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1423 = private unnamed_addr constant [4 x i8] c"sle\00"
+@.str.1424 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1425 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.1426 = private unnamed_addr constant [4 x i8] c"sge\00"
+@.str.1427 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1428 = private unnamed_addr constant [4 x i8] c"sle\00"
+@.str.1429 = private unnamed_addr constant [4 x i8] c"i32\00"
+@.str.1430 = private unnamed_addr constant [8 x i8] c"and i1 \00"
+@.str.1431 = private unnamed_addr constant [3 x i8] c", \00"
+@.str.1432 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1433 = private unnamed_addr constant [17 x i8] c"the error's name\00"
+@.str.1434 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1435 = private unnamed_addr constant [87 x i8] c"/Users/eduardogoulartdebem/Projects/clang/cpp/ode/compiler/syntax/expressions.ode:91:3\00"
+@.str.1436 = private unnamed_addr constant [44 x i8] c"a binary operator token without an operator\00"
+@.str.1437 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1438 = private unnamed_addr constant [3 x i8] c"is\00"
 @.str.1439 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1440 = private unnamed_addr constant [12 x i8] c"struct name\00"
-@.str.1441 = private unnamed_addr constant [2 x i8] c"{\00"
-@.str.1442 = private unnamed_addr constant [11 x i8] c"field name\00"
-@.str.1443 = private unnamed_addr constant [2 x i8] c":\00"
-@.str.1444 = private unnamed_addr constant [2 x i8] c"}\00"
-@.str.1445 = private unnamed_addr constant [2 x i8] c"(\00"
-@.str.1446 = private unnamed_addr constant [15 x i8] c"parameter name\00"
+@.str.1440 = private unnamed_addr constant [11 x i8] c"field name\00"
+@.str.1441 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1442 = private unnamed_addr constant [2 x i8] c"]\00"
+@.str.1443 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1444 = private unnamed_addr constant [55 x i8] c"number, string, character, boolean, identifier, or '('\00"
+@.str.1445 = private unnamed_addr constant [7 x i8] c"sizeof\00"
+@.str.1446 = private unnamed_addr constant [2 x i8] c"(\00"
 @.str.1447 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.1448 = private unnamed_addr constant [3 x i8] c"=>\00"
-@.str.1449 = private unnamed_addr constant [14 x i8] c"in parameter \00"
-@.str.1450 = private unnamed_addr constant [13 x i8] c" of a lambda\00"
-@.str.1451 = private unnamed_addr constant [31 x i8] c"in the return type of a lambda\00"
-@.str.1452 = private unnamed_addr constant [12 x i8] c"ode.lambda.\00"
-@.str.1453 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1454 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1455 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1456 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1457 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1458 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1459 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1460 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1461 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1462 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1463 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1464 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1465 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1466 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1467 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1468 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1469 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1470 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1471 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1472 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1473 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1474 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1475 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1476 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1477 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1478 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1479 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1480 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1481 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1482 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1483 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1484 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1485 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1486 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1487 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1488 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1489 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1490 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1491 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1492 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1493 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1494 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1495 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1496 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1497 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1498 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1499 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1500 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1501 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1502 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1503 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1504 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1505 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1506 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1507 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1508 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1509 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1510 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1511 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1512 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1513 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1514 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1515 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1516 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1517 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1518 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1519 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1520 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1521 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1522 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1523 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1524 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1525 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1526 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1527 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1528 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1529 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1530 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1531 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1532 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1533 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1534 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1535 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1536 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1537 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1538 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1539 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1540 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1541 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1542 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1543 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1544 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1545 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1546 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1547 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1548 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1549 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1550 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1551 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1552 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1553 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1554 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1555 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1556 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1557 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1558 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1559 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1560 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1561 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1562 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1563 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1564 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1565 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1566 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1567 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1568 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1569 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1570 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1571 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1572 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1573 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1574 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1575 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1576 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1577 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1578 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1579 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1580 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1581 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1582 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1583 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1584 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1585 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
-@.str.1586 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1587 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1588 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
-@.str.1589 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
-@.str.1590 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1591 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
-@.str.1592 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
-@.str.1593 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
-@.str.1594 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
-@.str.1595 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
-@.str.1596 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1448 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1449 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1450 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1451 = private unnamed_addr constant [12 x i8] c"struct name\00"
+@.str.1452 = private unnamed_addr constant [2 x i8] c"{\00"
+@.str.1453 = private unnamed_addr constant [11 x i8] c"field name\00"
+@.str.1454 = private unnamed_addr constant [2 x i8] c":\00"
+@.str.1455 = private unnamed_addr constant [2 x i8] c"}\00"
+@.str.1456 = private unnamed_addr constant [2 x i8] c"(\00"
+@.str.1457 = private unnamed_addr constant [15 x i8] c"parameter name\00"
+@.str.1458 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.1459 = private unnamed_addr constant [3 x i8] c"=>\00"
+@.str.1460 = private unnamed_addr constant [14 x i8] c"in parameter \00"
+@.str.1461 = private unnamed_addr constant [13 x i8] c" of a lambda\00"
+@.str.1462 = private unnamed_addr constant [31 x i8] c"in the return type of a lambda\00"
+@.str.1463 = private unnamed_addr constant [12 x i8] c"ode.lambda.\00"
+@.str.1464 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1465 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1466 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1467 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1468 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1469 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1470 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1471 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1472 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1473 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1474 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1475 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1476 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1477 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1478 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1479 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1480 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1481 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1482 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1483 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1484 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1485 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1486 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1487 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1488 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1489 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1490 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1491 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1492 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1493 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1494 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1495 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1496 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1497 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1498 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1499 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1500 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1501 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1502 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1503 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1504 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1505 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1506 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1507 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1508 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1509 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1510 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1511 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1512 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1513 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1514 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1515 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1516 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1517 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1518 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1519 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1520 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1521 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1522 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1523 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1524 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1525 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1526 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1527 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1528 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1529 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1530 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1531 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1532 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1533 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1534 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1535 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1536 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1537 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1538 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1539 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1540 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1541 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1542 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1543 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1544 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1545 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1546 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1547 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1548 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1549 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1550 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1551 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1552 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1553 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1554 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1555 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1556 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1557 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1558 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1559 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1560 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1561 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1562 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1563 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1564 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1565 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1566 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1567 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1568 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1569 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1570 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1571 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1572 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1573 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1574 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1575 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1576 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1577 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1578 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1579 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1580 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1581 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1582 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1583 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1584 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1585 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1586 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1587 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1588 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1589 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1590 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1591 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1592 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1593 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1594 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1595 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1596 = private unnamed_addr constant [18 x i8] c"std/list.ode:47:5\00"
+@.str.1597 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1598 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1599 = private unnamed_addr constant [18 x i8] c"std/list.ode:52:5\00"
+@.str.1600 = private unnamed_addr constant [24 x i8] c"list index out of range\00"
+@.str.1601 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1602 = private unnamed_addr constant [18 x i8] c"std/list.ode:57:5\00"
+@.str.1603 = private unnamed_addr constant [22 x i8] c"last of an empty list\00"
+@.str.1604 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
+@.str.1605 = private unnamed_addr constant [18 x i8] c"std/list.ode:63:5\00"
+@.str.1606 = private unnamed_addr constant [23 x i8] c"pop from an empty list\00"
+@.str.1607 = private unnamed_addr constant [26 x i8] c"%s: assertion failed: %s\0A\00"
 
 define i32 @main(i32 %p0, ptr %p1) {
 entry:
@@ -5200,10 +5211,11 @@ entry:
   %t81 = alloca i32
   %t124 = alloca i1
   %t140 = alloca i32
-  %t193 = alloca ptr
-  %t204 = alloca i32
-  %t210 = alloca ptr
-  %t220 = alloca i32
+  %t141 = alloca i1
+  %t198 = alloca ptr
+  %t209 = alloca i32
+  %t215 = alloca ptr
+  %t225 = alloca i32
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   store i32 %p2, ptr %t2
@@ -5390,135 +5402,145 @@ L22:
   %t138 = getelementptr inbounds %Node, ptr %t137, i32 0, i32 5
   %t139 = load i32, ptr %t138
   store i32 %t139, ptr %t140
-  %t141 = load ptr, ptr %t0
-  %t142 = getelementptr inbounds %Analyzer, ptr %t141, i32 0, i32 0
-  %t143 = load ptr, ptr %t142
-  %t144 = getelementptr inbounds %Ast, ptr %t143, i32 0, i32 0
-  %t145 = load ptr, ptr %t144
-  %t146 = load i32, ptr %t140
-  %t147 = sext i32 %t146 to i64
-  %t148 = getelementptr inbounds %Node, ptr %t145, i64 %t147
-  %t149 = getelementptr inbounds %Node, ptr %t148, i32 0, i32 0
-  %t150 = load i32, ptr %t149
-  %t151 = icmp eq i32 %t150, 27
-  br i1 %t151, label %L25, label %L27
+  %t142 = load i32, ptr %t140
+  %t143 = load i32, ptr @NO_NODE
+  %t144 = icmp ne i32 %t142, %t143
+  store i1 %t144, ptr %t141
+  br i1 %t144, label %L25, label %L26
 L25:
-  %t152 = load ptr, ptr %t0
-  %t153 = load i32, ptr %t1
-  %t154 = load ptr, ptr %t0
-  %t155 = getelementptr inbounds %Analyzer, ptr %t154, i32 0, i32 0
-  %t156 = load ptr, ptr %t155
-  %t157 = getelementptr inbounds %Ast, ptr %t156, i32 0, i32 0
-  %t158 = load ptr, ptr %t157
-  %t159 = load i32, ptr %t2
-  %t160 = sext i32 %t159 to i64
-  %t161 = getelementptr inbounds %Node, ptr %t158, i64 %t160
-  %t162 = getelementptr inbounds %Node, ptr %t161, i32 0, i32 12
-  %t163 = load i32, ptr %t162
-  %t164 = load ptr, ptr %t0
-  %t165 = getelementptr inbounds %Analyzer, ptr %t164, i32 0, i32 0
-  %t166 = load ptr, ptr %t165
-  %t167 = getelementptr inbounds %Ast, ptr %t166, i32 0, i32 0
-  %t168 = load ptr, ptr %t167
-  %t169 = load i32, ptr %t140
-  %t170 = sext i32 %t169 to i64
-  %t171 = getelementptr inbounds %Node, ptr %t168, i64 %t170
-  %t172 = getelementptr inbounds %Node, ptr %t171, i32 0, i32 3
-  %t173 = load ptr, ptr %t172
-  %t174 = call ptr @resolveStructName(ptr %t152, i32 %t153, i32 %t163, ptr %t173)
-  %t175 = load ptr, ptr %t0
-  %t176 = getelementptr inbounds %Analyzer, ptr %t175, i32 0, i32 9
-  %t177 = load ptr, ptr %t176
-  %t178 = load i32, ptr %t2
-  %t179 = sext i32 %t178 to i64
-  %t180 = getelementptr inbounds ptr, ptr %t177, i64 %t179
-  store ptr %t174, ptr %t180
-  br label %L27
+  %t145 = load ptr, ptr %t0
+  %t146 = getelementptr inbounds %Analyzer, ptr %t145, i32 0, i32 0
+  %t147 = load ptr, ptr %t146
+  %t148 = getelementptr inbounds %Ast, ptr %t147, i32 0, i32 0
+  %t149 = load ptr, ptr %t148
+  %t150 = load i32, ptr %t140
+  %t151 = sext i32 %t150 to i64
+  %t152 = getelementptr inbounds %Node, ptr %t149, i64 %t151
+  %t153 = getelementptr inbounds %Node, ptr %t152, i32 0, i32 0
+  %t154 = load i32, ptr %t153
+  %t155 = icmp eq i32 %t154, 27
+  store i1 %t155, ptr %t141
+  br label %L26
+L26:
+  %t156 = load i1, ptr %t141
+  br i1 %t156, label %L27, label %L29
 L27:
+  %t157 = load ptr, ptr %t0
+  %t158 = load i32, ptr %t1
+  %t159 = load ptr, ptr %t0
+  %t160 = getelementptr inbounds %Analyzer, ptr %t159, i32 0, i32 0
+  %t161 = load ptr, ptr %t160
+  %t162 = getelementptr inbounds %Ast, ptr %t161, i32 0, i32 0
+  %t163 = load ptr, ptr %t162
+  %t164 = load i32, ptr %t2
+  %t165 = sext i32 %t164 to i64
+  %t166 = getelementptr inbounds %Node, ptr %t163, i64 %t165
+  %t167 = getelementptr inbounds %Node, ptr %t166, i32 0, i32 12
+  %t168 = load i32, ptr %t167
+  %t169 = load ptr, ptr %t0
+  %t170 = getelementptr inbounds %Analyzer, ptr %t169, i32 0, i32 0
+  %t171 = load ptr, ptr %t170
+  %t172 = getelementptr inbounds %Ast, ptr %t171, i32 0, i32 0
+  %t173 = load ptr, ptr %t172
+  %t174 = load i32, ptr %t140
+  %t175 = sext i32 %t174 to i64
+  %t176 = getelementptr inbounds %Node, ptr %t173, i64 %t175
+  %t177 = getelementptr inbounds %Node, ptr %t176, i32 0, i32 3
+  %t178 = load ptr, ptr %t177
+  %t179 = call ptr @resolveStructName(ptr %t157, i32 %t158, i32 %t168, ptr %t178)
+  %t180 = load ptr, ptr %t0
+  %t181 = getelementptr inbounds %Analyzer, ptr %t180, i32 0, i32 9
+  %t182 = load ptr, ptr %t181
+  %t183 = load i32, ptr %t2
+  %t184 = sext i32 %t183 to i64
+  %t185 = getelementptr inbounds ptr, ptr %t182, i64 %t184
+  store ptr %t179, ptr %t185
+  br label %L29
+L29:
   br label %L24
 L24:
-  %t181 = load i1, ptr %t17
-  %t182 = xor i1 %t181, true
-  br i1 %t182, label %L28, label %L30
-L28:
-  ret void
+  %t186 = load i1, ptr %t17
+  %t187 = xor i1 %t186, true
+  br i1 %t187, label %L30, label %L32
 L30:
-  %t183 = load ptr, ptr %t0
-  %t184 = getelementptr inbounds %Analyzer, ptr %t183, i32 0, i32 0
-  %t185 = load ptr, ptr %t184
-  %t186 = getelementptr inbounds %Ast, ptr %t185, i32 0, i32 0
-  %t187 = load ptr, ptr %t186
-  %t188 = load i32, ptr %t2
-  %t189 = sext i32 %t188 to i64
-  %t190 = getelementptr inbounds %Node, ptr %t187, i64 %t189
-  %t191 = getelementptr inbounds %Node, ptr %t190, i32 0, i32 3
-  %t192 = load ptr, ptr %t191
-  store ptr %t192, ptr %t193
-  %t194 = load ptr, ptr %t0
-  %t195 = getelementptr inbounds %Analyzer, ptr %t194, i32 0, i32 0
-  %t196 = load ptr, ptr %t195
-  %t197 = getelementptr inbounds %Ast, ptr %t196, i32 0, i32 0
-  %t198 = load ptr, ptr %t197
-  %t199 = load i32, ptr %t2
-  %t200 = sext i32 %t199 to i64
-  %t201 = getelementptr inbounds %Node, ptr %t198, i64 %t200
-  %t202 = getelementptr inbounds %Node, ptr %t201, i32 0, i32 12
-  %t203 = load i32, ptr %t202
-  store i32 %t203, ptr %t204
-  %t205 = load ptr, ptr %t0
-  %t206 = load i32, ptr %t1
-  %t207 = load i32, ptr %t204
-  %t208 = load ptr, ptr %t193
-  %t209 = call ptr @resolveStructName(ptr %t205, i32 %t206, i32 %t207, ptr %t208)
-  store ptr %t209, ptr %t210
-  %t211 = load ptr, ptr %t210
-  %t212 = icmp ne ptr %t211, null
-  br i1 %t212, label %L31, label %L33
-L31:
-  %t213 = load ptr, ptr %t0
-  %t214 = load i32, ptr %t2
-  %t215 = load ptr, ptr %t210
-  call void @setNodeText(ptr %t213, i32 %t214, ptr %t215)
   ret void
+L32:
+  %t188 = load ptr, ptr %t0
+  %t189 = getelementptr inbounds %Analyzer, ptr %t188, i32 0, i32 0
+  %t190 = load ptr, ptr %t189
+  %t191 = getelementptr inbounds %Ast, ptr %t190, i32 0, i32 0
+  %t192 = load ptr, ptr %t191
+  %t193 = load i32, ptr %t2
+  %t194 = sext i32 %t193 to i64
+  %t195 = getelementptr inbounds %Node, ptr %t192, i64 %t194
+  %t196 = getelementptr inbounds %Node, ptr %t195, i32 0, i32 3
+  %t197 = load ptr, ptr %t196
+  store ptr %t197, ptr %t198
+  %t199 = load ptr, ptr %t0
+  %t200 = getelementptr inbounds %Analyzer, ptr %t199, i32 0, i32 0
+  %t201 = load ptr, ptr %t200
+  %t202 = getelementptr inbounds %Ast, ptr %t201, i32 0, i32 0
+  %t203 = load ptr, ptr %t202
+  %t204 = load i32, ptr %t2
+  %t205 = sext i32 %t204 to i64
+  %t206 = getelementptr inbounds %Node, ptr %t203, i64 %t205
+  %t207 = getelementptr inbounds %Node, ptr %t206, i32 0, i32 12
+  %t208 = load i32, ptr %t207
+  store i32 %t208, ptr %t209
+  %t210 = load ptr, ptr %t0
+  %t211 = load i32, ptr %t1
+  %t212 = load i32, ptr %t209
+  %t213 = load ptr, ptr %t198
+  %t214 = call ptr @resolveStructName(ptr %t210, i32 %t211, i32 %t212, ptr %t213)
+  store ptr %t214, ptr %t215
+  %t216 = load ptr, ptr %t215
+  %t217 = icmp ne ptr %t216, null
+  br i1 %t217, label %L33, label %L35
 L33:
-  %t216 = load ptr, ptr %t0
-  %t217 = load i32, ptr %t1
-  %t218 = load ptr, ptr %t193
-  %t219 = call i32 @findStructAnywhere(ptr %t216, i32 %t217, ptr %t218)
-  store i32 %t219, ptr %t220
-  %t221 = load i32, ptr %t220
-  %t222 = load i32, ptr @NO_NODE
-  %t223 = icmp ne i32 %t221, %t222
-  br i1 %t223, label %L34, label %L36
-L34:
-  %t224 = load ptr, ptr %t0
-  %t225 = load i32, ptr %t2
-  %t226 = load ptr, ptr %t193
-  %t227 = load ptr, ptr %t0
-  %t228 = getelementptr inbounds %Analyzer, ptr %t227, i32 0, i32 0
-  %t229 = load ptr, ptr %t228
-  %t230 = getelementptr inbounds %Ast, ptr %t229, i32 0, i32 0
-  %t231 = load ptr, ptr %t230
-  %t232 = load i32, ptr %t220
-  %t233 = sext i32 %t232 to i64
-  %t234 = getelementptr inbounds %Node, ptr %t231, i64 %t233
-  %t235 = getelementptr inbounds %Node, ptr %t234, i32 0, i32 12
-  %t236 = load i32, ptr %t235
-  %t237 = call ptr @moduleDisplayPath(i32 %t236)
-  %t238 = call %Facts @Facts.aboutTwo(ptr %t226, ptr %t237)
-  call void @importFail(ptr %t224, i32 %t225, i32 22, %Facts %t238)
-  %t239 = load ptr, ptr %t0
-  %t240 = load i32, ptr %t2
-  %t241 = load ptr, ptr %t0
-  %t242 = getelementptr inbounds %Analyzer, ptr %t241, i32 0, i32 6
-  %t243 = load ptr, ptr %t242
-  %t244 = load i32, ptr %t220
-  %t245 = sext i32 %t244 to i64
-  %t246 = getelementptr inbounds ptr, ptr %t243, i64 %t245
-  %t247 = load ptr, ptr %t246
-  call void @setNodeText(ptr %t239, i32 %t240, ptr %t247)
-  br label %L36
+  %t218 = load ptr, ptr %t0
+  %t219 = load i32, ptr %t2
+  %t220 = load ptr, ptr %t215
+  call void @setNodeText(ptr %t218, i32 %t219, ptr %t220)
+  ret void
+L35:
+  %t221 = load ptr, ptr %t0
+  %t222 = load i32, ptr %t1
+  %t223 = load ptr, ptr %t198
+  %t224 = call i32 @findStructAnywhere(ptr %t221, i32 %t222, ptr %t223)
+  store i32 %t224, ptr %t225
+  %t226 = load i32, ptr %t225
+  %t227 = load i32, ptr @NO_NODE
+  %t228 = icmp ne i32 %t226, %t227
+  br i1 %t228, label %L36, label %L38
 L36:
+  %t229 = load ptr, ptr %t0
+  %t230 = load i32, ptr %t2
+  %t231 = load ptr, ptr %t198
+  %t232 = load ptr, ptr %t0
+  %t233 = getelementptr inbounds %Analyzer, ptr %t232, i32 0, i32 0
+  %t234 = load ptr, ptr %t233
+  %t235 = getelementptr inbounds %Ast, ptr %t234, i32 0, i32 0
+  %t236 = load ptr, ptr %t235
+  %t237 = load i32, ptr %t225
+  %t238 = sext i32 %t237 to i64
+  %t239 = getelementptr inbounds %Node, ptr %t236, i64 %t238
+  %t240 = getelementptr inbounds %Node, ptr %t239, i32 0, i32 12
+  %t241 = load i32, ptr %t240
+  %t242 = call ptr @moduleDisplayPath(i32 %t241)
+  %t243 = call %Facts @Facts.aboutTwo(ptr %t231, ptr %t242)
+  call void @importFail(ptr %t229, i32 %t230, i32 22, %Facts %t243)
+  %t244 = load ptr, ptr %t0
+  %t245 = load i32, ptr %t2
+  %t246 = load ptr, ptr %t0
+  %t247 = getelementptr inbounds %Analyzer, ptr %t246, i32 0, i32 6
+  %t248 = load ptr, ptr %t247
+  %t249 = load i32, ptr %t225
+  %t250 = sext i32 %t249 to i64
+  %t251 = getelementptr inbounds ptr, ptr %t248, i64 %t250
+  %t252 = load ptr, ptr %t251
+  call void @setNodeText(ptr %t244, i32 %t245, ptr %t252)
+  br label %L38
+L38:
   ret void
 }
 
@@ -8399,7 +8421,7 @@ L5:
   %t37 = load i32, ptr %t1
   %t38 = load ptr, ptr %t23
   %t39 = call %Facts @Facts.about(ptr %t38)
-  call void @analyzerFail(ptr %t36, i32 %t37, i32 146, %Facts %t39)
+  call void @analyzerFail(ptr %t36, i32 %t37, i32 149, %Facts %t39)
   ret void
 L7:
   %t40 = load ptr, ptr %t0
@@ -8633,7 +8655,7 @@ L3:
   %t35 = getelementptr inbounds %Node, ptr %t34, i32 0, i32 3
   %t36 = load ptr, ptr %t35
   %t37 = call %Facts @Facts.about(ptr %t36)
-  call void @analyzerFail(ptr %t25, i32 %t26, i32 145, %Facts %t37)
+  call void @analyzerFail(ptr %t25, i32 %t26, i32 148, %Facts %t37)
   %t38 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t38
 L5:
@@ -13259,7 +13281,7 @@ entry:
   %t4 = alloca ptr
   %t7 = alloca ptr
   %t75 = alloca ptr
-  %t500 = alloca ptr
+  %t520 = alloca ptr
   store i32 %p0, ptr %t0
   store %Facts %p1, ptr %t1
   %t2 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 0
@@ -13269,7 +13291,7 @@ entry:
   %t6 = load ptr, ptr %t5
   store ptr %t6, ptr %t7
   %t8 = load i32, ptr %t0
-  switch i32 %t8, label %L0 [ i32 0, label %L1 i32 1, label %L2 i32 2, label %L3 i32 3, label %L4 i32 4, label %L5 i32 5, label %L6 i32 6, label %L7 i32 7, label %L8 i32 9, label %L9 i32 10, label %L10 i32 8, label %L11 i32 11, label %L12 i32 12, label %L13 i32 13, label %L14 i32 14, label %L15 i32 15, label %L16 i32 16, label %L17 i32 17, label %L18 i32 18, label %L19 i32 19, label %L20 i32 20, label %L21 i32 21, label %L22 i32 22, label %L23 i32 23, label %L24 i32 24, label %L25 i32 25, label %L26 i32 26, label %L27 i32 27, label %L28 i32 28, label %L29 i32 29, label %L30 i32 30, label %L31 i32 31, label %L32 i32 32, label %L33 i32 33, label %L34 i32 34, label %L35 i32 35, label %L36 i32 36, label %L37 i32 37, label %L38 i32 38, label %L39 i32 39, label %L40 i32 40, label %L41 i32 41, label %L42 i32 42, label %L43 i32 43, label %L44 i32 44, label %L45 i32 45, label %L46 i32 46, label %L47 i32 47, label %L48 i32 48, label %L49 i32 49, label %L50 i32 50, label %L51 i32 51, label %L52 i32 52, label %L53 i32 53, label %L54 i32 54, label %L55 i32 55, label %L56 i32 56, label %L57 i32 57, label %L58 i32 58, label %L59 i32 59, label %L60 i32 60, label %L61 i32 61, label %L62 i32 62, label %L63 i32 63, label %L64 i32 64, label %L65 i32 65, label %L66 i32 66, label %L67 i32 67, label %L68 i32 68, label %L69 i32 69, label %L70 i32 70, label %L71 i32 71, label %L72 i32 72, label %L73 i32 73, label %L74 i32 74, label %L75 i32 75, label %L76 i32 76, label %L77 i32 77, label %L78 i32 78, label %L79 i32 79, label %L80 i32 80, label %L81 i32 81, label %L82 i32 82, label %L83 i32 83, label %L84 i32 84, label %L85 i32 85, label %L86 i32 86, label %L87 i32 87, label %L88 i32 88, label %L89 i32 89, label %L90 i32 90, label %L91 i32 91, label %L92 i32 92, label %L93 i32 93, label %L94 i32 94, label %L95 i32 95, label %L96 i32 96, label %L97 i32 97, label %L98 i32 98, label %L99 i32 99, label %L100 i32 100, label %L101 i32 101, label %L102 i32 102, label %L103 i32 103, label %L104 i32 104, label %L105 i32 105, label %L106 i32 106, label %L107 i32 107, label %L108 i32 108, label %L109 i32 109, label %L110 i32 110, label %L111 i32 111, label %L112 i32 112, label %L113 i32 113, label %L114 i32 114, label %L115 i32 115, label %L116 i32 116, label %L117 i32 117, label %L118 i32 118, label %L119 i32 119, label %L120 i32 120, label %L121 i32 121, label %L122 i32 122, label %L123 i32 123, label %L124 i32 124, label %L125 i32 125, label %L126 i32 126, label %L127 i32 127, label %L128 i32 128, label %L129 i32 129, label %L130 i32 130, label %L131 i32 131, label %L132 i32 132, label %L133 i32 133, label %L134 i32 134, label %L135 i32 135, label %L136 i32 136, label %L137 i32 137, label %L138 i32 138, label %L139 i32 139, label %L140 i32 140, label %L141 i32 141, label %L142 i32 142, label %L143 i32 143, label %L144 i32 146, label %L145 i32 145, label %L146 i32 147, label %L147 i32 148, label %L148 i32 149, label %L149 i32 150, label %L150 i32 151, label %L151 i32 144, label %L152 i32 152, label %L153 i32 153, label %L154 i32 154, label %L155 i32 155, label %L156 i32 156, label %L157 i32 157, label %L158 i32 158, label %L159 i32 159, label %L160 i32 160, label %L161 i32 161, label %L162 ]
+  switch i32 %t8, label %L0 [ i32 0, label %L1 i32 1, label %L2 i32 2, label %L3 i32 3, label %L4 i32 4, label %L5 i32 5, label %L6 i32 6, label %L7 i32 7, label %L8 i32 9, label %L9 i32 10, label %L10 i32 8, label %L11 i32 11, label %L12 i32 12, label %L13 i32 13, label %L14 i32 14, label %L15 i32 15, label %L16 i32 16, label %L17 i32 17, label %L18 i32 18, label %L19 i32 19, label %L20 i32 20, label %L21 i32 21, label %L22 i32 22, label %L23 i32 23, label %L24 i32 24, label %L25 i32 25, label %L26 i32 26, label %L27 i32 27, label %L28 i32 28, label %L29 i32 29, label %L30 i32 30, label %L31 i32 31, label %L32 i32 32, label %L33 i32 33, label %L34 i32 34, label %L35 i32 35, label %L36 i32 36, label %L37 i32 37, label %L38 i32 38, label %L39 i32 39, label %L40 i32 40, label %L41 i32 41, label %L42 i32 42, label %L43 i32 43, label %L44 i32 44, label %L45 i32 45, label %L46 i32 46, label %L47 i32 47, label %L48 i32 48, label %L49 i32 49, label %L50 i32 50, label %L51 i32 51, label %L52 i32 52, label %L53 i32 53, label %L54 i32 54, label %L55 i32 55, label %L56 i32 56, label %L57 i32 57, label %L58 i32 58, label %L59 i32 59, label %L60 i32 60, label %L61 i32 61, label %L62 i32 62, label %L63 i32 63, label %L64 i32 64, label %L65 i32 65, label %L66 i32 66, label %L67 i32 67, label %L68 i32 68, label %L69 i32 69, label %L70 i32 70, label %L71 i32 71, label %L72 i32 72, label %L73 i32 73, label %L74 i32 74, label %L75 i32 75, label %L76 i32 76, label %L77 i32 77, label %L78 i32 78, label %L79 i32 79, label %L80 i32 80, label %L81 i32 81, label %L82 i32 82, label %L83 i32 83, label %L84 i32 84, label %L85 i32 85, label %L86 i32 86, label %L87 i32 87, label %L88 i32 88, label %L89 i32 89, label %L90 i32 90, label %L91 i32 91, label %L92 i32 92, label %L93 i32 93, label %L94 i32 94, label %L95 i32 95, label %L96 i32 96, label %L97 i32 97, label %L98 i32 98, label %L99 i32 99, label %L100 i32 100, label %L101 i32 101, label %L102 i32 102, label %L103 i32 103, label %L104 i32 104, label %L105 i32 105, label %L106 i32 106, label %L107 i32 107, label %L108 i32 108, label %L109 i32 109, label %L110 i32 110, label %L111 i32 111, label %L112 i32 112, label %L113 i32 113, label %L114 i32 114, label %L115 i32 115, label %L116 i32 116, label %L117 i32 117, label %L118 i32 118, label %L119 i32 119, label %L120 i32 120, label %L121 i32 121, label %L122 i32 122, label %L123 i32 123, label %L124 i32 124, label %L125 i32 125, label %L126 i32 126, label %L127 i32 127, label %L128 i32 128, label %L129 i32 129, label %L130 i32 130, label %L131 i32 131, label %L132 i32 132, label %L133 i32 133, label %L134 i32 134, label %L135 i32 135, label %L136 i32 136, label %L137 i32 137, label %L138 i32 138, label %L139 i32 139, label %L140 i32 140, label %L141 i32 141, label %L142 i32 142, label %L143 i32 143, label %L144 i32 144, label %L145 i32 145, label %L146 i32 146, label %L147 i32 149, label %L148 i32 148, label %L149 i32 150, label %L150 i32 151, label %L151 i32 152, label %L152 i32 153, label %L153 i32 154, label %L154 i32 147, label %L155 i32 155, label %L156 i32 156, label %L157 i32 157, label %L158 i32 158, label %L159 i32 159, label %L160 i32 160, label %L161 i32 161, label %L162 i32 162, label %L163 i32 163, label %L164 i32 164, label %L165 ]
 L1:
   %t9 = call %Description @says(ptr @.str.166)
   ret %Description %t9
@@ -13390,12 +13412,12 @@ L26:
   store ptr %t74, ptr %t75
   %t76 = load ptr, ptr %t7
   %t77 = icmp eq ptr %t76, null
-  br i1 %t77, label %L163, label %L165
-L163:
+  br i1 %t77, label %L166, label %L168
+L166:
   %t78 = load ptr, ptr %t75
   %t79 = call %Description @says(ptr %t78)
   ret %Description %t79
-L165:
+L168:
   %t80 = load ptr, ptr %t7
   %t81 = load ptr, ptr %t75
   %t82 = call %Description @saysMore(ptr %t80, ptr %t81)
@@ -13936,320 +13958,350 @@ L116:
   %t437 = call %Description @says(ptr @.str.354)
   ret %Description %t437
 L117:
-  %t438 = load ptr, ptr %t4
-  %t439 = call ptr @q(ptr %t438)
-  %t440 = load ptr, ptr %t7
-  %t441 = call ptr @q(ptr %t440)
-  %t442 = call ptr @text4(ptr @.str.355, ptr %t439, ptr @.str.356, ptr %t441)
-  %t443 = call %Description @saysMore(ptr %t442, ptr @.str.357)
-  ret %Description %t443
-L118:
-  %t444 = load ptr, ptr %t4
-  %t445 = call ptr @q(ptr %t444)
-  %t446 = call ptr @text2(ptr @.str.358, ptr %t445)
-  %t447 = call %Description @saysMore(ptr %t446, ptr @.str.359)
-  ret %Description %t447
-L119:
-  %t448 = load ptr, ptr %t4
-  %t449 = call ptr @q(ptr %t448)
+  %t438 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t439 = getelementptr inbounds %Type, ptr %t438, i32 0, i32 0
+  %t440 = load i32, ptr %t439
+  %t441 = icmp eq i32 %t440, 0
+  br i1 %t441, label %L169, label %L171
+L169:
+  %t442 = load ptr, ptr %t4
+  %t443 = call ptr @text2(ptr @.str.355, ptr %t442)
+  %t444 = call ptr @q(ptr %t443)
+  %t445 = call ptr @text2(ptr %t444, ptr @.str.356)
+  %t446 = call %Description @saysMore(ptr %t445, ptr @.str.357)
+  ret %Description %t446
+L171:
+  %t447 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t448 = load %Type, ptr %t447
+  %t449 = call ptr @typeText(%Type %t448)
   %t450 = load ptr, ptr %t4
-  %t451 = load ptr, ptr %t7
-  %t452 = call ptr @text3(ptr %t450, ptr @.str.362, ptr %t451)
-  %t453 = call ptr @q(ptr %t452)
-  %t454 = call ptr @text4(ptr @.str.360, ptr %t449, ptr @.str.361, ptr %t453)
-  %t455 = call %Description @saysMore(ptr %t454, ptr @.str.363)
-  ret %Description %t455
+  %t451 = call ptr @q(ptr %t450)
+  %t452 = call ptr @text4(ptr @.str.358, ptr %t449, ptr @.str.359, ptr %t451)
+  %t453 = call %Description @saysMore(ptr %t452, ptr @.str.360)
+  ret %Description %t453
+L118:
+  %t454 = call %Description @saysMore(ptr @.str.361, ptr @.str.362)
+  ret %Description %t454
+L119:
+  %t455 = load %Facts, ptr %t1
+  %t456 = call ptr @expectedButGot(%Facts %t455)
+  %t457 = call %Description @saysMore(ptr @.str.363, ptr %t456)
+  ret %Description %t457
 L120:
-  %t456 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t457 = load %Type, ptr %t456
-  %t458 = call ptr @typeText(%Type %t457)
-  %t459 = call ptr @text3(ptr @.str.364, ptr %t458, ptr @.str.365)
-  %t460 = call %Description @saysMore(ptr %t459, ptr @.str.366)
-  ret %Description %t460
+  %t458 = load ptr, ptr %t4
+  %t459 = call ptr @q(ptr %t458)
+  %t460 = load ptr, ptr %t7
+  %t461 = call ptr @q(ptr %t460)
+  %t462 = call ptr @text4(ptr @.str.364, ptr %t459, ptr @.str.365, ptr %t461)
+  %t463 = call %Description @saysMore(ptr %t462, ptr @.str.366)
+  ret %Description %t463
 L121:
-  %t461 = load ptr, ptr %t4
-  %t462 = call ptr @q(ptr %t461)
-  %t463 = call ptr @text3(ptr @.str.367, ptr %t462, ptr @.str.368)
-  %t464 = call %Description @says(ptr %t463)
-  ret %Description %t464
+  %t464 = load ptr, ptr %t4
+  %t465 = call ptr @q(ptr %t464)
+  %t466 = call ptr @text2(ptr @.str.367, ptr %t465)
+  %t467 = call %Description @saysMore(ptr %t466, ptr @.str.368)
+  ret %Description %t467
 L122:
-  %t465 = load ptr, ptr %t4
-  %t466 = call ptr @q(ptr %t465)
-  %t467 = call ptr @text3(ptr @.str.369, ptr %t466, ptr @.str.370)
-  %t468 = load ptr, ptr %t7
+  %t468 = load ptr, ptr %t4
   %t469 = call ptr @q(ptr %t468)
-  %t470 = load ptr, ptr %t7
-  %t471 = call ptr @text2(ptr @.str.373, ptr %t470)
-  %t472 = call ptr @q(ptr %t471)
-  %t473 = call ptr @text4(ptr @.str.371, ptr %t469, ptr @.str.372, ptr %t472)
-  %t474 = call %Description @saysMore(ptr %t467, ptr %t473)
-  ret %Description %t474
-L123:
-  %t475 = call %Description @says(ptr @.str.374)
+  %t470 = load ptr, ptr %t4
+  %t471 = load ptr, ptr %t7
+  %t472 = call ptr @text3(ptr %t470, ptr @.str.371, ptr %t471)
+  %t473 = call ptr @q(ptr %t472)
+  %t474 = call ptr @text4(ptr @.str.369, ptr %t469, ptr @.str.370, ptr %t473)
+  %t475 = call %Description @saysMore(ptr %t474, ptr @.str.372)
   ret %Description %t475
+L123:
+  %t476 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t477 = load %Type, ptr %t476
+  %t478 = call ptr @typeText(%Type %t477)
+  %t479 = call ptr @text3(ptr @.str.373, ptr %t478, ptr @.str.374)
+  %t480 = call %Description @saysMore(ptr %t479, ptr @.str.375)
+  ret %Description %t480
 L124:
-  %t476 = load ptr, ptr %t4
-  %t477 = call ptr @q(ptr %t476)
-  %t478 = call ptr @text2(ptr @.str.375, ptr %t477)
-  %t479 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t480 = load %Type, ptr %t479
-  %t481 = call ptr @typeText(%Type %t480)
-  %t482 = call ptr @text2(ptr %t481, ptr @.str.376)
-  %t483 = call %Description @saysMore(ptr %t478, ptr %t482)
-  ret %Description %t483
+  %t481 = load ptr, ptr %t4
+  %t482 = call ptr @q(ptr %t481)
+  %t483 = call ptr @text3(ptr @.str.376, ptr %t482, ptr @.str.377)
+  %t484 = call %Description @says(ptr %t483)
+  ret %Description %t484
 L125:
-  %t484 = load ptr, ptr %t4
-  %t485 = call ptr @q(ptr %t484)
-  %t486 = load ptr, ptr %t7
-  %t487 = call ptr @q(ptr %t486)
-  %t488 = call ptr @text4(ptr @.str.377, ptr %t485, ptr @.str.378, ptr %t487)
-  %t489 = call %Description @says(ptr %t488)
-  ret %Description %t489
+  %t485 = load ptr, ptr %t4
+  %t486 = call ptr @q(ptr %t485)
+  %t487 = call ptr @text3(ptr @.str.378, ptr %t486, ptr @.str.379)
+  %t488 = load ptr, ptr %t7
+  %t489 = call ptr @q(ptr %t488)
+  %t490 = load ptr, ptr %t7
+  %t491 = call ptr @text2(ptr @.str.382, ptr %t490)
+  %t492 = call ptr @q(ptr %t491)
+  %t493 = call ptr @text4(ptr @.str.380, ptr %t489, ptr @.str.381, ptr %t492)
+  %t494 = call %Description @saysMore(ptr %t487, ptr %t493)
+  ret %Description %t494
 L126:
-  %t490 = load ptr, ptr %t4
-  %t491 = call ptr @q(ptr %t490)
-  %t492 = call ptr @text2(ptr %t491, ptr @.str.379)
-  %t493 = load ptr, ptr %t4
-  %t494 = call ptr @text3(ptr @.str.380, ptr %t493, ptr @.str.381)
-  %t495 = call %Description @saysMore(ptr %t492, ptr %t494)
+  %t495 = call %Description @says(ptr @.str.383)
   ret %Description %t495
 L127:
   %t496 = load ptr, ptr %t4
   %t497 = call ptr @q(ptr %t496)
-  %t498 = call ptr @text3(ptr @.str.382, ptr %t497, ptr @.str.383)
-  %t499 = call %Description @saysMore(ptr %t498, ptr @.str.384)
-  ret %Description %t499
+  %t498 = call ptr @text2(ptr @.str.384, ptr %t497)
+  %t499 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t500 = load %Type, ptr %t499
+  %t501 = call ptr @typeText(%Type %t500)
+  %t502 = call ptr @text2(ptr %t501, ptr @.str.385)
+  %t503 = call %Description @saysMore(ptr %t498, ptr %t502)
+  ret %Description %t503
 L128:
-  store ptr @.str.385, ptr %t500
-  %t501 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 4
-  %t502 = load i64, ptr %t501
-  %t503 = icmp eq i64 %t502, 1
-  br i1 %t503, label %L166, label %L168
-L166:
-  store ptr @.str.386, ptr %t500
-  br label %L168
-L168:
-  %t504 = load ptr, ptr %t7
-  %t505 = load ptr, ptr %t4
-  %t506 = call ptr @q(ptr %t505)
-  %t507 = call ptr @text3(ptr %t504, ptr @.str.387, ptr %t506)
-  %t508 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 4
-  %t509 = load i64, ptr %t508
-  %t510 = call ptr @fromInt(i64 %t509)
-  %t511 = call ptr @text3(ptr @.str.388, ptr %t510, ptr @.str.389)
-  %t512 = load ptr, ptr %t500
-  %t513 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 5
-  %t514 = load i64, ptr %t513
-  %t515 = call ptr @fromInt(i64 %t514)
-  %t516 = call ptr @text2(ptr @.str.390, ptr %t515)
-  %t517 = call ptr @text4(ptr %t507, ptr %t511, ptr %t512, ptr %t516)
-  %t518 = call %Description @says(ptr %t517)
-  ret %Description %t518
+  %t504 = load ptr, ptr %t4
+  %t505 = call ptr @q(ptr %t504)
+  %t506 = load ptr, ptr %t7
+  %t507 = call ptr @q(ptr %t506)
+  %t508 = call ptr @text4(ptr @.str.386, ptr %t505, ptr @.str.387, ptr %t507)
+  %t509 = call %Description @says(ptr %t508)
+  ret %Description %t509
 L129:
-  %t519 = load ptr, ptr %t4
-  %t520 = call ptr @q(ptr %t519)
-  %t521 = call ptr @text3(ptr @.str.391, ptr %t520, ptr @.str.392)
-  %t522 = call %Description @says(ptr %t521)
-  ret %Description %t522
+  %t510 = load ptr, ptr %t4
+  %t511 = call ptr @q(ptr %t510)
+  %t512 = call ptr @text2(ptr %t511, ptr @.str.388)
+  %t513 = load ptr, ptr %t4
+  %t514 = call ptr @text3(ptr @.str.389, ptr %t513, ptr @.str.390)
+  %t515 = call %Description @saysMore(ptr %t512, ptr %t514)
+  ret %Description %t515
 L130:
-  %t523 = load ptr, ptr %t4
-  %t524 = call ptr @q(ptr %t523)
-  %t525 = call ptr @text2(ptr %t524, ptr @.str.393)
-  %t526 = call %Description @says(ptr %t525)
-  ret %Description %t526
+  %t516 = load ptr, ptr %t4
+  %t517 = call ptr @q(ptr %t516)
+  %t518 = call ptr @text3(ptr @.str.391, ptr %t517, ptr @.str.392)
+  %t519 = call %Description @saysMore(ptr %t518, ptr @.str.393)
+  ret %Description %t519
 L131:
-  %t527 = load ptr, ptr %t4
-  %t528 = call ptr @q(ptr %t527)
-  %t529 = load ptr, ptr %t4
-  %t530 = call ptr @text2(ptr %t529, ptr @.str.396)
-  %t531 = call ptr @text4(ptr @.str.394, ptr %t528, ptr @.str.395, ptr %t530)
-  %t532 = call %Description @says(ptr %t531)
-  ret %Description %t532
-L132:
-  %t533 = load ptr, ptr %t4
-  %t534 = call ptr @q(ptr %t533)
-  %t535 = load ptr, ptr %t4
-  %t536 = call ptr @text2(ptr %t535, ptr @.str.399)
-  %t537 = call ptr @text4(ptr @.str.397, ptr %t534, ptr @.str.398, ptr %t536)
+  store ptr @.str.394, ptr %t520
+  %t521 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 4
+  %t522 = load i64, ptr %t521
+  %t523 = icmp eq i64 %t522, 1
+  br i1 %t523, label %L172, label %L174
+L172:
+  store ptr @.str.395, ptr %t520
+  br label %L174
+L174:
+  %t524 = load ptr, ptr %t7
+  %t525 = load ptr, ptr %t4
+  %t526 = call ptr @q(ptr %t525)
+  %t527 = call ptr @text3(ptr %t524, ptr @.str.396, ptr %t526)
+  %t528 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 4
+  %t529 = load i64, ptr %t528
+  %t530 = call ptr @fromInt(i64 %t529)
+  %t531 = call ptr @text3(ptr @.str.397, ptr %t530, ptr @.str.398)
+  %t532 = load ptr, ptr %t520
+  %t533 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 5
+  %t534 = load i64, ptr %t533
+  %t535 = call ptr @fromInt(i64 %t534)
+  %t536 = call ptr @text2(ptr @.str.399, ptr %t535)
+  %t537 = call ptr @text4(ptr %t527, ptr %t531, ptr %t532, ptr %t536)
   %t538 = call %Description @says(ptr %t537)
   ret %Description %t538
-L133:
+L132:
   %t539 = load ptr, ptr %t4
   %t540 = call ptr @q(ptr %t539)
   %t541 = call ptr @text3(ptr @.str.400, ptr %t540, ptr @.str.401)
-  %t542 = call %Description @saysMore(ptr %t541, ptr @.str.402)
+  %t542 = call %Description @says(ptr %t541)
   ret %Description %t542
-L134:
+L133:
   %t543 = load ptr, ptr %t4
   %t544 = call ptr @q(ptr %t543)
-  %t545 = call ptr @text3(ptr @.str.403, ptr %t544, ptr @.str.404)
-  %t546 = call %Description @saysMore(ptr %t545, ptr @.str.405)
+  %t545 = call ptr @text2(ptr %t544, ptr @.str.402)
+  %t546 = call %Description @says(ptr %t545)
   ret %Description %t546
-L135:
-  %t547 = call %Description @saysMore(ptr @.str.406, ptr @.str.407)
-  ret %Description %t547
-L136:
-  %t548 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t549 = load %Type, ptr %t548
-  %t550 = call ptr @typeText(%Type %t549)
-  %t551 = call ptr @text2(ptr @.str.408, ptr %t550)
-  %t552 = call %Description @saysMore(ptr %t551, ptr @.str.409)
+L134:
+  %t547 = load ptr, ptr %t4
+  %t548 = call ptr @q(ptr %t547)
+  %t549 = load ptr, ptr %t4
+  %t550 = call ptr @text2(ptr %t549, ptr @.str.405)
+  %t551 = call ptr @text4(ptr @.str.403, ptr %t548, ptr @.str.404, ptr %t550)
+  %t552 = call %Description @says(ptr %t551)
   ret %Description %t552
+L135:
+  %t553 = load ptr, ptr %t4
+  %t554 = call ptr @q(ptr %t553)
+  %t555 = load ptr, ptr %t4
+  %t556 = call ptr @text2(ptr %t555, ptr @.str.408)
+  %t557 = call ptr @text4(ptr @.str.406, ptr %t554, ptr @.str.407, ptr %t556)
+  %t558 = call %Description @says(ptr %t557)
+  ret %Description %t558
+L136:
+  %t559 = load ptr, ptr %t4
+  %t560 = call ptr @q(ptr %t559)
+  %t561 = call ptr @text3(ptr @.str.409, ptr %t560, ptr @.str.410)
+  %t562 = call %Description @saysMore(ptr %t561, ptr @.str.411)
+  ret %Description %t562
 L137:
-  %t553 = load %Facts, ptr %t1
-  %t554 = call ptr @gotOne(%Facts %t553)
-  %t555 = call %Description @saysMore(ptr @.str.410, ptr %t554)
-  ret %Description %t555
-L138:
-  %t556 = call %Description @says(ptr @.str.411)
-  ret %Description %t556
-L139:
-  %t557 = load ptr, ptr %t4
-  %t558 = call ptr @q(ptr %t557)
-  %t559 = call ptr @text3(ptr @.str.412, ptr %t558, ptr @.str.413)
-  %t560 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t561 = load %Type, ptr %t560
-  %t562 = call ptr @typeText(%Type %t561)
   %t563 = load ptr, ptr %t4
-  %t564 = call ptr @text2(ptr %t563, ptr @.str.416)
-  %t565 = call ptr @text4(ptr @.str.414, ptr %t562, ptr @.str.415, ptr %t564)
-  %t566 = call %Description @saysMore(ptr %t559, ptr %t565)
+  %t564 = call ptr @q(ptr %t563)
+  %t565 = call ptr @text3(ptr @.str.412, ptr %t564, ptr @.str.413)
+  %t566 = call %Description @saysMore(ptr %t565, ptr @.str.414)
   ret %Description %t566
-L140:
-  %t567 = load %Facts, ptr %t1
-  %t568 = call ptr @gotOne(%Facts %t567)
-  %t569 = call %Description @saysMore(ptr @.str.417, ptr %t568)
-  ret %Description %t569
-L141:
-  %t570 = load %Facts, ptr %t1
-  %t571 = call ptr @expectedButGot(%Facts %t570)
-  %t572 = call %Description @saysMore(ptr @.str.418, ptr %t571)
+L138:
+  %t567 = call %Description @saysMore(ptr @.str.415, ptr @.str.416)
+  ret %Description %t567
+L139:
+  %t568 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t569 = load %Type, ptr %t568
+  %t570 = call ptr @typeText(%Type %t569)
+  %t571 = call ptr @text2(ptr @.str.417, ptr %t570)
+  %t572 = call %Description @saysMore(ptr %t571, ptr @.str.418)
   ret %Description %t572
-L142:
+L140:
   %t573 = load %Facts, ptr %t1
   %t574 = call ptr @gotOne(%Facts %t573)
   %t575 = call %Description @saysMore(ptr @.str.419, ptr %t574)
   ret %Description %t575
+L141:
+  %t576 = call %Description @says(ptr @.str.420)
+  ret %Description %t576
+L142:
+  %t577 = load ptr, ptr %t4
+  %t578 = call ptr @q(ptr %t577)
+  %t579 = call ptr @text3(ptr @.str.421, ptr %t578, ptr @.str.422)
+  %t580 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t581 = load %Type, ptr %t580
+  %t582 = call ptr @typeText(%Type %t581)
+  %t583 = load ptr, ptr %t4
+  %t584 = call ptr @text2(ptr %t583, ptr @.str.425)
+  %t585 = call ptr @text4(ptr @.str.423, ptr %t582, ptr @.str.424, ptr %t584)
+  %t586 = call %Description @saysMore(ptr %t579, ptr %t585)
+  ret %Description %t586
 L143:
-  %t576 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t577 = load %Type, ptr %t576
-  %t578 = call ptr @typeText(%Type %t577)
-  %t579 = call ptr @text2(ptr @.str.420, ptr %t578)
-  %t580 = call %Description @saysMore(ptr %t579, ptr @.str.421)
-  ret %Description %t580
-L144:
-  %t581 = call %Description @saysMore(ptr @.str.422, ptr @.str.423)
-  ret %Description %t581
-L145:
-  %t582 = load ptr, ptr %t4
-  %t583 = call ptr @q(ptr %t582)
-  %t584 = call ptr @text3(ptr @.str.424, ptr %t583, ptr @.str.425)
-  %t585 = call %Description @says(ptr %t584)
-  ret %Description %t585
-L146:
-  %t586 = load ptr, ptr %t4
-  %t587 = call ptr @q(ptr %t586)
-  %t588 = call ptr @text3(ptr @.str.426, ptr %t587, ptr @.str.427)
-  %t589 = call %Description @saysMore(ptr %t588, ptr @.str.428)
+  %t587 = load %Facts, ptr %t1
+  %t588 = call ptr @gotOne(%Facts %t587)
+  %t589 = call %Description @saysMore(ptr @.str.426, ptr %t588)
   ret %Description %t589
+L144:
+  %t590 = load %Facts, ptr %t1
+  %t591 = call ptr @expectedButGot(%Facts %t590)
+  %t592 = call %Description @saysMore(ptr @.str.427, ptr %t591)
+  ret %Description %t592
+L145:
+  %t593 = load %Facts, ptr %t1
+  %t594 = call ptr @gotOne(%Facts %t593)
+  %t595 = call %Description @saysMore(ptr @.str.428, ptr %t594)
+  ret %Description %t595
+L146:
+  %t596 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t597 = load %Type, ptr %t596
+  %t598 = call ptr @typeText(%Type %t597)
+  %t599 = call ptr @text2(ptr @.str.429, ptr %t598)
+  %t600 = call %Description @saysMore(ptr %t599, ptr @.str.430)
+  ret %Description %t600
 L147:
-  %t590 = load ptr, ptr %t4
-  %t591 = call ptr @q(ptr %t590)
-  %t592 = call ptr @text3(ptr @.str.429, ptr %t591, ptr @.str.430)
-  %t593 = call %Description @saysMore(ptr %t592, ptr @.str.431)
-  ret %Description %t593
+  %t601 = call %Description @saysMore(ptr @.str.431, ptr @.str.432)
+  ret %Description %t601
 L148:
-  %t594 = load ptr, ptr %t4
-  %t595 = call ptr @q(ptr %t594)
-  %t596 = call ptr @text3(ptr @.str.432, ptr %t595, ptr @.str.433)
-  %t597 = call %Description @saysMore(ptr %t596, ptr @.str.434)
-  ret %Description %t597
+  %t602 = load ptr, ptr %t4
+  %t603 = call ptr @q(ptr %t602)
+  %t604 = call ptr @text3(ptr @.str.433, ptr %t603, ptr @.str.434)
+  %t605 = call %Description @says(ptr %t604)
+  ret %Description %t605
 L149:
-  %t598 = call %Description @saysMore(ptr @.str.435, ptr @.str.436)
-  ret %Description %t598
+  %t606 = load ptr, ptr %t4
+  %t607 = call ptr @q(ptr %t606)
+  %t608 = call ptr @text3(ptr @.str.435, ptr %t607, ptr @.str.436)
+  %t609 = call %Description @saysMore(ptr %t608, ptr @.str.437)
+  ret %Description %t609
 L150:
-  %t599 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 2
-  %t600 = load %Type, ptr %t599
-  %t601 = call ptr @Type.toText(%Type %t600)
-  %t602 = call ptr @q(ptr %t601)
-  %t603 = call ptr @text2(ptr @.str.437, ptr %t602)
-  %t604 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 4
-  %t605 = load i64, ptr %t604
-  %t606 = call ptr @fromInt(i64 %t605)
-  %t607 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 5
-  %t608 = load i64, ptr %t607
-  %t609 = call ptr @fromInt(i64 %t608)
-  %t610 = call ptr @text4(ptr @.str.438, ptr %t606, ptr @.str.439, ptr %t609)
-  %t611 = call %Description @saysMore(ptr %t603, ptr %t610)
-  ret %Description %t611
+  %t610 = load ptr, ptr %t4
+  %t611 = call ptr @q(ptr %t610)
+  %t612 = call ptr @text3(ptr @.str.438, ptr %t611, ptr @.str.439)
+  %t613 = call %Description @saysMore(ptr %t612, ptr @.str.440)
+  ret %Description %t613
 L151:
-  %t612 = call %Description @says(ptr @.str.440)
-  ret %Description %t612
-L152:
-  %t613 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t614 = load %Type, ptr %t613
-  %t615 = call ptr @typeText(%Type %t614)
-  %t616 = call ptr @text2(ptr @.str.441, ptr %t615)
-  %t617 = call %Description @saysMore(ptr %t616, ptr @.str.442)
+  %t614 = load ptr, ptr %t4
+  %t615 = call ptr @q(ptr %t614)
+  %t616 = call ptr @text3(ptr @.str.441, ptr %t615, ptr @.str.442)
+  %t617 = call %Description @saysMore(ptr %t616, ptr @.str.443)
   ret %Description %t617
+L152:
+  %t618 = call %Description @saysMore(ptr @.str.444, ptr @.str.445)
+  ret %Description %t618
 L153:
-  %t618 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
-  %t619 = load %Type, ptr %t618
-  %t620 = call ptr @typeText(%Type %t619)
-  %t621 = call ptr @text2(ptr @.str.443, ptr %t620)
-  %t622 = call %Description @saysMore(ptr %t621, ptr @.str.444)
-  ret %Description %t622
+  %t619 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 2
+  %t620 = load %Type, ptr %t619
+  %t621 = call ptr @Type.toText(%Type %t620)
+  %t622 = call ptr @q(ptr %t621)
+  %t623 = call ptr @text2(ptr @.str.446, ptr %t622)
+  %t624 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 4
+  %t625 = load i64, ptr %t624
+  %t626 = call ptr @fromInt(i64 %t625)
+  %t627 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 5
+  %t628 = load i64, ptr %t627
+  %t629 = call ptr @fromInt(i64 %t628)
+  %t630 = call ptr @text4(ptr @.str.447, ptr %t626, ptr @.str.448, ptr %t629)
+  %t631 = call %Description @saysMore(ptr %t623, ptr %t630)
+  ret %Description %t631
 L154:
-  %t623 = load %Facts, ptr %t1
-  %t624 = call ptr @gotOne(%Facts %t623)
-  %t625 = call %Description @saysMore(ptr @.str.445, ptr %t624)
-  ret %Description %t625
+  %t632 = call %Description @says(ptr @.str.449)
+  ret %Description %t632
 L155:
-  %t626 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 2
-  %t627 = load %Type, ptr %t626
-  %t628 = call ptr @typeText(%Type %t627)
-  %t629 = load ptr, ptr %t4
-  %t630 = call ptr @q(ptr %t629)
-  %t631 = call ptr @text4(ptr @.str.446, ptr %t628, ptr @.str.447, ptr %t630)
-  %t632 = load ptr, ptr %t4
-  %t633 = call ptr @q(ptr %t632)
-  %t634 = call ptr @text2(ptr %t633, ptr @.str.448)
-  %t635 = call %Description @saysMore(ptr %t631, ptr %t634)
-  ret %Description %t635
+  %t633 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t634 = load %Type, ptr %t633
+  %t635 = call ptr @typeText(%Type %t634)
+  %t636 = call ptr @text2(ptr @.str.450, ptr %t635)
+  %t637 = call %Description @saysMore(ptr %t636, ptr @.str.451)
+  ret %Description %t637
 L156:
-  %t636 = call %Description @saysMore(ptr @.str.449, ptr @.str.450)
-  ret %Description %t636
-L157:
-  %t637 = load %Facts, ptr %t1
-  %t638 = call ptr @gotOne(%Facts %t637)
-  %t639 = call %Description @saysMore(ptr @.str.451, ptr %t638)
-  ret %Description %t639
-L158:
-  %t640 = load %Facts, ptr %t1
-  %t641 = call ptr @gotOne(%Facts %t640)
-  %t642 = call %Description @saysMore(ptr @.str.452, ptr %t641)
+  %t638 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 3
+  %t639 = load %Type, ptr %t638
+  %t640 = call ptr @typeText(%Type %t639)
+  %t641 = call ptr @text2(ptr @.str.452, ptr %t640)
+  %t642 = call %Description @saysMore(ptr %t641, ptr @.str.453)
   ret %Description %t642
-L159:
-  %t643 = call %Description @saysMore(ptr @.str.453, ptr @.str.454)
-  ret %Description %t643
-L160:
-  %t644 = load %Facts, ptr %t1
-  %t645 = call ptr @gotTwo(%Facts %t644)
-  %t646 = call %Description @saysMore(ptr @.str.455, ptr %t645)
-  ret %Description %t646
-L161:
-  %t647 = load %Facts, ptr %t1
-  %t648 = call ptr @gotOne(%Facts %t647)
-  %t649 = call %Description @saysMore(ptr @.str.456, ptr %t648)
-  ret %Description %t649
-L162:
-  %t650 = load ptr, ptr %t4
-  %t651 = call %Description @says(ptr %t650)
-  ret %Description %t651
-L0:
+L157:
+  %t643 = load %Facts, ptr %t1
+  %t644 = call ptr @gotOne(%Facts %t643)
+  %t645 = call %Description @saysMore(ptr @.str.454, ptr %t644)
+  ret %Description %t645
+L158:
+  %t646 = getelementptr inbounds %Facts, ptr %t1, i32 0, i32 2
+  %t647 = load %Type, ptr %t646
+  %t648 = call ptr @typeText(%Type %t647)
+  %t649 = load ptr, ptr %t4
+  %t650 = call ptr @q(ptr %t649)
+  %t651 = call ptr @text4(ptr @.str.455, ptr %t648, ptr @.str.456, ptr %t650)
   %t652 = load ptr, ptr %t4
-  %t653 = call %Description @says(ptr %t652)
-  ret %Description %t653
+  %t653 = call ptr @q(ptr %t652)
+  %t654 = call ptr @text2(ptr %t653, ptr @.str.457)
+  %t655 = call %Description @saysMore(ptr %t651, ptr %t654)
+  ret %Description %t655
+L159:
+  %t656 = call %Description @saysMore(ptr @.str.458, ptr @.str.459)
+  ret %Description %t656
+L160:
+  %t657 = load %Facts, ptr %t1
+  %t658 = call ptr @gotOne(%Facts %t657)
+  %t659 = call %Description @saysMore(ptr @.str.460, ptr %t658)
+  ret %Description %t659
+L161:
+  %t660 = load %Facts, ptr %t1
+  %t661 = call ptr @gotOne(%Facts %t660)
+  %t662 = call %Description @saysMore(ptr @.str.461, ptr %t661)
+  ret %Description %t662
+L162:
+  %t663 = call %Description @saysMore(ptr @.str.462, ptr @.str.463)
+  ret %Description %t663
+L163:
+  %t664 = load %Facts, ptr %t1
+  %t665 = call ptr @gotTwo(%Facts %t664)
+  %t666 = call %Description @saysMore(ptr @.str.464, ptr %t665)
+  ret %Description %t666
+L164:
+  %t667 = load %Facts, ptr %t1
+  %t668 = call ptr @gotOne(%Facts %t667)
+  %t669 = call %Description @saysMore(ptr @.str.465, ptr %t668)
+  ret %Description %t669
+L165:
+  %t670 = load ptr, ptr %t4
+  %t671 = call %Description @says(ptr %t670)
+  ret %Description %t671
+L0:
+  %t672 = load ptr, ptr %t4
+  %t673 = call %Description @says(ptr %t672)
+  ret %Description %t673
 }
 
 define void @forgetSources() {
@@ -14610,7 +14662,7 @@ L33:
   %t103 = load ptr, ptr %t0
   %t104 = load i64, ptr %t1
   %t105 = call ptr @slice(ptr %t103, i64 %t104, i64 1)
-  %t106 = call i1 @contains(ptr @.str.457, ptr %t105)
+  %t106 = call i1 @contains(ptr @.str.466, ptr %t105)
   store i1 %t106, ptr %t100
   br label %L34
 L34:
@@ -14814,7 +14866,7 @@ entry:
   %t2 = alloca i1
   %t6 = alloca i1
   %t16 = alloca i1
-  %t0 = call ptr @getenv(ptr @.str.458)
+  %t0 = call ptr @getenv(ptr @.str.467)
   store ptr %t0, ptr %t1
   %t3 = load i32, ptr @STDERR
   %t4 = call i32 @isatty(i32 %t3)
@@ -14856,22 +14908,22 @@ entry:
   %t2 = xor i1 %t1, true
   br i1 %t2, label %L0, label %L2
 L0:
-  %t3 = insertvalue %Style undef, ptr @.str.459, 0
-  %t4 = insertvalue %Style %t3, ptr @.str.460, 1
-  %t5 = insertvalue %Style %t4, ptr @.str.461, 2
-  %t6 = insertvalue %Style %t5, ptr @.str.462, 3
-  %t7 = insertvalue %Style %t6, ptr @.str.463, 4
+  %t3 = insertvalue %Style undef, ptr @.str.468, 0
+  %t4 = insertvalue %Style %t3, ptr @.str.469, 1
+  %t5 = insertvalue %Style %t4, ptr @.str.470, 2
+  %t6 = insertvalue %Style %t5, ptr @.str.471, 3
+  %t7 = insertvalue %Style %t6, ptr @.str.472, 4
   ret %Style %t7
 L2:
-  %t8 = call ptr @ansi(ptr @.str.464)
+  %t8 = call ptr @ansi(ptr @.str.473)
   %t9 = insertvalue %Style undef, ptr %t8, 0
-  %t10 = call ptr @ansi(ptr @.str.465)
+  %t10 = call ptr @ansi(ptr @.str.474)
   %t11 = insertvalue %Style %t9, ptr %t10, 1
-  %t12 = call ptr @ansi(ptr @.str.466)
+  %t12 = call ptr @ansi(ptr @.str.475)
   %t13 = insertvalue %Style %t11, ptr %t12, 2
-  %t14 = call ptr @ansi(ptr @.str.467)
+  %t14 = call ptr @ansi(ptr @.str.476)
   %t15 = insertvalue %Style %t13, ptr %t14, 3
-  %t16 = call ptr @ansi(ptr @.str.468)
+  %t16 = call ptr @ansi(ptr @.str.477)
   %t17 = insertvalue %Style %t15, ptr %t16, 4
   ret %Style %t17
 }
@@ -14948,14 +15000,14 @@ L4:
   %t29 = sext i32 %t28 to i64
   call void @Builder.addInt(ptr %t25, i64 %t29)
   %t30 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t30, ptr @.str.469)
+  call void @Builder.add(ptr %t30, ptr @.str.478)
   %t31 = load ptr, ptr %t5
   %t32 = load ptr, ptr @DIAGS
   %t33 = call i32 @Diagnostics.count(ptr %t32)
   %t34 = sext i32 %t33 to i64
   call void @Builder.addInt(ptr %t31, i64 %t34)
   %t35 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t35, ptr @.str.470)
+  call void @Builder.add(ptr %t35, ptr @.str.479)
   br label %L6
 L5:
   %t36 = load ptr, ptr @DIAGS
@@ -14971,7 +15023,7 @@ L7:
   %t44 = sext i32 %t43 to i64
   call void @Builder.addInt(ptr %t40, i64 %t44)
   %t45 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t45, ptr @.str.471)
+  call void @Builder.add(ptr %t45, ptr @.str.480)
   br label %L9
 L9:
   br label %L6
@@ -15033,13 +15085,13 @@ L0:
   br label %L2
 L2:
   %t28 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t28, ptr @.str.472)
+  call void @Builder.add(ptr %t28, ptr @.str.481)
   %t29 = load ptr, ptr %t0
   %t30 = getelementptr inbounds %Style, ptr %t2, i32 0, i32 1
   %t31 = load ptr, ptr %t30
   call void @Builder.add(ptr %t29, ptr %t31)
   %t32 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t32, ptr @.str.473)
+  call void @Builder.add(ptr %t32, ptr @.str.482)
   %t33 = load ptr, ptr %t0
   %t34 = getelementptr inbounds %Style, ptr %t2, i32 0, i32 4
   %t35 = load ptr, ptr %t34
@@ -15174,7 +15226,7 @@ L22:
   %t110 = load ptr, ptr %t109
   call void @Builder.add(ptr %t108, ptr %t110)
   %t111 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t111, ptr @.str.474)
+  call void @Builder.add(ptr %t111, ptr @.str.483)
   %t112 = load ptr, ptr %t0
   %t113 = getelementptr inbounds %Style, ptr %t2, i32 0, i32 4
   %t114 = load ptr, ptr %t113
@@ -15372,7 +15424,7 @@ entry:
   %t4 = load i32, ptr %t1
   %t5 = load ptr, ptr %t2
   %t6 = call %Facts @Facts.about(ptr %t5)
-  call void @failAt(i32 161, i32 %t3, i32 %t4, %Facts %t6)
+  call void @failAt(i32 164, i32 %t3, i32 %t4, %Facts %t6)
   ret void
 }
 
@@ -15406,7 +15458,7 @@ L1:
   %t17 = call ptr @"List<*i8>.at"(ptr %t15, i64 %t16)
   store ptr %t17, ptr %t18
   %t19 = load ptr, ptr %t18
-  %t20 = call i1 @equals(ptr %t19, ptr @.str.475)
+  %t20 = call i1 @equals(ptr %t19, ptr @.str.484)
   br i1 %t20, label %L3, label %L4
 L3:
   %t21 = getelementptr inbounds %CompileOptions, ptr %t8, i32 0, i32 2
@@ -15414,7 +15466,7 @@ L3:
   br label %L5
 L4:
   %t22 = load ptr, ptr %t18
-  %t23 = call i1 @equals(ptr %t22, ptr @.str.476)
+  %t23 = call i1 @equals(ptr %t22, ptr @.str.485)
   br i1 %t23, label %L6, label %L7
 L6:
   %t24 = getelementptr inbounds %CompileOptions, ptr %t8, i32 0, i32 3
@@ -15422,7 +15474,7 @@ L6:
   br label %L8
 L7:
   %t25 = load ptr, ptr %t18
-  %t26 = call i1 @equals(ptr %t25, ptr @.str.477)
+  %t26 = call i1 @equals(ptr %t25, ptr @.str.486)
   br i1 %t26, label %L9, label %L10
 L9:
   %t27 = getelementptr inbounds %CompileOptions, ptr %t8, i32 0, i32 4
@@ -15430,7 +15482,7 @@ L9:
   br label %L11
 L10:
   %t28 = load ptr, ptr %t18
-  %t29 = call i1 @equals(ptr %t28, ptr @.str.478)
+  %t29 = call i1 @equals(ptr %t28, ptr @.str.487)
   br i1 %t29, label %L12, label %L13
 L12:
   %t30 = getelementptr inbounds %CompileOptions, ptr %t8, i32 0, i32 5
@@ -15438,7 +15490,7 @@ L12:
   br label %L14
 L13:
   %t31 = load ptr, ptr %t18
-  %t32 = call i1 @equals(ptr %t31, ptr @.str.479)
+  %t32 = call i1 @equals(ptr %t31, ptr @.str.488)
   br i1 %t32, label %L15, label %L16
 L15:
   %t33 = getelementptr inbounds %CompileOptions, ptr %t8, i32 0, i32 6
@@ -15446,7 +15498,7 @@ L15:
   br label %L17
 L16:
   %t34 = load ptr, ptr %t18
-  %t35 = call i1 @equals(ptr %t34, ptr @.str.480)
+  %t35 = call i1 @equals(ptr %t34, ptr @.str.489)
   br i1 %t35, label %L18, label %L19
 L18:
   %t36 = load i64, ptr %t9
@@ -16207,7 +16259,7 @@ entry:
   store ptr %p1, ptr %t1
   store i1 %p2, ptr %t2
   %t3 = load ptr, ptr %t1
-  %t4 = call ptr @withSuffix(ptr %t3, ptr @.str.481)
+  %t4 = call ptr @withSuffix(ptr %t3, ptr @.str.490)
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t5
   %t7 = load ptr, ptr %t0
@@ -16221,19 +16273,19 @@ L0:
   unreachable
 L1:
   %t12 = load ptr, ptr %t1
-  %t13 = call ptr @withSuffix(ptr %t12, ptr @.str.482)
+  %t13 = call ptr @withSuffix(ptr %t12, ptr @.str.491)
   store ptr %t13, ptr %t14
   %t15 = call ptr @ccCommand()
   store ptr %t15, ptr %t16
   %t17 = load ptr, ptr %t16
-  %t18 = call ptr @TextList.add(ptr %t17, ptr @.str.483)
+  %t18 = call ptr @TextList.add(ptr %t17, ptr @.str.492)
   %t19 = load ptr, ptr %t5
   %t20 = call ptr @TextList.add(ptr %t18, ptr %t19)
-  %t21 = call ptr @TextList.add(ptr %t20, ptr @.str.484)
+  %t21 = call ptr @TextList.add(ptr %t20, ptr @.str.493)
   %t22 = load ptr, ptr %t14
   %t23 = call ptr @TextList.add(ptr %t21, ptr %t22)
   %t24 = load ptr, ptr %t16
-  %t25 = call ptr @TextList.add(ptr %t24, ptr @.str.485)
+  %t25 = call ptr @TextList.add(ptr %t24, ptr @.str.494)
   %t26 = load ptr, ptr %t16
   %t27 = call { i32, i32 } @runCommand(ptr %t26, ptr null, ptr null, i32 0)
   %t28 = call i1 @ran({ i32, i32 } %t27)
@@ -16248,7 +16300,7 @@ L4:
   %t32 = load ptr, ptr %t31
   %t33 = load ptr, ptr %t14
   %t34 = call ptr @TextList.add(ptr %t32, ptr %t33)
-  %t35 = call ptr @TextList.add(ptr %t34, ptr @.str.486)
+  %t35 = call ptr @TextList.add(ptr %t34, ptr @.str.495)
   %t36 = load ptr, ptr %t1
   %t37 = call ptr @TextList.add(ptr %t35, ptr %t36)
   %t38 = load ptr, ptr %t31
@@ -16461,13 +16513,13 @@ L2:
   %t18 = icmp slt i64 %t17, 0
   br i1 %t18, label %L6, label %L8
 L6:
-  ret ptr @.str.487
+  ret ptr @.str.496
 L8:
   %t19 = load i64, ptr %t2
   %t20 = icmp eq i64 %t19, 0
   br i1 %t20, label %L9, label %L11
 L9:
-  ret ptr @.str.488
+  ret ptr @.str.497
 L11:
   %t21 = load ptr, ptr %t0
   %t22 = load i64, ptr %t2
@@ -16505,7 +16557,7 @@ entry:
   %t28 = alloca i1
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @fopen(ptr %t1, ptr @.str.489)
+  %t2 = call ptr @fopen(ptr %t1, ptr @.str.498)
   store ptr %t2, ptr %t3
   %t4 = load ptr, ptr %t3
   %t5 = icmp eq ptr %t4, null
@@ -16577,7 +16629,7 @@ entry:
   store ptr %p0, ptr %t0
   store ptr %p1, ptr %t1
   %t2 = load ptr, ptr %t0
-  %t3 = call ptr @fopen(ptr %t2, ptr @.str.490)
+  %t3 = call ptr @fopen(ptr %t2, ptr @.str.499)
   store ptr %t3, ptr %t4
   %t5 = load ptr, ptr %t4
   %t6 = icmp eq ptr %t5, null
@@ -16712,8 +16764,8 @@ entry:
   %t1 = alloca i32
   store ptr %p0, ptr %t0
   %t2 = call ptr @TextList.new()
-  %t3 = call ptr @TextList.add(ptr %t2, ptr @.str.491)
-  %t4 = call ptr @TextList.add(ptr %t3, ptr @.str.492)
+  %t3 = call ptr @TextList.add(ptr %t2, ptr @.str.500)
+  %t4 = call ptr @TextList.add(ptr %t3, ptr @.str.501)
   %t5 = load ptr, ptr %t0
   %t6 = call ptr @TextList.add(ptr %t4, ptr %t5)
   %t7 = call { i32, i32 } @runCommand(ptr %t6, ptr null, ptr null, i32 0)
@@ -16763,7 +16815,7 @@ entry:
   %t0 = alloca ptr
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @joinPath(ptr %t1, ptr @.str.493)
+  %t2 = call ptr @joinPath(ptr %t1, ptr @.str.502)
   %t3 = call i1 @exists(ptr %t2)
   ret i1 %t3
 }
@@ -16833,7 +16885,7 @@ L10:
   br label %L6
 L5:
   %t36 = load ptr, ptr %t17
-  %t37 = call i1 @endsWith(ptr %t36, ptr @.str.494)
+  %t37 = call i1 @endsWith(ptr %t36, ptr @.str.503)
   br i1 %t37, label %L11, label %L13
 L11:
   %t38 = load ptr, ptr %t2
@@ -16863,8 +16915,8 @@ entry:
   %t1 = call ptr @Builder.new()
   store ptr %t1, ptr %t2
   %t4 = call ptr @TextList.new()
-  %t5 = call ptr @TextList.add(ptr %t4, ptr @.str.495)
-  %t6 = call ptr @TextList.add(ptr %t5, ptr @.str.496)
+  %t5 = call ptr @TextList.add(ptr %t4, ptr @.str.504)
+  %t6 = call ptr @TextList.add(ptr %t5, ptr @.str.505)
   %t7 = load ptr, ptr %t0
   %t8 = call ptr @TextList.add(ptr %t6, ptr %t7)
   %t9 = load ptr, ptr %t2
@@ -16967,13 +17019,13 @@ entry:
   %t6 = alloca ptr
   %t15 = alloca ptr
   store ptr %p0, ptr %t0
-  %t1 = call ptr @environment(ptr @.str.497)
+  %t1 = call ptr @environment(ptr @.str.506)
   store ptr %t1, ptr %t2
   %t3 = load ptr, ptr %t2
   %t4 = icmp eq ptr %t3, null
   br i1 %t4, label %L0, label %L2
 L0:
-  store ptr @.str.498, ptr %t2
+  store ptr @.str.507, ptr %t2
   br label %L2
 L2:
   %t5 = call ptr @Builder.new()
@@ -16984,7 +17036,7 @@ L2:
   %t10 = call ptr @joinPath(ptr %t8, ptr %t9)
   call void @Builder.add(ptr %t7, ptr %t10)
   %t11 = load ptr, ptr %t6
-  call void @Builder.add(ptr %t11, ptr @.str.499)
+  call void @Builder.add(ptr %t11, ptr @.str.508)
   %t12 = load ptr, ptr %t6
   %t13 = call ptr @Builder.take(ptr %t12)
   %t14 = call ptr @mkdtemp(ptr %t13)
@@ -17004,7 +17056,7 @@ L5:
 define ptr @scratch() {
 entry:
   %t3 = alloca i32
-  %t0 = call { i32, ptr } @makeTempDirectory(ptr @.str.500)
+  %t0 = call { i32, ptr } @makeTempDirectory(ptr @.str.509)
   %t1 = extractvalue { i32, ptr } %t0, 0
   %t2 = icmp sgt i32 %t1, 0
   br i1 %t2, label %L0, label %L1
@@ -17012,11 +17064,11 @@ L0:
   store i32 %t1, ptr %t3
   br i1 false, label %L2, label %L3
 L3:
-  %t4 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.503, ptr @.str.501, ptr @.str.502)
+  %t4 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.512, ptr @.str.510, ptr @.str.511)
   call void @exit(i32 1)
   unreachable
 L2:
-  ret ptr @.str.504
+  ret ptr @.str.513
 L1:
   %t5 = extractvalue { i32, ptr } %t0, 1
   ret ptr %t5
@@ -17196,7 +17248,7 @@ L0:
 L2:
   br i1 false, label %L3, label %L4
 L4:
-  %t18 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.507, ptr @.str.505, ptr @.str.506)
+  %t18 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.516, ptr @.str.514, ptr @.str.515)
   call void @exit(i32 1)
   unreachable
 L3:
@@ -17238,7 +17290,7 @@ L0:
 L2:
   br i1 false, label %L3, label %L4
 L4:
-  %t18 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.510, ptr @.str.508, ptr @.str.509)
+  %t18 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.519, ptr @.str.517, ptr @.str.518)
   call void @exit(i32 1)
   unreachable
 L3:
@@ -17293,43 +17345,43 @@ entry:
   %t1 = load i32, ptr %t0
   switch i32 %t1, label %L0 [ i32 0, label %L1 i32 1, label %L2 i32 2, label %L3 i32 3, label %L4 i32 4, label %L5 i32 5, label %L6 i32 6, label %L7 i32 7, label %L8 i32 8, label %L9 i32 9, label %L10 i32 10, label %L11 i32 11, label %L12 i32 12, label %L13 i32 13, label %L14 i32 14, label %L15 i32 15, label %L16 i32 16, label %L17 i32 17, label %L18 i32 18, label %L19 ]
 L1:
-  ret ptr @.str.511
-L2:
-  ret ptr @.str.512
-L3:
-  ret ptr @.str.513
-L4:
-  ret ptr @.str.514
-L5:
-  ret ptr @.str.515
-L6:
-  ret ptr @.str.516
-L7:
-  ret ptr @.str.517
-L8:
-  ret ptr @.str.518
-L9:
-  ret ptr @.str.519
-L10:
   ret ptr @.str.520
-L11:
+L2:
   ret ptr @.str.521
-L12:
+L3:
   ret ptr @.str.522
-L13:
+L4:
   ret ptr @.str.523
-L14:
+L5:
   ret ptr @.str.524
-L15:
+L6:
   ret ptr @.str.525
-L16:
+L7:
   ret ptr @.str.526
-L17:
+L8:
   ret ptr @.str.527
-L18:
+L9:
   ret ptr @.str.528
-L19:
+L10:
   ret ptr @.str.529
+L11:
+  ret ptr @.str.530
+L12:
+  ret ptr @.str.531
+L13:
+  ret ptr @.str.532
+L14:
+  ret ptr @.str.533
+L15:
+  ret ptr @.str.534
+L16:
+  ret ptr @.str.535
+L17:
+  ret ptr @.str.536
+L18:
+  ret ptr @.str.537
+L19:
+  ret ptr @.str.538
 L0:
   ret ptr null
 }
@@ -17341,15 +17393,15 @@ entry:
   %t1 = load i32, ptr %t0
   switch i32 %t1, label %L0 [ i32 0, label %L1 i32 1, label %L2 i32 2, label %L3 i32 3, label %L4 i32 4, label %L5 ]
 L1:
-  ret ptr @.str.530
+  ret ptr @.str.539
 L2:
-  ret ptr @.str.531
+  ret ptr @.str.540
 L3:
-  ret ptr @.str.532
+  ret ptr @.str.541
 L4:
-  ret ptr @.str.533
+  ret ptr @.str.542
 L5:
-  ret ptr @.str.534
+  ret ptr @.str.543
 L0:
   ret ptr null
 }
@@ -17750,115 +17802,115 @@ entry:
   %t1 = load i32, ptr %t0
   switch i32 %t1, label %L0 [ i32 0, label %L1 i32 1, label %L2 i32 2, label %L3 i32 3, label %L4 i32 4, label %L5 i32 5, label %L6 i32 6, label %L7 i32 7, label %L8 i32 8, label %L9 i32 9, label %L10 i32 10, label %L11 i32 11, label %L12 i32 12, label %L13 i32 13, label %L14 i32 14, label %L15 i32 15, label %L16 i32 16, label %L17 i32 17, label %L18 i32 18, label %L19 i32 19, label %L20 i32 20, label %L21 i32 21, label %L22 i32 22, label %L23 i32 23, label %L24 i32 24, label %L25 i32 25, label %L26 i32 26, label %L27 i32 27, label %L28 i32 28, label %L29 i32 29, label %L30 i32 30, label %L31 i32 31, label %L32 i32 49, label %L33 i32 50, label %L34 i32 51, label %L35 i32 52, label %L36 i32 48, label %L37 i32 32, label %L38 i32 33, label %L39 i32 34, label %L40 i32 35, label %L41 i32 36, label %L42 i32 37, label %L43 i32 38, label %L44 i32 39, label %L45 i32 40, label %L46 i32 41, label %L47 i32 43, label %L48 i32 42, label %L49 i32 44, label %L50 i32 45, label %L51 i32 46, label %L52 i32 47, label %L53 i32 53, label %L54 ]
 L1:
-  ret ptr @.str.535
-L2:
-  ret ptr @.str.536
-L3:
-  ret ptr @.str.537
-L4:
-  ret ptr @.str.538
-L5:
-  ret ptr @.str.539
-L6:
-  ret ptr @.str.540
-L7:
-  ret ptr @.str.541
-L8:
-  ret ptr @.str.542
-L9:
-  ret ptr @.str.543
-L10:
   ret ptr @.str.544
-L11:
+L2:
   ret ptr @.str.545
-L12:
+L3:
   ret ptr @.str.546
-L13:
+L4:
   ret ptr @.str.547
-L14:
+L5:
   ret ptr @.str.548
-L15:
+L6:
   ret ptr @.str.549
-L16:
+L7:
   ret ptr @.str.550
-L17:
+L8:
   ret ptr @.str.551
-L18:
+L9:
   ret ptr @.str.552
-L19:
+L10:
   ret ptr @.str.553
-L20:
+L11:
   ret ptr @.str.554
-L21:
+L12:
   ret ptr @.str.555
-L22:
+L13:
   ret ptr @.str.556
-L23:
+L14:
   ret ptr @.str.557
-L24:
+L15:
   ret ptr @.str.558
-L25:
+L16:
   ret ptr @.str.559
-L26:
+L17:
   ret ptr @.str.560
-L27:
+L18:
   ret ptr @.str.561
-L28:
+L19:
   ret ptr @.str.562
-L29:
+L20:
   ret ptr @.str.563
-L30:
+L21:
   ret ptr @.str.564
-L31:
+L22:
   ret ptr @.str.565
-L32:
+L23:
   ret ptr @.str.566
-L33:
+L24:
   ret ptr @.str.567
-L34:
+L25:
   ret ptr @.str.568
-L35:
+L26:
   ret ptr @.str.569
-L36:
+L27:
   ret ptr @.str.570
-L37:
+L28:
   ret ptr @.str.571
-L38:
+L29:
   ret ptr @.str.572
-L39:
+L30:
   ret ptr @.str.573
-L40:
+L31:
   ret ptr @.str.574
-L41:
+L32:
   ret ptr @.str.575
-L42:
+L33:
   ret ptr @.str.576
-L43:
+L34:
   ret ptr @.str.577
-L44:
+L35:
   ret ptr @.str.578
-L45:
+L36:
   ret ptr @.str.579
-L46:
+L37:
   ret ptr @.str.580
-L47:
+L38:
   ret ptr @.str.581
-L48:
+L39:
   ret ptr @.str.582
-L49:
+L40:
   ret ptr @.str.583
-L50:
+L41:
   ret ptr @.str.584
-L51:
+L42:
   ret ptr @.str.585
-L52:
+L43:
   ret ptr @.str.586
-L53:
+L44:
   ret ptr @.str.587
-L54:
+L45:
   ret ptr @.str.588
-L0:
+L46:
   ret ptr @.str.589
+L47:
+  ret ptr @.str.590
+L48:
+  ret ptr @.str.591
+L49:
+  ret ptr @.str.592
+L50:
+  ret ptr @.str.593
+L51:
+  ret ptr @.str.594
+L52:
+  ret ptr @.str.595
+L53:
+  ret ptr @.str.596
+L54:
+  ret ptr @.str.597
+L0:
+  ret ptr @.str.598
 }
 
 define i1 @nodeCarriesText(i32 %p0) {
@@ -18092,7 +18144,7 @@ L1:
   br i1 %t14, label %L4, label %L5
 L4:
   %t15 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t15, ptr @.str.590)
+  call void @Builder.add(ptr %t15, ptr @.str.599)
   br label %L6
 L5:
   %t16 = load i8, ptr %t12
@@ -18100,7 +18152,7 @@ L5:
   br i1 %t17, label %L7, label %L8
 L7:
   %t18 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t18, ptr @.str.591)
+  call void @Builder.add(ptr %t18, ptr @.str.600)
   br label %L9
 L8:
   %t19 = load i8, ptr %t12
@@ -18108,7 +18160,7 @@ L8:
   br i1 %t20, label %L10, label %L11
 L10:
   %t21 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t21, ptr @.str.592)
+  call void @Builder.add(ptr %t21, ptr @.str.601)
   br label %L12
 L11:
   %t22 = load i8, ptr %t12
@@ -18116,7 +18168,7 @@ L11:
   br i1 %t23, label %L13, label %L14
 L13:
   %t24 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t24, ptr @.str.593)
+  call void @Builder.add(ptr %t24, ptr @.str.602)
   br label %L15
 L14:
   %t25 = load i8, ptr %t12
@@ -18124,7 +18176,7 @@ L14:
   br i1 %t26, label %L16, label %L17
 L16:
   %t27 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t27, ptr @.str.594)
+  call void @Builder.add(ptr %t27, ptr @.str.603)
   br label %L18
 L17:
   %t28 = load i8, ptr %t12
@@ -18132,7 +18184,7 @@ L17:
   br i1 %t29, label %L19, label %L20
 L19:
   %t30 = load ptr, ptr %t0
-  call void @Builder.add(ptr %t30, ptr @.str.595)
+  call void @Builder.add(ptr %t30, ptr @.str.604)
   br label %L21
 L20:
   %t31 = load ptr, ptr %t0
@@ -18284,7 +18336,7 @@ L16:
   br i1 %t68, label %L17, label %L19
 L17:
   %t69 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t69, ptr @.str.596)
+  call void @Builder.add(ptr %t69, ptr @.str.605)
   %t70 = load ptr, ptr %t1
   %t71 = load ptr, ptr %t11
   %t72 = getelementptr inbounds %Token, ptr %t71, i32 0, i32 1
@@ -18345,7 +18397,7 @@ L3:
 L4:
   store i32 %t11, ptr %t10
   %t13 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t13, ptr @.str.597)
+  call void @Builder.add(ptr %t13, ptr @.str.606)
   br label %L5
 L5:
   %t14 = load i32, ptr %t9
@@ -18371,7 +18423,7 @@ L6:
   br i1 %t29, label %L7, label %L9
 L7:
   %t30 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t30, ptr @.str.598)
+  call void @Builder.add(ptr %t30, ptr @.str.607)
   %t31 = load ptr, ptr %t4
   %t32 = load ptr, ptr %t0
   %t33 = getelementptr inbounds %Ast, ptr %t32, i32 0, i32 0
@@ -18417,7 +18469,7 @@ L16:
   unreachable
 L11:
   %t63 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t63, ptr @.str.599)
+  call void @Builder.add(ptr %t63, ptr @.str.608)
   %t64 = load ptr, ptr %t4
   %t65 = getelementptr inbounds { i32, [2 x i64] }, ptr %t57, i32 0, i32 1
   %t66 = getelementptr inbounds %Binary, ptr %t65, i32 0, i32 0
@@ -18429,7 +18481,7 @@ L11:
   br label %L10
 L12:
   %t70 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t70, ptr @.str.600)
+  call void @Builder.add(ptr %t70, ptr @.str.609)
   %t71 = load ptr, ptr %t4
   %t72 = getelementptr inbounds { i32, [2 x i64] }, ptr %t57, i32 0, i32 1
   %t73 = getelementptr inbounds %Unary, ptr %t72, i32 0, i32 0
@@ -18453,7 +18505,7 @@ L10:
   br i1 %t84, label %L17, label %L19
 L17:
   %t85 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t85, ptr @.str.601)
+  call void @Builder.add(ptr %t85, ptr @.str.610)
   br label %L19
 L19:
   %t86 = load i32, ptr %t24
@@ -18461,7 +18513,7 @@ L19:
   br i1 %t87, label %L20, label %L22
 L20:
   %t88 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t88, ptr @.str.602)
+  call void @Builder.add(ptr %t88, ptr @.str.611)
   %t89 = load ptr, ptr %t4
   %t90 = load ptr, ptr %t0
   %t91 = getelementptr inbounds %Ast, ptr %t90, i32 0, i32 0
@@ -18515,7 +18567,7 @@ L23:
   br i1 %t129, label %L26, label %L28
 L26:
   %t130 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t130, ptr @.str.603)
+  call void @Builder.add(ptr %t130, ptr @.str.612)
   %t131 = load ptr, ptr %t4
   %t132 = load ptr, ptr %t1
   %t133 = load i32, ptr %t2
@@ -19532,7 +19584,7 @@ L11:
   br label %L9
 L12:
   %t53 = load ptr, ptr %t1
-  %t54 = call ptr @copy(ptr @.str.604)
+  %t54 = call ptr @copy(ptr @.str.613)
   %t55 = load i32, ptr %t5
   %t56 = load i32, ptr %t9
   call void @TokenList.add(ptr %t53, i32 65, ptr %t54, i64 3, i32 %t55, i32 %t56)
@@ -20187,211 +20239,211 @@ entry:
   %t0 = alloca ptr
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call i1 @equals(ptr %t1, ptr @.str.605)
+  %t2 = call i1 @equals(ptr %t1, ptr @.str.614)
   br i1 %t2, label %L0, label %L2
 L0:
   ret i32 8
 L2:
   %t3 = load ptr, ptr %t0
-  %t4 = call i1 @equals(ptr %t3, ptr @.str.606)
+  %t4 = call i1 @equals(ptr %t3, ptr @.str.615)
   br i1 %t4, label %L3, label %L5
 L3:
   ret i32 9
 L5:
   %t5 = load ptr, ptr %t0
-  %t6 = call i1 @equals(ptr %t5, ptr @.str.607)
+  %t6 = call i1 @equals(ptr %t5, ptr @.str.616)
   br i1 %t6, label %L6, label %L8
 L6:
   ret i32 10
 L8:
   %t7 = load ptr, ptr %t0
-  %t8 = call i1 @equals(ptr %t7, ptr @.str.608)
+  %t8 = call i1 @equals(ptr %t7, ptr @.str.617)
   br i1 %t8, label %L9, label %L11
 L9:
   ret i32 11
 L11:
   %t9 = load ptr, ptr %t0
-  %t10 = call i1 @equals(ptr %t9, ptr @.str.609)
+  %t10 = call i1 @equals(ptr %t9, ptr @.str.618)
   br i1 %t10, label %L12, label %L14
 L12:
   ret i32 12
 L14:
   %t11 = load ptr, ptr %t0
-  %t12 = call i1 @equals(ptr %t11, ptr @.str.610)
+  %t12 = call i1 @equals(ptr %t11, ptr @.str.619)
   br i1 %t12, label %L15, label %L17
 L15:
   ret i32 13
 L17:
   %t13 = load ptr, ptr %t0
-  %t14 = call i1 @equals(ptr %t13, ptr @.str.611)
+  %t14 = call i1 @equals(ptr %t13, ptr @.str.620)
   br i1 %t14, label %L18, label %L20
 L18:
   ret i32 14
 L20:
   %t15 = load ptr, ptr %t0
-  %t16 = call i1 @equals(ptr %t15, ptr @.str.612)
+  %t16 = call i1 @equals(ptr %t15, ptr @.str.621)
   br i1 %t16, label %L21, label %L23
 L21:
   ret i32 15
 L23:
   %t17 = load ptr, ptr %t0
-  %t18 = call i1 @equals(ptr %t17, ptr @.str.613)
+  %t18 = call i1 @equals(ptr %t17, ptr @.str.622)
   br i1 %t18, label %L24, label %L26
 L24:
   ret i32 16
 L26:
   %t19 = load ptr, ptr %t0
-  %t20 = call i1 @equals(ptr %t19, ptr @.str.614)
+  %t20 = call i1 @equals(ptr %t19, ptr @.str.623)
   br i1 %t20, label %L27, label %L29
 L27:
   ret i32 17
 L29:
   %t21 = load ptr, ptr %t0
-  %t22 = call i1 @equals(ptr %t21, ptr @.str.615)
+  %t22 = call i1 @equals(ptr %t21, ptr @.str.624)
   br i1 %t22, label %L30, label %L32
 L30:
   ret i32 18
 L32:
   %t23 = load ptr, ptr %t0
-  %t24 = call i1 @equals(ptr %t23, ptr @.str.616)
+  %t24 = call i1 @equals(ptr %t23, ptr @.str.625)
   br i1 %t24, label %L33, label %L35
 L33:
   ret i32 19
 L35:
   %t25 = load ptr, ptr %t0
-  %t26 = call i1 @equals(ptr %t25, ptr @.str.617)
+  %t26 = call i1 @equals(ptr %t25, ptr @.str.626)
   br i1 %t26, label %L36, label %L38
 L36:
   ret i32 20
 L38:
   %t27 = load ptr, ptr %t0
-  %t28 = call i1 @equals(ptr %t27, ptr @.str.618)
+  %t28 = call i1 @equals(ptr %t27, ptr @.str.627)
   br i1 %t28, label %L39, label %L41
 L39:
   ret i32 21
 L41:
   %t29 = load ptr, ptr %t0
-  %t30 = call i1 @equals(ptr %t29, ptr @.str.619)
+  %t30 = call i1 @equals(ptr %t29, ptr @.str.628)
   br i1 %t30, label %L42, label %L44
 L42:
   ret i32 22
 L44:
   %t31 = load ptr, ptr %t0
-  %t32 = call i1 @equals(ptr %t31, ptr @.str.620)
+  %t32 = call i1 @equals(ptr %t31, ptr @.str.629)
   br i1 %t32, label %L45, label %L47
 L45:
   ret i32 23
 L47:
   %t33 = load ptr, ptr %t0
-  %t34 = call i1 @equals(ptr %t33, ptr @.str.621)
+  %t34 = call i1 @equals(ptr %t33, ptr @.str.630)
   br i1 %t34, label %L48, label %L50
 L48:
   ret i32 24
 L50:
   %t35 = load ptr, ptr %t0
-  %t36 = call i1 @equals(ptr %t35, ptr @.str.622)
+  %t36 = call i1 @equals(ptr %t35, ptr @.str.631)
   br i1 %t36, label %L51, label %L53
 L51:
   ret i32 25
 L53:
   %t37 = load ptr, ptr %t0
-  %t38 = call i1 @equals(ptr %t37, ptr @.str.623)
+  %t38 = call i1 @equals(ptr %t37, ptr @.str.632)
   br i1 %t38, label %L54, label %L56
 L54:
   ret i32 26
 L56:
   %t39 = load ptr, ptr %t0
-  %t40 = call i1 @equals(ptr %t39, ptr @.str.624)
+  %t40 = call i1 @equals(ptr %t39, ptr @.str.633)
   br i1 %t40, label %L57, label %L59
 L57:
   ret i32 27
 L59:
   %t41 = load ptr, ptr %t0
-  %t42 = call i1 @equals(ptr %t41, ptr @.str.625)
+  %t42 = call i1 @equals(ptr %t41, ptr @.str.634)
   br i1 %t42, label %L60, label %L62
 L60:
   ret i32 6
 L62:
   %t43 = load ptr, ptr %t0
-  %t44 = call i1 @equals(ptr %t43, ptr @.str.626)
+  %t44 = call i1 @equals(ptr %t43, ptr @.str.635)
   br i1 %t44, label %L63, label %L65
 L63:
   ret i32 6
 L65:
   %t45 = load ptr, ptr %t0
-  %t46 = call i1 @equals(ptr %t45, ptr @.str.627)
+  %t46 = call i1 @equals(ptr %t45, ptr @.str.636)
   br i1 %t46, label %L66, label %L68
 L66:
   ret i32 7
 L68:
   %t47 = load ptr, ptr %t0
-  %t48 = call i1 @equals(ptr %t47, ptr @.str.628)
+  %t48 = call i1 @equals(ptr %t47, ptr @.str.637)
   br i1 %t48, label %L69, label %L71
 L69:
   ret i32 7
 L71:
   %t49 = load ptr, ptr %t0
-  %t50 = call i1 @equals(ptr %t49, ptr @.str.629)
+  %t50 = call i1 @equals(ptr %t49, ptr @.str.638)
   br i1 %t50, label %L72, label %L74
 L72:
   ret i32 7
 L74:
   %t51 = load ptr, ptr %t0
-  %t52 = call i1 @equals(ptr %t51, ptr @.str.630)
+  %t52 = call i1 @equals(ptr %t51, ptr @.str.639)
   br i1 %t52, label %L75, label %L77
 L75:
   ret i32 7
 L77:
   %t53 = load ptr, ptr %t0
-  %t54 = call i1 @equals(ptr %t53, ptr @.str.631)
+  %t54 = call i1 @equals(ptr %t53, ptr @.str.640)
   br i1 %t54, label %L78, label %L80
 L78:
   ret i32 7
 L80:
   %t55 = load ptr, ptr %t0
-  %t56 = call i1 @equals(ptr %t55, ptr @.str.632)
+  %t56 = call i1 @equals(ptr %t55, ptr @.str.641)
   br i1 %t56, label %L81, label %L83
 L81:
   ret i32 7
 L83:
   %t57 = load ptr, ptr %t0
-  %t58 = call i1 @equals(ptr %t57, ptr @.str.633)
+  %t58 = call i1 @equals(ptr %t57, ptr @.str.642)
   br i1 %t58, label %L84, label %L86
 L84:
   ret i32 7
 L86:
   %t59 = load ptr, ptr %t0
-  %t60 = call i1 @equals(ptr %t59, ptr @.str.634)
+  %t60 = call i1 @equals(ptr %t59, ptr @.str.643)
   br i1 %t60, label %L87, label %L89
 L87:
   ret i32 7
 L89:
   %t61 = load ptr, ptr %t0
-  %t62 = call i1 @equals(ptr %t61, ptr @.str.635)
+  %t62 = call i1 @equals(ptr %t61, ptr @.str.644)
   br i1 %t62, label %L90, label %L92
 L90:
   ret i32 7
 L92:
   %t63 = load ptr, ptr %t0
-  %t64 = call i1 @equals(ptr %t63, ptr @.str.636)
+  %t64 = call i1 @equals(ptr %t63, ptr @.str.645)
   br i1 %t64, label %L93, label %L95
 L93:
   ret i32 7
 L95:
   %t65 = load ptr, ptr %t0
-  %t66 = call i1 @equals(ptr %t65, ptr @.str.637)
+  %t66 = call i1 @equals(ptr %t65, ptr @.str.646)
   br i1 %t66, label %L96, label %L98
 L96:
   ret i32 7
 L98:
   %t67 = load ptr, ptr %t0
-  %t68 = call i1 @equals(ptr %t67, ptr @.str.638)
+  %t68 = call i1 @equals(ptr %t67, ptr @.str.647)
   br i1 %t68, label %L99, label %L101
 L99:
   ret i32 7
 L101:
   %t69 = load ptr, ptr %t0
-  %t70 = call i1 @equals(ptr %t69, ptr @.str.639)
+  %t70 = call i1 @equals(ptr %t69, ptr @.str.648)
   br i1 %t70, label %L102, label %L104
 L102:
   ret i32 7
@@ -20988,7 +21040,7 @@ L9:
   br label %L0
 L2:
   %t56 = load ptr, ptr %t5
-  %t57 = call ptr @copy(ptr @.str.640)
+  %t57 = call ptr @copy(ptr @.str.649)
   call void @TokenList.add(ptr %t56, i32 1, ptr %t57, i64 0, i32 0, i32 0)
   %t58 = load ptr, ptr %t5
   ret ptr %t58
@@ -21111,7 +21163,7 @@ L2:
   %t14 = icmp eq i32 %t13, 2
   br i1 %t14, label %L3, label %L5
 L3:
-  %t15 = call ptr @fopen(ptr @.str.641, ptr @.str.642)
+  %t15 = call ptr @fopen(ptr @.str.650, ptr @.str.651)
   store ptr %t15, ptr %t12
   br label %L5
 L5:
@@ -21495,8 +21547,8 @@ L2:
 
 define void @childWork() {
 entry:
-  %t0 = call i32 (ptr, ...) @printf(ptr @.str.643)
-  %t1 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.644)
+  %t0 = call i32 (ptr, ...) @printf(ptr @.str.652)
+  %t1 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.653)
   %t2 = load i32, ptr @CHILD_STATUS
   %t3 = icmp eq i32 %t2, 99
   br i1 %t3, label %L0, label %L2
@@ -21599,7 +21651,7 @@ entry:
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
   %t3 = load i32, ptr %t1
-  %t4 = call i1 @isBuiltin(ptr %t2, i32 %t3, ptr @.str.645)
+  %t4 = call i1 @isBuiltin(ptr %t2, i32 %t3, ptr @.str.654)
   ret i1 %t4
 }
 
@@ -21652,7 +21704,7 @@ L2:
   %t29 = load ptr, ptr %t0
   %t30 = load i32, ptr %t1
   %t31 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t29, i32 %t30, i32 155, %Facts %t31)
+  call void @analyzerFail(ptr %t29, i32 %t30, i32 158, %Facts %t31)
   %t32 = call %Type @Type.make(i32 12, i32 0)
   ret %Type %t32
 L4:
@@ -21681,7 +21733,7 @@ L5:
   %t53 = load i32, ptr %t1
   %t54 = load %Type, ptr %t48
   %t55 = call %Facts @Facts.aboutType(%Type %t54)
-  call void @analyzerFail(ptr %t52, i32 %t53, i32 156, %Facts %t55)
+  call void @analyzerFail(ptr %t52, i32 %t53, i32 159, %Facts %t55)
   br label %L7
 L7:
   %t56 = load i32, ptr %t16
@@ -21714,7 +21766,7 @@ L11:
   %t79 = load i32, ptr %t1
   %t80 = load %Type, ptr %t73
   %t81 = call %Facts @Facts.aboutType(%Type %t80)
-  call void @analyzerFail(ptr %t78, i32 %t79, i32 157, %Facts %t81)
+  call void @analyzerFail(ptr %t78, i32 %t79, i32 160, %Facts %t81)
   br label %L13
 L13:
   br label %L10
@@ -21731,7 +21783,7 @@ entry:
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
   %t3 = load i32, ptr %t1
-  %t4 = call i1 @isBuiltin(ptr %t2, i32 %t3, ptr @.str.646)
+  %t4 = call i1 @isBuiltin(ptr %t2, i32 %t3, ptr @.str.655)
   ret i1 %t4
 }
 
@@ -21777,7 +21829,7 @@ L0:
   %t23 = load ptr, ptr %t0
   %t24 = load i32, ptr %t1
   %t25 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t23, i32 %t24, i32 158, %Facts %t25)
+  call void @analyzerFail(ptr %t23, i32 %t24, i32 161, %Facts %t25)
   %t26 = call %Type @Type.make(i32 12, i32 0)
   ret %Type %t26
 L2:
@@ -21889,7 +21941,7 @@ L10:
   %t108 = load %Type, ptr %t56
   %t109 = load %Type, ptr %t58
   %t110 = call %Facts @Facts.aboutTypes(%Type %t108, %Type %t109)
-  call void @analyzerFail(ptr %t106, i32 %t107, i32 159, %Facts %t110)
+  call void @analyzerFail(ptr %t106, i32 %t107, i32 162, %Facts %t110)
   br label %L12
 L11:
   %t112 = load %Type, ptr %t56
@@ -21909,7 +21961,7 @@ L15:
   %t118 = load i32, ptr %t1
   %t119 = load %Type, ptr %t56
   %t120 = call %Facts @Facts.aboutType(%Type %t119)
-  call void @analyzerFail(ptr %t117, i32 %t118, i32 160, %Facts %t120)
+  call void @analyzerFail(ptr %t117, i32 %t118, i32 163, %Facts %t120)
   br label %L17
 L16:
   %t122 = load %Type, ptr %t56
@@ -21931,7 +21983,7 @@ L20:
   %t130 = load i32, ptr %t1
   %t131 = load %Type, ptr %t56
   %t132 = call %Facts @Facts.aboutType(%Type %t131)
-  call void @analyzerFail(ptr %t129, i32 %t130, i32 160, %Facts %t132)
+  call void @analyzerFail(ptr %t129, i32 %t130, i32 163, %Facts %t132)
   br label %L22
 L22:
   br label %L17
@@ -22045,7 +22097,7 @@ entry:
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
   %t3 = load i32, ptr %t1
-  %t4 = call i1 @isBuiltin(ptr %t2, i32 %t3, ptr @.str.647)
+  %t4 = call i1 @isBuiltin(ptr %t2, i32 %t3, ptr @.str.656)
   ret i1 %t4
 }
 
@@ -22084,7 +22136,7 @@ entry:
 L0:
   %t23 = load ptr, ptr %t0
   %t24 = load i32, ptr %t1
-  %t25 = call %Facts @Facts.about(ptr @.str.648)
+  %t25 = call %Facts @Facts.about(ptr @.str.657)
   %t26 = load ptr, ptr %t0
   %t27 = load i32, ptr %t12
   %t28 = call i32 @argumentCount(ptr %t26, i32 %t27)
@@ -22126,8 +22178,8 @@ L4:
 L5:
   %t55 = load ptr, ptr %t0
   %t56 = load i32, ptr %t1
-  %t57 = call %Facts @Facts.about(ptr @.str.649)
-  %t58 = call %Type @Type.ofEnum(ptr @.str.650, i32 0)
+  %t57 = call %Facts @Facts.about(ptr @.str.658)
+  %t58 = call %Type @Type.ofEnum(ptr @.str.659, i32 0)
   %t59 = load %Type, ptr %t47
   %t60 = call %Facts @Facts.withTypes(%Facts %t57, %Type %t58, %Type %t59)
   %t61 = call %Facts @Facts.withCounts(%Facts %t60, i64 1, i64 0)
@@ -22144,119 +22196,119 @@ entry:
   %t0 = call ptr @Builder.new()
   store ptr %t0, ptr %t1
   %t2 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t2, ptr @.str.651)
+  call void @Builder.add(ptr %t2, ptr @.str.660)
   %t3 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t3, ptr @.str.652)
+  call void @Builder.add(ptr %t3, ptr @.str.661)
   %t4 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t4, ptr @.str.653)
+  call void @Builder.add(ptr %t4, ptr @.str.662)
   %t5 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t5, ptr @.str.654)
+  call void @Builder.add(ptr %t5, ptr @.str.663)
   %t6 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t6, ptr @.str.655)
+  call void @Builder.add(ptr %t6, ptr @.str.664)
   %t7 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t7, ptr @.str.656)
+  call void @Builder.add(ptr %t7, ptr @.str.665)
   %t8 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t8, ptr @.str.657)
+  call void @Builder.add(ptr %t8, ptr @.str.666)
   %t9 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t9, ptr @.str.658)
+  call void @Builder.add(ptr %t9, ptr @.str.667)
   %t10 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t10, ptr @.str.659)
+  call void @Builder.add(ptr %t10, ptr @.str.668)
   %t11 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t11, ptr @.str.660)
+  call void @Builder.add(ptr %t11, ptr @.str.669)
   %t12 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t12, ptr @.str.661)
+  call void @Builder.add(ptr %t12, ptr @.str.670)
   %t13 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t13, ptr @.str.662)
+  call void @Builder.add(ptr %t13, ptr @.str.671)
   %t14 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t14, ptr @.str.663)
+  call void @Builder.add(ptr %t14, ptr @.str.672)
   %t15 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t15, ptr @.str.664)
+  call void @Builder.add(ptr %t15, ptr @.str.673)
   %t16 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t16, ptr @.str.665)
+  call void @Builder.add(ptr %t16, ptr @.str.674)
   %t17 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t17, ptr @.str.666)
+  call void @Builder.add(ptr %t17, ptr @.str.675)
   %t18 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t18, ptr @.str.667)
+  call void @Builder.add(ptr %t18, ptr @.str.676)
   %t19 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t19, ptr @.str.668)
+  call void @Builder.add(ptr %t19, ptr @.str.677)
   %t20 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t20, ptr @.str.669)
+  call void @Builder.add(ptr %t20, ptr @.str.678)
   %t21 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t21, ptr @.str.670)
+  call void @Builder.add(ptr %t21, ptr @.str.679)
   %t22 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t22, ptr @.str.671)
+  call void @Builder.add(ptr %t22, ptr @.str.680)
   %t23 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t23, ptr @.str.672)
+  call void @Builder.add(ptr %t23, ptr @.str.681)
   %t24 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t24, ptr @.str.673)
+  call void @Builder.add(ptr %t24, ptr @.str.682)
   %t25 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t25, ptr @.str.674)
+  call void @Builder.add(ptr %t25, ptr @.str.683)
   %t26 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t26, ptr @.str.675)
+  call void @Builder.add(ptr %t26, ptr @.str.684)
   %t27 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t27, ptr @.str.676)
+  call void @Builder.add(ptr %t27, ptr @.str.685)
   %t28 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t28, ptr @.str.677)
+  call void @Builder.add(ptr %t28, ptr @.str.686)
   %t29 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t29, ptr @.str.678)
+  call void @Builder.add(ptr %t29, ptr @.str.687)
   %t30 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t30, ptr @.str.679)
+  call void @Builder.add(ptr %t30, ptr @.str.688)
   %t31 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t31, ptr @.str.680)
+  call void @Builder.add(ptr %t31, ptr @.str.689)
   %t32 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t32, ptr @.str.681)
+  call void @Builder.add(ptr %t32, ptr @.str.690)
   %t33 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t33, ptr @.str.682)
+  call void @Builder.add(ptr %t33, ptr @.str.691)
   %t34 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t34, ptr @.str.683)
+  call void @Builder.add(ptr %t34, ptr @.str.692)
   %t35 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t35, ptr @.str.684)
+  call void @Builder.add(ptr %t35, ptr @.str.693)
   %t36 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t36, ptr @.str.685)
+  call void @Builder.add(ptr %t36, ptr @.str.694)
   %t37 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t37, ptr @.str.686)
+  call void @Builder.add(ptr %t37, ptr @.str.695)
   %t38 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t38, ptr @.str.687)
+  call void @Builder.add(ptr %t38, ptr @.str.696)
   %t39 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t39, ptr @.str.688)
+  call void @Builder.add(ptr %t39, ptr @.str.697)
   %t40 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t40, ptr @.str.689)
+  call void @Builder.add(ptr %t40, ptr @.str.698)
   %t41 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t41, ptr @.str.690)
+  call void @Builder.add(ptr %t41, ptr @.str.699)
   %t42 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t42, ptr @.str.691)
+  call void @Builder.add(ptr %t42, ptr @.str.700)
   %t43 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t43, ptr @.str.692)
+  call void @Builder.add(ptr %t43, ptr @.str.701)
   %t44 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t44, ptr @.str.693)
+  call void @Builder.add(ptr %t44, ptr @.str.702)
   %t45 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t45, ptr @.str.694)
+  call void @Builder.add(ptr %t45, ptr @.str.703)
   %t46 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t46, ptr @.str.695)
+  call void @Builder.add(ptr %t46, ptr @.str.704)
   %t47 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t47, ptr @.str.696)
+  call void @Builder.add(ptr %t47, ptr @.str.705)
   %t48 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t48, ptr @.str.697)
+  call void @Builder.add(ptr %t48, ptr @.str.706)
   %t49 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t49, ptr @.str.698)
+  call void @Builder.add(ptr %t49, ptr @.str.707)
   %t50 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t50, ptr @.str.699)
+  call void @Builder.add(ptr %t50, ptr @.str.708)
   %t51 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t51, ptr @.str.700)
+  call void @Builder.add(ptr %t51, ptr @.str.709)
   %t52 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t52, ptr @.str.701)
+  call void @Builder.add(ptr %t52, ptr @.str.710)
   %t53 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t53, ptr @.str.702)
+  call void @Builder.add(ptr %t53, ptr @.str.711)
   %t54 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t54, ptr @.str.703)
+  call void @Builder.add(ptr %t54, ptr @.str.712)
   %t55 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t55, ptr @.str.704)
+  call void @Builder.add(ptr %t55, ptr @.str.713)
   %t56 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t56, ptr @.str.705)
+  call void @Builder.add(ptr %t56, ptr @.str.714)
   %t57 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t57, ptr @.str.706)
+  call void @Builder.add(ptr %t57, ptr @.str.715)
   %t58 = load ptr, ptr %t1
-  call void @Builder.add(ptr %t58, ptr @.str.707)
+  call void @Builder.add(ptr %t58, ptr @.str.716)
   %t59 = load ptr, ptr %t1
   %t60 = call ptr @Builder.take(ptr %t59)
   ret ptr %t60
@@ -22437,7 +22489,7 @@ L4:
   %t33 = getelementptr inbounds %Node, ptr %t30, i64 %t32
   %t34 = getelementptr inbounds %Node, ptr %t33, i32 0, i32 3
   %t35 = load ptr, ptr %t34
-  %t36 = call i1 @contains(ptr %t35, ptr @.str.708)
+  %t36 = call i1 @contains(ptr %t35, ptr @.str.717)
   store i1 %t36, ptr %t13
   br label %L5
 L5:
@@ -23197,7 +23249,7 @@ L1:
   br i1 %t38, label %L4, label %L6
 L4:
   %t39 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t39, ptr @.str.709)
+  call void @Builder.add(ptr %t39, ptr @.str.718)
   br label %L6
 L6:
   %t40 = load ptr, ptr %t0
@@ -23850,7 +23902,7 @@ L2:
   %t38 = load i32, ptr %t18
   %t39 = sext i32 %t38 to i64
   %t40 = call %Facts @Facts.withCounts(%Facts %t35, i64 %t37, i64 %t39)
-  call void @genericFail(ptr %t22, i32 %t23, i32 127, %Facts %t40)
+  call void @genericFail(ptr %t22, i32 %t23, i32 130, %Facts %t40)
   ret i1 false
 }
 
@@ -24325,7 +24377,7 @@ L6:
   %t32 = load i32, ptr %t2
   %t33 = load ptr, ptr %t17
   %t34 = call %Facts @Facts.about(ptr %t33)
-  call void @genericFail(ptr %t31, i32 %t32, i32 128, %Facts %t34)
+  call void @genericFail(ptr %t31, i32 %t32, i32 131, %Facts %t34)
   br label %L8
 L7:
   %t35 = load ptr, ptr %t0
@@ -24350,7 +24402,7 @@ L5:
   %t48 = load ptr, ptr %t0
   %t49 = load i32, ptr %t2
   %t50 = load i32, ptr %t22
-  %t51 = call i1 @checkArgumentCount(ptr %t48, i32 %t49, i32 %t50, ptr @.str.710)
+  %t51 = call i1 @checkArgumentCount(ptr %t48, i32 %t49, i32 %t50, ptr @.str.719)
   %t52 = xor i1 %t51, true
   br i1 %t52, label %L9, label %L11
 L9:
@@ -24506,13 +24558,13 @@ L3:
   %t58 = load i32, ptr %t2
   %t59 = load ptr, ptr %t28
   %t60 = call %Facts @Facts.about(ptr %t59)
-  call void @genericFail(ptr %t57, i32 %t58, i32 129, %Facts %t60)
+  call void @genericFail(ptr %t57, i32 %t58, i32 132, %Facts %t60)
   ret i1 true
 L5:
   %t61 = load ptr, ptr %t0
   %t62 = load i32, ptr %t13
   %t63 = load i32, ptr %t43
-  %t64 = call i1 @checkArgumentCount(ptr %t61, i32 %t62, i32 %t63, ptr @.str.711)
+  %t64 = call i1 @checkArgumentCount(ptr %t61, i32 %t62, i32 %t63, ptr @.str.720)
   %t65 = xor i1 %t64, true
   br i1 %t65, label %L6, label %L8
 L6:
@@ -24655,7 +24707,7 @@ L4:
   %t56 = getelementptr inbounds %Node, ptr %t55, i32 0, i32 3
   %t57 = load ptr, ptr %t56
   %t58 = call %Facts @Facts.about(ptr %t57)
-  call void @genericFail(ptr %t46, i32 %t47, i32 130, %Facts %t58)
+  call void @genericFail(ptr %t46, i32 %t47, i32 133, %Facts %t58)
   ret void
 L6:
   %t62 = load i32, ptr %t13
@@ -24715,7 +24767,7 @@ L13:
   %t96 = getelementptr inbounds ptr, ptr %t93, i64 %t95
   %t97 = load ptr, ptr %t96
   %t98 = call %Facts @Facts.about(ptr %t97)
-  call void @genericFail(ptr %t89, i32 %t90, i32 130, %Facts %t98)
+  call void @genericFail(ptr %t89, i32 %t90, i32 133, %Facts %t98)
   %t99 = load ptr, ptr %t0
   %t100 = getelementptr inbounds %Analyzer, ptr %t99, i32 0, i32 9
   %t101 = load ptr, ptr %t100
@@ -24793,7 +24845,7 @@ L20:
   %t158 = getelementptr inbounds %Node, ptr %t157, i32 0, i32 3
   %t159 = load ptr, ptr %t158
   %t160 = call %Facts @Facts.about(ptr %t159)
-  call void @genericFail(ptr %t148, i32 %t149, i32 131, %Facts %t160)
+  call void @genericFail(ptr %t148, i32 %t149, i32 134, %Facts %t160)
   br label %L22
 L22:
   ret void
@@ -24823,6 +24875,7 @@ entry:
   %t222 = alloca i1
   %t223 = alloca i1
   %t224 = alloca i1
+  %t225 = alloca i1
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -24896,7 +24949,7 @@ L10:
   %t48 = getelementptr inbounds %Node, ptr %t47, i32 0, i32 3
   %t49 = load ptr, ptr %t48
   %t50 = call %Facts @Facts.about(ptr %t49)
-  call void @analyzerFail(ptr %t38, i32 %t39, i32 132, %Facts %t50)
+  call void @analyzerFail(ptr %t38, i32 %t39, i32 135, %Facts %t50)
   store i1 false, ptr @FAILED
   %t51 = load ptr, ptr %t0
   %t52 = getelementptr inbounds %Analyzer, ptr %t51, i32 0, i32 23
@@ -25140,93 +25193,103 @@ L45:
   store i1 true, ptr %t29
   br label %L47
 L47:
-  %t225 = load i32, ptr %t84
-  %t226 = icmp eq i32 %t225, 35
-  store i1 %t226, ptr %t224
-  br i1 %t226, label %L49, label %L48
+  %t226 = load i32, ptr %t84
+  %t227 = icmp eq i32 %t226, 35
+  store i1 %t227, ptr %t225
+  br i1 %t227, label %L49, label %L48
 L48:
-  %t227 = load i32, ptr %t84
-  %t228 = icmp eq i32 %t227, 18
-  store i1 %t228, ptr %t224
+  %t228 = load i32, ptr %t84
+  %t229 = icmp eq i32 %t228, 18
+  store i1 %t229, ptr %t225
   br label %L49
 L49:
-  %t229 = load i1, ptr %t224
-  store i1 %t229, ptr %t223
-  br i1 %t229, label %L50, label %L51
+  %t230 = load i1, ptr %t225
+  store i1 %t230, ptr %t224
+  br i1 %t230, label %L50, label %L51
 L50:
-  %t230 = load ptr, ptr %t0
-  %t231 = getelementptr inbounds %Analyzer, ptr %t230, i32 0, i32 0
-  %t232 = load ptr, ptr %t231
-  %t233 = getelementptr inbounds %Ast, ptr %t232, i32 0, i32 0
-  %t234 = load ptr, ptr %t233
-  %t235 = load i32, ptr %t152
-  %t236 = sext i32 %t235 to i64
-  %t237 = getelementptr inbounds %Node, ptr %t234, i64 %t236
-  %t238 = getelementptr inbounds %Node, ptr %t237, i32 0, i32 0
-  %t239 = load i32, ptr %t238
-  %t240 = icmp eq i32 %t239, 28
-  store i1 %t240, ptr %t223
+  %t231 = load i32, ptr %t152
+  %t232 = load i32, ptr @NO_NODE
+  %t233 = icmp ne i32 %t231, %t232
+  store i1 %t233, ptr %t224
   br label %L51
 L51:
-  %t241 = load i1, ptr %t223
-  store i1 %t241, ptr %t222
-  br i1 %t241, label %L52, label %L53
+  %t234 = load i1, ptr %t224
+  store i1 %t234, ptr %t223
+  br i1 %t234, label %L52, label %L53
 L52:
-  %t242 = load ptr, ptr %t0
-  %t243 = getelementptr inbounds %Analyzer, ptr %t242, i32 0, i32 0
-  %t244 = load ptr, ptr %t243
-  %t245 = getelementptr inbounds %Ast, ptr %t244, i32 0, i32 0
-  %t246 = load ptr, ptr %t245
-  %t247 = load i32, ptr %t152
-  %t248 = sext i32 %t247 to i64
-  %t249 = getelementptr inbounds %Node, ptr %t246, i64 %t248
-  %t250 = getelementptr inbounds %Node, ptr %t249, i32 0, i32 10
-  %t251 = load i32, ptr %t250
-  %t252 = icmp eq i32 %t251, 0
-  store i1 %t252, ptr %t222
+  %t235 = load ptr, ptr %t0
+  %t236 = getelementptr inbounds %Analyzer, ptr %t235, i32 0, i32 0
+  %t237 = load ptr, ptr %t236
+  %t238 = getelementptr inbounds %Ast, ptr %t237, i32 0, i32 0
+  %t239 = load ptr, ptr %t238
+  %t240 = load i32, ptr %t152
+  %t241 = sext i32 %t240 to i64
+  %t242 = getelementptr inbounds %Node, ptr %t239, i64 %t241
+  %t243 = getelementptr inbounds %Node, ptr %t242, i32 0, i32 0
+  %t244 = load i32, ptr %t243
+  %t245 = icmp eq i32 %t244, 28
+  store i1 %t245, ptr %t223
   br label %L53
 L53:
-  %t253 = load i1, ptr %t222
-  store i1 %t253, ptr %t221
-  br i1 %t253, label %L54, label %L55
+  %t246 = load i1, ptr %t223
+  store i1 %t246, ptr %t222
+  br i1 %t246, label %L54, label %L55
 L54:
-  %t254 = load ptr, ptr %t0
-  %t255 = getelementptr inbounds %Analyzer, ptr %t254, i32 0, i32 9
-  %t256 = load ptr, ptr %t255
-  %t257 = load i32, ptr %t53
-  %t258 = sext i32 %t257 to i64
-  %t259 = getelementptr inbounds ptr, ptr %t256, i64 %t258
-  %t260 = load ptr, ptr %t259
-  %t261 = icmp eq ptr %t260, null
-  store i1 %t261, ptr %t221
+  %t247 = load ptr, ptr %t0
+  %t248 = getelementptr inbounds %Analyzer, ptr %t247, i32 0, i32 0
+  %t249 = load ptr, ptr %t248
+  %t250 = getelementptr inbounds %Ast, ptr %t249, i32 0, i32 0
+  %t251 = load ptr, ptr %t250
+  %t252 = load i32, ptr %t152
+  %t253 = sext i32 %t252 to i64
+  %t254 = getelementptr inbounds %Node, ptr %t251, i64 %t253
+  %t255 = getelementptr inbounds %Node, ptr %t254, i32 0, i32 10
+  %t256 = load i32, ptr %t255
+  %t257 = icmp eq i32 %t256, 0
+  store i1 %t257, ptr %t222
   br label %L55
 L55:
-  %t262 = load i1, ptr %t221
-  br i1 %t262, label %L56, label %L58
+  %t258 = load i1, ptr %t222
+  store i1 %t258, ptr %t221
+  br i1 %t258, label %L56, label %L57
 L56:
-  %t263 = load ptr, ptr %t0
-  %t264 = getelementptr inbounds %Analyzer, ptr %t263, i32 0, i32 0
+  %t259 = load ptr, ptr %t0
+  %t260 = getelementptr inbounds %Analyzer, ptr %t259, i32 0, i32 9
+  %t261 = load ptr, ptr %t260
+  %t262 = load i32, ptr %t53
+  %t263 = sext i32 %t262 to i64
+  %t264 = getelementptr inbounds ptr, ptr %t261, i64 %t263
   %t265 = load ptr, ptr %t264
-  %t266 = getelementptr inbounds %Ast, ptr %t265, i32 0, i32 0
-  %t267 = load ptr, ptr %t266
-  %t268 = load i32, ptr %t152
-  %t269 = sext i32 %t268 to i64
-  %t270 = getelementptr inbounds %Node, ptr %t267, i64 %t269
-  %t271 = getelementptr inbounds %Node, ptr %t270, i32 0, i32 3
-  %t272 = load ptr, ptr %t271
-  %t273 = load ptr, ptr %t0
-  %t274 = getelementptr inbounds %Analyzer, ptr %t273, i32 0, i32 9
-  %t275 = load ptr, ptr %t274
-  %t276 = load i32, ptr %t53
-  %t277 = sext i32 %t276 to i64
-  %t278 = getelementptr inbounds ptr, ptr %t275, i64 %t277
-  store ptr %t272, ptr %t278
-  store i1 true, ptr %t29
-  br label %L58
+  %t266 = icmp eq ptr %t265, null
+  store i1 %t266, ptr %t221
+  br label %L57
+L57:
+  %t267 = load i1, ptr %t221
+  br i1 %t267, label %L58, label %L60
 L58:
-  %t279 = load i32, ptr %t53
-  %t280 = add i32 %t279, 1
-  store i32 %t280, ptr %t53
+  %t268 = load ptr, ptr %t0
+  %t269 = getelementptr inbounds %Analyzer, ptr %t268, i32 0, i32 0
+  %t270 = load ptr, ptr %t269
+  %t271 = getelementptr inbounds %Ast, ptr %t270, i32 0, i32 0
+  %t272 = load ptr, ptr %t271
+  %t273 = load i32, ptr %t152
+  %t274 = sext i32 %t273 to i64
+  %t275 = getelementptr inbounds %Node, ptr %t272, i64 %t274
+  %t276 = getelementptr inbounds %Node, ptr %t275, i32 0, i32 3
+  %t277 = load ptr, ptr %t276
+  %t278 = load ptr, ptr %t0
+  %t279 = getelementptr inbounds %Analyzer, ptr %t278, i32 0, i32 9
+  %t280 = load ptr, ptr %t279
+  %t281 = load i32, ptr %t53
+  %t282 = sext i32 %t281 to i64
+  %t283 = getelementptr inbounds ptr, ptr %t280, i64 %t282
+  store ptr %t277, ptr %t283
+  store i1 true, ptr %t29
+  br label %L60
+L60:
+  %t284 = load i32, ptr %t53
+  %t285 = add i32 %t284, 1
+  store i32 %t285, ptr %t53
   br label %L13
 L15:
   br label %L7
@@ -25339,7 +25402,7 @@ L8:
   %t72 = getelementptr inbounds %Node, ptr %t69, i64 %t71
   %t73 = getelementptr inbounds %Node, ptr %t72, i32 0, i32 3
   %t74 = load ptr, ptr %t73
-  %t75 = call i1 @contains(ptr %t74, ptr @.str.712)
+  %t75 = call i1 @contains(ptr %t74, ptr @.str.721)
   %t76 = xor i1 %t75, true
   store i1 %t76, ptr %t43
   br label %L9
@@ -26316,35 +26379,35 @@ entry:
   %t2 = load i32, ptr %t1
   switch i32 %t2, label %L18 [ i32 1, label %L1 i32 2, label %L2 i32 3, label %L3 i32 4, label %L4 i32 5, label %L5 i32 6, label %L6 i32 7, label %L7 i32 8, label %L8 i32 9, label %L9 i32 10, label %L10 i32 11, label %L11 i32 12, label %L12 i32 13, label %L13 i32 14, label %L14 i32 15, label %L15 i32 16, label %L16 i32 17, label %L17 ]
 L1:
-  ret ptr @.str.713
-L2:
-  ret ptr @.str.714
-L3:
-  ret ptr @.str.715
-L4:
-  ret ptr @.str.716
-L5:
-  ret ptr @.str.717
-L6:
-  ret ptr @.str.718
-L7:
-  ret ptr @.str.719
-L8:
-  ret ptr @.str.720
-L9:
-  ret ptr @.str.721
-L10:
   ret ptr @.str.722
-L11:
+L2:
   ret ptr @.str.723
-L12:
+L3:
   ret ptr @.str.724
+L4:
+  ret ptr @.str.725
+L5:
+  ret ptr @.str.726
+L6:
+  ret ptr @.str.727
+L7:
+  ret ptr @.str.728
+L8:
+  ret ptr @.str.729
+L9:
+  ret ptr @.str.730
+L10:
+  ret ptr @.str.731
+L11:
+  ret ptr @.str.732
+L12:
+  ret ptr @.str.733
 L13:
   %t3 = getelementptr inbounds %Type, ptr %t0, i32 0, i32 2
   %t4 = load ptr, ptr %t3
   ret ptr %t4
 L14:
-  ret ptr @.str.725
+  ret ptr @.str.734
 L15:
   %t5 = getelementptr inbounds %Type, ptr %t0, i32 0, i32 2
   %t6 = load ptr, ptr %t5
@@ -26360,7 +26423,7 @@ L17:
 L18:
   br label %L0
 L0:
-  ret ptr @.str.726
+  ret ptr @.str.735
 }
 
 define ptr @Type.toText(%Type %p0) {
@@ -26431,79 +26494,79 @@ entry:
   %t0 = alloca ptr
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call i1 @equals(ptr %t1, ptr @.str.727)
+  %t2 = call i1 @equals(ptr %t1, ptr @.str.736)
   br i1 %t2, label %L0, label %L2
 L0:
   ret i32 1
 L2:
   %t3 = load ptr, ptr %t0
-  %t4 = call i1 @equals(ptr %t3, ptr @.str.728)
+  %t4 = call i1 @equals(ptr %t3, ptr @.str.737)
   br i1 %t4, label %L3, label %L5
 L3:
   ret i32 2
 L5:
   %t5 = load ptr, ptr %t0
-  %t6 = call i1 @equals(ptr %t5, ptr @.str.729)
+  %t6 = call i1 @equals(ptr %t5, ptr @.str.738)
   br i1 %t6, label %L6, label %L8
 L6:
   ret i32 3
 L8:
   %t7 = load ptr, ptr %t0
-  %t8 = call i1 @equals(ptr %t7, ptr @.str.730)
+  %t8 = call i1 @equals(ptr %t7, ptr @.str.739)
   br i1 %t8, label %L9, label %L11
 L9:
   ret i32 4
 L11:
   %t9 = load ptr, ptr %t0
-  %t10 = call i1 @equals(ptr %t9, ptr @.str.731)
+  %t10 = call i1 @equals(ptr %t9, ptr @.str.740)
   br i1 %t10, label %L12, label %L14
 L12:
   ret i32 5
 L14:
   %t11 = load ptr, ptr %t0
-  %t12 = call i1 @equals(ptr %t11, ptr @.str.732)
+  %t12 = call i1 @equals(ptr %t11, ptr @.str.741)
   br i1 %t12, label %L15, label %L17
 L15:
   ret i32 6
 L17:
   %t13 = load ptr, ptr %t0
-  %t14 = call i1 @equals(ptr %t13, ptr @.str.733)
+  %t14 = call i1 @equals(ptr %t13, ptr @.str.742)
   br i1 %t14, label %L18, label %L20
 L18:
   ret i32 7
 L20:
   %t15 = load ptr, ptr %t0
-  %t16 = call i1 @equals(ptr %t15, ptr @.str.734)
+  %t16 = call i1 @equals(ptr %t15, ptr @.str.743)
   br i1 %t16, label %L21, label %L23
 L21:
   ret i32 8
 L23:
   %t17 = load ptr, ptr %t0
-  %t18 = call i1 @equals(ptr %t17, ptr @.str.735)
+  %t18 = call i1 @equals(ptr %t17, ptr @.str.744)
   br i1 %t18, label %L24, label %L26
 L24:
   ret i32 8
 L26:
   %t19 = load ptr, ptr %t0
-  %t20 = call i1 @equals(ptr %t19, ptr @.str.736)
+  %t20 = call i1 @equals(ptr %t19, ptr @.str.745)
   br i1 %t20, label %L27, label %L29
 L27:
   ret i32 9
 L29:
   %t21 = load ptr, ptr %t0
-  %t22 = call i1 @equals(ptr %t21, ptr @.str.737)
+  %t22 = call i1 @equals(ptr %t21, ptr @.str.746)
   br i1 %t22, label %L30, label %L32
 L30:
   ret i32 10
 L32:
   %t23 = load ptr, ptr %t0
-  %t24 = call i1 @equals(ptr %t23, ptr @.str.738)
+  %t24 = call i1 @equals(ptr %t23, ptr @.str.747)
   br i1 %t24, label %L33, label %L35
 L33:
   ret i32 11
 L35:
   %t25 = load ptr, ptr %t0
-  %t26 = call i1 @equals(ptr %t25, ptr @.str.739)
+  %t26 = call i1 @equals(ptr %t25, ptr @.str.748)
   br i1 %t26, label %L36, label %L38
 L36:
   ret i32 12
@@ -26990,13 +27053,13 @@ L2:
 define ptr @ccProgram() {
 entry:
   %t1 = alloca ptr
-  %t0 = call ptr @environment(ptr @.str.740)
+  %t0 = call ptr @environment(ptr @.str.749)
   store ptr %t0, ptr %t1
   %t2 = load ptr, ptr %t1
   %t3 = icmp eq ptr %t2, null
   br i1 %t3, label %L0, label %L2
 L0:
-  ret ptr @.str.741
+  ret ptr @.str.750
 L2:
   %t4 = load ptr, ptr %t1
   ret ptr %t4
@@ -27015,14 +27078,14 @@ L0:
   ret ptr %t1
 L2:
   store i1 true, ptr @SYSROOT_PROBED
-  %t2 = call ptr @environment(ptr @.str.742)
+  %t2 = call ptr @environment(ptr @.str.751)
   store ptr %t2, ptr @SYSROOT
   %t4 = load ptr, ptr @SYSROOT
   %t5 = icmp eq ptr %t4, null
   store i1 %t5, ptr %t3
   br i1 %t5, label %L3, label %L4
 L3:
-  %t6 = call i1 @exists(ptr @.str.743)
+  %t6 = call i1 @exists(ptr @.str.752)
   store i1 %t6, ptr %t3
   br label %L4
 L4:
@@ -27032,8 +27095,8 @@ L5:
   %t8 = call ptr @Builder.new()
   store ptr %t8, ptr %t9
   %t10 = call ptr @TextList.new()
-  %t11 = call ptr @TextList.add(ptr %t10, ptr @.str.744)
-  %t12 = call ptr @TextList.add(ptr %t11, ptr @.str.745)
+  %t11 = call ptr @TextList.add(ptr %t10, ptr @.str.753)
+  %t12 = call ptr @TextList.add(ptr %t11, ptr @.str.754)
   store ptr %t12, ptr %t13
   %t14 = load ptr, ptr %t13
   %t15 = load ptr, ptr %t9
@@ -27117,7 +27180,7 @@ entry:
   br i1 %t7, label %L0, label %L2
 L0:
   %t8 = load ptr, ptr %t3
-  %t9 = call ptr @TextList.add(ptr %t8, ptr @.str.746)
+  %t9 = call ptr @TextList.add(ptr %t8, ptr @.str.755)
   %t10 = load ptr, ptr %t5
   %t11 = call ptr @TextList.add(ptr %t9, ptr %t10)
   br label %L2
@@ -27136,7 +27199,7 @@ entry:
   br i1 %t3, label %L0, label %L2
 L0:
   %t4 = load ptr, ptr %t1
-  call void @setEnvironment(ptr @.str.747, ptr %t4)
+  call void @setEnvironment(ptr @.str.756, ptr %t4)
   br label %L2
 L2:
   ret void
@@ -27192,7 +27255,7 @@ entry:
   %t14 = load ptr, ptr %t13
   call void @Builder.add(ptr %t11, ptr %t14)
   %t15 = load ptr, ptr %t10
-  call void @Builder.add(ptr %t15, ptr @.str.748)
+  call void @Builder.add(ptr %t15, ptr @.str.757)
   %t16 = load ptr, ptr %t10
   %t17 = load ptr, ptr %t1
   call void @addPadded(ptr %t16, ptr %t17, i32 10)
@@ -27209,7 +27272,7 @@ entry:
   %t25 = load ptr, ptr %t24
   call void @Builder.add(ptr %t22, ptr %t25)
   %t26 = load ptr, ptr %t10
-  call void @Builder.add(ptr %t26, ptr @.str.749)
+  call void @Builder.add(ptr %t26, ptr @.str.758)
   %t27 = load ptr, ptr %t10
   %t28 = load ptr, ptr %t0
   %t29 = getelementptr inbounds %Suite, ptr %t28, i32 0, i32 14
@@ -27253,7 +27316,7 @@ entry:
   %t16 = load ptr, ptr %t2
   call void @Builder.add(ptr %t15, ptr %t16)
   %t17 = load ptr, ptr %t11
-  call void @Builder.add(ptr %t17, ptr @.str.750)
+  call void @Builder.add(ptr %t17, ptr @.str.759)
   %t18 = load ptr, ptr %t11
   %t19 = load ptr, ptr %t3
   call void @Builder.add(ptr %t18, ptr %t19)
@@ -27266,7 +27329,7 @@ entry:
   %t26 = call ptr @Builder.new()
   store ptr %t26, ptr %t27
   %t28 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t28, ptr @.str.751)
+  call void @Builder.add(ptr %t28, ptr @.str.760)
   %t29 = load ptr, ptr %t27
   %t30 = load ptr, ptr %t1
   call void @addPadded(ptr %t29, ptr %t30, i32 10)
@@ -27283,14 +27346,14 @@ entry:
   %t38 = load ptr, ptr %t37
   call void @Builder.add(ptr %t35, ptr %t38)
   %t39 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t39, ptr @.str.752)
+  call void @Builder.add(ptr %t39, ptr @.str.761)
   %t40 = load ptr, ptr %t27
   %t41 = load ptr, ptr %t0
   %t42 = getelementptr inbounds %Suite, ptr %t41, i32 0, i32 14
   %t43 = load ptr, ptr %t42
   call void @Builder.add(ptr %t40, ptr %t43)
   %t44 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t44, ptr @.str.753)
+  call void @Builder.add(ptr %t44, ptr @.str.762)
   %t45 = load ptr, ptr %t27
   %t46 = load ptr, ptr %t3
   call void @Builder.add(ptr %t45, ptr %t46)
@@ -27373,7 +27436,7 @@ L11:
   %t32 = load ptr, ptr %t0
   %t33 = load ptr, ptr %t1
   %t34 = load ptr, ptr %t2
-  call void @Suite.fail(ptr %t32, ptr %t33, ptr %t34, ptr @.str.754)
+  call void @Suite.fail(ptr %t32, ptr %t33, ptr %t34, ptr @.str.763)
   ret void
 L12:
   %t35 = load ptr, ptr %t0
@@ -27436,7 +27499,7 @@ L18:
   %t71 = load ptr, ptr %t2
   call void @Builder.add(ptr %t70, ptr %t71)
   %t72 = load ptr, ptr %t61
-  call void @Builder.add(ptr %t72, ptr @.str.755)
+  call void @Builder.add(ptr %t72, ptr @.str.764)
   %t73 = load ptr, ptr %t61
   %t74 = getelementptr inbounds %Builder, ptr %t73, i32 0, i32 0
   %t75 = load ptr, ptr %t74
@@ -27450,17 +27513,17 @@ L19:
   unreachable
 L20:
   %t81 = call ptr @TextList.new()
-  %t82 = call ptr @TextList.add(ptr %t81, ptr @.str.756)
-  %t83 = call ptr @TextList.add(ptr %t82, ptr @.str.757)
+  %t82 = call ptr @TextList.add(ptr %t81, ptr @.str.765)
+  %t83 = call ptr @TextList.add(ptr %t82, ptr @.str.766)
   store ptr %t83, ptr %t84
   %t85 = load ptr, ptr %t84
-  %t86 = call ptr @TextList.add(ptr %t85, ptr @.str.758)
-  %t87 = call ptr @TextList.add(ptr %t86, ptr @.str.759)
+  %t86 = call ptr @TextList.add(ptr %t85, ptr @.str.767)
+  %t87 = call ptr @TextList.add(ptr %t86, ptr @.str.768)
   %t88 = load ptr, ptr %t3
   %t89 = call ptr @TextList.add(ptr %t87, ptr %t88)
   %t90 = load ptr, ptr %t84
-  %t91 = call ptr @TextList.add(ptr %t90, ptr @.str.760)
-  %t92 = call ptr @TextList.add(ptr %t91, ptr @.str.761)
+  %t91 = call ptr @TextList.add(ptr %t90, ptr @.str.769)
+  %t92 = call ptr @TextList.add(ptr %t91, ptr @.str.770)
   %t93 = load ptr, ptr %t61
   %t94 = getelementptr inbounds %Builder, ptr %t93, i32 0, i32 0
   %t95 = load ptr, ptr %t94
@@ -27567,7 +27630,7 @@ L0:
   br i1 %t10, label %L1, label %L2
 L1:
   %t11 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t11, ptr @.str.762)
+  call void @Builder.add(ptr %t11, ptr @.str.771)
   %t12 = load ptr, ptr %t5
   %t13 = load ptr, ptr %t3
   %t14 = load i32, ptr %t6
@@ -27647,7 +27710,7 @@ L0:
   %t29 = load ptr, ptr %t0
   %t30 = load ptr, ptr %t1
   %t31 = load ptr, ptr %t3
-  call void @Suite.fail(ptr %t29, ptr %t30, ptr %t31, ptr @.str.763)
+  call void @Suite.fail(ptr %t29, ptr %t30, ptr %t31, ptr @.str.772)
   %t32 = load ptr, ptr %t12
   call void @writeIndented(ptr %t32)
   ret void
@@ -27685,7 +27748,7 @@ L6:
   %t54 = call ptr @Builder.new()
   store ptr %t54, ptr %t55
   %t56 = load ptr, ptr %t55
-  call void @Builder.add(ptr %t56, ptr @.str.764)
+  call void @Builder.add(ptr %t56, ptr @.str.773)
   %t57 = load ptr, ptr %t55
   %t58 = load i32, ptr %t51
   %t59 = sext i32 %t58 to i64
@@ -27704,7 +27767,7 @@ L8:
   %t68 = load ptr, ptr %t3
   %t69 = load ptr, ptr %t4
   %t70 = load ptr, ptr %t34
-  call void @Suite.check(ptr %t66, ptr %t67, ptr %t68, ptr %t69, ptr %t70, ptr @.str.765, ptr @.str.766)
+  call void @Suite.check(ptr %t66, ptr %t67, ptr %t68, ptr %t69, ptr %t70, ptr @.str.774, ptr @.str.775)
   ret void
 }
 
@@ -27737,7 +27800,7 @@ entry:
   %t12 = load ptr, ptr %t2
   call void @Builder.add(ptr %t11, ptr %t12)
   %t13 = load ptr, ptr %t10
-  call void @Builder.add(ptr %t13, ptr @.str.767)
+  call void @Builder.add(ptr %t13, ptr @.str.776)
   %t14 = load ptr, ptr %t1
   %t15 = call { i32, ptr } @readBytes(ptr %t14)
   %t16 = extractvalue { i32, ptr } %t15, 0
@@ -27747,7 +27810,7 @@ L0:
   store i32 %t16, ptr %t18
   %t19 = load ptr, ptr %t0
   %t20 = load ptr, ptr %t2
-  call void @Suite.fail(ptr %t19, ptr @.str.768, ptr %t20, ptr @.str.769)
+  call void @Suite.fail(ptr %t19, ptr @.str.777, ptr %t20, ptr @.str.778)
   ret void
 L1:
   %t21 = extractvalue { i32, ptr } %t15, 1
@@ -27768,7 +27831,7 @@ L2:
   store i32 %t32, ptr %t34
   %t35 = load ptr, ptr %t0
   %t36 = load ptr, ptr %t2
-  call void @Suite.fail(ptr %t35, ptr @.str.770, ptr %t36, ptr @.str.771)
+  call void @Suite.fail(ptr %t35, ptr @.str.779, ptr %t36, ptr @.str.780)
   ret void
 L3:
   %t37 = call ptr @Builder.new()
@@ -27778,7 +27841,7 @@ L3:
   %t41 = getelementptr inbounds %Suite, ptr %t40, i32 0, i32 1
   %t42 = load ptr, ptr %t41
   %t43 = call ptr @TextList.add(ptr %t39, ptr %t42)
-  %t44 = call ptr @TextList.add(ptr %t43, ptr @.str.772)
+  %t44 = call ptr @TextList.add(ptr %t43, ptr @.str.781)
   store ptr %t44, ptr %t45
   %t46 = load ptr, ptr %t45
   %t47 = load ptr, ptr %t10
@@ -27805,7 +27868,7 @@ L6:
   %t61 = load i32, ptr %t51
   store i32 %t61, ptr %t62
   %t63 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t63, ptr @.str.773)
+  call void @Builder.add(ptr %t63, ptr @.str.782)
   %t64 = load ptr, ptr %t38
   %t65 = load i32, ptr %t62
   %t66 = sext i32 %t65 to i64
@@ -27816,9 +27879,9 @@ L6:
   %t69 = load ptr, ptr %t2
   %t70 = load ptr, ptr %t1
   %t71 = call ptr @withoutExtension(ptr %t70)
-  %t72 = call ptr @withSuffix(ptr %t71, ptr @.str.775)
+  %t72 = call ptr @withSuffix(ptr %t71, ptr @.str.784)
   %t73 = load ptr, ptr %t38
-  call void @Suite.check(ptr %t68, ptr @.str.774, ptr %t69, ptr %t72, ptr %t73, ptr @.str.776, ptr @.str.777)
+  call void @Suite.check(ptr %t68, ptr @.str.783, ptr %t69, ptr %t72, ptr %t73, ptr @.str.785, ptr @.str.786)
   ret void
 }
 
@@ -27856,7 +27919,7 @@ L2:
   %t10 = load ptr, ptr %t2
   %t11 = getelementptr inbounds %Builder, ptr %t10, i32 0, i32 0
   %t12 = load ptr, ptr %t11
-  %t13 = call i1 @equals(ptr %t12, ptr @.str.778)
+  %t13 = call i1 @equals(ptr %t12, ptr @.str.787)
   ret i1 %t13
 }
 
@@ -27869,7 +27932,7 @@ entry:
   %t3 = load ptr, ptr %t2
   %t4 = getelementptr inbounds %Workspace, ptr %t3, i32 0, i32 0
   %t5 = load ptr, ptr %t4
-  %t6 = call ptr @joinPath(ptr %t5, ptr @.str.779)
+  %t6 = call ptr @joinPath(ptr %t5, ptr @.str.788)
   ret ptr %t6
 }
 
@@ -27882,158 +27945,6 @@ entry:
   %t29 = alloca i1
   %t30 = alloca i1
   %t31 = alloca i1
-  store ptr %p0, ptr %t0
-  %t1 = load ptr, ptr %t0
-  %t2 = getelementptr inbounds %Suite, ptr %t1, i32 0, i32 2
-  %t3 = load ptr, ptr %t2
-  %t4 = call ptr @joinPath(ptr %t3, ptr @.str.780)
-  store ptr %t4, ptr %t5
-  %t6 = load ptr, ptr %t5
-  %t7 = call ptr @parentDirectory(ptr %t6)
-  %t8 = call { i32 } @makeDirectories(ptr %t7)
-  %t9 = extractvalue { i32 } %t8, 0
-  %t10 = icmp sgt i32 %t9, 0
-  br i1 %t10, label %L0, label %L1
-L0:
-  store i32 %t9, ptr %t11
-  ret i1 false
-L1:
-  %t12 = call ptr @TextList.new()
-  %t13 = load ptr, ptr %t0
-  %t14 = getelementptr inbounds %Suite, ptr %t13, i32 0, i32 1
-  %t15 = load ptr, ptr %t14
-  %t16 = call ptr @TextList.add(ptr %t12, ptr %t15)
-  store ptr %t16, ptr %t17
-  %t18 = load ptr, ptr %t17
-  %t19 = call ptr @TextList.add(ptr %t18, ptr @.str.781)
-  %t20 = load ptr, ptr %t5
-  %t21 = call ptr @TextList.add(ptr %t19, ptr %t20)
-  %t22 = load ptr, ptr %t0
-  %t23 = call ptr @exampleOne(ptr %t22)
-  %t24 = call ptr @TextList.add(ptr %t21, ptr %t23)
-  %t25 = load ptr, ptr %t0
-  %t26 = load ptr, ptr %t17
-  %t27 = call i1 @compileQuietly(ptr %t25, ptr %t26)
-  %t28 = xor i1 %t27, true
-  br i1 %t28, label %L2, label %L4
-L2:
-  ret i1 false
-L4:
-  %t32 = load ptr, ptr %t5
-  %t33 = call i1 @isExecutable(ptr %t32)
-  store i1 %t33, ptr %t31
-  br i1 %t33, label %L5, label %L6
-L5:
-  %t34 = load ptr, ptr %t5
-  %t35 = call ptr @withSuffix(ptr %t34, ptr @.str.782)
-  %t36 = call i1 @exists(ptr %t35)
-  %t37 = xor i1 %t36, true
-  store i1 %t37, ptr %t31
-  br label %L6
-L6:
-  %t38 = load i1, ptr %t31
-  store i1 %t38, ptr %t30
-  br i1 %t38, label %L7, label %L8
-L7:
-  %t39 = load ptr, ptr %t5
-  %t40 = call ptr @withSuffix(ptr %t39, ptr @.str.783)
-  %t41 = call i1 @exists(ptr %t40)
-  %t42 = xor i1 %t41, true
-  store i1 %t42, ptr %t30
-  br label %L8
-L8:
-  %t43 = load i1, ptr %t30
-  store i1 %t43, ptr %t29
-  br i1 %t43, label %L9, label %L10
-L9:
-  %t44 = load ptr, ptr %t5
-  %t45 = call i1 @printsZero(ptr %t44)
-  store i1 %t45, ptr %t29
-  br label %L10
-L10:
-  %t46 = load i1, ptr %t29
-  ret i1 %t46
-}
-
-define i1 @checkKeepIntermediatesFlag(ptr %p0) {
-entry:
-  %t0 = alloca ptr
-  %t5 = alloca ptr
-  %t11 = alloca i32
-  %t17 = alloca ptr
-  %t30 = alloca i1
-  %t31 = alloca i1
-  store ptr %p0, ptr %t0
-  %t1 = load ptr, ptr %t0
-  %t2 = getelementptr inbounds %Suite, ptr %t1, i32 0, i32 2
-  %t3 = load ptr, ptr %t2
-  %t4 = call ptr @joinPath(ptr %t3, ptr @.str.784)
-  store ptr %t4, ptr %t5
-  %t6 = load ptr, ptr %t5
-  %t7 = call ptr @parentDirectory(ptr %t6)
-  %t8 = call { i32 } @makeDirectories(ptr %t7)
-  %t9 = extractvalue { i32 } %t8, 0
-  %t10 = icmp sgt i32 %t9, 0
-  br i1 %t10, label %L0, label %L1
-L0:
-  store i32 %t9, ptr %t11
-  ret i1 false
-L1:
-  %t12 = call ptr @TextList.new()
-  %t13 = load ptr, ptr %t0
-  %t14 = getelementptr inbounds %Suite, ptr %t13, i32 0, i32 1
-  %t15 = load ptr, ptr %t14
-  %t16 = call ptr @TextList.add(ptr %t12, ptr %t15)
-  store ptr %t16, ptr %t17
-  %t18 = load ptr, ptr %t17
-  %t19 = call ptr @TextList.add(ptr %t18, ptr @.str.785)
-  %t20 = call ptr @TextList.add(ptr %t19, ptr @.str.786)
-  %t21 = load ptr, ptr %t5
-  %t22 = call ptr @TextList.add(ptr %t20, ptr %t21)
-  %t23 = load ptr, ptr %t0
-  %t24 = call ptr @exampleOne(ptr %t23)
-  %t25 = call ptr @TextList.add(ptr %t22, ptr %t24)
-  %t26 = load ptr, ptr %t0
-  %t27 = load ptr, ptr %t17
-  %t28 = call i1 @compileQuietly(ptr %t26, ptr %t27)
-  %t29 = xor i1 %t28, true
-  br i1 %t29, label %L2, label %L4
-L2:
-  ret i1 false
-L4:
-  %t32 = load ptr, ptr %t5
-  %t33 = call i1 @isExecutable(ptr %t32)
-  store i1 %t33, ptr %t31
-  br i1 %t33, label %L5, label %L6
-L5:
-  %t34 = load ptr, ptr %t5
-  %t35 = call ptr @withSuffix(ptr %t34, ptr @.str.787)
-  %t36 = call i1 @exists(ptr %t35)
-  store i1 %t36, ptr %t31
-  br label %L6
-L6:
-  %t37 = load i1, ptr %t31
-  store i1 %t37, ptr %t30
-  br i1 %t37, label %L7, label %L8
-L7:
-  %t38 = load ptr, ptr %t5
-  %t39 = call ptr @withSuffix(ptr %t38, ptr @.str.788)
-  %t40 = call i1 @exists(ptr %t39)
-  store i1 %t40, ptr %t30
-  br label %L8
-L8:
-  %t41 = load i1, ptr %t30
-  ret i1 %t41
-}
-
-define i1 @checkHostileOutputPath(ptr %p0) {
-entry:
-  %t0 = alloca ptr
-  %t5 = alloca ptr
-  %t11 = alloca i32
-  %t17 = alloca ptr
-  %t29 = alloca i1
-  %t30 = alloca i1
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
   %t2 = getelementptr inbounds %Suite, ptr %t1, i32 0, i32 2
@@ -28071,6 +27982,158 @@ L1:
 L2:
   ret i1 false
 L4:
+  %t32 = load ptr, ptr %t5
+  %t33 = call i1 @isExecutable(ptr %t32)
+  store i1 %t33, ptr %t31
+  br i1 %t33, label %L5, label %L6
+L5:
+  %t34 = load ptr, ptr %t5
+  %t35 = call ptr @withSuffix(ptr %t34, ptr @.str.791)
+  %t36 = call i1 @exists(ptr %t35)
+  %t37 = xor i1 %t36, true
+  store i1 %t37, ptr %t31
+  br label %L6
+L6:
+  %t38 = load i1, ptr %t31
+  store i1 %t38, ptr %t30
+  br i1 %t38, label %L7, label %L8
+L7:
+  %t39 = load ptr, ptr %t5
+  %t40 = call ptr @withSuffix(ptr %t39, ptr @.str.792)
+  %t41 = call i1 @exists(ptr %t40)
+  %t42 = xor i1 %t41, true
+  store i1 %t42, ptr %t30
+  br label %L8
+L8:
+  %t43 = load i1, ptr %t30
+  store i1 %t43, ptr %t29
+  br i1 %t43, label %L9, label %L10
+L9:
+  %t44 = load ptr, ptr %t5
+  %t45 = call i1 @printsZero(ptr %t44)
+  store i1 %t45, ptr %t29
+  br label %L10
+L10:
+  %t46 = load i1, ptr %t29
+  ret i1 %t46
+}
+
+define i1 @checkKeepIntermediatesFlag(ptr %p0) {
+entry:
+  %t0 = alloca ptr
+  %t5 = alloca ptr
+  %t11 = alloca i32
+  %t17 = alloca ptr
+  %t30 = alloca i1
+  %t31 = alloca i1
+  store ptr %p0, ptr %t0
+  %t1 = load ptr, ptr %t0
+  %t2 = getelementptr inbounds %Suite, ptr %t1, i32 0, i32 2
+  %t3 = load ptr, ptr %t2
+  %t4 = call ptr @joinPath(ptr %t3, ptr @.str.793)
+  store ptr %t4, ptr %t5
+  %t6 = load ptr, ptr %t5
+  %t7 = call ptr @parentDirectory(ptr %t6)
+  %t8 = call { i32 } @makeDirectories(ptr %t7)
+  %t9 = extractvalue { i32 } %t8, 0
+  %t10 = icmp sgt i32 %t9, 0
+  br i1 %t10, label %L0, label %L1
+L0:
+  store i32 %t9, ptr %t11
+  ret i1 false
+L1:
+  %t12 = call ptr @TextList.new()
+  %t13 = load ptr, ptr %t0
+  %t14 = getelementptr inbounds %Suite, ptr %t13, i32 0, i32 1
+  %t15 = load ptr, ptr %t14
+  %t16 = call ptr @TextList.add(ptr %t12, ptr %t15)
+  store ptr %t16, ptr %t17
+  %t18 = load ptr, ptr %t17
+  %t19 = call ptr @TextList.add(ptr %t18, ptr @.str.794)
+  %t20 = call ptr @TextList.add(ptr %t19, ptr @.str.795)
+  %t21 = load ptr, ptr %t5
+  %t22 = call ptr @TextList.add(ptr %t20, ptr %t21)
+  %t23 = load ptr, ptr %t0
+  %t24 = call ptr @exampleOne(ptr %t23)
+  %t25 = call ptr @TextList.add(ptr %t22, ptr %t24)
+  %t26 = load ptr, ptr %t0
+  %t27 = load ptr, ptr %t17
+  %t28 = call i1 @compileQuietly(ptr %t26, ptr %t27)
+  %t29 = xor i1 %t28, true
+  br i1 %t29, label %L2, label %L4
+L2:
+  ret i1 false
+L4:
+  %t32 = load ptr, ptr %t5
+  %t33 = call i1 @isExecutable(ptr %t32)
+  store i1 %t33, ptr %t31
+  br i1 %t33, label %L5, label %L6
+L5:
+  %t34 = load ptr, ptr %t5
+  %t35 = call ptr @withSuffix(ptr %t34, ptr @.str.796)
+  %t36 = call i1 @exists(ptr %t35)
+  store i1 %t36, ptr %t31
+  br label %L6
+L6:
+  %t37 = load i1, ptr %t31
+  store i1 %t37, ptr %t30
+  br i1 %t37, label %L7, label %L8
+L7:
+  %t38 = load ptr, ptr %t5
+  %t39 = call ptr @withSuffix(ptr %t38, ptr @.str.797)
+  %t40 = call i1 @exists(ptr %t39)
+  store i1 %t40, ptr %t30
+  br label %L8
+L8:
+  %t41 = load i1, ptr %t30
+  ret i1 %t41
+}
+
+define i1 @checkHostileOutputPath(ptr %p0) {
+entry:
+  %t0 = alloca ptr
+  %t5 = alloca ptr
+  %t11 = alloca i32
+  %t17 = alloca ptr
+  %t29 = alloca i1
+  %t30 = alloca i1
+  store ptr %p0, ptr %t0
+  %t1 = load ptr, ptr %t0
+  %t2 = getelementptr inbounds %Suite, ptr %t1, i32 0, i32 2
+  %t3 = load ptr, ptr %t2
+  %t4 = call ptr @joinPath(ptr %t3, ptr @.str.798)
+  store ptr %t4, ptr %t5
+  %t6 = load ptr, ptr %t5
+  %t7 = call ptr @parentDirectory(ptr %t6)
+  %t8 = call { i32 } @makeDirectories(ptr %t7)
+  %t9 = extractvalue { i32 } %t8, 0
+  %t10 = icmp sgt i32 %t9, 0
+  br i1 %t10, label %L0, label %L1
+L0:
+  store i32 %t9, ptr %t11
+  ret i1 false
+L1:
+  %t12 = call ptr @TextList.new()
+  %t13 = load ptr, ptr %t0
+  %t14 = getelementptr inbounds %Suite, ptr %t13, i32 0, i32 1
+  %t15 = load ptr, ptr %t14
+  %t16 = call ptr @TextList.add(ptr %t12, ptr %t15)
+  store ptr %t16, ptr %t17
+  %t18 = load ptr, ptr %t17
+  %t19 = call ptr @TextList.add(ptr %t18, ptr @.str.799)
+  %t20 = load ptr, ptr %t5
+  %t21 = call ptr @TextList.add(ptr %t19, ptr %t20)
+  %t22 = load ptr, ptr %t0
+  %t23 = call ptr @exampleOne(ptr %t22)
+  %t24 = call ptr @TextList.add(ptr %t21, ptr %t23)
+  %t25 = load ptr, ptr %t0
+  %t26 = load ptr, ptr %t17
+  %t27 = call i1 @compileQuietly(ptr %t25, ptr %t26)
+  %t28 = xor i1 %t27, true
+  br i1 %t28, label %L2, label %L4
+L2:
+  ret i1 false
+L4:
   %t31 = load ptr, ptr %t5
   %t32 = call i1 @isExecutable(ptr %t31)
   store i1 %t32, ptr %t30
@@ -28079,7 +28142,7 @@ L5:
   %t33 = load ptr, ptr %t0
   %t34 = getelementptr inbounds %Suite, ptr %t33, i32 0, i32 2
   %t35 = load ptr, ptr %t34
-  %t36 = call ptr @joinPath(ptr %t35, ptr @.str.791)
+  %t36 = call ptr @joinPath(ptr %t35, ptr @.str.800)
   %t37 = call i1 @exists(ptr %t36)
   %t38 = xor i1 %t37, true
   store i1 %t38, ptr %t30
@@ -28133,7 +28196,7 @@ entry:
   %t11 = getelementptr inbounds %Suite, ptr %t10, i32 0, i32 1
   %t12 = load ptr, ptr %t11
   %t13 = call ptr @TextList.add(ptr %t9, ptr %t12)
-  %t14 = call ptr @TextList.add(ptr %t13, ptr @.str.792)
+  %t14 = call ptr @TextList.add(ptr %t13, ptr @.str.801)
   store ptr %t14, ptr %t15
   %t16 = load ptr, ptr %t15
   %t17 = load ptr, ptr %t0
@@ -28141,7 +28204,7 @@ entry:
   %t19 = load ptr, ptr %t18
   %t20 = getelementptr inbounds %Workspace, ptr %t19, i32 0, i32 0
   %t21 = load ptr, ptr %t20
-  %t22 = call ptr @joinPath(ptr %t21, ptr @.str.793)
+  %t22 = call ptr @joinPath(ptr %t21, ptr @.str.802)
   %t23 = call ptr @TextList.add(ptr %t16, ptr %t22)
   %t24 = load ptr, ptr %t15
   %t25 = load ptr, ptr %t0
@@ -28153,11 +28216,11 @@ entry:
   br i1 %t30, label %L0, label %L2
 L0:
   %t31 = load ptr, ptr %t0
-  call void @Suite.pass(ptr %t31, ptr @.str.794, ptr @.str.795)
+  call void @Suite.pass(ptr %t31, ptr @.str.803, ptr @.str.804)
   ret void
 L2:
   %t32 = load ptr, ptr %t0
-  call void @Suite.fail(ptr %t32, ptr @.str.796, ptr @.str.797, ptr @.str.798)
+  call void @Suite.fail(ptr %t32, ptr @.str.805, ptr @.str.806, ptr @.str.807)
   %t33 = load ptr, ptr %t8
   call void @writeIndented(ptr %t33)
   ret void
@@ -28187,7 +28250,7 @@ entry:
   %t13 = getelementptr inbounds %Suite, ptr %t12, i32 0, i32 1
   %t14 = load ptr, ptr %t13
   %t15 = call ptr @TextList.add(ptr %t11, ptr %t14)
-  %t16 = call ptr @TextList.add(ptr %t15, ptr @.str.799)
+  %t16 = call ptr @TextList.add(ptr %t15, ptr @.str.808)
   store ptr %t16, ptr %t17
   %t18 = load ptr, ptr %t17
   %t19 = load ptr, ptr %t1
@@ -28203,12 +28266,12 @@ entry:
 L0:
   %t28 = load ptr, ptr %t0
   %t29 = load ptr, ptr %t2
-  call void @Suite.pass(ptr %t28, ptr @.str.800, ptr %t29)
+  call void @Suite.pass(ptr %t28, ptr @.str.809, ptr %t29)
   ret void
 L2:
   %t30 = load ptr, ptr %t0
   %t31 = load ptr, ptr %t2
-  call void @Suite.fail(ptr %t30, ptr @.str.801, ptr %t31, ptr @.str.802)
+  call void @Suite.fail(ptr %t30, ptr @.str.810, ptr %t31, ptr @.str.811)
   %t32 = load ptr, ptr %t10
   call void @writeIndented(ptr %t32)
   ret void
@@ -28241,7 +28304,7 @@ entry:
   %t12 = load ptr, ptr %t11
   %t13 = getelementptr inbounds %Workspace, ptr %t12, i32 0, i32 0
   %t14 = load ptr, ptr %t13
-  %t15 = call ptr @joinPath(ptr %t14, ptr @.str.803)
+  %t15 = call ptr @joinPath(ptr %t14, ptr @.str.812)
   %t16 = call ptr @TextList.add(ptr %t9, ptr %t15)
   %t19 = load ptr, ptr %t8
   %t20 = load ptr, ptr %t0
@@ -28268,7 +28331,7 @@ L3:
   %t30 = load ptr, ptr %t2
   %t31 = getelementptr inbounds %Builder, ptr %t30, i32 0, i32 0
   %t32 = load ptr, ptr %t31
-  %t33 = call i1 @contains(ptr %t32, ptr @.str.804)
+  %t33 = call i1 @contains(ptr %t32, ptr @.str.813)
   %t34 = xor i1 %t33, true
   store i1 %t34, ptr %t17
   br label %L4
@@ -28281,7 +28344,7 @@ L7:
   %t36 = load ptr, ptr %t0
   %t37 = getelementptr inbounds %Suite, ptr %t36, i32 0, i32 2
   %t38 = load ptr, ptr %t37
-  %t39 = call ptr @joinPath(ptr %t38, ptr @.str.805)
+  %t39 = call ptr @joinPath(ptr %t38, ptr @.str.814)
   store ptr %t39, ptr %t40
   %t41 = load ptr, ptr %t40
   %t42 = call { i32 } @makeDirectories(ptr %t41)
@@ -28299,7 +28362,7 @@ L9:
   %t49 = getelementptr inbounds %Suite, ptr %t48, i32 0, i32 1
   %t50 = load ptr, ptr %t49
   %t51 = call ptr @TextList.add(ptr %t47, ptr %t50)
-  %t52 = call ptr @TextList.add(ptr %t51, ptr @.str.806)
+  %t52 = call ptr @TextList.add(ptr %t51, ptr @.str.815)
   store ptr %t52, ptr %t53
   %t54 = load ptr, ptr %t53
   %t55 = load ptr, ptr %t40
@@ -28329,7 +28392,7 @@ L13:
   %t70 = load ptr, ptr %t2
   %t71 = getelementptr inbounds %Builder, ptr %t70, i32 0, i32 0
   %t72 = load ptr, ptr %t71
-  %t73 = call i1 @contains(ptr %t72, ptr @.str.807)
+  %t73 = call i1 @contains(ptr %t72, ptr @.str.816)
   store i1 %t73, ptr %t57
   br label %L14
 L14:
@@ -28355,7 +28418,7 @@ entry:
   %t5 = getelementptr inbounds %Suite, ptr %t4, i32 0, i32 1
   %t6 = load ptr, ptr %t5
   %t7 = call ptr @TextList.add(ptr %t3, ptr %t6)
-  %t8 = call ptr @TextList.add(ptr %t7, ptr @.str.808)
+  %t8 = call ptr @TextList.add(ptr %t7, ptr @.str.817)
   store ptr %t8, ptr %t9
   %t12 = load ptr, ptr %t9
   %t13 = load ptr, ptr %t0
@@ -28382,7 +28445,7 @@ L3:
   %t23 = load ptr, ptr %t2
   %t24 = getelementptr inbounds %Builder, ptr %t23, i32 0, i32 0
   %t25 = load ptr, ptr %t24
-  %t26 = call i1 @contains(ptr %t25, ptr @.str.809)
+  %t26 = call i1 @contains(ptr %t25, ptr @.str.818)
   %t27 = xor i1 %t26, true
   store i1 %t27, ptr %t10
   br label %L4
@@ -28399,10 +28462,10 @@ L7:
   %t32 = getelementptr inbounds %Suite, ptr %t31, i32 0, i32 1
   %t33 = load ptr, ptr %t32
   %t34 = call ptr @TextList.add(ptr %t30, ptr %t33)
-  %t35 = call ptr @TextList.add(ptr %t34, ptr @.str.810)
+  %t35 = call ptr @TextList.add(ptr %t34, ptr @.str.819)
   store ptr %t35, ptr %t36
   %t37 = load ptr, ptr %t36
-  %t38 = call ptr @TextList.add(ptr %t37, ptr @.str.811)
+  %t38 = call ptr @TextList.add(ptr %t37, ptr @.str.820)
   %t41 = load ptr, ptr %t36
   %t42 = load ptr, ptr %t0
   %t43 = getelementptr inbounds %Suite, ptr %t42, i32 0, i32 2
@@ -28428,7 +28491,7 @@ L11:
   %t52 = load ptr, ptr %t2
   %t53 = getelementptr inbounds %Builder, ptr %t52, i32 0, i32 0
   %t54 = load ptr, ptr %t53
-  %t55 = call i1 @contains(ptr %t54, ptr @.str.812)
+  %t55 = call i1 @contains(ptr %t54, ptr @.str.821)
   store i1 %t55, ptr %t39
   br label %L12
 L12:
@@ -28450,7 +28513,7 @@ entry:
   %t5 = getelementptr inbounds %Suite, ptr %t4, i32 0, i32 1
   %t6 = load ptr, ptr %t5
   %t7 = call ptr @TextList.add(ptr %t3, ptr %t6)
-  %t8 = call ptr @TextList.add(ptr %t7, ptr @.str.813)
+  %t8 = call ptr @TextList.add(ptr %t7, ptr @.str.822)
   store ptr %t8, ptr %t9
   %t10 = load ptr, ptr %t9
   %t11 = load ptr, ptr %t0
@@ -28458,9 +28521,9 @@ entry:
   %t13 = load ptr, ptr %t12
   %t14 = getelementptr inbounds %Workspace, ptr %t13, i32 0, i32 0
   %t15 = load ptr, ptr %t14
-  %t16 = call ptr @joinPath(ptr %t15, ptr @.str.814)
+  %t16 = call ptr @joinPath(ptr %t15, ptr @.str.823)
   %t17 = call ptr @TextList.add(ptr %t10, ptr %t16)
-  %t18 = call ptr @TextList.add(ptr %t17, ptr @.str.815)
+  %t18 = call ptr @TextList.add(ptr %t17, ptr @.str.824)
   %t20 = load ptr, ptr %t9
   %t21 = load ptr, ptr %t0
   %t22 = getelementptr inbounds %Suite, ptr %t21, i32 0, i32 2
@@ -28474,7 +28537,7 @@ L0:
   %t27 = load ptr, ptr %t2
   %t28 = getelementptr inbounds %Builder, ptr %t27, i32 0, i32 0
   %t29 = load ptr, ptr %t28
-  %t30 = call i1 @contains(ptr %t29, ptr @.str.816)
+  %t30 = call i1 @contains(ptr %t29, ptr @.str.825)
   store i1 %t30, ptr %t19
   br label %L1
 L1:
@@ -28495,12 +28558,12 @@ entry:
 L0:
   %t4 = load ptr, ptr %t0
   %t5 = load ptr, ptr %t1
-  call void @Suite.pass(ptr %t4, ptr @.str.817, ptr %t5)
+  call void @Suite.pass(ptr %t4, ptr @.str.826, ptr %t5)
   br label %L2
 L1:
   %t6 = load ptr, ptr %t0
   %t7 = load ptr, ptr %t1
-  call void @Suite.fail(ptr %t6, ptr @.str.818, ptr %t7, ptr @.str.819)
+  call void @Suite.fail(ptr %t6, ptr @.str.827, ptr %t7, ptr @.str.828)
   br label %L2
 L2:
   ret void
@@ -28555,15 +28618,15 @@ L2:
   %t13 = load ptr, ptr %t0
   %t14 = getelementptr inbounds %Workspace, ptr %t13, i32 0, i32 0
   %t15 = load ptr, ptr %t14
-  %t16 = call ptr @joinPath(ptr %t15, ptr @.str.821)
-  call void @setEnvironment(ptr @.str.820, ptr %t16)
-  %t17 = call { i32, ptr } @makeTempDirectory(ptr @.str.822)
+  %t16 = call ptr @joinPath(ptr %t15, ptr @.str.830)
+  call void @setEnvironment(ptr @.str.829, ptr %t16)
+  %t17 = call { i32, ptr } @makeTempDirectory(ptr @.str.831)
   %t18 = extractvalue { i32, ptr } %t17, 0
   %t19 = icmp sgt i32 %t18, 0
   br i1 %t19, label %L6, label %L7
 L6:
   store i32 %t18, ptr %t20
-  call void @complain(ptr @.str.823)
+  call void @complain(ptr @.str.832)
   ret i32 1
 L7:
   %t21 = extractvalue { i32, ptr } %t17, 1
@@ -28613,33 +28676,33 @@ L7:
   store ptr %t52, ptr %t54
   %t55 = load ptr, ptr %t24
   %t56 = getelementptr inbounds %Suite, ptr %t55, i32 0, i32 11
-  store ptr @.str.824, ptr %t56
+  store ptr @.str.833, ptr %t56
   %t57 = load ptr, ptr %t24
   %t58 = getelementptr inbounds %Suite, ptr %t57, i32 0, i32 12
-  store ptr @.str.825, ptr %t58
+  store ptr @.str.834, ptr %t58
   %t59 = load ptr, ptr %t24
   %t60 = getelementptr inbounds %Suite, ptr %t59, i32 0, i32 13
-  store ptr @.str.826, ptr %t60
+  store ptr @.str.835, ptr %t60
   %t61 = load ptr, ptr %t24
   %t62 = getelementptr inbounds %Suite, ptr %t61, i32 0, i32 14
-  store ptr @.str.827, ptr %t62
+  store ptr @.str.836, ptr %t62
   %t63 = load i32, ptr @STDOUT
   %t64 = call i1 @isTerminal(i32 %t63)
   br i1 %t64, label %L8, label %L10
 L8:
-  %t65 = call ptr @colour(ptr @.str.828)
+  %t65 = call ptr @colour(ptr @.str.837)
   %t66 = load ptr, ptr %t24
   %t67 = getelementptr inbounds %Suite, ptr %t66, i32 0, i32 11
   store ptr %t65, ptr %t67
-  %t68 = call ptr @colour(ptr @.str.829)
+  %t68 = call ptr @colour(ptr @.str.838)
   %t69 = load ptr, ptr %t24
   %t70 = getelementptr inbounds %Suite, ptr %t69, i32 0, i32 12
   store ptr %t68, ptr %t70
-  %t71 = call ptr @colour(ptr @.str.830)
+  %t71 = call ptr @colour(ptr @.str.839)
   %t72 = load ptr, ptr %t24
   %t73 = getelementptr inbounds %Suite, ptr %t72, i32 0, i32 13
   store ptr %t71, ptr %t73
-  %t74 = call ptr @colour(ptr @.str.831)
+  %t74 = call ptr @colour(ptr @.str.840)
   %t75 = load ptr, ptr %t24
   %t76 = getelementptr inbounds %Suite, ptr %t75, i32 0, i32 14
   store ptr %t74, ptr %t76
@@ -28648,12 +28711,12 @@ L10:
   %t77 = load ptr, ptr %t0
   %t78 = getelementptr inbounds %Workspace, ptr %t77, i32 0, i32 0
   %t79 = load ptr, ptr %t78
-  %t80 = call ptr @joinPath(ptr %t79, ptr @.str.832)
+  %t80 = call ptr @joinPath(ptr %t79, ptr @.str.841)
   store ptr %t80, ptr %t81
   %t82 = load ptr, ptr %t0
   %t83 = getelementptr inbounds %Workspace, ptr %t82, i32 0, i32 0
   %t84 = load ptr, ptr %t83
-  %t85 = call ptr @joinPath(ptr %t84, ptr @.str.833)
+  %t85 = call ptr @joinPath(ptr %t84, ptr @.str.842)
   store ptr %t85, ptr %t86
   %t87 = load ptr, ptr %t86
   %t88 = call { i32 } @makeDirectories(ptr %t87)
@@ -28662,7 +28725,7 @@ L10:
   br i1 %t90, label %L11, label %L12
 L11:
   store i32 %t89, ptr %t91
-  call void @complain(ptr @.str.834)
+  call void @complain(ptr @.str.843)
   ret i32 1
 L12:
   %t92 = load ptr, ptr %t81
@@ -28683,7 +28746,7 @@ L14:
   %t103 = call ptr @TextList.at(ptr %t101, i32 %t102)
   store ptr %t103, ptr %t104
   %t106 = load ptr, ptr %t104
-  %t107 = call i1 @endsWith(ptr %t106, ptr @.str.835)
+  %t107 = call i1 @endsWith(ptr %t106, ptr @.str.844)
   store i1 %t107, ptr %t105
   br i1 %t107, label %L17, label %L18
 L17:
@@ -28708,8 +28771,8 @@ L19:
   %t121 = load ptr, ptr %t86
   %t122 = load ptr, ptr %t115
   %t123 = call ptr @joinPath(ptr %t121, ptr %t122)
-  %t124 = call ptr @withSuffix(ptr %t123, ptr @.str.837)
-  call void @runProgramCase(ptr %t116, ptr @.str.836, ptr %t119, ptr %t120, ptr %t124)
+  %t124 = call ptr @withSuffix(ptr %t123, ptr @.str.846)
+  call void @runProgramCase(ptr %t116, ptr @.str.845, ptr %t119, ptr %t120, ptr %t124)
   br label %L21
 L21:
   br label %L15
@@ -28722,7 +28785,7 @@ L16:
   %t127 = load ptr, ptr %t0
   %t128 = getelementptr inbounds %Workspace, ptr %t127, i32 0, i32 0
   %t129 = load ptr, ptr %t128
-  %t130 = call ptr @joinPath(ptr %t129, ptr @.str.838)
+  %t130 = call ptr @joinPath(ptr %t129, ptr @.str.847)
   store ptr %t130, ptr %t131
   %t132 = load ptr, ptr %t131
   %t133 = call ptr @listDirectory(ptr %t132)
@@ -28742,7 +28805,7 @@ L23:
   %t142 = call ptr @TextList.at(ptr %t140, i32 %t141)
   store ptr %t142, ptr %t143
   %t145 = load ptr, ptr %t143
-  %t146 = call i1 @endsWith(ptr %t145, ptr @.str.839)
+  %t146 = call i1 @endsWith(ptr %t145, ptr @.str.848)
   store i1 %t146, ptr %t144
   br i1 %t146, label %L26, label %L27
 L26:
@@ -28773,7 +28836,7 @@ L24:
   br label %L22
 L25:
   %t160 = load ptr, ptr %t24
-  %t161 = call i1 @Suite.selected(ptr %t160, ptr @.str.840)
+  %t161 = call i1 @Suite.selected(ptr %t160, ptr @.str.849)
   br i1 %t161, label %L31, label %L33
 L31:
   %t162 = load ptr, ptr %t24
@@ -28781,85 +28844,85 @@ L31:
   br label %L33
 L33:
   %t163 = load ptr, ptr %t24
-  %t164 = call i1 @Suite.selected(ptr %t163, ptr @.str.841)
+  %t164 = call i1 @Suite.selected(ptr %t163, ptr @.str.850)
   br i1 %t164, label %L34, label %L36
 L34:
   %t165 = load ptr, ptr %t24
   %t166 = load ptr, ptr %t0
   %t167 = getelementptr inbounds %Workspace, ptr %t166, i32 0, i32 0
   %t168 = load ptr, ptr %t167
-  %t169 = call ptr @joinPath(ptr %t168, ptr @.str.842)
-  call void @runLibraryTests(ptr %t165, ptr %t169, ptr @.str.843)
+  %t169 = call ptr @joinPath(ptr %t168, ptr @.str.851)
+  call void @runLibraryTests(ptr %t165, ptr %t169, ptr @.str.852)
   br label %L36
 L36:
   %t170 = load ptr, ptr %t24
-  %t171 = call i1 @Suite.selected(ptr %t170, ptr @.str.844)
+  %t171 = call i1 @Suite.selected(ptr %t170, ptr @.str.853)
   br i1 %t171, label %L37, label %L39
 L37:
   %t172 = load ptr, ptr %t24
   %t173 = load ptr, ptr %t24
   %t174 = call i1 @checkOutputFlag(ptr %t173)
-  call void @runCli(ptr %t172, ptr @.str.845, i1 %t174)
+  call void @runCli(ptr %t172, ptr @.str.854, i1 %t174)
   br label %L39
 L39:
   %t175 = load ptr, ptr %t24
-  %t176 = call i1 @Suite.selected(ptr %t175, ptr @.str.846)
+  %t176 = call i1 @Suite.selected(ptr %t175, ptr @.str.855)
   br i1 %t176, label %L40, label %L42
 L40:
   %t177 = load ptr, ptr %t24
   %t178 = load ptr, ptr %t24
   %t179 = call i1 @checkKeepIntermediatesFlag(ptr %t178)
-  call void @runCli(ptr %t177, ptr @.str.847, i1 %t179)
+  call void @runCli(ptr %t177, ptr @.str.856, i1 %t179)
   br label %L42
 L42:
   %t180 = load ptr, ptr %t24
-  %t181 = call i1 @Suite.selected(ptr %t180, ptr @.str.848)
+  %t181 = call i1 @Suite.selected(ptr %t180, ptr @.str.857)
   br i1 %t181, label %L43, label %L45
 L43:
   %t182 = load ptr, ptr %t24
   %t183 = load ptr, ptr %t24
   %t184 = call i1 @checkHostileOutputPath(ptr %t183)
-  call void @runCli(ptr %t182, ptr @.str.849, i1 %t184)
+  call void @runCli(ptr %t182, ptr @.str.858, i1 %t184)
   br label %L45
 L45:
   %t185 = load ptr, ptr %t24
-  %t186 = call i1 @Suite.selected(ptr %t185, ptr @.str.850)
+  %t186 = call i1 @Suite.selected(ptr %t185, ptr @.str.859)
   br i1 %t186, label %L46, label %L48
 L46:
   %t187 = load ptr, ptr %t24
   %t188 = load ptr, ptr %t24
   %t189 = call i1 @checkNoInputFile(ptr %t188)
-  call void @runCli(ptr %t187, ptr @.str.851, i1 %t189)
+  call void @runCli(ptr %t187, ptr @.str.860, i1 %t189)
   br label %L48
 L48:
   %t190 = load ptr, ptr %t24
-  %t191 = call i1 @Suite.selected(ptr %t190, ptr @.str.852)
+  %t191 = call i1 @Suite.selected(ptr %t190, ptr @.str.861)
   br i1 %t191, label %L49, label %L51
 L49:
   %t192 = load ptr, ptr %t24
   %t193 = load ptr, ptr %t24
   %t194 = call i1 @checkDirectoryInput(ptr %t193)
-  call void @runCli(ptr %t192, ptr @.str.853, i1 %t194)
+  call void @runCli(ptr %t192, ptr @.str.862, i1 %t194)
   br label %L51
 L51:
   %t195 = load ptr, ptr %t24
-  %t196 = call i1 @Suite.selected(ptr %t195, ptr @.str.854)
+  %t196 = call i1 @Suite.selected(ptr %t195, ptr @.str.863)
   br i1 %t196, label %L52, label %L54
 L52:
   %t197 = load ptr, ptr %t24
   %t198 = load ptr, ptr %t24
   %t199 = call i1 @checkTestWithoutInput(ptr %t198)
-  call void @runCli(ptr %t197, ptr @.str.855, i1 %t199)
+  call void @runCli(ptr %t197, ptr @.str.864, i1 %t199)
   br label %L54
 L54:
   %t200 = load ptr, ptr %t24
-  %t201 = call i1 @Suite.selected(ptr %t200, ptr @.str.856)
+  %t201 = call i1 @Suite.selected(ptr %t200, ptr @.str.865)
   br i1 %t201, label %L55, label %L57
 L55:
   %t202 = load ptr, ptr %t24
   %t203 = load ptr, ptr %t24
   %t204 = call i1 @checkTestFilterMatchingNothing(ptr %t203)
-  call void @runCli(ptr %t202, ptr @.str.857, i1 %t204)
+  call void @runCli(ptr %t202, ptr @.str.866, i1 %t204)
   br label %L57
 L57:
   %t205 = load ptr, ptr %t22
@@ -28880,7 +28943,7 @@ L58:
   %t216 = sext i32 %t215 to i64
   call void @Builder.addInt(ptr %t212, i64 %t216)
   %t217 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t217, ptr @.str.858)
+  call void @Builder.add(ptr %t217, ptr @.str.867)
   %t218 = load ptr, ptr %t207
   %t219 = load ptr, ptr %t24
   %t220 = getelementptr inbounds %Suite, ptr %t219, i32 0, i32 9
@@ -28888,7 +28951,7 @@ L58:
   %t222 = sext i32 %t221 to i64
   call void @Builder.addInt(ptr %t218, i64 %t222)
   %t223 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t223, ptr @.str.859)
+  call void @Builder.add(ptr %t223, ptr @.str.868)
   %t224 = load ptr, ptr %t207
   %t225 = load ptr, ptr %t24
   %t226 = getelementptr inbounds %Suite, ptr %t225, i32 0, i32 7
@@ -28896,7 +28959,7 @@ L58:
   %t228 = sext i32 %t227 to i64
   call void @Builder.addInt(ptr %t224, i64 %t228)
   %t229 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t229, ptr @.str.860)
+  call void @Builder.add(ptr %t229, ptr @.str.869)
   br label %L60
 L60:
   %t230 = load ptr, ptr %t24
@@ -28911,7 +28974,7 @@ L61:
   %t237 = load ptr, ptr %t236
   call void @Builder.add(ptr %t234, ptr %t237)
   %t238 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t238, ptr @.str.861)
+  call void @Builder.add(ptr %t238, ptr @.str.870)
   %t239 = load ptr, ptr %t207
   %t240 = load ptr, ptr %t24
   %t241 = getelementptr inbounds %Suite, ptr %t240, i32 0, i32 5
@@ -28919,14 +28982,14 @@ L61:
   %t243 = sext i32 %t242 to i64
   call void @Builder.addInt(ptr %t239, i64 %t243)
   %t244 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t244, ptr @.str.862)
+  call void @Builder.add(ptr %t244, ptr @.str.871)
   %t245 = load ptr, ptr %t207
   %t246 = load ptr, ptr %t24
   %t247 = getelementptr inbounds %Suite, ptr %t246, i32 0, i32 14
   %t248 = load ptr, ptr %t247
   call void @Builder.add(ptr %t245, ptr %t248)
   %t249 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t249, ptr @.str.863)
+  call void @Builder.add(ptr %t249, ptr @.str.872)
   %t250 = load ptr, ptr %t207
   %t251 = load ptr, ptr %t24
   %t252 = getelementptr inbounds %Suite, ptr %t251, i32 0, i32 8
@@ -28934,7 +28997,7 @@ L61:
   %t254 = sext i32 %t253 to i64
   call void @Builder.addInt(ptr %t250, i64 %t254)
   %t255 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t255, ptr @.str.864)
+  call void @Builder.add(ptr %t255, ptr @.str.873)
   %t256 = load ptr, ptr %t207
   %t257 = load ptr, ptr %t24
   %t258 = getelementptr inbounds %Suite, ptr %t257, i32 0, i32 9
@@ -28942,7 +29005,7 @@ L61:
   %t260 = sext i32 %t259 to i64
   call void @Builder.addInt(ptr %t256, i64 %t260)
   %t261 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t261, ptr @.str.865)
+  call void @Builder.add(ptr %t261, ptr @.str.874)
   %t262 = load i32, ptr @STDOUT
   %t263 = load ptr, ptr %t207
   call void @writeBuilder(i32 %t262, ptr %t263)
@@ -28960,7 +29023,7 @@ L63:
   %t272 = sext i32 %t271 to i64
   call void @Builder.addInt(ptr %t268, i64 %t272)
   %t273 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t273, ptr @.str.866)
+  call void @Builder.add(ptr %t273, ptr @.str.875)
   %t274 = load ptr, ptr %t207
   %t275 = load ptr, ptr %t24
   %t276 = getelementptr inbounds %Suite, ptr %t275, i32 0, i32 5
@@ -28972,7 +29035,7 @@ L63:
   %t282 = sext i32 %t281 to i64
   call void @Builder.addInt(ptr %t274, i64 %t282)
   %t283 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t283, ptr @.str.867)
+  call void @Builder.add(ptr %t283, ptr @.str.876)
   %t284 = load ptr, ptr %t207
   %t285 = load ptr, ptr %t24
   %t286 = getelementptr inbounds %Suite, ptr %t285, i32 0, i32 14
@@ -28992,7 +29055,7 @@ L64:
   br i1 %t295, label %L65, label %L66
 L65:
   %t296 = load ptr, ptr %t207
-  call void @Builder.add(ptr %t296, ptr @.str.868)
+  call void @Builder.add(ptr %t296, ptr @.str.877)
   %t297 = load ptr, ptr %t207
   %t298 = load ptr, ptr %t24
   %t299 = getelementptr inbounds %Suite, ptr %t298, i32 0, i32 10
@@ -29494,7 +29557,7 @@ L24:
   %t155 = load i32, ptr %t86
   %t156 = load ptr, ptr %t97
   %t157 = call %Facts @Facts.about(ptr %t156)
-  call void @analyzerFail(ptr %t154, i32 %t155, i32 133, %Facts %t157)
+  call void @analyzerFail(ptr %t154, i32 %t155, i32 136, %Facts %t157)
   store i1 false, ptr @FAILED
   br label %L26
 L25:
@@ -29719,6 +29782,483 @@ L3:
   ret %Type %t87
 }
 
+define %Type @checkShorthand(ptr %p0, i32 %p1, %Type %p2) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca %Type
+  %t13 = alloca ptr
+  %t29 = alloca ptr
+  %t30 = alloca i32
+  %t34 = alloca ptr
+  %t38 = alloca i64
+  %t39 = alloca i64
+  %t57 = alloca ptr
+  %t61 = alloca i64
+  %t62 = alloca i64
+  %t65 = alloca i1
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store %Type %p2, ptr %t2
+  %t3 = load ptr, ptr %t0
+  %t4 = getelementptr inbounds %Analyzer, ptr %t3, i32 0, i32 0
+  %t5 = load ptr, ptr %t4
+  %t6 = getelementptr inbounds %Ast, ptr %t5, i32 0, i32 0
+  %t7 = load ptr, ptr %t6
+  %t8 = load i32, ptr %t1
+  %t9 = sext i32 %t8 to i64
+  %t10 = getelementptr inbounds %Node, ptr %t7, i64 %t9
+  %t11 = getelementptr inbounds %Node, ptr %t10, i32 0, i32 3
+  %t12 = load ptr, ptr %t11
+  store ptr %t12, ptr %t13
+  %t14 = load %Type, ptr %t2
+  %t15 = call i1 @Type.isEnum(%Type %t14)
+  br i1 %t15, label %L0, label %L2
+L0:
+  %t16 = load ptr, ptr %t0
+  %t17 = load i32, ptr %t1
+  %t18 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 2
+  %t19 = load ptr, ptr %t18
+  %t20 = call %Type @checkEnumMember(ptr %t16, i32 %t17, ptr %t19)
+  ret %Type %t20
+L2:
+  %t21 = load %Type, ptr %t2
+  %t22 = call i1 @Type.isUnion(%Type %t21)
+  %t23 = xor i1 %t22, true
+  br i1 %t23, label %L3, label %L5
+L3:
+  %t24 = load ptr, ptr %t0
+  %t25 = load i32, ptr %t1
+  %t26 = load ptr, ptr %t13
+  %t27 = call %Facts @Facts.about(ptr %t26)
+  call void @analyzerFail(ptr %t24, i32 %t25, i32 116, %Facts %t27)
+  %t28 = call %Type @Type.make(i32 0, i32 0)
+  ret %Type %t28
+L5:
+  store ptr null, ptr %t29
+  store i32 0, ptr %t30
+  %t31 = load %Type, ptr %t2
+  %t32 = call %UnionInfo @unionInfo(%Type %t31)
+  %t33 = extractvalue %UnionInfo %t32, 2
+  store ptr %t33, ptr %t34
+  %t35 = load ptr, ptr %t34
+  %t36 = getelementptr inbounds %"List<*i8>", ptr %t35, i32 0, i32 1
+  %t37 = load i64, ptr %t36
+  store i64 0, ptr %t38
+  br label %L6
+L6:
+  %t40 = load i64, ptr %t38
+  %t41 = icmp slt i64 %t40, %t37
+  br i1 %t41, label %L7, label %L9
+L7:
+  store i64 %t40, ptr %t39
+  %t42 = load ptr, ptr %t0
+  %t43 = load ptr, ptr %t34
+  %t44 = load i64, ptr %t39
+  %t45 = call ptr @"List<*i8>.at"(ptr %t43, i64 %t44)
+  %t46 = load ptr, ptr %t13
+  %t47 = call i1 @hasMember(ptr %t42, ptr %t45, ptr %t46)
+  br i1 %t47, label %L10, label %L12
+L10:
+  %t48 = load ptr, ptr %t34
+  %t49 = load i64, ptr %t39
+  %t50 = call ptr @"List<*i8>.at"(ptr %t48, i64 %t49)
+  store ptr %t50, ptr %t29
+  %t51 = load i32, ptr %t30
+  %t52 = add i32 %t51, 1
+  store i32 %t52, ptr %t30
+  br label %L12
+L12:
+  br label %L8
+L8:
+  %t53 = load i64, ptr %t38
+  %t54 = add i64 %t53, 1
+  store i64 %t54, ptr %t38
+  br label %L6
+L9:
+  %t55 = load %Type, ptr %t2
+  %t56 = call ptr @valuesOf(%Type %t55)
+  store ptr %t56, ptr %t57
+  %t58 = load ptr, ptr %t57
+  %t59 = getelementptr inbounds %"List<Type>", ptr %t58, i32 0, i32 1
+  %t60 = load i64, ptr %t59
+  store i64 0, ptr %t61
+  br label %L13
+L13:
+  %t63 = load i64, ptr %t61
+  %t64 = icmp slt i64 %t63, %t60
+  br i1 %t64, label %L14, label %L16
+L14:
+  store i64 %t63, ptr %t62
+  %t66 = load ptr, ptr %t57
+  %t67 = load i64, ptr %t62
+  %t68 = call %Type @"List<Type>.at"(ptr %t66, i64 %t67)
+  %t69 = call i1 @Type.isEnum(%Type %t68)
+  store i1 %t69, ptr %t65
+  br i1 %t69, label %L17, label %L18
+L17:
+  %t70 = load ptr, ptr %t0
+  %t71 = load ptr, ptr %t57
+  %t72 = load i64, ptr %t62
+  %t73 = call %Type @"List<Type>.at"(ptr %t71, i64 %t72)
+  %t74 = extractvalue %Type %t73, 2
+  %t75 = load ptr, ptr %t13
+  %t76 = call i1 @hasMember(ptr %t70, ptr %t74, ptr %t75)
+  store i1 %t76, ptr %t65
+  br label %L18
+L18:
+  %t77 = load i1, ptr %t65
+  br i1 %t77, label %L19, label %L21
+L19:
+  %t78 = load ptr, ptr %t57
+  %t79 = load i64, ptr %t62
+  %t80 = call %Type @"List<Type>.at"(ptr %t78, i64 %t79)
+  %t81 = extractvalue %Type %t80, 2
+  store ptr %t81, ptr %t29
+  %t82 = load i32, ptr %t30
+  %t83 = add i32 %t82, 1
+  store i32 %t83, ptr %t30
+  br label %L21
+L21:
+  br label %L15
+L15:
+  %t84 = load i64, ptr %t61
+  %t85 = add i64 %t84, 1
+  store i64 %t85, ptr %t61
+  br label %L13
+L16:
+  %t86 = load i32, ptr %t30
+  %t87 = icmp ne i32 %t86, 1
+  br i1 %t87, label %L22, label %L24
+L22:
+  %t88 = load ptr, ptr %t0
+  %t89 = load i32, ptr %t1
+  %t90 = load ptr, ptr %t13
+  %t91 = call %Facts @Facts.about(ptr %t90)
+  %t92 = load %Type, ptr %t2
+  %t93 = call %Facts @Facts.withType(%Facts %t91, %Type %t92)
+  call void @analyzerFail(ptr %t88, i32 %t89, i32 116, %Facts %t93)
+  %t94 = call %Type @Type.make(i32 0, i32 0)
+  ret %Type %t94
+L24:
+  %t95 = load ptr, ptr %t0
+  %t96 = load i32, ptr %t1
+  %t97 = load ptr, ptr %t29
+  %t98 = call %Type @checkEnumMember(ptr %t95, i32 %t96, ptr %t97)
+  ret %Type %t98
+}
+
+define i1 @hasMember(ptr %p0, ptr %p1, ptr %p2) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca ptr
+  %t2 = alloca ptr
+  %t6 = alloca i32
+  %t17 = alloca i32
+  %t18 = alloca i32
+  store ptr %p0, ptr %t0
+  store ptr %p1, ptr %t1
+  store ptr %p2, ptr %t2
+  %t3 = load ptr, ptr %t0
+  %t4 = load ptr, ptr %t1
+  %t5 = call i32 @enumDeclOf(ptr %t3, ptr %t4)
+  store i32 %t5, ptr %t6
+  %t7 = load ptr, ptr %t0
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 0
+  %t9 = load ptr, ptr %t8
+  %t10 = getelementptr inbounds %Ast, ptr %t9, i32 0, i32 0
+  %t11 = load ptr, ptr %t10
+  %t12 = load i32, ptr %t6
+  %t13 = sext i32 %t12 to i64
+  %t14 = getelementptr inbounds %Node, ptr %t11, i64 %t13
+  %t15 = getelementptr inbounds %Node, ptr %t14, i32 0, i32 10
+  %t16 = load i32, ptr %t15
+  store i32 0, ptr %t17
+  br label %L0
+L0:
+  %t19 = load i32, ptr %t17
+  %t20 = icmp slt i32 %t19, %t16
+  br i1 %t20, label %L1, label %L3
+L1:
+  store i32 %t19, ptr %t18
+  %t21 = load ptr, ptr %t0
+  %t22 = getelementptr inbounds %Analyzer, ptr %t21, i32 0, i32 0
+  %t23 = load ptr, ptr %t22
+  %t24 = getelementptr inbounds %Ast, ptr %t23, i32 0, i32 0
+  %t25 = load ptr, ptr %t24
+  %t26 = load ptr, ptr %t0
+  %t27 = getelementptr inbounds %Analyzer, ptr %t26, i32 0, i32 0
+  %t28 = load ptr, ptr %t27
+  %t29 = getelementptr inbounds %Ast, ptr %t28, i32 0, i32 0
+  %t30 = load ptr, ptr %t29
+  %t31 = load i32, ptr %t6
+  %t32 = sext i32 %t31 to i64
+  %t33 = getelementptr inbounds %Node, ptr %t30, i64 %t32
+  %t34 = getelementptr inbounds %Node, ptr %t33, i32 0, i32 9
+  %t35 = load ptr, ptr %t34
+  %t36 = load i32, ptr %t18
+  %t37 = sext i32 %t36 to i64
+  %t38 = getelementptr inbounds i32, ptr %t35, i64 %t37
+  %t39 = load i32, ptr %t38
+  %t40 = sext i32 %t39 to i64
+  %t41 = getelementptr inbounds %Node, ptr %t25, i64 %t40
+  %t42 = getelementptr inbounds %Node, ptr %t41, i32 0, i32 3
+  %t43 = load ptr, ptr %t42
+  %t44 = load ptr, ptr %t2
+  %t45 = call i1 @equals(ptr %t43, ptr %t44)
+  br i1 %t45, label %L4, label %L6
+L4:
+  ret i1 true
+L6:
+  br label %L2
+L2:
+  %t46 = load i32, ptr %t17
+  %t47 = add i32 %t46, 1
+  store i32 %t47, ptr %t17
+  br label %L0
+L3:
+  ret i1 false
+}
+
+define i1 @isShorthand(ptr %p0, i32 %p1) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca i1
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  %t3 = load ptr, ptr %t0
+  %t4 = getelementptr inbounds %Analyzer, ptr %t3, i32 0, i32 0
+  %t5 = load ptr, ptr %t4
+  %t6 = getelementptr inbounds %Ast, ptr %t5, i32 0, i32 0
+  %t7 = load ptr, ptr %t6
+  %t8 = load i32, ptr %t1
+  %t9 = sext i32 %t8 to i64
+  %t10 = getelementptr inbounds %Node, ptr %t7, i64 %t9
+  %t11 = getelementptr inbounds %Node, ptr %t10, i32 0, i32 0
+  %t12 = load i32, ptr %t11
+  %t13 = icmp eq i32 %t12, 18
+  store i1 %t13, ptr %t2
+  br i1 %t13, label %L0, label %L1
+L0:
+  %t14 = load ptr, ptr %t0
+  %t15 = getelementptr inbounds %Analyzer, ptr %t14, i32 0, i32 0
+  %t16 = load ptr, ptr %t15
+  %t17 = getelementptr inbounds %Ast, ptr %t16, i32 0, i32 0
+  %t18 = load ptr, ptr %t17
+  %t19 = load i32, ptr %t1
+  %t20 = sext i32 %t19 to i64
+  %t21 = getelementptr inbounds %Node, ptr %t18, i64 %t20
+  %t22 = getelementptr inbounds %Node, ptr %t21, i32 0, i32 5
+  %t23 = load i32, ptr %t22
+  %t24 = load i32, ptr @NO_NODE
+  %t25 = icmp eq i32 %t23, %t24
+  store i1 %t25, ptr %t2
+  br label %L1
+L1:
+  %t26 = load i1, ptr %t2
+  ret i1 %t26
+}
+
+define void @checkArmBody(ptr %p0, i32 %p1, i32 %p2, %Type %p3) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca i32
+  %t3 = alloca %Type
+  %t14 = alloca i32
+  %t41 = alloca i1
+  %t53 = alloca %Type
+  %t68 = alloca %Type
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store i32 %p2, ptr %t2
+  store %Type %p3, ptr %t3
+  %t4 = load ptr, ptr %t0
+  %t5 = getelementptr inbounds %Analyzer, ptr %t4, i32 0, i32 0
+  %t6 = load ptr, ptr %t5
+  %t7 = getelementptr inbounds %Ast, ptr %t6, i32 0, i32 0
+  %t8 = load ptr, ptr %t7
+  %t9 = load i32, ptr %t2
+  %t10 = sext i32 %t9 to i64
+  %t11 = getelementptr inbounds %Node, ptr %t8, i64 %t10
+  %t12 = getelementptr inbounds %Node, ptr %t11, i32 0, i32 5
+  %t13 = load i32, ptr %t12
+  store i32 %t13, ptr %t14
+  %t15 = load ptr, ptr %t0
+  %t16 = getelementptr inbounds %Analyzer, ptr %t15, i32 0, i32 0
+  %t17 = load ptr, ptr %t16
+  %t18 = getelementptr inbounds %Ast, ptr %t17, i32 0, i32 0
+  %t19 = load ptr, ptr %t18
+  %t20 = load i32, ptr %t1
+  %t21 = sext i32 %t20 to i64
+  %t22 = getelementptr inbounds %Node, ptr %t19, i64 %t21
+  %t23 = getelementptr inbounds %Node, ptr %t22, i32 0, i32 8
+  %t24 = load i32, ptr %t23
+  %t25 = icmp ne i32 %t24, 1
+  br i1 %t25, label %L0, label %L2
+L0:
+  %t26 = load ptr, ptr %t0
+  %t27 = load i32, ptr %t14
+  call void @analyzeStatement(ptr %t26, i32 %t27)
+  ret void
+L2:
+  %t28 = load ptr, ptr %t0
+  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 0
+  %t30 = load ptr, ptr %t29
+  %t31 = getelementptr inbounds %Ast, ptr %t30, i32 0, i32 0
+  %t32 = load ptr, ptr %t31
+  %t33 = load i32, ptr %t14
+  %t34 = sext i32 %t33 to i64
+  %t35 = getelementptr inbounds %Node, ptr %t32, i64 %t34
+  %t36 = getelementptr inbounds %Node, ptr %t35, i32 0, i32 0
+  %t37 = load i32, ptr %t36
+  %t38 = icmp eq i32 %t37, 1
+  br i1 %t38, label %L3, label %L5
+L3:
+  %t39 = load ptr, ptr %t0
+  %t40 = load i32, ptr %t14
+  call void @analyzeStatement(ptr %t39, i32 %t40)
+  %t42 = load i1, ptr @FAILED
+  %t43 = xor i1 %t42, true
+  store i1 %t43, ptr %t41
+  br i1 %t43, label %L6, label %L7
+L6:
+  %t44 = load ptr, ptr %t0
+  %t45 = load i32, ptr %t14
+  %t46 = call i1 @alwaysLeaves(ptr %t44, i32 %t45)
+  %t47 = xor i1 %t46, true
+  store i1 %t47, ptr %t41
+  br label %L7
+L7:
+  %t48 = load i1, ptr %t41
+  br i1 %t48, label %L8, label %L10
+L8:
+  %t49 = load ptr, ptr %t0
+  %t50 = load i32, ptr %t2
+  %t51 = call %Facts @Facts.none()
+  call void @analyzerFail(ptr %t49, i32 %t50, i32 117, %Facts %t51)
+  br label %L10
+L10:
+  ret void
+L5:
+  %t52 = load %Type, ptr %t3
+  store %Type %t52, ptr %t53
+  %t54 = getelementptr inbounds %Type, ptr %t53, i32 0, i32 0
+  %t55 = load i32, ptr %t54
+  %t56 = icmp eq i32 %t55, 0
+  br i1 %t56, label %L11, label %L13
+L11:
+  %t57 = load ptr, ptr %t0
+  %t58 = getelementptr inbounds %Analyzer, ptr %t57, i32 0, i32 3
+  %t59 = load ptr, ptr %t58
+  %t60 = load i32, ptr %t1
+  %t61 = sext i32 %t60 to i64
+  %t62 = getelementptr inbounds %Type, ptr %t59, i64 %t61
+  %t63 = load %Type, ptr %t62
+  store %Type %t63, ptr %t53
+  br label %L13
+L13:
+  %t64 = load ptr, ptr %t0
+  %t65 = load i32, ptr %t14
+  %t66 = load %Type, ptr %t53
+  %t67 = call %Type @checkExprAs(ptr %t64, i32 %t65, %Type %t66)
+  store %Type %t67, ptr %t68
+  %t69 = load i1, ptr @FAILED
+  br i1 %t69, label %L14, label %L16
+L14:
+  ret void
+L16:
+  %t70 = getelementptr inbounds %Type, ptr %t53, i32 0, i32 0
+  %t71 = load i32, ptr %t70
+  %t72 = icmp eq i32 %t71, 0
+  br i1 %t72, label %L17, label %L19
+L17:
+  %t73 = load %Type, ptr %t68
+  %t74 = load ptr, ptr %t0
+  %t75 = getelementptr inbounds %Analyzer, ptr %t74, i32 0, i32 3
+  %t76 = load ptr, ptr %t75
+  %t77 = load i32, ptr %t1
+  %t78 = sext i32 %t77 to i64
+  %t79 = getelementptr inbounds %Type, ptr %t76, i64 %t78
+  store %Type %t73, ptr %t79
+  ret void
+L19:
+  %t80 = load %Type, ptr %t53
+  %t81 = load %Type, ptr %t68
+  %t82 = call i1 @Type.accepts(%Type %t80, %Type %t81)
+  %t83 = xor i1 %t82, true
+  br i1 %t83, label %L20, label %L22
+L20:
+  %t84 = load ptr, ptr %t0
+  %t85 = load i32, ptr %t14
+  %t86 = load %Type, ptr %t53
+  %t87 = load %Type, ptr %t68
+  %t88 = call %Facts @Facts.aboutTypes(%Type %t86, %Type %t87)
+  call void @analyzerFailAtValue(ptr %t84, i32 %t85, i32 118, %Facts %t88)
+  br label %L22
+L22:
+  ret void
+}
+
+define %Type @checkMatchValue(ptr %p0, i32 %p1, %Type %p2) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca %Type
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store %Type %p2, ptr %t2
+  %t3 = call %Type @Type.make(i32 0, i32 0)
+  %t4 = load ptr, ptr %t0
+  %t5 = getelementptr inbounds %Analyzer, ptr %t4, i32 0, i32 3
+  %t6 = load ptr, ptr %t5
+  %t7 = load i32, ptr %t1
+  %t8 = sext i32 %t7 to i64
+  %t9 = getelementptr inbounds %Type, ptr %t6, i64 %t8
+  store %Type %t3, ptr %t9
+  %t10 = load ptr, ptr %t0
+  %t11 = load i32, ptr %t1
+  %t12 = load %Type, ptr %t2
+  call void @analyzeMatchWith(ptr %t10, i32 %t11, %Type %t12)
+  %t13 = load i1, ptr @FAILED
+  br i1 %t13, label %L0, label %L2
+L0:
+  %t14 = call %Type @Type.make(i32 0, i32 0)
+  ret %Type %t14
+L2:
+  %t15 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 0
+  %t16 = load i32, ptr %t15
+  %t17 = icmp ne i32 %t16, 0
+  br i1 %t17, label %L3, label %L5
+L3:
+  %t18 = load %Type, ptr %t2
+  ret %Type %t18
+L5:
+  %t19 = load ptr, ptr %t0
+  %t20 = getelementptr inbounds %Analyzer, ptr %t19, i32 0, i32 3
+  %t21 = load ptr, ptr %t20
+  %t22 = load i32, ptr %t1
+  %t23 = sext i32 %t22 to i64
+  %t24 = getelementptr inbounds %Type, ptr %t21, i64 %t23
+  %t25 = getelementptr inbounds %Type, ptr %t24, i32 0, i32 0
+  %t26 = load i32, ptr %t25
+  %t27 = icmp eq i32 %t26, 0
+  br i1 %t27, label %L6, label %L8
+L6:
+  %t28 = call %Type @Type.make(i32 12, i32 0)
+  ret %Type %t28
+L8:
+  %t29 = load ptr, ptr %t0
+  %t30 = getelementptr inbounds %Analyzer, ptr %t29, i32 0, i32 3
+  %t31 = load ptr, ptr %t30
+  %t32 = load i32, ptr %t1
+  %t33 = sext i32 %t32 to i64
+  %t34 = getelementptr inbounds %Type, ptr %t31, i64 %t33
+  %t35 = load %Type, ptr %t34
+  ret %Type %t35
+}
+
 define void @checkPattern(ptr %p0, i32 %p1, %Type %p2) {
 entry:
   %t0 = alloca ptr
@@ -29726,11 +30266,11 @@ entry:
   %t2 = alloca %Type
   %t13 = alloca i32
   %t14 = alloca i1
-  %t28 = alloca %Type
-  %t30 = alloca i1
-  %t49 = alloca i1
-  %t53 = alloca i64
-  %t70 = alloca %Type
+  %t29 = alloca %Type
+  %t31 = alloca i1
+  %t50 = alloca i1
+  %t54 = alloca i64
+  %t71 = alloca %Type
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   store %Type %p2, ptr %t2
@@ -29770,115 +30310,116 @@ L4:
 L5:
   %t25 = load ptr, ptr %t0
   %t26 = load i32, ptr %t1
-  %t27 = call %Type @checkExpr(ptr %t25, i32 %t26)
-  store %Type %t27, ptr %t28
-  %t29 = load i1, ptr @FAILED
-  br i1 %t29, label %L8, label %L10
+  %t27 = load %Type, ptr %t2
+  %t28 = call %Type @checkExprAs(ptr %t25, i32 %t26, %Type %t27)
+  store %Type %t28, ptr %t29
+  %t30 = load i1, ptr @FAILED
+  br i1 %t30, label %L8, label %L10
 L8:
   ret void
 L10:
-  %t31 = load ptr, ptr %t0
-  %t32 = getelementptr inbounds %Analyzer, ptr %t31, i32 0, i32 10
-  %t33 = load ptr, ptr %t32
-  %t34 = load i32, ptr %t1
-  %t35 = sext i32 %t34 to i64
-  %t36 = getelementptr inbounds i8, ptr %t33, i64 %t35
-  %t37 = load i8, ptr %t36
-  %t38 = icmp eq i8 %t37, 0
-  store i1 %t38, ptr %t30
-  br i1 %t38, label %L12, label %L11
+  %t32 = load ptr, ptr %t0
+  %t33 = getelementptr inbounds %Analyzer, ptr %t32, i32 0, i32 10
+  %t34 = load ptr, ptr %t33
+  %t35 = load i32, ptr %t1
+  %t36 = sext i32 %t35 to i64
+  %t37 = getelementptr inbounds i8, ptr %t34, i64 %t36
+  %t38 = load i8, ptr %t37
+  %t39 = icmp eq i8 %t38, 0
+  store i1 %t39, ptr %t31
+  br i1 %t39, label %L12, label %L11
 L11:
-  %t39 = load %Type, ptr %t28
-  %t40 = load %Type, ptr %t2
-  %t41 = call i1 @Type.equals(%Type %t39, %Type %t40)
-  %t42 = xor i1 %t41, true
-  store i1 %t42, ptr %t30
+  %t40 = load %Type, ptr %t29
+  %t41 = load %Type, ptr %t2
+  %t42 = call i1 @Type.equals(%Type %t40, %Type %t41)
+  %t43 = xor i1 %t42, true
+  store i1 %t43, ptr %t31
   br label %L12
 L12:
-  %t43 = load i1, ptr %t30
-  br i1 %t43, label %L13, label %L15
+  %t44 = load i1, ptr %t31
+  br i1 %t44, label %L13, label %L15
 L13:
-  %t44 = load ptr, ptr %t0
-  %t45 = load i32, ptr %t1
-  %t46 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 2
-  %t47 = load ptr, ptr %t46
-  %t48 = call %Facts @Facts.about(ptr %t47)
-  call void @analyzerFail(ptr %t44, i32 %t45, i32 110, %Facts %t48)
+  %t45 = load ptr, ptr %t0
+  %t46 = load i32, ptr %t1
+  %t47 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 2
+  %t48 = load ptr, ptr %t47
+  %t49 = call %Facts @Facts.about(ptr %t48)
+  call void @analyzerFail(ptr %t45, i32 %t46, i32 110, %Facts %t49)
   br label %L15
 L15:
   ret void
 L7:
-  store i1 true, ptr %t49
-  %t50 = load ptr, ptr %t0
-  %t51 = load i32, ptr %t1
-  %t52 = call i64 @integerLiteralValue(ptr %t50, i32 %t51, ptr %t49)
-  store i64 %t52, ptr %t53
-  %t54 = load i1, ptr %t49
-  %t55 = xor i1 %t54, true
-  br i1 %t55, label %L16, label %L18
+  store i1 true, ptr %t50
+  %t51 = load ptr, ptr %t0
+  %t52 = load i32, ptr %t1
+  %t53 = call i64 @integerLiteralValue(ptr %t51, i32 %t52, ptr %t50)
+  store i64 %t53, ptr %t54
+  %t55 = load i1, ptr %t50
+  %t56 = xor i1 %t55, true
+  br i1 %t56, label %L16, label %L18
 L16:
-  %t56 = load ptr, ptr %t0
-  %t57 = load i32, ptr %t1
-  %t58 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t56, i32 %t57, i32 111, %Facts %t58)
+  %t57 = load ptr, ptr %t0
+  %t58 = load i32, ptr %t1
+  %t59 = call %Facts @Facts.none()
+  call void @analyzerFail(ptr %t57, i32 %t58, i32 111, %Facts %t59)
   ret void
 L18:
-  %t59 = load ptr, ptr %t0
-  %t60 = load i32, ptr %t1
-  %t61 = call i1 @isNumberLiteral(ptr %t59, i32 %t60)
-  br i1 %t61, label %L19, label %L20
+  %t60 = load ptr, ptr %t0
+  %t61 = load i32, ptr %t1
+  %t62 = call i1 @isNumberLiteral(ptr %t60, i32 %t61)
+  br i1 %t62, label %L19, label %L20
 L19:
-  %t62 = load ptr, ptr %t0
-  %t63 = load i32, ptr %t1
-  %t64 = load %Type, ptr %t2
-  %t65 = call i1 @checkLiteralAs(ptr %t62, i32 %t63, %Type %t64)
-  %t66 = xor i1 %t65, true
-  br i1 %t66, label %L22, label %L24
+  %t63 = load ptr, ptr %t0
+  %t64 = load i32, ptr %t1
+  %t65 = load %Type, ptr %t2
+  %t66 = call i1 @checkLiteralAs(ptr %t63, i32 %t64, %Type %t65)
+  %t67 = xor i1 %t66, true
+  br i1 %t67, label %L22, label %L24
 L22:
   ret void
 L24:
   br label %L21
 L20:
-  %t67 = load ptr, ptr %t0
-  %t68 = load i32, ptr %t1
-  %t69 = call %Type @checkExpr(ptr %t67, i32 %t68)
-  store %Type %t69, ptr %t70
-  %t71 = load i1, ptr @FAILED
-  br i1 %t71, label %L25, label %L27
+  %t68 = load ptr, ptr %t0
+  %t69 = load i32, ptr %t1
+  %t70 = call %Type @checkExpr(ptr %t68, i32 %t69)
+  store %Type %t70, ptr %t71
+  %t72 = load i1, ptr @FAILED
+  br i1 %t72, label %L25, label %L27
 L25:
   ret void
 L27:
-  %t72 = load %Type, ptr %t70
-  %t73 = load %Type, ptr %t2
-  %t74 = call i1 @Type.equals(%Type %t72, %Type %t73)
-  %t75 = xor i1 %t74, true
-  br i1 %t75, label %L28, label %L30
+  %t73 = load %Type, ptr %t71
+  %t74 = load %Type, ptr %t2
+  %t75 = call i1 @Type.equals(%Type %t73, %Type %t74)
+  %t76 = xor i1 %t75, true
+  br i1 %t76, label %L28, label %L30
 L28:
-  %t76 = load ptr, ptr %t0
-  %t77 = load i32, ptr %t1
-  %t78 = load %Type, ptr %t2
-  %t79 = load %Type, ptr %t70
-  %t80 = call %Facts @Facts.aboutTypes(%Type %t78, %Type %t79)
-  call void @analyzerFail(ptr %t76, i32 %t77, i32 112, %Facts %t80)
+  %t77 = load ptr, ptr %t0
+  %t78 = load i32, ptr %t1
+  %t79 = load %Type, ptr %t2
+  %t80 = load %Type, ptr %t71
+  %t81 = call %Facts @Facts.aboutTypes(%Type %t79, %Type %t80)
+  call void @analyzerFail(ptr %t77, i32 %t78, i32 112, %Facts %t81)
   ret void
 L30:
   br label %L21
 L21:
-  %t81 = load ptr, ptr %t0
-  %t82 = getelementptr inbounds %Analyzer, ptr %t81, i32 0, i32 10
-  %t83 = load ptr, ptr %t82
-  %t84 = load i32, ptr %t1
-  %t85 = sext i32 %t84 to i64
-  %t86 = getelementptr inbounds i8, ptr %t83, i64 %t85
-  store i8 1, ptr %t86
-  %t87 = load i64, ptr %t53
-  %t88 = load ptr, ptr %t0
-  %t89 = getelementptr inbounds %Analyzer, ptr %t88, i32 0, i32 11
-  %t90 = load ptr, ptr %t89
-  %t91 = load i32, ptr %t1
-  %t92 = sext i32 %t91 to i64
-  %t93 = getelementptr inbounds i64, ptr %t90, i64 %t92
-  store i64 %t87, ptr %t93
+  %t82 = load ptr, ptr %t0
+  %t83 = getelementptr inbounds %Analyzer, ptr %t82, i32 0, i32 10
+  %t84 = load ptr, ptr %t83
+  %t85 = load i32, ptr %t1
+  %t86 = sext i32 %t85 to i64
+  %t87 = getelementptr inbounds i8, ptr %t84, i64 %t86
+  store i8 1, ptr %t87
+  %t88 = load i64, ptr %t54
+  %t89 = load ptr, ptr %t0
+  %t90 = getelementptr inbounds %Analyzer, ptr %t89, i32 0, i32 11
+  %t91 = load ptr, ptr %t90
+  %t92 = load i32, ptr %t1
+  %t93 = sext i32 %t92 to i64
+  %t94 = getelementptr inbounds i64, ptr %t91, i64 %t93
+  store i64 %t88, ptr %t94
   ret void
 }
 
@@ -30083,281 +30624,290 @@ define void @analyzeMatch(ptr %p0, i32 %p1) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca i32
-  %t14 = alloca %Type
-  %t21 = alloca i1
-  %t33 = alloca i1
-  %t34 = alloca i32
-  %t61 = alloca i32
-  %t87 = alloca i32
-  %t88 = alloca i32
-  %t105 = alloca i32
-  %t117 = alloca i64
-  %t160 = alloca i32
-  %t165 = alloca i32
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
+  %t3 = load i32, ptr %t1
+  %t4 = call %Type @Type.make(i32 0, i32 0)
+  call void @analyzeMatchWith(ptr %t2, i32 %t3, %Type %t4)
+  ret void
+}
+
+define void @analyzeMatchWith(ptr %p0, i32 %p1, %Type %p2) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca %Type
+  %t15 = alloca %Type
+  %t23 = alloca i1
+  %t35 = alloca i1
+  %t36 = alloca i32
+  %t63 = alloca i32
+  %t89 = alloca i32
+  %t90 = alloca i32
+  %t107 = alloca i32
+  %t119 = alloca i64
+  %t155 = alloca i32
+  %t160 = alloca i32
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store %Type %p2, ptr %t2
   %t3 = load ptr, ptr %t0
-  %t4 = getelementptr inbounds %Analyzer, ptr %t3, i32 0, i32 0
-  %t5 = load ptr, ptr %t4
-  %t6 = getelementptr inbounds %Ast, ptr %t5, i32 0, i32 0
-  %t7 = load ptr, ptr %t6
-  %t8 = load i32, ptr %t1
-  %t9 = sext i32 %t8 to i64
-  %t10 = getelementptr inbounds %Node, ptr %t7, i64 %t9
-  %t11 = getelementptr inbounds %Node, ptr %t10, i32 0, i32 5
-  %t12 = load i32, ptr %t11
-  %t13 = call %Type @checkExpr(ptr %t2, i32 %t12)
-  store %Type %t13, ptr %t14
-  %t15 = load i1, ptr @FAILED
-  br i1 %t15, label %L0, label %L2
+  %t4 = load ptr, ptr %t0
+  %t5 = getelementptr inbounds %Analyzer, ptr %t4, i32 0, i32 0
+  %t6 = load ptr, ptr %t5
+  %t7 = getelementptr inbounds %Ast, ptr %t6, i32 0, i32 0
+  %t8 = load ptr, ptr %t7
+  %t9 = load i32, ptr %t1
+  %t10 = sext i32 %t9 to i64
+  %t11 = getelementptr inbounds %Node, ptr %t8, i64 %t10
+  %t12 = getelementptr inbounds %Node, ptr %t11, i32 0, i32 5
+  %t13 = load i32, ptr %t12
+  %t14 = call %Type @checkExpr(ptr %t3, i32 %t13)
+  store %Type %t14, ptr %t15
+  %t16 = load i1, ptr @FAILED
+  br i1 %t16, label %L0, label %L2
 L0:
   ret void
 L2:
-  %t16 = load %Type, ptr %t14
-  %t17 = call i1 @Type.isUnion(%Type %t16)
-  br i1 %t17, label %L3, label %L5
+  %t17 = load %Type, ptr %t15
+  %t18 = call i1 @Type.isUnion(%Type %t17)
+  br i1 %t18, label %L3, label %L5
 L3:
-  %t18 = load ptr, ptr %t0
-  %t19 = load i32, ptr %t1
-  %t20 = load %Type, ptr %t14
-  call void @analyzeUnionMatch(ptr %t18, i32 %t19, %Type %t20)
+  %t19 = load ptr, ptr %t0
+  %t20 = load i32, ptr %t1
+  %t21 = load %Type, ptr %t15
+  %t22 = load %Type, ptr %t2
+  call void @analyzeUnionMatch(ptr %t19, i32 %t20, %Type %t21, %Type %t22)
   ret void
 L5:
-  %t22 = load %Type, ptr %t14
-  %t23 = call i1 @Type.isEnum(%Type %t22)
-  %t24 = xor i1 %t23, true
-  store i1 %t24, ptr %t21
-  br i1 %t24, label %L6, label %L7
+  %t24 = load %Type, ptr %t15
+  %t25 = call i1 @Type.isEnum(%Type %t24)
+  %t26 = xor i1 %t25, true
+  store i1 %t26, ptr %t23
+  br i1 %t26, label %L6, label %L7
 L6:
-  %t25 = load %Type, ptr %t14
-  %t26 = call i1 @Type.isInteger(%Type %t25)
-  %t27 = xor i1 %t26, true
-  store i1 %t27, ptr %t21
+  %t27 = load %Type, ptr %t15
+  %t28 = call i1 @Type.isInteger(%Type %t27)
+  %t29 = xor i1 %t28, true
+  store i1 %t29, ptr %t23
   br label %L7
 L7:
-  %t28 = load i1, ptr %t21
-  br i1 %t28, label %L8, label %L10
+  %t30 = load i1, ptr %t23
+  br i1 %t30, label %L8, label %L10
 L8:
-  %t29 = load ptr, ptr %t0
-  %t30 = load i32, ptr %t1
-  %t31 = load %Type, ptr %t14
-  %t32 = call %Facts @Facts.aboutType(%Type %t31)
-  call void @analyzerFail(ptr %t29, i32 %t30, i32 113, %Facts %t32)
+  %t31 = load ptr, ptr %t0
+  %t32 = load i32, ptr %t1
+  %t33 = load %Type, ptr %t15
+  %t34 = call %Facts @Facts.aboutType(%Type %t33)
+  call void @analyzerFail(ptr %t31, i32 %t32, i32 113, %Facts %t34)
   ret void
 L10:
-  store i1 false, ptr %t33
-  store i32 0, ptr %t34
+  store i1 false, ptr %t35
+  store i32 0, ptr %t36
   br label %L11
 L11:
-  %t35 = load i32, ptr %t34
-  %t36 = load ptr, ptr %t0
-  %t37 = getelementptr inbounds %Analyzer, ptr %t36, i32 0, i32 0
-  %t38 = load ptr, ptr %t37
-  %t39 = getelementptr inbounds %Ast, ptr %t38, i32 0, i32 0
+  %t37 = load i32, ptr %t36
+  %t38 = load ptr, ptr %t0
+  %t39 = getelementptr inbounds %Analyzer, ptr %t38, i32 0, i32 0
   %t40 = load ptr, ptr %t39
-  %t41 = load i32, ptr %t1
-  %t42 = sext i32 %t41 to i64
-  %t43 = getelementptr inbounds %Node, ptr %t40, i64 %t42
-  %t44 = getelementptr inbounds %Node, ptr %t43, i32 0, i32 10
-  %t45 = load i32, ptr %t44
-  %t46 = icmp slt i32 %t35, %t45
-  br i1 %t46, label %L12, label %L13
+  %t41 = getelementptr inbounds %Ast, ptr %t40, i32 0, i32 0
+  %t42 = load ptr, ptr %t41
+  %t43 = load i32, ptr %t1
+  %t44 = sext i32 %t43 to i64
+  %t45 = getelementptr inbounds %Node, ptr %t42, i64 %t44
+  %t46 = getelementptr inbounds %Node, ptr %t45, i32 0, i32 10
+  %t47 = load i32, ptr %t46
+  %t48 = icmp slt i32 %t37, %t47
+  br i1 %t48, label %L12, label %L13
 L12:
-  %t47 = load ptr, ptr %t0
-  %t48 = getelementptr inbounds %Analyzer, ptr %t47, i32 0, i32 0
-  %t49 = load ptr, ptr %t48
-  %t50 = getelementptr inbounds %Ast, ptr %t49, i32 0, i32 0
+  %t49 = load ptr, ptr %t0
+  %t50 = getelementptr inbounds %Analyzer, ptr %t49, i32 0, i32 0
   %t51 = load ptr, ptr %t50
-  %t52 = load i32, ptr %t1
-  %t53 = sext i32 %t52 to i64
-  %t54 = getelementptr inbounds %Node, ptr %t51, i64 %t53
-  %t55 = getelementptr inbounds %Node, ptr %t54, i32 0, i32 9
-  %t56 = load ptr, ptr %t55
-  %t57 = load i32, ptr %t34
-  %t58 = sext i32 %t57 to i64
-  %t59 = getelementptr inbounds i32, ptr %t56, i64 %t58
-  %t60 = load i32, ptr %t59
-  store i32 %t60, ptr %t61
-  %t62 = load i1, ptr %t33
-  br i1 %t62, label %L14, label %L16
+  %t52 = getelementptr inbounds %Ast, ptr %t51, i32 0, i32 0
+  %t53 = load ptr, ptr %t52
+  %t54 = load i32, ptr %t1
+  %t55 = sext i32 %t54 to i64
+  %t56 = getelementptr inbounds %Node, ptr %t53, i64 %t55
+  %t57 = getelementptr inbounds %Node, ptr %t56, i32 0, i32 9
+  %t58 = load ptr, ptr %t57
+  %t59 = load i32, ptr %t36
+  %t60 = sext i32 %t59 to i64
+  %t61 = getelementptr inbounds i32, ptr %t58, i64 %t60
+  %t62 = load i32, ptr %t61
+  store i32 %t62, ptr %t63
+  %t64 = load i1, ptr %t35
+  br i1 %t64, label %L14, label %L16
 L14:
-  %t63 = load ptr, ptr %t0
-  %t64 = load i32, ptr %t61
-  %t65 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t63, i32 %t64, i32 114, %Facts %t65)
+  %t65 = load ptr, ptr %t0
+  %t66 = load i32, ptr %t63
+  %t67 = call %Facts @Facts.none()
+  call void @analyzerFail(ptr %t65, i32 %t66, i32 114, %Facts %t67)
   ret void
 L16:
-  %t66 = load ptr, ptr %t0
-  %t67 = getelementptr inbounds %Analyzer, ptr %t66, i32 0, i32 0
-  %t68 = load ptr, ptr %t67
-  %t69 = getelementptr inbounds %Ast, ptr %t68, i32 0, i32 0
+  %t68 = load ptr, ptr %t0
+  %t69 = getelementptr inbounds %Analyzer, ptr %t68, i32 0, i32 0
   %t70 = load ptr, ptr %t69
-  %t71 = load i32, ptr %t61
-  %t72 = sext i32 %t71 to i64
-  %t73 = getelementptr inbounds %Node, ptr %t70, i64 %t72
-  %t74 = getelementptr inbounds %Node, ptr %t73, i32 0, i32 8
-  %t75 = load i32, ptr %t74
-  %t76 = icmp eq i32 %t75, 1
-  br i1 %t76, label %L17, label %L19
+  %t71 = getelementptr inbounds %Ast, ptr %t70, i32 0, i32 0
+  %t72 = load ptr, ptr %t71
+  %t73 = load i32, ptr %t63
+  %t74 = sext i32 %t73 to i64
+  %t75 = getelementptr inbounds %Node, ptr %t72, i64 %t74
+  %t76 = getelementptr inbounds %Node, ptr %t75, i32 0, i32 8
+  %t77 = load i32, ptr %t76
+  %t78 = icmp eq i32 %t77, 1
+  br i1 %t78, label %L17, label %L19
 L17:
-  store i1 true, ptr %t33
+  store i1 true, ptr %t35
   br label %L19
 L19:
-  %t77 = load ptr, ptr %t0
-  %t78 = getelementptr inbounds %Analyzer, ptr %t77, i32 0, i32 0
-  %t79 = load ptr, ptr %t78
-  %t80 = getelementptr inbounds %Ast, ptr %t79, i32 0, i32 0
+  %t79 = load ptr, ptr %t0
+  %t80 = getelementptr inbounds %Analyzer, ptr %t79, i32 0, i32 0
   %t81 = load ptr, ptr %t80
-  %t82 = load i32, ptr %t61
-  %t83 = sext i32 %t82 to i64
-  %t84 = getelementptr inbounds %Node, ptr %t81, i64 %t83
-  %t85 = getelementptr inbounds %Node, ptr %t84, i32 0, i32 10
-  %t86 = load i32, ptr %t85
-  store i32 0, ptr %t87
+  %t82 = getelementptr inbounds %Ast, ptr %t81, i32 0, i32 0
+  %t83 = load ptr, ptr %t82
+  %t84 = load i32, ptr %t63
+  %t85 = sext i32 %t84 to i64
+  %t86 = getelementptr inbounds %Node, ptr %t83, i64 %t85
+  %t87 = getelementptr inbounds %Node, ptr %t86, i32 0, i32 10
+  %t88 = load i32, ptr %t87
+  store i32 0, ptr %t89
   br label %L20
 L20:
-  %t89 = load i32, ptr %t87
-  %t90 = icmp slt i32 %t89, %t86
-  br i1 %t90, label %L21, label %L23
+  %t91 = load i32, ptr %t89
+  %t92 = icmp slt i32 %t91, %t88
+  br i1 %t92, label %L21, label %L23
 L21:
-  store i32 %t89, ptr %t88
-  %t91 = load ptr, ptr %t0
-  %t92 = getelementptr inbounds %Analyzer, ptr %t91, i32 0, i32 0
-  %t93 = load ptr, ptr %t92
-  %t94 = getelementptr inbounds %Ast, ptr %t93, i32 0, i32 0
+  store i32 %t91, ptr %t90
+  %t93 = load ptr, ptr %t0
+  %t94 = getelementptr inbounds %Analyzer, ptr %t93, i32 0, i32 0
   %t95 = load ptr, ptr %t94
-  %t96 = load i32, ptr %t61
-  %t97 = sext i32 %t96 to i64
-  %t98 = getelementptr inbounds %Node, ptr %t95, i64 %t97
-  %t99 = getelementptr inbounds %Node, ptr %t98, i32 0, i32 9
-  %t100 = load ptr, ptr %t99
-  %t101 = load i32, ptr %t88
-  %t102 = sext i32 %t101 to i64
-  %t103 = getelementptr inbounds i32, ptr %t100, i64 %t102
-  %t104 = load i32, ptr %t103
-  store i32 %t104, ptr %t105
-  %t106 = load ptr, ptr %t0
-  %t107 = load i32, ptr %t105
-  %t108 = load %Type, ptr %t14
-  call void @checkPattern(ptr %t106, i32 %t107, %Type %t108)
-  %t109 = load i1, ptr @FAILED
-  br i1 %t109, label %L24, label %L26
+  %t96 = getelementptr inbounds %Ast, ptr %t95, i32 0, i32 0
+  %t97 = load ptr, ptr %t96
+  %t98 = load i32, ptr %t63
+  %t99 = sext i32 %t98 to i64
+  %t100 = getelementptr inbounds %Node, ptr %t97, i64 %t99
+  %t101 = getelementptr inbounds %Node, ptr %t100, i32 0, i32 9
+  %t102 = load ptr, ptr %t101
+  %t103 = load i32, ptr %t90
+  %t104 = sext i32 %t103 to i64
+  %t105 = getelementptr inbounds i32, ptr %t102, i64 %t104
+  %t106 = load i32, ptr %t105
+  store i32 %t106, ptr %t107
+  %t108 = load ptr, ptr %t0
+  %t109 = load i32, ptr %t107
+  %t110 = load %Type, ptr %t15
+  call void @checkPattern(ptr %t108, i32 %t109, %Type %t110)
+  %t111 = load i1, ptr @FAILED
+  br i1 %t111, label %L24, label %L26
 L24:
   ret void
 L26:
-  %t110 = load ptr, ptr %t0
-  %t111 = getelementptr inbounds %Analyzer, ptr %t110, i32 0, i32 11
-  %t112 = load ptr, ptr %t111
-  %t113 = load i32, ptr %t105
-  %t114 = sext i32 %t113 to i64
-  %t115 = getelementptr inbounds i64, ptr %t112, i64 %t114
-  %t116 = load i64, ptr %t115
-  store i64 %t116, ptr %t117
-  %t118 = load ptr, ptr %t0
-  %t119 = getelementptr inbounds %Analyzer, ptr %t118, i32 0, i32 10
-  %t120 = load ptr, ptr %t119
-  %t121 = load i32, ptr %t105
-  %t122 = sext i32 %t121 to i64
-  %t123 = getelementptr inbounds i8, ptr %t120, i64 %t122
-  store i8 0, ptr %t123
-  %t124 = load ptr, ptr %t0
-  %t125 = load i32, ptr %t1
-  %t126 = load i64, ptr %t117
-  %t127 = call i1 @matchHandles(ptr %t124, i32 %t125, i64 %t126)
-  br i1 %t127, label %L27, label %L29
+  %t112 = load ptr, ptr %t0
+  %t113 = getelementptr inbounds %Analyzer, ptr %t112, i32 0, i32 11
+  %t114 = load ptr, ptr %t113
+  %t115 = load i32, ptr %t107
+  %t116 = sext i32 %t115 to i64
+  %t117 = getelementptr inbounds i64, ptr %t114, i64 %t116
+  %t118 = load i64, ptr %t117
+  store i64 %t118, ptr %t119
+  %t120 = load ptr, ptr %t0
+  %t121 = getelementptr inbounds %Analyzer, ptr %t120, i32 0, i32 10
+  %t122 = load ptr, ptr %t121
+  %t123 = load i32, ptr %t107
+  %t124 = sext i32 %t123 to i64
+  %t125 = getelementptr inbounds i8, ptr %t122, i64 %t124
+  store i8 0, ptr %t125
+  %t126 = load ptr, ptr %t0
+  %t127 = load i32, ptr %t1
+  %t128 = load i64, ptr %t119
+  %t129 = call i1 @matchHandles(ptr %t126, i32 %t127, i64 %t128)
+  br i1 %t129, label %L27, label %L29
 L27:
-  %t128 = load ptr, ptr %t0
-  %t129 = load i32, ptr %t105
-  %t130 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t128, i32 %t129, i32 115, %Facts %t130)
+  %t130 = load ptr, ptr %t0
+  %t131 = load i32, ptr %t107
+  %t132 = call %Facts @Facts.none()
+  call void @analyzerFail(ptr %t130, i32 %t131, i32 115, %Facts %t132)
   ret void
 L29:
-  %t131 = load ptr, ptr %t0
-  %t132 = getelementptr inbounds %Analyzer, ptr %t131, i32 0, i32 10
-  %t133 = load ptr, ptr %t132
-  %t134 = load i32, ptr %t105
-  %t135 = sext i32 %t134 to i64
-  %t136 = getelementptr inbounds i8, ptr %t133, i64 %t135
-  store i8 1, ptr %t136
+  %t133 = load ptr, ptr %t0
+  %t134 = getelementptr inbounds %Analyzer, ptr %t133, i32 0, i32 10
+  %t135 = load ptr, ptr %t134
+  %t136 = load i32, ptr %t107
+  %t137 = sext i32 %t136 to i64
+  %t138 = getelementptr inbounds i8, ptr %t135, i64 %t137
+  store i8 1, ptr %t138
   br label %L22
 L22:
-  %t137 = load i32, ptr %t87
-  %t138 = add i32 %t137, 1
-  store i32 %t138, ptr %t87
+  %t139 = load i32, ptr %t89
+  %t140 = add i32 %t139, 1
+  store i32 %t140, ptr %t89
   br label %L20
 L23:
-  %t139 = load ptr, ptr %t0
-  %t140 = load ptr, ptr %t0
-  %t141 = getelementptr inbounds %Analyzer, ptr %t140, i32 0, i32 0
-  %t142 = load ptr, ptr %t141
-  %t143 = getelementptr inbounds %Ast, ptr %t142, i32 0, i32 0
-  %t144 = load ptr, ptr %t143
-  %t145 = load i32, ptr %t61
-  %t146 = sext i32 %t145 to i64
-  %t147 = getelementptr inbounds %Node, ptr %t144, i64 %t146
-  %t148 = getelementptr inbounds %Node, ptr %t147, i32 0, i32 5
-  %t149 = load i32, ptr %t148
-  call void @analyzeStatement(ptr %t139, i32 %t149)
-  %t150 = load i1, ptr @FAILED
-  br i1 %t150, label %L30, label %L32
+  %t141 = load ptr, ptr %t0
+  %t142 = load i32, ptr %t1
+  %t143 = load i32, ptr %t63
+  %t144 = load %Type, ptr %t2
+  call void @checkArmBody(ptr %t141, i32 %t142, i32 %t143, %Type %t144)
+  %t145 = load i1, ptr @FAILED
+  br i1 %t145, label %L30, label %L32
 L30:
   ret void
 L32:
-  %t151 = load i32, ptr %t34
-  %t152 = add i32 %t151, 1
-  store i32 %t152, ptr %t34
+  %t146 = load i32, ptr %t36
+  %t147 = add i32 %t146, 1
+  store i32 %t147, ptr %t36
   br label %L11
 L13:
-  %t153 = load i1, ptr %t33
-  br i1 %t153, label %L33, label %L35
+  %t148 = load i1, ptr %t35
+  br i1 %t148, label %L33, label %L35
 L33:
   ret void
 L35:
-  %t154 = load %Type, ptr %t14
-  %t155 = call i1 @Type.isEnum(%Type %t154)
-  br i1 %t155, label %L36, label %L38
+  %t149 = load %Type, ptr %t15
+  %t150 = call i1 @Type.isEnum(%Type %t149)
+  br i1 %t150, label %L36, label %L38
 L36:
+  %t151 = load ptr, ptr %t0
+  %t152 = getelementptr inbounds %Type, ptr %t15, i32 0, i32 2
+  %t153 = load ptr, ptr %t152
+  %t154 = call i32 @enumDeclOf(ptr %t151, ptr %t153)
+  store i32 %t154, ptr %t155
   %t156 = load ptr, ptr %t0
-  %t157 = getelementptr inbounds %Type, ptr %t14, i32 0, i32 2
-  %t158 = load ptr, ptr %t157
-  %t159 = call i32 @enumDeclOf(ptr %t156, ptr %t158)
+  %t157 = load i32, ptr %t1
+  %t158 = load i32, ptr %t155
+  %t159 = call i32 @unhandledMember(ptr %t156, i32 %t157, i32 %t158)
   store i32 %t159, ptr %t160
-  %t161 = load ptr, ptr %t0
-  %t162 = load i32, ptr %t1
-  %t163 = load i32, ptr %t160
-  %t164 = call i32 @unhandledMember(ptr %t161, i32 %t162, i32 %t163)
-  store i32 %t164, ptr %t165
-  %t166 = load i32, ptr %t165
-  %t167 = load i32, ptr @NO_NODE
-  %t168 = icmp ne i32 %t166, %t167
-  br i1 %t168, label %L39, label %L41
+  %t161 = load i32, ptr %t160
+  %t162 = load i32, ptr @NO_NODE
+  %t163 = icmp ne i32 %t161, %t162
+  br i1 %t163, label %L39, label %L41
 L39:
-  %t169 = load ptr, ptr %t0
-  %t170 = load i32, ptr %t1
-  %t171 = getelementptr inbounds %Type, ptr %t14, i32 0, i32 2
+  %t164 = load ptr, ptr %t0
+  %t165 = load i32, ptr %t1
+  %t166 = getelementptr inbounds %Type, ptr %t15, i32 0, i32 2
+  %t167 = load ptr, ptr %t166
+  %t168 = load ptr, ptr %t0
+  %t169 = getelementptr inbounds %Analyzer, ptr %t168, i32 0, i32 0
+  %t170 = load ptr, ptr %t169
+  %t171 = getelementptr inbounds %Ast, ptr %t170, i32 0, i32 0
   %t172 = load ptr, ptr %t171
-  %t173 = load ptr, ptr %t0
-  %t174 = getelementptr inbounds %Analyzer, ptr %t173, i32 0, i32 0
-  %t175 = load ptr, ptr %t174
-  %t176 = getelementptr inbounds %Ast, ptr %t175, i32 0, i32 0
+  %t173 = load i32, ptr %t160
+  %t174 = sext i32 %t173 to i64
+  %t175 = getelementptr inbounds %Node, ptr %t172, i64 %t174
+  %t176 = getelementptr inbounds %Node, ptr %t175, i32 0, i32 3
   %t177 = load ptr, ptr %t176
-  %t178 = load i32, ptr %t165
-  %t179 = sext i32 %t178 to i64
-  %t180 = getelementptr inbounds %Node, ptr %t177, i64 %t179
-  %t181 = getelementptr inbounds %Node, ptr %t180, i32 0, i32 3
-  %t182 = load ptr, ptr %t181
-  %t183 = call %Facts @Facts.aboutTwo(ptr %t172, ptr %t182)
-  call void @analyzerFail(ptr %t169, i32 %t170, i32 118, %Facts %t183)
+  %t178 = call %Facts @Facts.aboutTwo(ptr %t167, ptr %t177)
+  call void @analyzerFail(ptr %t164, i32 %t165, i32 121, %Facts %t178)
   br label %L41
 L41:
   ret void
 L38:
-  %t184 = load ptr, ptr %t0
-  %t185 = load i32, ptr %t1
-  %t186 = load %Type, ptr %t14
-  %t187 = call %Facts @Facts.aboutType(%Type %t186)
-  call void @analyzerFail(ptr %t184, i32 %t185, i32 119, %Facts %t187)
+  %t179 = load ptr, ptr %t0
+  %t180 = load i32, ptr %t1
+  %t181 = load %Type, ptr %t15
+  %t182 = call %Facts @Facts.aboutType(%Type %t181)
+  call void @analyzerFail(ptr %t179, i32 %t180, i32 122, %Facts %t182)
   ret void
 }
 
@@ -30506,7 +31056,7 @@ L2:
   br label %L0
 L3:
   %t57 = load ptr, ptr %t3
-  call void @"List<Type>.sort"(ptr %t57, ptr @ode.lambda.35764)
+  call void @"List<Type>.sort"(ptr %t57, ptr @ode.lambda.36304)
   %t58 = call ptr @"List<Type>.new"()
   store ptr %t58, ptr %t59
   %t60 = load ptr, ptr %t3
@@ -30684,7 +31234,7 @@ L49:
   br i1 %t161, label %L52, label %L54
 L52:
   %t162 = load ptr, ptr %t152
-  call void @Builder.add(ptr %t162, ptr @.str.869)
+  call void @Builder.add(ptr %t162, ptr @.str.878)
   br label %L54
 L54:
   %t163 = load ptr, ptr %t152
@@ -30727,7 +31277,7 @@ L60:
   br i1 %t184, label %L61, label %L63
 L61:
   %t185 = load ptr, ptr %t152
-  call void @Builder.add(ptr %t185, ptr @.str.870)
+  call void @Builder.add(ptr %t185, ptr @.str.879)
   br label %L63
 L63:
   %t186 = load ptr, ptr %t152
@@ -30882,7 +31432,7 @@ L2:
 L3:
   br i1 false, label %L7, label %L8
 L8:
-  %t20 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.873, ptr @.str.871, ptr @.str.872)
+  %t20 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.882, ptr @.str.880, ptr @.str.881)
   call void @exit(i32 1)
   unreachable
 L7:
@@ -31683,7 +32233,7 @@ L26:
   %t101 = load i32, ptr %t1
   %t102 = load %Type, ptr %t83
   %t103 = call %Facts @Facts.aboutType(%Type %t102)
-  call void @analyzerFail(ptr %t100, i32 %t101, i32 135, %Facts %t103)
+  call void @analyzerFail(ptr %t100, i32 %t101, i32 138, %Facts %t103)
   %t104 = load ptr, ptr %t0
   %t105 = getelementptr inbounds %Analyzer, ptr %t104, i32 0, i32 10
   %t106 = load ptr, ptr %t105
@@ -31712,7 +32262,7 @@ L29:
   %t122 = call ptr @"List<*i8>.at"(ptr %t121, i64 0)
   %t123 = call %Type @Type.ofEnum(ptr %t122, i32 0)
   %t124 = call %Facts @Facts.aboutType(%Type %t123)
-  call void @analyzerFail(ptr %t117, i32 %t118, i32 135, %Facts %t124)
+  call void @analyzerFail(ptr %t117, i32 %t118, i32 138, %Facts %t124)
   %t125 = load ptr, ptr %t0
   %t126 = getelementptr inbounds %Analyzer, ptr %t125, i32 0, i32 10
   %t127 = load ptr, ptr %t126
@@ -31741,7 +32291,7 @@ L34:
   %t140 = load ptr, ptr %t0
   %t141 = load i32, ptr %t1
   %t142 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t140, i32 %t141, i32 134, %Facts %t142)
+  call void @analyzerFail(ptr %t140, i32 %t141, i32 137, %Facts %t142)
   %t143 = load ptr, ptr %t0
   %t144 = getelementptr inbounds %Analyzer, ptr %t143, i32 0, i32 10
   %t145 = load ptr, ptr %t144
@@ -31795,7 +32345,7 @@ L3:
   %t21 = load i32, ptr %t1
   %t22 = load %Type, ptr %t14
   %t23 = call %Facts @Facts.aboutType(%Type %t22)
-  call void @analyzerFail(ptr %t20, i32 %t21, i32 136, %Facts %t23)
+  call void @analyzerFail(ptr %t20, i32 %t21, i32 139, %Facts %t23)
   %t24 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t24
 L5:
@@ -31808,7 +32358,7 @@ L6:
   %t29 = load ptr, ptr %t0
   %t30 = load i32, ptr %t1
   %t31 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t29, i32 %t30, i32 137, %Facts %t31)
+  call void @analyzerFail(ptr %t29, i32 %t30, i32 140, %Facts %t31)
   %t32 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t32
 L8:
@@ -31859,7 +32409,7 @@ L15:
   %t66 = getelementptr inbounds %Analyzer, ptr %t65, i32 0, i32 28
   %t67 = load %Type, ptr %t66
   %t68 = call %Facts @Facts.withType(%Facts %t64, %Type %t67)
-  call void @analyzerFail(ptr %t59, i32 %t60, i32 138, %Facts %t68)
+  call void @analyzerFail(ptr %t59, i32 %t60, i32 141, %Facts %t68)
   %t69 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t69
 L17:
@@ -31918,7 +32468,7 @@ L6:
   %t20 = load i32, ptr %t1
   %t21 = load %Type, ptr %t7
   %t22 = call %Facts @Facts.aboutType(%Type %t21)
-  call void @analyzerFail(ptr %t19, i32 %t20, i32 139, %Facts %t22)
+  call void @analyzerFail(ptr %t19, i32 %t20, i32 142, %Facts %t22)
   %t23 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t23
 L8:
@@ -31951,7 +32501,7 @@ L11:
   %t41 = load %Type, ptr %t11
   %t42 = load %Type, ptr %t29
   %t43 = call %Facts @Facts.aboutTypes(%Type %t41, %Type %t42)
-  call void @analyzerFailAtValue(ptr %t38, i32 %t40, i32 140, %Facts %t43)
+  call void @analyzerFailAtValue(ptr %t38, i32 %t40, i32 143, %Facts %t43)
   br label %L13
 L13:
   %t44 = load %Type, ptr %t11
@@ -31996,7 +32546,7 @@ L3:
   %t21 = load i32, ptr %t1
   %t22 = load %Type, ptr %t14
   %t23 = call %Facts @Facts.aboutType(%Type %t22)
-  call void @analyzerFail(ptr %t20, i32 %t21, i32 141, %Facts %t23)
+  call void @analyzerFail(ptr %t20, i32 %t21, i32 144, %Facts %t23)
   %t24 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t24
 L5:
@@ -32014,7 +32564,7 @@ L6:
   %t34 = load i32, ptr %t1
   %t35 = load %Type, ptr %t14
   %t36 = call %Facts @Facts.aboutType(%Type %t35)
-  call void @analyzerFail(ptr %t33, i32 %t34, i32 142, %Facts %t36)
+  call void @analyzerFail(ptr %t33, i32 %t34, i32 145, %Facts %t36)
   %t37 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t37
 L8:
@@ -32103,7 +32653,7 @@ L14:
   %t105 = load ptr, ptr %t0
   %t106 = load i32, ptr %t1
   %t107 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t105, i32 %t106, i32 143, %Facts %t107)
+  call void @analyzerFail(ptr %t105, i32 %t106, i32 146, %Facts %t107)
   %t108 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t108
 L16:
@@ -32167,7 +32717,7 @@ L6:
   %t36 = load i32, ptr %t1
   %t37 = load %Type, ptr %t14
   %t38 = call %Facts @Facts.aboutType(%Type %t37)
-  call void @analyzerFail(ptr %t35, i32 %t36, i32 153, %Facts %t38)
+  call void @analyzerFail(ptr %t35, i32 %t36, i32 156, %Facts %t38)
   %t39 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t39
 L8:
@@ -32185,7 +32735,7 @@ L9:
   %t49 = load %Type, ptr %t14
   %t50 = load %Type, ptr %t29
   %t51 = call %Facts @Facts.withTypes(%Facts %t48, %Type %t49, %Type %t50)
-  call void @analyzerFail(ptr %t44, i32 %t45, i32 154, %Facts %t51)
+  call void @analyzerFail(ptr %t44, i32 %t45, i32 157, %Facts %t51)
   %t52 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t52
 L11:
@@ -32545,7 +33095,7 @@ L41:
   %t198 = getelementptr inbounds %Node, ptr %t195, i64 %t197
   %t199 = getelementptr inbounds %Node, ptr %t198, i32 0, i32 3
   %t200 = load ptr, ptr %t199
-  %t201 = call i1 @equals(ptr %t200, ptr @.str.874)
+  %t201 = call i1 @equals(ptr %t200, ptr @.str.883)
   store i1 %t201, ptr %t179
   br label %L42
 L42:
@@ -32879,8 +33429,9 @@ entry:
   %t29 = alloca i32
   %t30 = alloca i1
   %t55 = alloca i1
-  %t79 = alloca ptr
-  %t83 = alloca ptr
+  %t56 = alloca i1
+  %t93 = alloca ptr
+  %t97 = alloca ptr
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -32949,28 +33500,26 @@ L7:
   %t54 = load ptr, ptr %t53
   ret ptr %t54
 L2:
-  %t56 = load i32, ptr %t12
-  %t57 = icmp ne i32 %t56, 18
-  store i1 %t57, ptr %t55
-  br i1 %t57, label %L9, label %L8
+  %t57 = load i32, ptr %t12
+  %t58 = icmp ne i32 %t57, 18
+  store i1 %t58, ptr %t56
+  br i1 %t58, label %L9, label %L8
 L8:
-  %t58 = load ptr, ptr %t0
-  %t59 = getelementptr inbounds %Analyzer, ptr %t58, i32 0, i32 10
-  %t60 = load ptr, ptr %t59
-  %t61 = load i32, ptr %t1
-  %t62 = sext i32 %t61 to i64
-  %t63 = getelementptr inbounds i8, ptr %t60, i64 %t62
-  %t64 = load i8, ptr %t63
-  %t65 = icmp ne i8 %t64, 0
-  store i1 %t65, ptr %t55
+  %t59 = load ptr, ptr %t0
+  %t60 = getelementptr inbounds %Analyzer, ptr %t59, i32 0, i32 10
+  %t61 = load ptr, ptr %t60
+  %t62 = load i32, ptr %t1
+  %t63 = sext i32 %t62 to i64
+  %t64 = getelementptr inbounds i8, ptr %t61, i64 %t63
+  %t65 = load i8, ptr %t64
+  %t66 = icmp ne i8 %t65, 0
+  store i1 %t66, ptr %t56
   br label %L9
 L9:
-  %t66 = load i1, ptr %t55
-  br i1 %t66, label %L10, label %L12
+  %t67 = load i1, ptr %t56
+  store i1 %t67, ptr %t55
+  br i1 %t67, label %L11, label %L10
 L10:
-  ret ptr null
-L12:
-  %t67 = load ptr, ptr %t0
   %t68 = load ptr, ptr %t0
   %t69 = getelementptr inbounds %Analyzer, ptr %t68, i32 0, i32 0
   %t70 = load ptr, ptr %t69
@@ -32981,36 +33530,57 @@ L12:
   %t75 = getelementptr inbounds %Node, ptr %t72, i64 %t74
   %t76 = getelementptr inbounds %Node, ptr %t75, i32 0, i32 5
   %t77 = load i32, ptr %t76
-  %t78 = call ptr @pathOf(ptr %t67, i32 %t77)
-  store ptr %t78, ptr %t79
-  %t80 = load ptr, ptr %t79
-  %t81 = icmp eq ptr %t80, null
-  br i1 %t81, label %L13, label %L15
-L13:
+  %t78 = load i32, ptr @NO_NODE
+  %t79 = icmp eq i32 %t77, %t78
+  store i1 %t79, ptr %t55
+  br label %L11
+L11:
+  %t80 = load i1, ptr %t55
+  br i1 %t80, label %L12, label %L14
+L12:
   ret ptr null
-L15:
-  %t82 = call ptr @Builder.new()
-  store ptr %t82, ptr %t83
+L14:
+  %t81 = load ptr, ptr %t0
+  %t82 = load ptr, ptr %t0
+  %t83 = getelementptr inbounds %Analyzer, ptr %t82, i32 0, i32 0
   %t84 = load ptr, ptr %t83
-  %t85 = load ptr, ptr %t79
-  call void @Builder.add(ptr %t84, ptr %t85)
-  %t86 = load ptr, ptr %t83
-  call void @Builder.push(ptr %t86, i8 46)
-  %t87 = load ptr, ptr %t83
-  %t88 = load ptr, ptr %t0
-  %t89 = getelementptr inbounds %Analyzer, ptr %t88, i32 0, i32 0
-  %t90 = load ptr, ptr %t89
-  %t91 = getelementptr inbounds %Ast, ptr %t90, i32 0, i32 0
-  %t92 = load ptr, ptr %t91
-  %t93 = load i32, ptr %t1
-  %t94 = sext i32 %t93 to i64
-  %t95 = getelementptr inbounds %Node, ptr %t92, i64 %t94
-  %t96 = getelementptr inbounds %Node, ptr %t95, i32 0, i32 3
-  %t97 = load ptr, ptr %t96
-  call void @Builder.add(ptr %t87, ptr %t97)
-  %t98 = load ptr, ptr %t83
-  %t99 = call ptr @Builder.take(ptr %t98)
-  ret ptr %t99
+  %t85 = getelementptr inbounds %Ast, ptr %t84, i32 0, i32 0
+  %t86 = load ptr, ptr %t85
+  %t87 = load i32, ptr %t1
+  %t88 = sext i32 %t87 to i64
+  %t89 = getelementptr inbounds %Node, ptr %t86, i64 %t88
+  %t90 = getelementptr inbounds %Node, ptr %t89, i32 0, i32 5
+  %t91 = load i32, ptr %t90
+  %t92 = call ptr @pathOf(ptr %t81, i32 %t91)
+  store ptr %t92, ptr %t93
+  %t94 = load ptr, ptr %t93
+  %t95 = icmp eq ptr %t94, null
+  br i1 %t95, label %L15, label %L17
+L15:
+  ret ptr null
+L17:
+  %t96 = call ptr @Builder.new()
+  store ptr %t96, ptr %t97
+  %t98 = load ptr, ptr %t97
+  %t99 = load ptr, ptr %t93
+  call void @Builder.add(ptr %t98, ptr %t99)
+  %t100 = load ptr, ptr %t97
+  call void @Builder.push(ptr %t100, i8 46)
+  %t101 = load ptr, ptr %t97
+  %t102 = load ptr, ptr %t0
+  %t103 = getelementptr inbounds %Analyzer, ptr %t102, i32 0, i32 0
+  %t104 = load ptr, ptr %t103
+  %t105 = getelementptr inbounds %Ast, ptr %t104, i32 0, i32 0
+  %t106 = load ptr, ptr %t105
+  %t107 = load i32, ptr %t1
+  %t108 = sext i32 %t107 to i64
+  %t109 = getelementptr inbounds %Node, ptr %t106, i64 %t108
+  %t110 = getelementptr inbounds %Node, ptr %t109, i32 0, i32 3
+  %t111 = load ptr, ptr %t110
+  call void @Builder.add(ptr %t101, ptr %t111)
+  %t112 = load ptr, ptr %t97
+  %t113 = call ptr @Builder.take(ptr %t112)
+  ret ptr %t113
 }
 
 define %Type @declaredTypeOf(ptr %p0, ptr %p1) {
@@ -33455,7 +34025,7 @@ entry:
   %t10 = sext i32 %t9 to i64
   %t11 = getelementptr inbounds %Node, ptr %t8, i64 %t10
   %t12 = getelementptr inbounds %Node, ptr %t11, i32 0, i32 3
-  store ptr @.str.875, ptr %t12
+  store ptr @.str.884, ptr %t12
   %t13 = load i1, ptr %t1
   br i1 %t13, label %L0, label %L2
 L0:
@@ -33474,7 +34044,7 @@ L0:
   %t25 = sext i32 %t24 to i64
   %t26 = getelementptr inbounds %Node, ptr %t23, i64 %t25
   %t27 = getelementptr inbounds %Node, ptr %t26, i32 0, i32 3
-  store ptr @.str.876, ptr %t27
+  store ptr @.str.885, ptr %t27
   br label %L2
 L2:
   %t28 = load ptr, ptr %t0
@@ -33535,7 +34105,7 @@ entry:
   %t3 = call ptr @Builder.new()
   store ptr %t3, ptr %t4
   %t5 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t5, ptr @.str.877)
+  call void @Builder.add(ptr %t5, ptr @.str.886)
   %t6 = load i32, ptr %t1
   store i32 0, ptr %t7
   br label %L0
@@ -33550,7 +34120,7 @@ L1:
   br i1 %t12, label %L4, label %L6
 L4:
   %t13 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t13, ptr @.str.878)
+  call void @Builder.add(ptr %t13, ptr @.str.887)
   br label %L6
 L6:
   %t14 = load ptr, ptr %t4
@@ -33569,7 +34139,7 @@ L2:
   br label %L0
 L3:
   %t23 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t23, ptr @.str.879)
+  call void @Builder.add(ptr %t23, ptr @.str.888)
   %t24 = load ptr, ptr %t4
   %t25 = load %Type, ptr %t2
   %t26 = call ptr @Type.toText(%Type %t25)
@@ -33703,7 +34273,7 @@ L2:
   store i64 %t22, ptr %t7
   br label %L0
 L3:
-  call void @internalError(i32 0, i32 0, ptr @.str.880)
+  call void @internalError(i32 0, i32 0, ptr @.str.889)
   ret i64 -1
 }
 
@@ -34014,7 +34584,7 @@ L5:
   %t41 = getelementptr inbounds %Node, ptr %t38, i64 %t40
   %t42 = getelementptr inbounds %Node, ptr %t41, i32 0, i32 6
   %t43 = load i32, ptr %t42
-  %t44 = call %Type @checkCallThrough(ptr %t31, i32 %t32, ptr @.str.881, %Type %t33, i32 %t43)
+  %t44 = call %Type @checkCallThrough(ptr %t31, i32 %t32, ptr @.str.890, %Type %t33, i32 %t43)
   ret %Type %t44
 }
 
@@ -34317,7 +34887,7 @@ L4:
   %t51 = getelementptr inbounds %Node, ptr %t48, i64 %t50
   %t52 = getelementptr inbounds %Node, ptr %t51, i32 0, i32 3
   %t53 = load ptr, ptr %t52
-  %t54 = call i1 @equals(ptr %t53, ptr @.str.882)
+  %t54 = call i1 @equals(ptr %t53, ptr @.str.891)
   %t55 = xor i1 %t54, true
   br i1 %t55, label %L5, label %L7
 L5:
@@ -34491,7 +35061,7 @@ L11:
   %t78 = load i32, ptr %t45
   %t79 = load ptr, ptr %t61
   %t80 = call %Facts @Facts.about(ptr %t79)
-  call void @analyzerFail(ptr %t77, i32 %t78, i32 120, %Facts %t80)
+  call void @analyzerFail(ptr %t77, i32 %t78, i32 123, %Facts %t80)
   br label %L13
 L13:
   %t81 = load ptr, ptr %t0
@@ -34521,7 +35091,7 @@ L16:
   %t100 = load i32, ptr %t99
   %t101 = call %Type @analyzerParseType(ptr %t90, i32 %t100)
   %t102 = load ptr, ptr %t61
-  %t103 = call ptr @quoted(ptr @.str.883, ptr %t102, ptr @.str.884)
+  %t103 = call ptr @quoted(ptr @.str.892, ptr %t102, ptr @.str.893)
   call void @analyzerValidateType(ptr %t88, i32 %t89, %Type %t101, ptr %t103)
   store i32 0, ptr %t104
   %t105 = load ptr, ptr %t0
@@ -34554,7 +35124,7 @@ L18:
   %t128 = getelementptr inbounds %Type, ptr %t125, i64 %t127
   %t129 = load %Type, ptr %t128
   %t130 = load ptr, ptr %t61
-  %t131 = call ptr @quoted(ptr @.str.885, ptr %t130, ptr @.str.886)
+  %t131 = call ptr @quoted(ptr @.str.894, ptr %t130, ptr @.str.895)
   call void @analyzerValidateType(ptr %t123, i32 %t124, %Type %t129, ptr %t131)
   br label %L19
 L19:
@@ -34584,7 +35154,7 @@ L21:
   %t150 = getelementptr inbounds %Node, ptr %t149, i32 0, i32 3
   %t151 = load ptr, ptr %t150
   %t152 = call %Facts @Facts.aboutTwo(ptr %t141, ptr %t151)
-  call void @analyzerFail(ptr %t139, i32 %t140, i32 121, %Facts %t152)
+  call void @analyzerFail(ptr %t139, i32 %t140, i32 124, %Facts %t152)
   br label %L23
 L23:
   store i1 false, ptr @FAILED
@@ -34888,7 +35458,7 @@ L16:
   %t135 = load ptr, ptr %t0
   %t136 = load i32, ptr %t1
   %t137 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t135, i32 %t136, i32 122, %Facts %t137)
+  call void @analyzerFail(ptr %t135, i32 %t136, i32 125, %Facts %t137)
   %t138 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t138
 L18:
@@ -34922,7 +35492,7 @@ L22:
   %t158 = call %Facts @Facts.about(ptr %t157)
   %t159 = load %Type, ptr %t146
   %t160 = call %Facts @Facts.withType(%Facts %t158, %Type %t159)
-  call void @analyzerFail(ptr %t155, i32 %t156, i32 123, %Facts %t160)
+  call void @analyzerFail(ptr %t155, i32 %t156, i32 126, %Facts %t160)
   %t161 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t161
 L24:
@@ -35031,7 +35601,7 @@ L36:
   %t243 = load ptr, ptr %t242
   %t244 = load ptr, ptr %t23
   %t245 = call %Facts @Facts.aboutTwo(ptr %t243, ptr %t244)
-  call void @analyzerFail(ptr %t240, i32 %t241, i32 124, %Facts %t245)
+  call void @analyzerFail(ptr %t240, i32 %t241, i32 127, %Facts %t245)
   %t246 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t246
 L38:
@@ -35060,7 +35630,7 @@ L42:
   %t263 = load i32, ptr %t1
   %t264 = load ptr, ptr %t251
   %t265 = call %Facts @Facts.about(ptr %t264)
-  call void @analyzerFail(ptr %t262, i32 %t263, i32 125, %Facts %t265)
+  call void @analyzerFail(ptr %t262, i32 %t263, i32 128, %Facts %t265)
   %t266 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t266
 L44:
@@ -35090,7 +35660,7 @@ L50:
   %t281 = load i32, ptr %t1
   %t282 = load ptr, ptr %t251
   %t283 = call %Facts @Facts.about(ptr %t282)
-  call void @analyzerFail(ptr %t280, i32 %t281, i32 126, %Facts %t283)
+  call void @analyzerFail(ptr %t280, i32 %t281, i32 129, %Facts %t283)
   %t284 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t284
 L52:
@@ -35235,7 +35805,7 @@ L0:
   %t33 = load ptr, ptr %t32
   %t34 = load ptr, ptr %t13
   %t35 = call %Facts @Facts.aboutTwo(ptr %t33, ptr %t34)
-  call void @analyzerFail(ptr %t22, i32 %t23, i32 124, %Facts %t35)
+  call void @analyzerFail(ptr %t22, i32 %t23, i32 127, %Facts %t35)
   %t36 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t36
 L2:
@@ -35538,8 +36108,8 @@ L45:
 L47:
   %t82 = load ptr, ptr %t0
   %t83 = load i32, ptr %t1
-  %t84 = call %Facts @Facts.about(ptr @.str.887)
-  call void @analyzerFail(ptr %t82, i32 %t83, i32 161, %Facts %t84)
+  %t84 = call %Facts @Facts.about(ptr @.str.896)
+  call void @analyzerFail(ptr %t82, i32 %t83, i32 164, %Facts %t84)
   ret void
 }
 
@@ -35581,7 +36151,7 @@ L2:
   %t22 = load i32, ptr %t1
   %t23 = load %Type, ptr %t14
   %t24 = call %Facts @Facts.aboutType(%Type %t23)
-  call void @analyzerFail(ptr %t21, i32 %t22, i32 144, %Facts %t24)
+  call void @analyzerFail(ptr %t21, i32 %t22, i32 147, %Facts %t24)
   br label %L4
 L4:
   ret void
@@ -35691,7 +36261,7 @@ entry:
   %t27 = load i32, ptr %t1
   %t28 = load %Type, ptr %t25
   %t29 = load ptr, ptr %t12
-  %t30 = call ptr @quoted(ptr @.str.888, ptr %t29, ptr @.str.889)
+  %t30 = call ptr @quoted(ptr @.str.897, ptr %t29, ptr @.str.898)
   call void @analyzerValidateType(ptr %t26, i32 %t27, %Type %t28, ptr %t30)
   %t31 = load %Type, ptr %t25
   %t32 = call i1 @Type.isVoid(%Type %t31)
@@ -36111,7 +36681,7 @@ entry:
 L0:
   %t18 = load ptr, ptr %t0
   %t19 = load i32, ptr %t1
-  %t20 = call %Facts @Facts.about(ptr @.str.890)
+  %t20 = call %Facts @Facts.about(ptr @.str.899)
   %t21 = load %Type, ptr %t14
   %t22 = call %Facts @Facts.withType(%Facts %t20, %Type %t21)
   call void @analyzerFail(ptr %t18, i32 %t19, i32 48, %Facts %t22)
@@ -36317,7 +36887,7 @@ entry:
 L0:
   %t18 = load ptr, ptr %t0
   %t19 = load i32, ptr %t1
-  %t20 = call %Facts @Facts.about(ptr @.str.891)
+  %t20 = call %Facts @Facts.about(ptr @.str.900)
   %t21 = load %Type, ptr %t14
   %t22 = call %Facts @Facts.withType(%Facts %t20, %Type %t21)
   call void @analyzerFail(ptr %t18, i32 %t19, i32 48, %Facts %t22)
@@ -37078,7 +37648,7 @@ L5:
   %t60 = getelementptr inbounds %Node, ptr %t57, i64 %t59
   %t61 = getelementptr inbounds %Node, ptr %t60, i32 0, i32 3
   %t62 = load ptr, ptr %t61
-  %t63 = call i1 @equals(ptr %t62, ptr @.str.892)
+  %t63 = call i1 @equals(ptr %t62, ptr @.str.901)
   store i1 %t63, ptr %t28
   br label %L6
 L6:
@@ -38787,7 +39357,7 @@ entry:
   %t8 = load ptr, ptr %t4
   call void @Builder.add(ptr %t7, ptr %t8)
   %t9 = load ptr, ptr %t6
-  call void @Builder.add(ptr %t9, ptr @.str.893)
+  call void @Builder.add(ptr %t9, ptr @.str.902)
   %t10 = load ptr, ptr %t6
   %t11 = load ptr, ptr %t1
   call void @Builder.add(ptr %t10, ptr %t11)
@@ -38812,13 +39382,13 @@ entry:
   %t3 = call ptr @Builder.new()
   store ptr %t3, ptr %t4
   %t5 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t5, ptr @.str.894)
+  call void @Builder.add(ptr %t5, ptr @.str.903)
   %t6 = load ptr, ptr %t4
   %t7 = load %Type, ptr %t1
   %t8 = call ptr @llvmTypeName(%Type %t7)
   call void @Builder.add(ptr %t6, ptr %t8)
   %t9 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t9, ptr @.str.895)
+  call void @Builder.add(ptr %t9, ptr @.str.904)
   %t10 = load ptr, ptr %t4
   %t11 = load ptr, ptr %t2
   call void @Builder.add(ptr %t10, ptr %t11)
@@ -38844,7 +39414,7 @@ entry:
   %t4 = call ptr @Builder.new()
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t6, ptr @.str.896)
+  call void @Builder.add(ptr %t6, ptr @.str.905)
   %t7 = load ptr, ptr %t5
   %t8 = load %Type, ptr %t1
   %t9 = call ptr @llvmTypeName(%Type %t8)
@@ -38855,7 +39425,7 @@ entry:
   %t12 = load ptr, ptr %t2
   call void @Builder.add(ptr %t11, ptr %t12)
   %t13 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t13, ptr @.str.897)
+  call void @Builder.add(ptr %t13, ptr @.str.906)
   %t14 = load ptr, ptr %t5
   %t15 = load ptr, ptr %t3
   call void @Builder.add(ptr %t14, ptr %t15)
@@ -38988,7 +39558,7 @@ L21:
   %t55 = load i1, ptr %t50
   br i1 %t55, label %L22, label %L23
 L22:
-  store ptr @.str.898, ptr %t49
+  store ptr @.str.907, ptr %t49
   br label %L24
 L23:
   %t57 = load %Type, ptr %t2
@@ -39004,14 +39574,14 @@ L26:
   %t61 = load i1, ptr %t56
   br i1 %t61, label %L27, label %L28
 L27:
-  store ptr @.str.899, ptr %t49
+  store ptr @.str.908, ptr %t49
   br label %L29
 L28:
   %t62 = load %Type, ptr %t2
   %t63 = call i1 @Type.isBool(%Type %t62)
   br i1 %t63, label %L30, label %L31
 L30:
-  store ptr @.str.900, ptr %t49
+  store ptr @.str.909, ptr %t49
   br label %L32
 L31:
   %t64 = load %Type, ptr %t3
@@ -39021,7 +39591,7 @@ L33:
   %t66 = call ptr @Builder.new()
   store ptr %t66, ptr %t67
   %t68 = load ptr, ptr %t67
-  call void @Builder.add(ptr %t68, ptr @.str.901)
+  call void @Builder.add(ptr %t68, ptr @.str.910)
   %t69 = load ptr, ptr %t67
   %t70 = load ptr, ptr %t27
   call void @Builder.add(ptr %t69, ptr %t70)
@@ -39031,7 +39601,7 @@ L33:
   %t73 = load ptr, ptr %t1
   call void @Builder.add(ptr %t72, ptr %t73)
   %t74 = load ptr, ptr %t67
-  call void @Builder.add(ptr %t74, ptr @.str.902)
+  call void @Builder.add(ptr %t74, ptr @.str.911)
   %t75 = load ptr, ptr %t67
   %t76 = load %Type, ptr %t2
   %t77 = call ptr @zeroValue(%Type %t76)
@@ -39073,17 +39643,17 @@ L43:
   %t99 = icmp slt i32 %t96, %t98
   br i1 %t99, label %L44, label %L45
 L44:
-  store ptr @.str.903, ptr %t49
+  store ptr @.str.912, ptr %t49
   br label %L46
 L45:
   %t100 = load %Type, ptr %t2
   %t101 = call i1 @Type.isSigned(%Type %t100)
   br i1 %t101, label %L47, label %L48
 L47:
-  store ptr @.str.904, ptr %t49
+  store ptr @.str.913, ptr %t49
   br label %L49
 L48:
-  store ptr @.str.905, ptr %t49
+  store ptr @.str.914, ptr %t49
   br label %L49
 L49:
   br label %L46
@@ -39107,10 +39677,10 @@ L52:
   %t109 = call i1 @Type.isSigned(%Type %t108)
   br i1 %t109, label %L55, label %L56
 L55:
-  store ptr @.str.906, ptr %t49
+  store ptr @.str.915, ptr %t49
   br label %L57
 L56:
-  store ptr @.str.907, ptr %t49
+  store ptr @.str.916, ptr %t49
   br label %L57
 L57:
   br label %L54
@@ -39132,10 +39702,10 @@ L60:
   %t117 = call i1 @Type.isSigned(%Type %t116)
   br i1 %t117, label %L63, label %L64
 L63:
-  store ptr @.str.908, ptr %t49
+  store ptr @.str.917, ptr %t49
   br label %L65
 L64:
-  store ptr @.str.909, ptr %t49
+  store ptr @.str.918, ptr %t49
   br label %L65
 L65:
   br label %L62
@@ -39160,15 +39730,15 @@ L68:
   %t128 = icmp sgt i32 %t125, %t127
   br i1 %t128, label %L71, label %L72
 L71:
-  store ptr @.str.910, ptr %t49
+  store ptr @.str.919, ptr %t49
   br label %L73
 L72:
-  store ptr @.str.911, ptr %t49
+  store ptr @.str.920, ptr %t49
   br label %L73
 L73:
   br label %L70
 L69:
-  call void @internalError(i32 0, i32 0, ptr @.str.912)
+  call void @internalError(i32 0, i32 0, ptr @.str.921)
   br label %L70
 L70:
   br label %L62
@@ -39201,7 +39771,7 @@ L24:
   %t138 = load ptr, ptr %t1
   call void @Builder.add(ptr %t137, ptr %t138)
   %t139 = load ptr, ptr %t130
-  call void @Builder.add(ptr %t139, ptr @.str.913)
+  call void @Builder.add(ptr %t139, ptr @.str.922)
   %t140 = load ptr, ptr %t130
   %t141 = load ptr, ptr %t24
   call void @Builder.add(ptr %t140, ptr %t141)
@@ -39433,7 +40003,7 @@ L12:
 L14:
   %t85 = load ptr, ptr %t0
   %t86 = load i32, ptr %t1
-  call void @codegenFault(ptr %t85, i32 %t86, ptr @.str.914)
+  call void @codegenFault(ptr %t85, i32 %t86, ptr @.str.923)
   ret ptr null
 }
 
@@ -39496,18 +40066,18 @@ L2:
   %t37 = call ptr @Builder.new()
   store ptr %t37, ptr %t38
   %t39 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t39, ptr @.str.915)
+  call void @Builder.add(ptr %t39, ptr @.str.924)
   %t40 = load ptr, ptr %t38
   %t41 = load %Type, ptr %t10
   %t42 = call ptr @llvmTypeName(%Type %t41)
   call void @Builder.add(ptr %t40, ptr %t42)
   %t43 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t43, ptr @.str.916)
+  call void @Builder.add(ptr %t43, ptr @.str.925)
   %t44 = load ptr, ptr %t38
   %t45 = load ptr, ptr %t7
   call void @Builder.add(ptr %t44, ptr %t45)
   %t46 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t46, ptr @.str.917)
+  call void @Builder.add(ptr %t46, ptr @.str.926)
   %t47 = load ptr, ptr %t38
   %t48 = load i32, ptr %t36
   %t49 = sext i32 %t48 to i64
@@ -39641,7 +40211,7 @@ L2:
   %t55 = call ptr @Builder.new()
   store ptr %t55, ptr %t56
   %t57 = load ptr, ptr %t56
-  call void @Builder.add(ptr %t57, ptr @.str.918)
+  call void @Builder.add(ptr %t57, ptr @.str.927)
   %t58 = load ptr, ptr %t56
   %t59 = load %Type, ptr %t6
   %t60 = call ptr @llvmTypeName(%Type %t59)
@@ -39654,7 +40224,7 @@ L2:
   %t65 = call ptr @genExpr(ptr %t63, i32 %t64)
   call void @Builder.add(ptr %t62, ptr %t65)
   %t66 = load ptr, ptr %t56
-  call void @Builder.add(ptr %t66, ptr @.str.919)
+  call void @Builder.add(ptr %t66, ptr @.str.928)
   %t67 = load ptr, ptr %t56
   %t68 = load i32, ptr %t27
   %t69 = sext i32 %t68 to i64
@@ -39731,19 +40301,19 @@ entry:
   %t42 = call ptr @Builder.new()
   store ptr %t42, ptr %t43
   %t44 = load ptr, ptr %t43
-  call void @Builder.add(ptr %t44, ptr @.str.920)
+  call void @Builder.add(ptr %t44, ptr @.str.929)
   %t45 = load ptr, ptr %t43
   %t46 = load %Type, ptr %t16
   %t47 = call %Type @Type.pointee(%Type %t46)
   %t48 = call ptr @llvmTypeName(%Type %t47)
   call void @Builder.add(ptr %t45, ptr %t48)
   %t49 = load ptr, ptr %t43
-  call void @Builder.add(ptr %t49, ptr @.str.921)
+  call void @Builder.add(ptr %t49, ptr @.str.930)
   %t50 = load ptr, ptr %t43
   %t51 = load ptr, ptr %t20
   call void @Builder.add(ptr %t50, ptr %t51)
   %t52 = load ptr, ptr %t43
-  call void @Builder.add(ptr %t52, ptr @.str.922)
+  call void @Builder.add(ptr %t52, ptr @.str.931)
   %t53 = load ptr, ptr %t43
   %t54 = load ptr, ptr %t41
   call void @Builder.add(ptr %t53, ptr %t54)
@@ -39772,7 +40342,7 @@ entry:
   %t4 = icmp eq i32 %t3, 11
   store i1 %t4, ptr %t5
   %t6 = load ptr, ptr %t0
-  %t7 = call ptr @emitAlloca(ptr %t6, ptr @.str.923)
+  %t7 = call ptr @emitAlloca(ptr %t6, ptr @.str.932)
   store ptr %t7, ptr %t8
   %t9 = load ptr, ptr %t0
   %t10 = getelementptr inbounds %Binary, ptr %t1, i32 0, i32 1
@@ -39891,12 +40461,12 @@ L2:
   %t26 = call ptr @Builder.new()
   store ptr %t26, ptr %t27
   %t28 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t28, ptr @.str.924)
+  call void @Builder.add(ptr %t28, ptr @.str.933)
   %t29 = load ptr, ptr %t27
   %t30 = load ptr, ptr %t19
   call void @Builder.add(ptr %t29, ptr %t30)
   %t31 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t31, ptr @.str.925)
+  call void @Builder.add(ptr %t31, ptr @.str.934)
   %t32 = load ptr, ptr %t27
   %t33 = load ptr, ptr %t25
   call void @Builder.add(ptr %t32, ptr %t33)
@@ -39925,12 +40495,12 @@ L7:
   %t52 = call ptr @Builder.new()
   store ptr %t52, ptr %t53
   %t54 = load ptr, ptr %t53
-  call void @Builder.add(ptr %t54, ptr @.str.926)
+  call void @Builder.add(ptr %t54, ptr @.str.935)
   %t55 = load ptr, ptr %t53
   %t56 = load ptr, ptr %t39
   call void @Builder.add(ptr %t55, ptr %t56)
   %t57 = load ptr, ptr %t53
-  call void @Builder.add(ptr %t57, ptr @.str.927)
+  call void @Builder.add(ptr %t57, ptr @.str.936)
   %t58 = load ptr, ptr %t53
   %t59 = load i32, ptr %t48
   %t60 = sext i32 %t59 to i64
@@ -39978,7 +40548,7 @@ L11:
   %t88 = call ptr @Builder.new()
   store ptr %t88, ptr %t89
   %t90 = load ptr, ptr %t89
-  call void @Builder.add(ptr %t90, ptr @.str.928)
+  call void @Builder.add(ptr %t90, ptr @.str.937)
   %t91 = load ptr, ptr %t89
   %t92 = load ptr, ptr %t69
   call void @Builder.add(ptr %t91, ptr %t92)
@@ -39993,19 +40563,19 @@ L13:
   %t98 = call ptr @Builder.new()
   store ptr %t98, ptr %t99
   %t100 = load ptr, ptr %t99
-  call void @Builder.add(ptr %t100, ptr @.str.929)
+  call void @Builder.add(ptr %t100, ptr @.str.938)
   %t101 = load ptr, ptr %t99
   %t102 = load %Type, ptr %t71
   %t103 = call %Type @Type.pointee(%Type %t102)
   %t104 = call ptr @llvmTypeName(%Type %t103)
   call void @Builder.add(ptr %t101, ptr %t104)
   %t105 = load ptr, ptr %t99
-  call void @Builder.add(ptr %t105, ptr @.str.930)
+  call void @Builder.add(ptr %t105, ptr @.str.939)
   %t106 = load ptr, ptr %t99
   %t107 = load ptr, ptr %t67
   call void @Builder.add(ptr %t106, ptr %t107)
   %t108 = load ptr, ptr %t99
-  call void @Builder.add(ptr %t108, ptr @.str.931)
+  call void @Builder.add(ptr %t108, ptr @.str.940)
   %t109 = load ptr, ptr %t99
   %t110 = load ptr, ptr %t69
   call void @Builder.add(ptr %t109, ptr %t110)
@@ -40037,121 +40607,121 @@ L1:
   %t9 = load i1, ptr %t4
   br i1 %t9, label %L18, label %L20
 L18:
-  ret ptr @.str.932
+  ret ptr @.str.941
 L20:
-  ret ptr @.str.933
+  ret ptr @.str.942
 L2:
   %t10 = load i1, ptr %t4
   br i1 %t10, label %L21, label %L23
 L21:
-  ret ptr @.str.934
+  ret ptr @.str.943
 L23:
-  ret ptr @.str.935
+  ret ptr @.str.944
 L3:
   %t11 = load i1, ptr %t4
   br i1 %t11, label %L24, label %L26
 L24:
-  ret ptr @.str.936
+  ret ptr @.str.945
 L26:
-  ret ptr @.str.937
+  ret ptr @.str.946
 L4:
   %t12 = load i1, ptr %t4
   br i1 %t12, label %L27, label %L29
 L27:
-  ret ptr @.str.938
+  ret ptr @.str.947
 L29:
   %t13 = load i1, ptr %t7
   br i1 %t13, label %L30, label %L32
 L30:
-  ret ptr @.str.939
+  ret ptr @.str.948
 L32:
-  ret ptr @.str.940
+  ret ptr @.str.949
 L5:
   %t14 = load i1, ptr %t7
   br i1 %t14, label %L33, label %L35
 L33:
-  ret ptr @.str.941
+  ret ptr @.str.950
 L35:
-  ret ptr @.str.942
+  ret ptr @.str.951
 L6:
-  ret ptr @.str.943
+  ret ptr @.str.952
 L7:
-  ret ptr @.str.944
+  ret ptr @.str.953
 L8:
-  ret ptr @.str.945
+  ret ptr @.str.954
 L9:
-  ret ptr @.str.946
+  ret ptr @.str.955
 L10:
   %t15 = load i1, ptr %t7
   br i1 %t15, label %L36, label %L38
 L36:
-  ret ptr @.str.947
+  ret ptr @.str.956
 L38:
-  ret ptr @.str.948
+  ret ptr @.str.957
 L11:
   %t16 = load i1, ptr %t4
   br i1 %t16, label %L39, label %L41
 L39:
-  ret ptr @.str.949
+  ret ptr @.str.958
 L41:
-  ret ptr @.str.950
+  ret ptr @.str.959
 L12:
   %t17 = load i1, ptr %t4
   br i1 %t17, label %L42, label %L44
 L42:
-  ret ptr @.str.951
+  ret ptr @.str.960
 L44:
-  ret ptr @.str.952
+  ret ptr @.str.961
 L13:
   %t18 = load i1, ptr %t4
   br i1 %t18, label %L45, label %L47
 L45:
-  ret ptr @.str.953
+  ret ptr @.str.962
 L47:
   %t19 = load i1, ptr %t7
   br i1 %t19, label %L48, label %L50
 L48:
-  ret ptr @.str.954
+  ret ptr @.str.963
 L50:
-  ret ptr @.str.955
+  ret ptr @.str.964
 L14:
   %t20 = load i1, ptr %t4
   br i1 %t20, label %L51, label %L53
 L51:
-  ret ptr @.str.956
+  ret ptr @.str.965
 L53:
   %t21 = load i1, ptr %t7
   br i1 %t21, label %L54, label %L56
 L54:
-  ret ptr @.str.957
+  ret ptr @.str.966
 L56:
-  ret ptr @.str.958
+  ret ptr @.str.967
 L15:
   %t22 = load i1, ptr %t4
   br i1 %t22, label %L57, label %L59
 L57:
-  ret ptr @.str.959
+  ret ptr @.str.968
 L59:
   %t23 = load i1, ptr %t7
   br i1 %t23, label %L60, label %L62
 L60:
-  ret ptr @.str.960
+  ret ptr @.str.969
 L62:
-  ret ptr @.str.961
+  ret ptr @.str.970
 L16:
   %t24 = load i1, ptr %t4
   br i1 %t24, label %L63, label %L65
 L63:
-  ret ptr @.str.962
+  ret ptr @.str.971
 L65:
   %t25 = load i1, ptr %t7
   br i1 %t25, label %L66, label %L68
 L66:
-  ret ptr @.str.963
+  ret ptr @.str.972
 L68:
-  ret ptr @.str.964
+  ret ptr @.str.973
 L17:
-  ret ptr @.str.965
+  ret ptr @.str.974
 L0:
   ret ptr null
 }
@@ -40289,7 +40859,7 @@ L14:
   %t71 = load ptr, ptr %t35
   call void @Builder.add(ptr %t70, ptr %t71)
   %t72 = load ptr, ptr %t60
-  call void @Builder.add(ptr %t72, ptr @.str.966)
+  call void @Builder.add(ptr %t72, ptr @.str.975)
   %t73 = load ptr, ptr %t60
   %t74 = load ptr, ptr %t40
   call void @Builder.add(ptr %t73, ptr %t74)
@@ -40356,7 +40926,7 @@ L4:
   br i1 %t33, label %L6, label %L7
 L6:
   %t34 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t34, ptr @.str.967)
+  call void @Builder.add(ptr %t34, ptr @.str.976)
   %t35 = load ptr, ptr %t31
   %t36 = load %Type, ptr %t25
   %t37 = call ptr @llvmTypeName(%Type %t36)
@@ -40369,13 +40939,13 @@ L6:
   br label %L8
 L7:
   %t41 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t41, ptr @.str.968)
+  call void @Builder.add(ptr %t41, ptr @.str.977)
   %t42 = load ptr, ptr %t31
   %t43 = load %Type, ptr %t25
   %t44 = call ptr @llvmTypeName(%Type %t43)
   call void @Builder.add(ptr %t42, ptr %t44)
   %t45 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t45, ptr @.str.969)
+  call void @Builder.add(ptr %t45, ptr @.str.978)
   %t46 = load ptr, ptr %t31
   %t47 = load ptr, ptr %t29
   call void @Builder.add(ptr %t46, ptr %t47)
@@ -40391,14 +40961,14 @@ L5:
   %t53 = call ptr @Builder.new()
   store ptr %t53, ptr %t54
   %t55 = load ptr, ptr %t54
-  call void @Builder.add(ptr %t55, ptr @.str.970)
+  call void @Builder.add(ptr %t55, ptr @.str.979)
   %t56 = load ptr, ptr %t54
   %t57 = load ptr, ptr %t0
   %t58 = load i32, ptr %t5
   %t59 = call ptr @genExpr(ptr %t57, i32 %t58)
   call void @Builder.add(ptr %t56, ptr %t59)
   %t60 = load ptr, ptr %t54
-  call void @Builder.add(ptr %t60, ptr @.str.971)
+  call void @Builder.add(ptr %t60, ptr @.str.980)
   %t61 = load ptr, ptr %t0
   %t62 = load ptr, ptr %t54
   %t63 = getelementptr inbounds %Builder, ptr %t62, i32 0, i32 0
@@ -40499,7 +41069,7 @@ L9:
   %t68 = getelementptr inbounds %Node, ptr %t65, i64 %t67
   %t69 = getelementptr inbounds %Node, ptr %t68, i32 0, i32 5
   %t70 = load i32, ptr %t69
-  %t71 = call ptr @genCallWith(ptr %t58, i32 %t59, ptr %t60, i32 %t70, ptr @.str.972, ptr @.str.973)
+  %t71 = call ptr @genCallWith(ptr %t58, i32 %t59, ptr %t60, i32 %t70, ptr @.str.981, ptr @.str.982)
   ret ptr %t71
 L11:
   %t72 = load ptr, ptr %t0
@@ -40517,7 +41087,7 @@ L11:
   %t84 = getelementptr inbounds %Node, ptr %t81, i64 %t83
   %t85 = getelementptr inbounds %Node, ptr %t84, i32 0, i32 5
   %t86 = load i32, ptr %t85
-  %t87 = call ptr @genCallWith(ptr %t72, i32 %t73, ptr %t76, i32 %t86, ptr @.str.974, ptr @.str.975)
+  %t87 = call ptr @genCallWith(ptr %t72, i32 %t73, ptr %t76, i32 %t86, ptr @.str.983, ptr @.str.984)
   ret ptr %t87
 }
 
@@ -40579,7 +41149,7 @@ entry:
   %t25 = getelementptr inbounds %Node, ptr %t22, i64 %t24
   %t26 = getelementptr inbounds %Node, ptr %t25, i32 0, i32 6
   %t27 = load i32, ptr %t26
-  %t28 = call ptr @genCallWith(ptr %t15, i32 %t16, ptr %t17, i32 %t27, ptr @.str.976, ptr @.str.977)
+  %t28 = call ptr @genCallWith(ptr %t15, i32 %t16, ptr %t17, i32 %t27, ptr @.str.985, ptr @.str.986)
   ret ptr %t28
 }
 
@@ -40643,7 +41213,7 @@ L0:
   %t45 = getelementptr inbounds %Node, ptr %t42, i64 %t44
   %t46 = getelementptr inbounds %Node, ptr %t45, i32 0, i32 6
   %t47 = load i32, ptr %t46
-  %t48 = call ptr @genCallWith(ptr %t35, i32 %t36, ptr %t37, i32 %t47, ptr @.str.978, ptr @.str.979)
+  %t48 = call ptr @genCallWith(ptr %t35, i32 %t36, ptr %t37, i32 %t47, ptr @.str.987, ptr @.str.988)
   ret ptr %t48
 L2:
   %t49 = load ptr, ptr %t0
@@ -40675,7 +41245,7 @@ L3:
   %t73 = getelementptr inbounds %Node, ptr %t70, i64 %t72
   %t74 = getelementptr inbounds %Node, ptr %t73, i32 0, i32 6
   %t75 = load i32, ptr %t74
-  %t76 = call ptr @genCallWith(ptr %t61, i32 %t62, ptr %t65, i32 %t75, ptr @.str.980, ptr @.str.981)
+  %t76 = call ptr @genCallWith(ptr %t61, i32 %t62, ptr %t65, i32 %t75, ptr @.str.989, ptr @.str.990)
   ret ptr %t76
 L5:
   %t77 = load ptr, ptr %t0
@@ -40715,7 +41285,7 @@ L6:
   %t109 = load ptr, ptr %t0
   %t110 = load i32, ptr %t87
   %t111 = call ptr @genAddress(ptr %t109, i32 %t110)
-  %t112 = call ptr @genCallWith(ptr %t94, i32 %t95, ptr %t98, i32 %t108, ptr @.str.982, ptr %t111)
+  %t112 = call ptr @genCallWith(ptr %t94, i32 %t95, ptr %t98, i32 %t108, ptr @.str.991, ptr %t111)
   ret ptr %t112
 L8:
   %t113 = load i32, ptr %t58
@@ -40775,7 +41345,7 @@ L12:
   %t161 = load ptr, ptr %t0
   %t162 = load i32, ptr %t87
   %t163 = call ptr @genStructPointer(ptr %t161, i32 %t162)
-  %t164 = call ptr @genCallWith(ptr %t146, i32 %t147, ptr %t150, i32 %t160, ptr @.str.983, ptr %t163)
+  %t164 = call ptr @genCallWith(ptr %t146, i32 %t147, ptr %t150, i32 %t160, ptr @.str.992, ptr %t163)
   ret ptr %t164
 L14:
   %t165 = load ptr, ptr %t0
@@ -41039,7 +41609,7 @@ L6:
   %t117 = call ptr @Builder.new()
   store ptr %t117, ptr %t118
   %t119 = load ptr, ptr %t118
-  call void @Builder.add(ptr %t119, ptr @.str.984)
+  call void @Builder.add(ptr %t119, ptr @.str.993)
   %t120 = load ptr, ptr %t118
   %t121 = load %Type, ptr %t9
   %t122 = call ptr @llvmTypeName(%Type %t121)
@@ -41066,7 +41636,7 @@ L16:
   br i1 %t133, label %L19, label %L21
 L19:
   %t134 = load ptr, ptr %t118
-  call void @Builder.add(ptr %t134, ptr @.str.985)
+  call void @Builder.add(ptr %t134, ptr @.str.994)
   br label %L21
 L21:
   %t135 = load ptr, ptr %t118
@@ -41089,11 +41659,11 @@ L18:
   br i1 %t145, label %L22, label %L24
 L22:
   %t146 = load ptr, ptr %t118
-  call void @Builder.add(ptr %t146, ptr @.str.986)
+  call void @Builder.add(ptr %t146, ptr @.str.995)
   br label %L24
 L24:
   %t147 = load ptr, ptr %t118
-  call void @Builder.add(ptr %t147, ptr @.str.987)
+  call void @Builder.add(ptr %t147, ptr @.str.996)
   br label %L14
 L14:
   %t148 = load ptr, ptr %t118
@@ -41140,7 +41710,7 @@ L33:
   br i1 %t170, label %L34, label %L36
 L34:
   %t171 = load ptr, ptr %t118
-  call void @Builder.add(ptr %t171, ptr @.str.988)
+  call void @Builder.add(ptr %t171, ptr @.str.997)
   br label %L36
 L36:
   %t172 = load ptr, ptr %t118
@@ -41178,7 +41748,7 @@ L37:
   %t193 = getelementptr inbounds %Builder, ptr %t192, i32 0, i32 0
   %t194 = load ptr, ptr %t193
   call void @emitLine(ptr %t191, ptr %t194)
-  ret ptr @.str.989
+  ret ptr @.str.998
 L39:
   %t195 = load ptr, ptr %t0
   %t196 = load ptr, ptr %t118
@@ -41230,7 +41800,7 @@ entry:
   %t24 = load %Type, ptr %t15
   %t25 = call ptr @llvmTypeName(%Type %t24)
   store ptr %t25, ptr %t26
-  store ptr @.str.990, ptr %t27
+  store ptr @.str.999, ptr %t27
   store i32 0, ptr %t28
   br label %L0
 L0:
@@ -41315,7 +41885,7 @@ L1:
   %t105 = call ptr @Builder.new()
   store ptr %t105, ptr %t106
   %t107 = load ptr, ptr %t106
-  call void @Builder.add(ptr %t107, ptr @.str.991)
+  call void @Builder.add(ptr %t107, ptr @.str.1000)
   %t108 = load ptr, ptr %t106
   %t109 = load ptr, ptr %t26
   call void @Builder.add(ptr %t108, ptr %t109)
@@ -41325,7 +41895,7 @@ L1:
   %t112 = load ptr, ptr %t27
   call void @Builder.add(ptr %t111, ptr %t112)
   %t113 = load ptr, ptr %t106
-  call void @Builder.add(ptr %t113, ptr @.str.992)
+  call void @Builder.add(ptr %t113, ptr @.str.1001)
   %t114 = load ptr, ptr %t106
   %t115 = load %Type, ptr %t91
   %t116 = call ptr @llvmTypeName(%Type %t115)
@@ -41336,7 +41906,7 @@ L1:
   %t119 = load ptr, ptr %t104
   call void @Builder.add(ptr %t118, ptr %t119)
   %t120 = load ptr, ptr %t106
-  call void @Builder.add(ptr %t120, ptr @.str.993)
+  call void @Builder.add(ptr %t120, ptr @.str.1002)
   %t121 = load ptr, ptr %t106
   %t122 = load i32, ptr %t73
   %t123 = sext i32 %t122 to i64
@@ -41397,7 +41967,7 @@ L3:
   %t27 = load ptr, ptr %t16
   call void @Builder.add(ptr %t26, ptr %t27)
   %t28 = load ptr, ptr %t25
-  call void @Builder.add(ptr %t28, ptr @.str.994)
+  call void @Builder.add(ptr %t28, ptr @.str.1003)
   %t29 = load ptr, ptr %t25
   %t30 = call ptr @Builder.take(ptr %t29)
   ret ptr %t30
@@ -41554,12 +42124,12 @@ entry:
   %t0 = alloca ptr
   %t1 = alloca i32
   %t12 = alloca i32
-  %t72 = alloca i1
-  %t142 = alloca %Type
-  %t146 = alloca %Type
-  %t179 = alloca %Type
-  %t189 = alloca i1
-  %t237 = alloca ptr
+  %t75 = alloca i1
+  %t145 = alloca %Type
+  %t149 = alloca %Type
+  %t182 = alloca %Type
+  %t192 = alloca i1
+  %t240 = alloca ptr
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -41574,366 +42144,371 @@ entry:
   %t11 = load i32, ptr %t10
   store i32 %t11, ptr %t12
   %t13 = load i32, ptr %t12
-  switch i32 %t13, label %L4 [ i32 50, label %L1 i32 51, label %L2 i32 52, label %L3 ]
+  switch i32 %t13, label %L5 [ i32 39, label %L1 i32 50, label %L2 i32 51, label %L3 i32 52, label %L4 ]
 L1:
   %t14 = load ptr, ptr %t0
   %t15 = load i32, ptr %t1
-  %t16 = call ptr @genTry(ptr %t14, i32 %t15)
+  %t16 = call ptr @genMatchValue(ptr %t14, i32 %t15)
   ret ptr %t16
 L2:
   %t17 = load ptr, ptr %t0
   %t18 = load i32, ptr %t1
-  %t19 = call ptr @genCatch(ptr %t17, i32 %t18)
+  %t19 = call ptr @genTry(ptr %t17, i32 %t18)
   ret ptr %t19
 L3:
   %t20 = load ptr, ptr %t0
   %t21 = load i32, ptr %t1
-  %t22 = call ptr @genIs(ptr %t20, i32 %t21)
+  %t22 = call ptr @genCatch(ptr %t20, i32 %t21)
   ret ptr %t22
 L4:
+  %t23 = load ptr, ptr %t0
+  %t24 = load i32, ptr %t1
+  %t25 = call ptr @genIs(ptr %t23, i32 %t24)
+  ret ptr %t25
+L5:
   br label %L0
 L0:
-  %t23 = load i32, ptr %t12
-  %t24 = icmp eq i32 %t23, 23
-  br i1 %t24, label %L5, label %L7
-L5:
-  %t25 = load ptr, ptr %t0
-  %t26 = load i32, ptr %t1
-  %t27 = call ptr @genNumberLiteral(ptr %t25, i32 %t26)
-  ret ptr %t27
-L7:
-  %t28 = load i32, ptr %t12
-  %t29 = icmp eq i32 %t28, 26
-  br i1 %t29, label %L8, label %L10
+  %t26 = load i32, ptr %t12
+  %t27 = icmp eq i32 %t26, 23
+  br i1 %t27, label %L6, label %L8
+L6:
+  %t28 = load ptr, ptr %t0
+  %t29 = load i32, ptr %t1
+  %t30 = call ptr @genNumberLiteral(ptr %t28, i32 %t29)
+  ret ptr %t30
 L8:
-  %t30 = load ptr, ptr %t0
-  %t31 = getelementptr inbounds %Emitter, ptr %t30, i32 0, i32 0
-  %t32 = load ptr, ptr %t31
-  %t33 = getelementptr inbounds %Ast, ptr %t32, i32 0, i32 0
-  %t34 = load ptr, ptr %t33
-  %t35 = load i32, ptr %t1
-  %t36 = sext i32 %t35 to i64
-  %t37 = getelementptr inbounds %Node, ptr %t34, i64 %t36
-  %t38 = getelementptr inbounds %Node, ptr %t37, i32 0, i32 3
-  %t39 = load ptr, ptr %t38
-  %t40 = call i1 @equals(ptr %t39, ptr @.str.995)
-  br i1 %t40, label %L11, label %L13
-L11:
-  ret ptr @.str.996
-L13:
-  ret ptr @.str.997
-L10:
-  %t41 = load i32, ptr %t12
-  %t42 = icmp eq i32 %t41, 25
-  br i1 %t42, label %L14, label %L16
+  %t31 = load i32, ptr %t12
+  %t32 = icmp eq i32 %t31, 26
+  br i1 %t32, label %L9, label %L11
+L9:
+  %t33 = load ptr, ptr %t0
+  %t34 = getelementptr inbounds %Emitter, ptr %t33, i32 0, i32 0
+  %t35 = load ptr, ptr %t34
+  %t36 = getelementptr inbounds %Ast, ptr %t35, i32 0, i32 0
+  %t37 = load ptr, ptr %t36
+  %t38 = load i32, ptr %t1
+  %t39 = sext i32 %t38 to i64
+  %t40 = getelementptr inbounds %Node, ptr %t37, i64 %t39
+  %t41 = getelementptr inbounds %Node, ptr %t40, i32 0, i32 3
+  %t42 = load ptr, ptr %t41
+  %t43 = call i1 @equals(ptr %t42, ptr @.str.1004)
+  br i1 %t43, label %L12, label %L14
+L12:
+  ret ptr @.str.1005
 L14:
-  %t43 = load ptr, ptr %t0
-  %t44 = load i32, ptr %t1
-  %t45 = call ptr @genCharLiteral(ptr %t43, i32 %t44)
-  ret ptr %t45
-L16:
-  %t46 = load i32, ptr %t12
-  %t47 = icmp eq i32 %t46, 36
-  br i1 %t47, label %L17, label %L19
+  ret ptr @.str.1006
+L11:
+  %t44 = load i32, ptr %t12
+  %t45 = icmp eq i32 %t44, 25
+  br i1 %t45, label %L15, label %L17
+L15:
+  %t46 = load ptr, ptr %t0
+  %t47 = load i32, ptr %t1
+  %t48 = call ptr @genCharLiteral(ptr %t46, i32 %t47)
+  ret ptr %t48
 L17:
-  ret ptr @.str.998
-L19:
-  %t48 = load i32, ptr %t12
-  %t49 = icmp eq i32 %t48, 24
-  br i1 %t49, label %L20, label %L22
+  %t49 = load i32, ptr %t12
+  %t50 = icmp eq i32 %t49, 36
+  br i1 %t50, label %L18, label %L20
+L18:
+  ret ptr @.str.1007
 L20:
-  %t50 = load ptr, ptr %t0
-  %t51 = load ptr, ptr %t0
-  %t52 = getelementptr inbounds %Emitter, ptr %t51, i32 0, i32 0
-  %t53 = load ptr, ptr %t52
-  %t54 = getelementptr inbounds %Ast, ptr %t53, i32 0, i32 0
-  %t55 = load ptr, ptr %t54
-  %t56 = load i32, ptr %t1
-  %t57 = sext i32 %t56 to i64
-  %t58 = getelementptr inbounds %Node, ptr %t55, i64 %t57
-  %t59 = getelementptr inbounds %Node, ptr %t58, i32 0, i32 3
-  %t60 = load ptr, ptr %t59
-  %t61 = load ptr, ptr %t0
-  %t62 = getelementptr inbounds %Emitter, ptr %t61, i32 0, i32 0
+  %t51 = load i32, ptr %t12
+  %t52 = icmp eq i32 %t51, 24
+  br i1 %t52, label %L21, label %L23
+L21:
+  %t53 = load ptr, ptr %t0
+  %t54 = load ptr, ptr %t0
+  %t55 = getelementptr inbounds %Emitter, ptr %t54, i32 0, i32 0
+  %t56 = load ptr, ptr %t55
+  %t57 = getelementptr inbounds %Ast, ptr %t56, i32 0, i32 0
+  %t58 = load ptr, ptr %t57
+  %t59 = load i32, ptr %t1
+  %t60 = sext i32 %t59 to i64
+  %t61 = getelementptr inbounds %Node, ptr %t58, i64 %t60
+  %t62 = getelementptr inbounds %Node, ptr %t61, i32 0, i32 3
   %t63 = load ptr, ptr %t62
-  %t64 = getelementptr inbounds %Ast, ptr %t63, i32 0, i32 0
-  %t65 = load ptr, ptr %t64
-  %t66 = load i32, ptr %t1
-  %t67 = sext i32 %t66 to i64
-  %t68 = getelementptr inbounds %Node, ptr %t65, i64 %t67
-  %t69 = getelementptr inbounds %Node, ptr %t68, i32 0, i32 4
-  %t70 = load i64, ptr %t69
-  %t71 = call ptr @internString(ptr %t50, ptr %t60, i64 %t70)
-  ret ptr %t71
-L22:
-  %t73 = load i32, ptr %t12
-  %t74 = icmp eq i32 %t73, 27
-  store i1 %t74, ptr %t72
-  br i1 %t74, label %L23, label %L24
+  %t64 = load ptr, ptr %t0
+  %t65 = getelementptr inbounds %Emitter, ptr %t64, i32 0, i32 0
+  %t66 = load ptr, ptr %t65
+  %t67 = getelementptr inbounds %Ast, ptr %t66, i32 0, i32 0
+  %t68 = load ptr, ptr %t67
+  %t69 = load i32, ptr %t1
+  %t70 = sext i32 %t69 to i64
+  %t71 = getelementptr inbounds %Node, ptr %t68, i64 %t70
+  %t72 = getelementptr inbounds %Node, ptr %t71, i32 0, i32 4
+  %t73 = load i64, ptr %t72
+  %t74 = call ptr @internString(ptr %t53, ptr %t63, i64 %t73)
+  ret ptr %t74
 L23:
-  %t75 = load ptr, ptr %t0
-  %t76 = getelementptr inbounds %Emitter, ptr %t75, i32 0, i32 1
-  %t77 = load ptr, ptr %t76
-  %t78 = getelementptr inbounds %Analyzer, ptr %t77, i32 0, i32 17
-  %t79 = load ptr, ptr %t78
-  %t80 = load i32, ptr %t1
-  %t81 = sext i32 %t80 to i64
-  %t82 = getelementptr inbounds i8, ptr %t79, i64 %t81
-  %t83 = load i8, ptr %t82
-  %t84 = icmp ne i8 %t83, 0
-  store i1 %t84, ptr %t72
-  br label %L24
+  %t76 = load i32, ptr %t12
+  %t77 = icmp eq i32 %t76, 27
+  store i1 %t77, ptr %t75
+  br i1 %t77, label %L24, label %L25
 L24:
-  %t85 = load i1, ptr %t72
-  br i1 %t85, label %L25, label %L27
+  %t78 = load ptr, ptr %t0
+  %t79 = getelementptr inbounds %Emitter, ptr %t78, i32 0, i32 1
+  %t80 = load ptr, ptr %t79
+  %t81 = getelementptr inbounds %Analyzer, ptr %t80, i32 0, i32 17
+  %t82 = load ptr, ptr %t81
+  %t83 = load i32, ptr %t1
+  %t84 = sext i32 %t83 to i64
+  %t85 = getelementptr inbounds i8, ptr %t82, i64 %t84
+  %t86 = load i8, ptr %t85
+  %t87 = icmp ne i8 %t86, 0
+  store i1 %t87, ptr %t75
+  br label %L25
 L25:
-  %t86 = load ptr, ptr %t0
-  %t87 = load i32, ptr %t1
-  %t88 = call ptr @direct(ptr %t86, i32 %t87)
-  ret ptr %t88
-L27:
-  %t89 = load i32, ptr %t12
-  %t90 = icmp eq i32 %t89, 43
-  br i1 %t90, label %L28, label %L30
+  %t88 = load i1, ptr %t75
+  br i1 %t88, label %L26, label %L28
+L26:
+  %t89 = load ptr, ptr %t0
+  %t90 = load i32, ptr %t1
+  %t91 = call ptr @direct(ptr %t89, i32 %t90)
+  ret ptr %t91
 L28:
-  %t91 = load ptr, ptr %t0
-  %t92 = load i32, ptr %t1
-  %t93 = call ptr @lambdaValue(ptr %t91, i32 %t92)
-  ret ptr %t93
-L30:
-  %t94 = load i32, ptr %t12
-  %t95 = icmp eq i32 %t94, 27
-  br i1 %t95, label %L31, label %L33
+  %t92 = load i32, ptr %t12
+  %t93 = icmp eq i32 %t92, 43
+  br i1 %t93, label %L29, label %L31
+L29:
+  %t94 = load ptr, ptr %t0
+  %t95 = load i32, ptr %t1
+  %t96 = call ptr @lambdaValue(ptr %t94, i32 %t95)
+  ret ptr %t96
 L31:
-  %t96 = load ptr, ptr %t0
-  %t97 = load i32, ptr %t1
-  %t98 = call ptr @genVariable(ptr %t96, i32 %t97)
-  ret ptr %t98
-L33:
-  %t99 = load i32, ptr %t12
-  switch i32 %t99, label %L41 [ i32 15, label %L35 i32 16, label %L36 i32 12, label %L37 i32 35, label %L38 i32 44, label %L39 i32 20, label %L40 ]
-L35:
-  %t100 = load ptr, ptr %t0
-  %t101 = load i32, ptr %t1
-  %t102 = load ptr, ptr %t0
-  %t103 = getelementptr inbounds %Emitter, ptr %t102, i32 0, i32 0
-  %t104 = load ptr, ptr %t103
-  %t105 = load i32, ptr %t1
-  %t106 = call %Binary @binaryOf(ptr %t104, i32 %t105)
-  %t107 = call ptr @genBinary(ptr %t100, i32 %t101, %Binary %t106)
-  ret ptr %t107
+  %t97 = load i32, ptr %t12
+  %t98 = icmp eq i32 %t97, 27
+  br i1 %t98, label %L32, label %L34
+L32:
+  %t99 = load ptr, ptr %t0
+  %t100 = load i32, ptr %t1
+  %t101 = call ptr @genVariable(ptr %t99, i32 %t100)
+  ret ptr %t101
+L34:
+  %t102 = load i32, ptr %t12
+  switch i32 %t102, label %L42 [ i32 15, label %L36 i32 16, label %L37 i32 12, label %L38 i32 35, label %L39 i32 44, label %L40 i32 20, label %L41 ]
 L36:
-  %t108 = load ptr, ptr %t0
-  %t109 = load i32, ptr %t1
-  %t110 = load ptr, ptr %t0
-  %t111 = getelementptr inbounds %Emitter, ptr %t110, i32 0, i32 0
-  %t112 = load ptr, ptr %t111
-  %t113 = load i32, ptr %t1
-  %t114 = call %Unary @unaryOf(ptr %t112, i32 %t113)
-  %t115 = call ptr @genUnary(ptr %t108, i32 %t109, %Unary %t114)
-  ret ptr %t115
+  %t103 = load ptr, ptr %t0
+  %t104 = load i32, ptr %t1
+  %t105 = load ptr, ptr %t0
+  %t106 = getelementptr inbounds %Emitter, ptr %t105, i32 0, i32 0
+  %t107 = load ptr, ptr %t106
+  %t108 = load i32, ptr %t1
+  %t109 = call %Binary @binaryOf(ptr %t107, i32 %t108)
+  %t110 = call ptr @genBinary(ptr %t103, i32 %t104, %Binary %t109)
+  ret ptr %t110
 L37:
-  %t116 = load ptr, ptr %t0
-  %t117 = load i32, ptr %t1
-  %t118 = call ptr @genCall(ptr %t116, i32 %t117)
+  %t111 = load ptr, ptr %t0
+  %t112 = load i32, ptr %t1
+  %t113 = load ptr, ptr %t0
+  %t114 = getelementptr inbounds %Emitter, ptr %t113, i32 0, i32 0
+  %t115 = load ptr, ptr %t114
+  %t116 = load i32, ptr %t1
+  %t117 = call %Unary @unaryOf(ptr %t115, i32 %t116)
+  %t118 = call ptr @genUnary(ptr %t111, i32 %t112, %Unary %t117)
   ret ptr %t118
 L38:
   %t119 = load ptr, ptr %t0
   %t120 = load i32, ptr %t1
-  %t121 = call ptr @genMethodCall(ptr %t119, i32 %t120)
+  %t121 = call ptr @genCall(ptr %t119, i32 %t120)
   ret ptr %t121
 L39:
   %t122 = load ptr, ptr %t0
   %t123 = load i32, ptr %t1
-  %t124 = call ptr @genCallValue(ptr %t122, i32 %t123)
+  %t124 = call ptr @genMethodCall(ptr %t122, i32 %t123)
   ret ptr %t124
 L40:
   %t125 = load ptr, ptr %t0
   %t126 = load i32, ptr %t1
-  %t127 = call ptr @genStructLiteral(ptr %t125, i32 %t126)
+  %t127 = call ptr @genCallValue(ptr %t125, i32 %t126)
   ret ptr %t127
 L41:
-  br label %L34
-L34:
-  %t128 = load i32, ptr %t12
-  %t129 = icmp eq i32 %t128, 17
-  br i1 %t129, label %L42, label %L44
+  %t128 = load ptr, ptr %t0
+  %t129 = load i32, ptr %t1
+  %t130 = call ptr @genStructLiteral(ptr %t128, i32 %t129)
+  ret ptr %t130
 L42:
-  %t130 = load ptr, ptr %t0
-  %t131 = load ptr, ptr %t0
-  %t132 = getelementptr inbounds %Emitter, ptr %t131, i32 0, i32 0
-  %t133 = load ptr, ptr %t132
-  %t134 = getelementptr inbounds %Ast, ptr %t133, i32 0, i32 0
-  %t135 = load ptr, ptr %t134
-  %t136 = load i32, ptr %t1
-  %t137 = sext i32 %t136 to i64
-  %t138 = getelementptr inbounds %Node, ptr %t135, i64 %t137
-  %t139 = getelementptr inbounds %Node, ptr %t138, i32 0, i32 5
-  %t140 = load i32, ptr %t139
-  %t141 = call %Type @typeOfNode(ptr %t130, i32 %t140)
-  store %Type %t141, ptr %t142
-  %t143 = load ptr, ptr %t0
-  %t144 = load i32, ptr %t1
-  %t145 = call %Type @typeOfNode(ptr %t143, i32 %t144)
-  store %Type %t145, ptr %t146
-  %t147 = load ptr, ptr %t0
-  %t148 = load ptr, ptr %t0
-  %t149 = load ptr, ptr %t0
-  %t150 = getelementptr inbounds %Emitter, ptr %t149, i32 0, i32 0
-  %t151 = load ptr, ptr %t150
-  %t152 = getelementptr inbounds %Ast, ptr %t151, i32 0, i32 0
-  %t153 = load ptr, ptr %t152
-  %t154 = load i32, ptr %t1
-  %t155 = sext i32 %t154 to i64
-  %t156 = getelementptr inbounds %Node, ptr %t153, i64 %t155
-  %t157 = getelementptr inbounds %Node, ptr %t156, i32 0, i32 5
-  %t158 = load i32, ptr %t157
-  %t159 = call ptr @genExpr(ptr %t148, i32 %t158)
-  %t160 = load %Type, ptr %t142
-  %t161 = load %Type, ptr %t146
-  %t162 = call ptr @emitCast(ptr %t147, ptr %t159, %Type %t160, %Type %t161)
-  ret ptr %t162
-L44:
-  %t163 = load i32, ptr %t12
-  %t164 = icmp eq i32 %t163, 22
-  br i1 %t164, label %L45, label %L47
+  br label %L35
+L35:
+  %t131 = load i32, ptr %t12
+  %t132 = icmp eq i32 %t131, 17
+  br i1 %t132, label %L43, label %L45
+L43:
+  %t133 = load ptr, ptr %t0
+  %t134 = load ptr, ptr %t0
+  %t135 = getelementptr inbounds %Emitter, ptr %t134, i32 0, i32 0
+  %t136 = load ptr, ptr %t135
+  %t137 = getelementptr inbounds %Ast, ptr %t136, i32 0, i32 0
+  %t138 = load ptr, ptr %t137
+  %t139 = load i32, ptr %t1
+  %t140 = sext i32 %t139 to i64
+  %t141 = getelementptr inbounds %Node, ptr %t138, i64 %t140
+  %t142 = getelementptr inbounds %Node, ptr %t141, i32 0, i32 5
+  %t143 = load i32, ptr %t142
+  %t144 = call %Type @typeOfNode(ptr %t133, i32 %t143)
+  store %Type %t144, ptr %t145
+  %t146 = load ptr, ptr %t0
+  %t147 = load i32, ptr %t1
+  %t148 = call %Type @typeOfNode(ptr %t146, i32 %t147)
+  store %Type %t148, ptr %t149
+  %t150 = load ptr, ptr %t0
+  %t151 = load ptr, ptr %t0
+  %t152 = load ptr, ptr %t0
+  %t153 = getelementptr inbounds %Emitter, ptr %t152, i32 0, i32 0
+  %t154 = load ptr, ptr %t153
+  %t155 = getelementptr inbounds %Ast, ptr %t154, i32 0, i32 0
+  %t156 = load ptr, ptr %t155
+  %t157 = load i32, ptr %t1
+  %t158 = sext i32 %t157 to i64
+  %t159 = getelementptr inbounds %Node, ptr %t156, i64 %t158
+  %t160 = getelementptr inbounds %Node, ptr %t159, i32 0, i32 5
+  %t161 = load i32, ptr %t160
+  %t162 = call ptr @genExpr(ptr %t151, i32 %t161)
+  %t163 = load %Type, ptr %t145
+  %t164 = load %Type, ptr %t149
+  %t165 = call ptr @emitCast(ptr %t150, ptr %t162, %Type %t163, %Type %t164)
+  ret ptr %t165
 L45:
-  %t165 = load ptr, ptr %t0
-  %t166 = getelementptr inbounds %Emitter, ptr %t165, i32 0, i32 1
-  %t167 = load ptr, ptr %t166
+  %t166 = load i32, ptr %t12
+  %t167 = icmp eq i32 %t166, 22
+  br i1 %t167, label %L46, label %L48
+L46:
   %t168 = load ptr, ptr %t0
-  %t169 = getelementptr inbounds %Emitter, ptr %t168, i32 0, i32 0
+  %t169 = getelementptr inbounds %Emitter, ptr %t168, i32 0, i32 1
   %t170 = load ptr, ptr %t169
-  %t171 = getelementptr inbounds %Ast, ptr %t170, i32 0, i32 0
-  %t172 = load ptr, ptr %t171
-  %t173 = load i32, ptr %t1
-  %t174 = sext i32 %t173 to i64
-  %t175 = getelementptr inbounds %Node, ptr %t172, i64 %t174
-  %t176 = getelementptr inbounds %Node, ptr %t175, i32 0, i32 5
-  %t177 = load i32, ptr %t176
-  %t178 = call %Type @analyzerParseType(ptr %t167, i32 %t177)
-  store %Type %t178, ptr %t179
-  %t180 = load ptr, ptr %t0
-  %t181 = getelementptr inbounds %Emitter, ptr %t180, i32 0, i32 1
-  %t182 = load ptr, ptr %t181
-  %t183 = getelementptr inbounds %Analyzer, ptr %t182, i32 0, i32 2
-  %t184 = load ptr, ptr %t183
-  %t185 = load %Type, ptr %t179
-  %t186 = call i32 @sizeOf(ptr %t184, %Type %t185)
-  %t187 = sext i32 %t186 to i64
-  %t188 = call ptr @fromInt(i64 %t187)
-  ret ptr %t188
-L47:
-  %t190 = load i32, ptr %t12
-  %t191 = icmp eq i32 %t190, 18
-  store i1 %t191, ptr %t189
-  br i1 %t191, label %L48, label %L49
+  %t171 = load ptr, ptr %t0
+  %t172 = getelementptr inbounds %Emitter, ptr %t171, i32 0, i32 0
+  %t173 = load ptr, ptr %t172
+  %t174 = getelementptr inbounds %Ast, ptr %t173, i32 0, i32 0
+  %t175 = load ptr, ptr %t174
+  %t176 = load i32, ptr %t1
+  %t177 = sext i32 %t176 to i64
+  %t178 = getelementptr inbounds %Node, ptr %t175, i64 %t177
+  %t179 = getelementptr inbounds %Node, ptr %t178, i32 0, i32 5
+  %t180 = load i32, ptr %t179
+  %t181 = call %Type @analyzerParseType(ptr %t170, i32 %t180)
+  store %Type %t181, ptr %t182
+  %t183 = load ptr, ptr %t0
+  %t184 = getelementptr inbounds %Emitter, ptr %t183, i32 0, i32 1
+  %t185 = load ptr, ptr %t184
+  %t186 = getelementptr inbounds %Analyzer, ptr %t185, i32 0, i32 2
+  %t187 = load ptr, ptr %t186
+  %t188 = load %Type, ptr %t182
+  %t189 = call i32 @sizeOf(ptr %t187, %Type %t188)
+  %t190 = sext i32 %t189 to i64
+  %t191 = call ptr @fromInt(i64 %t190)
+  ret ptr %t191
 L48:
-  %t192 = load ptr, ptr %t0
-  %t193 = getelementptr inbounds %Emitter, ptr %t192, i32 0, i32 1
-  %t194 = load ptr, ptr %t193
-  %t195 = getelementptr inbounds %Analyzer, ptr %t194, i32 0, i32 10
-  %t196 = load ptr, ptr %t195
-  %t197 = load i32, ptr %t1
-  %t198 = sext i32 %t197 to i64
-  %t199 = getelementptr inbounds i8, ptr %t196, i64 %t198
-  %t200 = load i8, ptr %t199
-  %t201 = icmp ne i8 %t200, 0
-  store i1 %t201, ptr %t189
-  br label %L49
+  %t193 = load i32, ptr %t12
+  %t194 = icmp eq i32 %t193, 18
+  store i1 %t194, ptr %t192
+  br i1 %t194, label %L49, label %L50
 L49:
-  %t202 = load i1, ptr %t189
-  br i1 %t202, label %L50, label %L52
+  %t195 = load ptr, ptr %t0
+  %t196 = getelementptr inbounds %Emitter, ptr %t195, i32 0, i32 1
+  %t197 = load ptr, ptr %t196
+  %t198 = getelementptr inbounds %Analyzer, ptr %t197, i32 0, i32 10
+  %t199 = load ptr, ptr %t198
+  %t200 = load i32, ptr %t1
+  %t201 = sext i32 %t200 to i64
+  %t202 = getelementptr inbounds i8, ptr %t199, i64 %t201
+  %t203 = load i8, ptr %t202
+  %t204 = icmp ne i8 %t203, 0
+  store i1 %t204, ptr %t192
+  br label %L50
 L50:
-  %t203 = load ptr, ptr %t0
-  %t204 = getelementptr inbounds %Emitter, ptr %t203, i32 0, i32 1
-  %t205 = load ptr, ptr %t204
-  %t206 = getelementptr inbounds %Analyzer, ptr %t205, i32 0, i32 11
-  %t207 = load ptr, ptr %t206
-  %t208 = load i32, ptr %t1
-  %t209 = sext i32 %t208 to i64
-  %t210 = getelementptr inbounds i64, ptr %t207, i64 %t209
-  %t211 = load i64, ptr %t210
-  %t212 = call ptr @fromInt(i64 %t211)
-  ret ptr %t212
-L52:
-  %t213 = load i32, ptr %t12
-  %t214 = icmp eq i32 %t213, 18
-  br i1 %t214, label %L53, label %L55
+  %t205 = load i1, ptr %t192
+  br i1 %t205, label %L51, label %L53
+L51:
+  %t206 = load ptr, ptr %t0
+  %t207 = getelementptr inbounds %Emitter, ptr %t206, i32 0, i32 1
+  %t208 = load ptr, ptr %t207
+  %t209 = getelementptr inbounds %Analyzer, ptr %t208, i32 0, i32 11
+  %t210 = load ptr, ptr %t209
+  %t211 = load i32, ptr %t1
+  %t212 = sext i32 %t211 to i64
+  %t213 = getelementptr inbounds i64, ptr %t210, i64 %t212
+  %t214 = load i64, ptr %t213
+  %t215 = call ptr @fromInt(i64 %t214)
+  ret ptr %t215
 L53:
-  %t215 = load ptr, ptr %t0
-  %t216 = load ptr, ptr %t0
-  %t217 = getelementptr inbounds %Emitter, ptr %t216, i32 0, i32 0
-  %t218 = load ptr, ptr %t217
-  %t219 = getelementptr inbounds %Ast, ptr %t218, i32 0, i32 0
-  %t220 = load ptr, ptr %t219
-  %t221 = load i32, ptr %t1
-  %t222 = sext i32 %t221 to i64
-  %t223 = getelementptr inbounds %Node, ptr %t220, i64 %t222
-  %t224 = getelementptr inbounds %Node, ptr %t223, i32 0, i32 5
-  %t225 = load i32, ptr %t224
-  %t226 = load ptr, ptr %t0
-  %t227 = getelementptr inbounds %Emitter, ptr %t226, i32 0, i32 0
-  %t228 = load ptr, ptr %t227
-  %t229 = getelementptr inbounds %Ast, ptr %t228, i32 0, i32 0
-  %t230 = load ptr, ptr %t229
-  %t231 = load i32, ptr %t1
-  %t232 = sext i32 %t231 to i64
-  %t233 = getelementptr inbounds %Node, ptr %t230, i64 %t232
-  %t234 = getelementptr inbounds %Node, ptr %t233, i32 0, i32 3
-  %t235 = load ptr, ptr %t234
-  %t236 = call ptr @genFieldValue(ptr %t215, i32 %t225, ptr %t235)
-  store ptr %t236, ptr %t237
-  %t238 = load ptr, ptr %t0
-  %t239 = getelementptr inbounds %Emitter, ptr %t238, i32 0, i32 1
-  %t240 = load ptr, ptr %t239
-  %t241 = getelementptr inbounds %Analyzer, ptr %t240, i32 0, i32 21
-  %t242 = load ptr, ptr %t241
-  %t243 = load i32, ptr %t1
-  %t244 = sext i32 %t243 to i64
-  %t245 = getelementptr inbounds %Type, ptr %t242, i64 %t244
-  %t246 = getelementptr inbounds %Type, ptr %t245, i32 0, i32 0
-  %t247 = load i32, ptr %t246
-  %t248 = icmp ne i32 %t247, 0
-  br i1 %t248, label %L56, label %L58
-L56:
-  %t249 = load ptr, ptr %t0
-  %t250 = load ptr, ptr %t237
-  %t251 = load ptr, ptr %t0
-  %t252 = getelementptr inbounds %Emitter, ptr %t251, i32 0, i32 1
-  %t253 = load ptr, ptr %t252
-  %t254 = getelementptr inbounds %Analyzer, ptr %t253, i32 0, i32 21
-  %t255 = load ptr, ptr %t254
-  %t256 = load i32, ptr %t1
-  %t257 = sext i32 %t256 to i64
-  %t258 = getelementptr inbounds %Type, ptr %t255, i64 %t257
-  %t259 = load %Type, ptr %t258
-  %t260 = load ptr, ptr %t0
-  %t261 = load i32, ptr %t1
-  %t262 = call %Type @typeOfNode(ptr %t260, i32 %t261)
-  %t263 = call ptr @convertUnion(ptr %t249, ptr %t250, %Type %t259, %Type %t262)
-  ret ptr %t263
-L58:
-  %t264 = load ptr, ptr %t237
-  ret ptr %t264
-L55:
-  %t265 = load i32, ptr %t12
-  %t266 = icmp eq i32 %t265, 19
-  br i1 %t266, label %L59, label %L61
+  %t216 = load i32, ptr %t12
+  %t217 = icmp eq i32 %t216, 18
+  br i1 %t217, label %L54, label %L56
+L54:
+  %t218 = load ptr, ptr %t0
+  %t219 = load ptr, ptr %t0
+  %t220 = getelementptr inbounds %Emitter, ptr %t219, i32 0, i32 0
+  %t221 = load ptr, ptr %t220
+  %t222 = getelementptr inbounds %Ast, ptr %t221, i32 0, i32 0
+  %t223 = load ptr, ptr %t222
+  %t224 = load i32, ptr %t1
+  %t225 = sext i32 %t224 to i64
+  %t226 = getelementptr inbounds %Node, ptr %t223, i64 %t225
+  %t227 = getelementptr inbounds %Node, ptr %t226, i32 0, i32 5
+  %t228 = load i32, ptr %t227
+  %t229 = load ptr, ptr %t0
+  %t230 = getelementptr inbounds %Emitter, ptr %t229, i32 0, i32 0
+  %t231 = load ptr, ptr %t230
+  %t232 = getelementptr inbounds %Ast, ptr %t231, i32 0, i32 0
+  %t233 = load ptr, ptr %t232
+  %t234 = load i32, ptr %t1
+  %t235 = sext i32 %t234 to i64
+  %t236 = getelementptr inbounds %Node, ptr %t233, i64 %t235
+  %t237 = getelementptr inbounds %Node, ptr %t236, i32 0, i32 3
+  %t238 = load ptr, ptr %t237
+  %t239 = call ptr @genFieldValue(ptr %t218, i32 %t228, ptr %t238)
+  store ptr %t239, ptr %t240
+  %t241 = load ptr, ptr %t0
+  %t242 = getelementptr inbounds %Emitter, ptr %t241, i32 0, i32 1
+  %t243 = load ptr, ptr %t242
+  %t244 = getelementptr inbounds %Analyzer, ptr %t243, i32 0, i32 21
+  %t245 = load ptr, ptr %t244
+  %t246 = load i32, ptr %t1
+  %t247 = sext i32 %t246 to i64
+  %t248 = getelementptr inbounds %Type, ptr %t245, i64 %t247
+  %t249 = getelementptr inbounds %Type, ptr %t248, i32 0, i32 0
+  %t250 = load i32, ptr %t249
+  %t251 = icmp ne i32 %t250, 0
+  br i1 %t251, label %L57, label %L59
+L57:
+  %t252 = load ptr, ptr %t0
+  %t253 = load ptr, ptr %t240
+  %t254 = load ptr, ptr %t0
+  %t255 = getelementptr inbounds %Emitter, ptr %t254, i32 0, i32 1
+  %t256 = load ptr, ptr %t255
+  %t257 = getelementptr inbounds %Analyzer, ptr %t256, i32 0, i32 21
+  %t258 = load ptr, ptr %t257
+  %t259 = load i32, ptr %t1
+  %t260 = sext i32 %t259 to i64
+  %t261 = getelementptr inbounds %Type, ptr %t258, i64 %t260
+  %t262 = load %Type, ptr %t261
+  %t263 = load ptr, ptr %t0
+  %t264 = load i32, ptr %t1
+  %t265 = call %Type @typeOfNode(ptr %t263, i32 %t264)
+  %t266 = call ptr @convertUnion(ptr %t252, ptr %t253, %Type %t262, %Type %t265)
+  ret ptr %t266
 L59:
-  %t267 = load ptr, ptr %t0
-  %t268 = load ptr, ptr %t0
-  %t269 = load i32, ptr %t1
-  %t270 = call %Type @typeOfNode(ptr %t268, i32 %t269)
+  %t267 = load ptr, ptr %t240
+  ret ptr %t267
+L56:
+  %t268 = load i32, ptr %t12
+  %t269 = icmp eq i32 %t268, 19
+  br i1 %t269, label %L60, label %L62
+L60:
+  %t270 = load ptr, ptr %t0
   %t271 = load ptr, ptr %t0
   %t272 = load i32, ptr %t1
-  %t273 = call ptr @genAddress(ptr %t271, i32 %t272)
-  %t274 = call ptr @emitLoad(ptr %t267, %Type %t270, ptr %t273)
-  ret ptr %t274
-L61:
-  %t275 = load ptr, ptr %t0
-  %t276 = load i32, ptr %t1
-  call void @codegenFault(ptr %t275, i32 %t276, ptr @.str.999)
+  %t273 = call %Type @typeOfNode(ptr %t271, i32 %t272)
+  %t274 = load ptr, ptr %t0
+  %t275 = load i32, ptr %t1
+  %t276 = call ptr @genAddress(ptr %t274, i32 %t275)
+  %t277 = call ptr @emitLoad(ptr %t270, %Type %t273, ptr %t276)
+  ret ptr %t277
+L62:
+  %t278 = load ptr, ptr %t0
+  %t279 = load i32, ptr %t1
+  call void @codegenFault(ptr %t278, i32 %t279, ptr @.str.1008)
   ret ptr null
 }
 
@@ -41968,14 +42543,14 @@ L3:
   %t10 = load i1, ptr %t1
   br i1 %t10, label %L4, label %L6
 L4:
-  ret ptr @.str.1000
+  ret ptr @.str.1009
 L6:
   %t11 = getelementptr inbounds %Type, ptr %t0, i32 0, i32 0
   %t12 = load i32, ptr %t11
   %t13 = icmp eq i32 %t12, 15
   br i1 %t13, label %L7, label %L9
 L7:
-  ret ptr @.str.1001
+  ret ptr @.str.1010
 L9:
   %t14 = getelementptr inbounds %Type, ptr %t0, i32 0, i32 0
   %t15 = load i32, ptr %t14
@@ -41994,14 +42569,14 @@ L13:
   %t22 = call ptr @Builder.new()
   store ptr %t22, ptr %t23
   %t24 = load ptr, ptr %t23
-  call void @Builder.add(ptr %t24, ptr @.str.1002)
+  call void @Builder.add(ptr %t24, ptr @.str.1011)
   %t25 = load ptr, ptr %t23
   %t26 = load %Type, ptr %t0
   %t27 = call i32 @payloadWords(%Type %t26)
   %t28 = sext i32 %t27 to i64
   call void @Builder.addInt(ptr %t25, i64 %t28)
   %t29 = load ptr, ptr %t23
-  call void @Builder.add(ptr %t29, ptr @.str.1003)
+  call void @Builder.add(ptr %t29, ptr @.str.1012)
   %t30 = load ptr, ptr %t23
   %t31 = call ptr @Builder.take(ptr %t30)
   ret ptr %t31
@@ -42017,18 +42592,18 @@ L16:
   %t38 = call i1 @Type.isVoid(%Type %t37)
   br i1 %t38, label %L19, label %L21
 L19:
-  ret ptr @.str.1004
+  ret ptr @.str.1013
 L21:
   %t39 = call ptr @Builder.new()
   store ptr %t39, ptr %t40
   %t41 = load ptr, ptr %t40
-  call void @Builder.add(ptr %t41, ptr @.str.1005)
+  call void @Builder.add(ptr %t41, ptr @.str.1014)
   %t42 = load ptr, ptr %t40
   %t43 = load %Type, ptr %t36
   %t44 = call ptr @llvmTypeName(%Type %t43)
   call void @Builder.add(ptr %t42, ptr %t44)
   %t45 = load ptr, ptr %t40
-  call void @Builder.add(ptr %t45, ptr @.str.1006)
+  call void @Builder.add(ptr %t45, ptr @.str.1015)
   %t46 = load ptr, ptr %t40
   %t47 = call ptr @Builder.take(ptr %t46)
   ret ptr %t47
@@ -42037,25 +42612,25 @@ L18:
   %t49 = load i32, ptr %t48
   switch i32 %t49, label %L31 [ i32 1, label %L23 i32 2, label %L23 i32 3, label %L24 i32 4, label %L24 i32 5, label %L25 i32 6, label %L25 i32 7, label %L26 i32 8, label %L26 i32 9, label %L27 i32 10, label %L28 i32 11, label %L29 i32 12, label %L30 ]
 L23:
-  ret ptr @.str.1007
+  ret ptr @.str.1016
 L24:
-  ret ptr @.str.1008
+  ret ptr @.str.1017
 L25:
-  ret ptr @.str.1009
+  ret ptr @.str.1018
 L26:
-  ret ptr @.str.1010
+  ret ptr @.str.1019
 L27:
-  ret ptr @.str.1011
+  ret ptr @.str.1020
 L28:
-  ret ptr @.str.1012
+  ret ptr @.str.1021
 L29:
-  ret ptr @.str.1013
+  ret ptr @.str.1022
 L30:
-  ret ptr @.str.1014
+  ret ptr @.str.1023
 L31:
   br label %L22
 L22:
-  ret ptr @.str.1015
+  ret ptr @.str.1024
 }
 
 define ptr @zeroValue(%Type %p0) {
@@ -42076,21 +42651,21 @@ L1:
   %t6 = load i1, ptr %t1
   br i1 %t6, label %L2, label %L4
 L2:
-  ret ptr @.str.1016
+  ret ptr @.str.1025
 L4:
   %t7 = getelementptr inbounds %Type, ptr %t0, i32 0, i32 0
   %t8 = load i32, ptr %t7
   switch i32 %t8, label %L9 [ i32 13, label %L6 i32 17, label %L6 i32 11, label %L7 i32 9, label %L8 i32 10, label %L8 ]
 L6:
-  ret ptr @.str.1017
+  ret ptr @.str.1026
 L7:
-  ret ptr @.str.1018
+  ret ptr @.str.1027
 L8:
-  ret ptr @.str.1019
+  ret ptr @.str.1028
 L9:
   br label %L5
 L5:
-  ret ptr @.str.1020
+  ret ptr @.str.1029
 }
 
 define void @genStatement(ptr %p0, i32 %p1) {
@@ -42373,7 +42948,7 @@ L34:
   %t186 = call ptr @Builder.new()
   store ptr %t186, ptr %t187
   %t188 = load ptr, ptr %t187
-  call void @Builder.add(ptr %t188, ptr @.str.1021)
+  call void @Builder.add(ptr %t188, ptr @.str.1030)
   %t189 = load ptr, ptr %t187
   %t190 = load ptr, ptr %t0
   %t191 = getelementptr inbounds %Emitter, ptr %t190, i32 0, i32 11
@@ -42381,7 +42956,7 @@ L34:
   %t193 = call ptr @llvmTypeName(%Type %t192)
   call void @Builder.add(ptr %t189, ptr %t193)
   %t194 = load ptr, ptr %t187
-  call void @Builder.add(ptr %t194, ptr @.str.1022)
+  call void @Builder.add(ptr %t194, ptr @.str.1031)
   %t195 = load ptr, ptr %t0
   %t196 = load ptr, ptr %t187
   %t197 = getelementptr inbounds %Builder, ptr %t196, i32 0, i32 0
@@ -42404,7 +42979,7 @@ L35:
   br i1 %t210, label %L37, label %L38
 L37:
   %t211 = load ptr, ptr %t0
-  call void @emitLine(ptr %t211, ptr @.str.1023)
+  call void @emitLine(ptr %t211, ptr @.str.1032)
   br label %L39
 L38:
   %t212 = load ptr, ptr %t0
@@ -42436,7 +43011,7 @@ L38:
   %t238 = call ptr @Builder.new()
   store ptr %t238, ptr %t239
   %t240 = load ptr, ptr %t239
-  call void @Builder.add(ptr %t240, ptr @.str.1024)
+  call void @Builder.add(ptr %t240, ptr @.str.1033)
   %t241 = load ptr, ptr %t239
   %t242 = load %Type, ptr %t224
   %t243 = call ptr @llvmTypeName(%Type %t242)
@@ -42680,7 +43255,7 @@ L58:
 L60:
   %t418 = load ptr, ptr %t0
   %t419 = load i32, ptr %t1
-  call void @codegenFault(ptr %t418, i32 %t419, ptr @.str.1025)
+  call void @codegenFault(ptr %t418, i32 %t419, ptr @.str.1034)
   ret void
 }
 
@@ -42739,625 +43314,727 @@ define void @genMatch(ptr %p0, i32 %p1) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca i32
-  %t12 = alloca i32
-  %t16 = alloca %Type
-  %t24 = alloca ptr
-  %t28 = alloca ptr
-  %t31 = alloca ptr
-  %t33 = alloca ptr
-  %t44 = alloca i32
-  %t49 = alloca ptr
-  %t50 = alloca i32
-  %t52 = alloca i32
-  %t53 = alloca i32
-  %t94 = alloca ptr
-  %t106 = alloca i32
-  %t107 = alloca i32
-  %t124 = alloca i32
-  %t125 = alloca i32
-  %t152 = alloca i32
-  %t193 = alloca i32
-  %t194 = alloca i32
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
-  %t3 = getelementptr inbounds %Emitter, ptr %t2, i32 0, i32 0
-  %t4 = load ptr, ptr %t3
-  %t5 = getelementptr inbounds %Ast, ptr %t4, i32 0, i32 0
-  %t6 = load ptr, ptr %t5
-  %t7 = load i32, ptr %t1
-  %t8 = sext i32 %t7 to i64
-  %t9 = getelementptr inbounds %Node, ptr %t6, i64 %t8
-  %t10 = getelementptr inbounds %Node, ptr %t9, i32 0, i32 5
-  %t11 = load i32, ptr %t10
-  store i32 %t11, ptr %t12
-  %t13 = load ptr, ptr %t0
-  %t14 = load i32, ptr %t12
-  %t15 = call %Type @typeOfNode(ptr %t13, i32 %t14)
-  store %Type %t15, ptr %t16
-  %t17 = load %Type, ptr %t16
-  %t18 = call i1 @Type.isUnion(%Type %t17)
-  br i1 %t18, label %L0, label %L2
-L0:
-  %t19 = load ptr, ptr %t0
-  %t20 = load i32, ptr %t1
-  %t21 = load %Type, ptr %t16
-  call void @genUnionMatch(ptr %t19, i32 %t20, %Type %t21)
-  ret void
-L2:
-  %t22 = load %Type, ptr %t16
-  %t23 = call ptr @llvmTypeName(%Type %t22)
-  store ptr %t23, ptr %t24
-  %t25 = load ptr, ptr %t0
-  %t26 = load i32, ptr %t12
-  %t27 = call ptr @genExpr(ptr %t25, i32 %t26)
-  store ptr %t27, ptr %t28
-  %t29 = load ptr, ptr %t0
-  %t30 = call ptr @freshLabel(ptr %t29)
-  store ptr %t30, ptr %t31
-  %t32 = load ptr, ptr %t31
-  store ptr %t32, ptr %t33
-  %t34 = load ptr, ptr %t0
-  %t35 = getelementptr inbounds %Emitter, ptr %t34, i32 0, i32 0
-  %t36 = load ptr, ptr %t35
-  %t37 = getelementptr inbounds %Ast, ptr %t36, i32 0, i32 0
-  %t38 = load ptr, ptr %t37
-  %t39 = load i32, ptr %t1
-  %t40 = sext i32 %t39 to i64
-  %t41 = getelementptr inbounds %Node, ptr %t38, i64 %t40
-  %t42 = getelementptr inbounds %Node, ptr %t41, i32 0, i32 10
-  %t43 = load i32, ptr %t42
-  store i32 %t43, ptr %t44
-  %t45 = load i32, ptr %t44
-  %t46 = add i32 %t45, 1
-  %t47 = sext i32 %t46 to i64
-  %t48 = call ptr @"alloc<*i8>"(i64 %t47)
-  store ptr %t48, ptr %t49
-  store i32 0, ptr %t50
-  %t51 = load i32, ptr %t44
-  store i32 0, ptr %t52
-  br label %L3
-L3:
-  %t54 = load i32, ptr %t52
-  %t55 = icmp slt i32 %t54, %t51
-  br i1 %t55, label %L4, label %L6
-L4:
-  store i32 %t54, ptr %t53
-  %t56 = load ptr, ptr %t0
-  %t57 = call ptr @freshLabel(ptr %t56)
-  %t58 = load ptr, ptr %t49
-  %t59 = load i32, ptr %t53
-  %t60 = sext i32 %t59 to i64
-  %t61 = getelementptr inbounds ptr, ptr %t58, i64 %t60
-  store ptr %t57, ptr %t61
-  %t62 = load ptr, ptr %t0
-  %t63 = getelementptr inbounds %Emitter, ptr %t62, i32 0, i32 0
-  %t64 = load ptr, ptr %t63
-  %t65 = getelementptr inbounds %Ast, ptr %t64, i32 0, i32 0
-  %t66 = load ptr, ptr %t65
-  %t67 = load ptr, ptr %t0
-  %t68 = getelementptr inbounds %Emitter, ptr %t67, i32 0, i32 0
-  %t69 = load ptr, ptr %t68
-  %t70 = getelementptr inbounds %Ast, ptr %t69, i32 0, i32 0
-  %t71 = load ptr, ptr %t70
-  %t72 = load i32, ptr %t1
-  %t73 = sext i32 %t72 to i64
-  %t74 = getelementptr inbounds %Node, ptr %t71, i64 %t73
-  %t75 = getelementptr inbounds %Node, ptr %t74, i32 0, i32 9
-  %t76 = load ptr, ptr %t75
-  %t77 = load i32, ptr %t53
-  %t78 = sext i32 %t77 to i64
-  %t79 = getelementptr inbounds i32, ptr %t76, i64 %t78
-  %t80 = load i32, ptr %t79
-  %t81 = sext i32 %t80 to i64
-  %t82 = getelementptr inbounds %Node, ptr %t66, i64 %t81
-  %t83 = getelementptr inbounds %Node, ptr %t82, i32 0, i32 8
-  %t84 = load i32, ptr %t83
-  %t85 = icmp eq i32 %t84, 1
-  br i1 %t85, label %L7, label %L9
-L7:
-  %t86 = load ptr, ptr %t49
-  %t87 = load i32, ptr %t53
-  %t88 = sext i32 %t87 to i64
-  %t89 = getelementptr inbounds ptr, ptr %t86, i64 %t88
-  %t90 = load ptr, ptr %t89
-  store ptr %t90, ptr %t33
-  br label %L9
-L9:
-  br label %L5
-L5:
-  %t91 = load i32, ptr %t52
-  %t92 = add i32 %t91, 1
-  store i32 %t92, ptr %t52
-  br label %L3
-L6:
-  %t93 = call ptr @Builder.new()
-  store ptr %t93, ptr %t94
-  %t95 = load ptr, ptr %t94
-  call void @Builder.add(ptr %t95, ptr @.str.1026)
-  %t96 = load ptr, ptr %t94
-  %t97 = load ptr, ptr %t24
-  call void @Builder.add(ptr %t96, ptr %t97)
-  %t98 = load ptr, ptr %t94
-  call void @Builder.push(ptr %t98, i8 32)
-  %t99 = load ptr, ptr %t94
-  %t100 = load ptr, ptr %t28
-  call void @Builder.add(ptr %t99, ptr %t100)
-  %t101 = load ptr, ptr %t94
-  call void @Builder.add(ptr %t101, ptr @.str.1027)
-  %t102 = load ptr, ptr %t94
-  %t103 = load ptr, ptr %t33
-  call void @Builder.add(ptr %t102, ptr %t103)
-  %t104 = load ptr, ptr %t94
-  call void @Builder.add(ptr %t104, ptr @.str.1028)
-  %t105 = load i32, ptr %t44
-  store i32 0, ptr %t106
-  br label %L10
-L10:
-  %t108 = load i32, ptr %t106
-  %t109 = icmp slt i32 %t108, %t105
-  br i1 %t109, label %L11, label %L13
-L11:
-  store i32 %t108, ptr %t107
-  %t110 = load ptr, ptr %t0
-  %t111 = getelementptr inbounds %Emitter, ptr %t110, i32 0, i32 0
-  %t112 = load ptr, ptr %t111
-  %t113 = getelementptr inbounds %Ast, ptr %t112, i32 0, i32 0
-  %t114 = load ptr, ptr %t113
-  %t115 = load i32, ptr %t1
-  %t116 = sext i32 %t115 to i64
-  %t117 = getelementptr inbounds %Node, ptr %t114, i64 %t116
-  %t118 = getelementptr inbounds %Node, ptr %t117, i32 0, i32 9
-  %t119 = load ptr, ptr %t118
-  %t120 = load i32, ptr %t107
-  %t121 = sext i32 %t120 to i64
-  %t122 = getelementptr inbounds i32, ptr %t119, i64 %t121
-  %t123 = load i32, ptr %t122
-  store i32 %t123, ptr %t124
-  store i32 0, ptr %t125
-  br label %L14
-L14:
-  %t126 = load i32, ptr %t125
-  %t127 = load ptr, ptr %t0
-  %t128 = getelementptr inbounds %Emitter, ptr %t127, i32 0, i32 0
-  %t129 = load ptr, ptr %t128
-  %t130 = getelementptr inbounds %Ast, ptr %t129, i32 0, i32 0
-  %t131 = load ptr, ptr %t130
-  %t132 = load i32, ptr %t124
-  %t133 = sext i32 %t132 to i64
-  %t134 = getelementptr inbounds %Node, ptr %t131, i64 %t133
-  %t135 = getelementptr inbounds %Node, ptr %t134, i32 0, i32 10
-  %t136 = load i32, ptr %t135
-  %t137 = icmp slt i32 %t126, %t136
-  br i1 %t137, label %L15, label %L16
-L15:
-  %t138 = load ptr, ptr %t0
-  %t139 = getelementptr inbounds %Emitter, ptr %t138, i32 0, i32 0
-  %t140 = load ptr, ptr %t139
-  %t141 = getelementptr inbounds %Ast, ptr %t140, i32 0, i32 0
-  %t142 = load ptr, ptr %t141
-  %t143 = load i32, ptr %t124
-  %t144 = sext i32 %t143 to i64
-  %t145 = getelementptr inbounds %Node, ptr %t142, i64 %t144
-  %t146 = getelementptr inbounds %Node, ptr %t145, i32 0, i32 9
-  %t147 = load ptr, ptr %t146
-  %t148 = load i32, ptr %t125
-  %t149 = sext i32 %t148 to i64
-  %t150 = getelementptr inbounds i32, ptr %t147, i64 %t149
-  %t151 = load i32, ptr %t150
-  store i32 %t151, ptr %t152
-  %t153 = load ptr, ptr %t94
-  call void @Builder.push(ptr %t153, i8 32)
-  %t154 = load ptr, ptr %t94
-  %t155 = load ptr, ptr %t24
-  call void @Builder.add(ptr %t154, ptr %t155)
-  %t156 = load ptr, ptr %t94
-  call void @Builder.push(ptr %t156, i8 32)
-  %t157 = load ptr, ptr %t94
-  %t158 = load ptr, ptr %t0
-  %t159 = getelementptr inbounds %Emitter, ptr %t158, i32 0, i32 1
-  %t160 = load ptr, ptr %t159
-  %t161 = getelementptr inbounds %Analyzer, ptr %t160, i32 0, i32 11
-  %t162 = load ptr, ptr %t161
-  %t163 = load i32, ptr %t152
-  %t164 = sext i32 %t163 to i64
-  %t165 = getelementptr inbounds i64, ptr %t162, i64 %t164
-  %t166 = load i64, ptr %t165
-  %t167 = load %Type, ptr %t16
-  %t168 = call i32 @Type.bitWidth(%Type %t167)
-  %t169 = call ptr @switchConstant(i64 %t166, i32 %t168)
-  call void @Builder.add(ptr %t157, ptr %t169)
-  %t170 = load ptr, ptr %t94
-  call void @Builder.add(ptr %t170, ptr @.str.1029)
-  %t171 = load ptr, ptr %t94
-  %t172 = load ptr, ptr %t49
-  %t173 = load i32, ptr %t107
-  %t174 = sext i32 %t173 to i64
-  %t175 = getelementptr inbounds ptr, ptr %t172, i64 %t174
-  %t176 = load ptr, ptr %t175
-  call void @Builder.add(ptr %t171, ptr %t176)
-  %t177 = load i32, ptr %t125
-  %t178 = add i32 %t177, 1
-  store i32 %t178, ptr %t125
-  br label %L14
-L16:
-  br label %L12
-L12:
-  %t179 = load i32, ptr %t106
-  %t180 = add i32 %t179, 1
-  store i32 %t180, ptr %t106
-  br label %L10
-L13:
-  %t181 = load ptr, ptr %t94
-  call void @Builder.add(ptr %t181, ptr @.str.1030)
-  %t182 = load ptr, ptr %t0
-  %t183 = getelementptr inbounds %Emitter, ptr %t182, i32 0, i32 8
-  %t184 = load i1, ptr %t183
-  %t185 = xor i1 %t184, true
-  br i1 %t185, label %L17, label %L19
-L17:
-  %t186 = load ptr, ptr %t0
-  %t187 = load ptr, ptr %t94
-  %t188 = getelementptr inbounds %Builder, ptr %t187, i32 0, i32 0
-  %t189 = load ptr, ptr %t188
-  call void @emitLine(ptr %t186, ptr %t189)
-  %t190 = load ptr, ptr %t0
-  %t191 = getelementptr inbounds %Emitter, ptr %t190, i32 0, i32 8
-  store i1 true, ptr %t191
-  br label %L19
-L19:
-  %t192 = load i32, ptr %t44
-  store i32 0, ptr %t193
-  br label %L20
-L20:
-  %t195 = load i32, ptr %t193
-  %t196 = icmp slt i32 %t195, %t192
-  br i1 %t196, label %L21, label %L23
-L21:
-  store i32 %t195, ptr %t194
-  %t197 = load ptr, ptr %t0
-  %t198 = load ptr, ptr %t49
-  %t199 = load i32, ptr %t194
-  %t200 = sext i32 %t199 to i64
-  %t201 = getelementptr inbounds ptr, ptr %t198, i64 %t200
-  %t202 = load ptr, ptr %t201
-  call void @emitLabel(ptr %t197, ptr %t202)
-  %t203 = load ptr, ptr %t0
-  %t204 = load ptr, ptr %t0
-  %t205 = getelementptr inbounds %Emitter, ptr %t204, i32 0, i32 0
-  %t206 = load ptr, ptr %t205
-  %t207 = getelementptr inbounds %Ast, ptr %t206, i32 0, i32 0
-  %t208 = load ptr, ptr %t207
-  %t209 = load ptr, ptr %t0
-  %t210 = getelementptr inbounds %Emitter, ptr %t209, i32 0, i32 0
-  %t211 = load ptr, ptr %t210
-  %t212 = getelementptr inbounds %Ast, ptr %t211, i32 0, i32 0
-  %t213 = load ptr, ptr %t212
-  %t214 = load i32, ptr %t1
-  %t215 = sext i32 %t214 to i64
-  %t216 = getelementptr inbounds %Node, ptr %t213, i64 %t215
-  %t217 = getelementptr inbounds %Node, ptr %t216, i32 0, i32 9
-  %t218 = load ptr, ptr %t217
-  %t219 = load i32, ptr %t194
-  %t220 = sext i32 %t219 to i64
-  %t221 = getelementptr inbounds i32, ptr %t218, i64 %t220
-  %t222 = load i32, ptr %t221
-  %t223 = sext i32 %t222 to i64
-  %t224 = getelementptr inbounds %Node, ptr %t208, i64 %t223
-  %t225 = getelementptr inbounds %Node, ptr %t224, i32 0, i32 5
-  %t226 = load i32, ptr %t225
-  call void @genStatement(ptr %t203, i32 %t226)
-  %t227 = load ptr, ptr %t0
-  %t228 = load ptr, ptr %t31
-  call void @emitBranch(ptr %t227, ptr %t228)
-  br label %L22
-L22:
-  %t229 = load i32, ptr %t193
-  %t230 = add i32 %t229, 1
-  store i32 %t230, ptr %t193
-  br label %L20
-L23:
-  %t231 = load ptr, ptr %t0
-  %t232 = load ptr, ptr %t31
-  call void @emitLabel(ptr %t231, ptr %t232)
+  %t3 = load i32, ptr %t1
+  call void @genMatchInto(ptr %t2, i32 %t3, ptr null)
   ret void
 }
 
-define void @genUnionMatch(ptr %p0, i32 %p1, %Type %p2) {
+define ptr @genMatchValue(ptr %p0, i32 %p1) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca i32
-  %t2 = alloca %Type
-  %t15 = alloca ptr
-  %t20 = alloca ptr
-  %t23 = alloca ptr
-  %t34 = alloca i32
-  %t38 = alloca ptr
-  %t40 = alloca i32
-  %t41 = alloca i32
-  %t53 = alloca i32
-  %t54 = alloca i32
-  %t71 = alloca i32
-  %t91 = alloca ptr
-  %t102 = alloca i32
-  %t103 = alloca i32
-  %t120 = alloca i32
-  %t134 = alloca ptr
-  %t146 = alloca ptr
-  %t167 = alloca i32
-  %t168 = alloca i32
+  %t5 = alloca %Type
+  %t14 = alloca ptr
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
-  store %Type %p2, ptr %t2
-  %t3 = load ptr, ptr %t0
+  %t2 = load ptr, ptr %t0
+  %t3 = load i32, ptr %t1
+  %t4 = call %Type @typeOfNode(ptr %t2, i32 %t3)
+  store %Type %t4, ptr %t5
+  %t6 = load %Type, ptr %t5
+  %t7 = call i1 @Type.isVoid(%Type %t6)
+  br i1 %t7, label %L0, label %L2
+L0:
+  %t8 = load ptr, ptr %t0
+  %t9 = load i32, ptr %t1
+  call void @genMatchInto(ptr %t8, i32 %t9, ptr null)
+  ret ptr @.str.1035
+L2:
+  %t10 = load ptr, ptr %t0
+  %t11 = load %Type, ptr %t5
+  %t12 = call ptr @llvmTypeName(%Type %t11)
+  %t13 = call ptr @emitAlloca(ptr %t10, ptr %t12)
+  store ptr %t13, ptr %t14
+  %t15 = load ptr, ptr %t0
+  %t16 = load i32, ptr %t1
+  %t17 = load ptr, ptr %t14
+  call void @genMatchInto(ptr %t15, i32 %t16, ptr %t17)
+  %t18 = load ptr, ptr %t0
+  %t19 = load %Type, ptr %t5
+  %t20 = load ptr, ptr %t14
+  %t21 = call ptr @emitLoad(ptr %t18, %Type %t19, ptr %t20)
+  ret ptr %t21
+}
+
+define void @genArmBody(ptr %p0, i32 %p1, i32 %p2, ptr %p3) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca i32
+  %t3 = alloca ptr
+  %t14 = alloca i32
+  %t15 = alloca i1
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store i32 %p2, ptr %t2
+  store ptr %p3, ptr %t3
   %t4 = load ptr, ptr %t0
   %t5 = getelementptr inbounds %Emitter, ptr %t4, i32 0, i32 0
   %t6 = load ptr, ptr %t5
   %t7 = getelementptr inbounds %Ast, ptr %t6, i32 0, i32 0
   %t8 = load ptr, ptr %t7
-  %t9 = load i32, ptr %t1
+  %t9 = load i32, ptr %t2
   %t10 = sext i32 %t9 to i64
   %t11 = getelementptr inbounds %Node, ptr %t8, i64 %t10
   %t12 = getelementptr inbounds %Node, ptr %t11, i32 0, i32 5
   %t13 = load i32, ptr %t12
-  %t14 = call ptr @genExpr(ptr %t3, i32 %t13)
-  store ptr %t14, ptr %t15
-  %t16 = load ptr, ptr %t0
-  %t17 = load %Type, ptr %t2
-  %t18 = load ptr, ptr %t15
-  %t19 = call ptr @unionCode(ptr %t16, %Type %t17, ptr %t18)
-  store ptr %t19, ptr %t20
-  %t21 = load ptr, ptr %t0
-  %t22 = call ptr @freshLabel(ptr %t21)
-  store ptr %t22, ptr %t23
-  %t24 = load ptr, ptr %t0
-  %t25 = getelementptr inbounds %Emitter, ptr %t24, i32 0, i32 0
-  %t26 = load ptr, ptr %t25
-  %t27 = getelementptr inbounds %Ast, ptr %t26, i32 0, i32 0
-  %t28 = load ptr, ptr %t27
-  %t29 = load i32, ptr %t1
-  %t30 = sext i32 %t29 to i64
-  %t31 = getelementptr inbounds %Node, ptr %t28, i64 %t30
-  %t32 = getelementptr inbounds %Node, ptr %t31, i32 0, i32 10
-  %t33 = load i32, ptr %t32
-  store i32 %t33, ptr %t34
-  %t35 = load i32, ptr %t34
-  %t36 = sext i32 %t35 to i64
-  %t37 = call ptr @"alloc<*i8>"(i64 %t36)
-  store ptr %t37, ptr %t38
-  %t39 = load i32, ptr %t34
-  store i32 0, ptr %t40
+  store i32 %t13, ptr %t14
+  %t16 = load ptr, ptr %t3
+  %t17 = icmp eq ptr %t16, null
+  store i1 %t17, ptr %t15
+  br i1 %t17, label %L1, label %L0
+L0:
+  %t18 = load ptr, ptr %t0
+  %t19 = getelementptr inbounds %Emitter, ptr %t18, i32 0, i32 0
+  %t20 = load ptr, ptr %t19
+  %t21 = getelementptr inbounds %Ast, ptr %t20, i32 0, i32 0
+  %t22 = load ptr, ptr %t21
+  %t23 = load i32, ptr %t14
+  %t24 = sext i32 %t23 to i64
+  %t25 = getelementptr inbounds %Node, ptr %t22, i64 %t24
+  %t26 = getelementptr inbounds %Node, ptr %t25, i32 0, i32 0
+  %t27 = load i32, ptr %t26
+  %t28 = icmp eq i32 %t27, 1
+  store i1 %t28, ptr %t15
+  br label %L1
+L1:
+  %t29 = load i1, ptr %t15
+  br i1 %t29, label %L2, label %L4
+L2:
+  %t30 = load ptr, ptr %t0
+  %t31 = load i32, ptr %t14
+  call void @genStatement(ptr %t30, i32 %t31)
+  ret void
+L4:
+  %t32 = load ptr, ptr %t0
+  %t33 = load ptr, ptr %t0
+  %t34 = load i32, ptr %t1
+  %t35 = call %Type @typeOfNode(ptr %t33, i32 %t34)
+  %t36 = load ptr, ptr %t0
+  %t37 = load i32, ptr %t14
+  %t38 = call ptr @genExpr(ptr %t36, i32 %t37)
+  %t39 = load ptr, ptr %t3
+  call void @emitStore(ptr %t32, %Type %t35, ptr %t38, ptr %t39)
+  ret void
+}
+
+define void @genMatchInto(ptr %p0, i32 %p1, ptr %p2) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca ptr
+  %t13 = alloca i32
+  %t17 = alloca %Type
+  %t26 = alloca ptr
+  %t30 = alloca ptr
+  %t33 = alloca ptr
+  %t35 = alloca ptr
+  %t46 = alloca i32
+  %t51 = alloca ptr
+  %t52 = alloca i32
+  %t54 = alloca i32
+  %t55 = alloca i32
+  %t96 = alloca ptr
+  %t108 = alloca i32
+  %t109 = alloca i32
+  %t126 = alloca i32
+  %t127 = alloca i32
+  %t154 = alloca i32
+  %t195 = alloca i32
+  %t196 = alloca i32
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store ptr %p2, ptr %t2
+  %t3 = load ptr, ptr %t0
+  %t4 = getelementptr inbounds %Emitter, ptr %t3, i32 0, i32 0
+  %t5 = load ptr, ptr %t4
+  %t6 = getelementptr inbounds %Ast, ptr %t5, i32 0, i32 0
+  %t7 = load ptr, ptr %t6
+  %t8 = load i32, ptr %t1
+  %t9 = sext i32 %t8 to i64
+  %t10 = getelementptr inbounds %Node, ptr %t7, i64 %t9
+  %t11 = getelementptr inbounds %Node, ptr %t10, i32 0, i32 5
+  %t12 = load i32, ptr %t11
+  store i32 %t12, ptr %t13
+  %t14 = load ptr, ptr %t0
+  %t15 = load i32, ptr %t13
+  %t16 = call %Type @typeOfNode(ptr %t14, i32 %t15)
+  store %Type %t16, ptr %t17
+  %t18 = load %Type, ptr %t17
+  %t19 = call i1 @Type.isUnion(%Type %t18)
+  br i1 %t19, label %L0, label %L2
+L0:
+  %t20 = load ptr, ptr %t0
+  %t21 = load i32, ptr %t1
+  %t22 = load %Type, ptr %t17
+  %t23 = load ptr, ptr %t2
+  call void @genUnionMatch(ptr %t20, i32 %t21, %Type %t22, ptr %t23)
+  ret void
+L2:
+  %t24 = load %Type, ptr %t17
+  %t25 = call ptr @llvmTypeName(%Type %t24)
+  store ptr %t25, ptr %t26
+  %t27 = load ptr, ptr %t0
+  %t28 = load i32, ptr %t13
+  %t29 = call ptr @genExpr(ptr %t27, i32 %t28)
+  store ptr %t29, ptr %t30
+  %t31 = load ptr, ptr %t0
+  %t32 = call ptr @freshLabel(ptr %t31)
+  store ptr %t32, ptr %t33
+  %t34 = load ptr, ptr %t33
+  store ptr %t34, ptr %t35
+  %t36 = load ptr, ptr %t0
+  %t37 = getelementptr inbounds %Emitter, ptr %t36, i32 0, i32 0
+  %t38 = load ptr, ptr %t37
+  %t39 = getelementptr inbounds %Ast, ptr %t38, i32 0, i32 0
+  %t40 = load ptr, ptr %t39
+  %t41 = load i32, ptr %t1
+  %t42 = sext i32 %t41 to i64
+  %t43 = getelementptr inbounds %Node, ptr %t40, i64 %t42
+  %t44 = getelementptr inbounds %Node, ptr %t43, i32 0, i32 10
+  %t45 = load i32, ptr %t44
+  store i32 %t45, ptr %t46
+  %t47 = load i32, ptr %t46
+  %t48 = add i32 %t47, 1
+  %t49 = sext i32 %t48 to i64
+  %t50 = call ptr @"alloc<*i8>"(i64 %t49)
+  store ptr %t50, ptr %t51
+  store i32 0, ptr %t52
+  %t53 = load i32, ptr %t46
+  store i32 0, ptr %t54
+  br label %L3
+L3:
+  %t56 = load i32, ptr %t54
+  %t57 = icmp slt i32 %t56, %t53
+  br i1 %t57, label %L4, label %L6
+L4:
+  store i32 %t56, ptr %t55
+  %t58 = load ptr, ptr %t0
+  %t59 = call ptr @freshLabel(ptr %t58)
+  %t60 = load ptr, ptr %t51
+  %t61 = load i32, ptr %t55
+  %t62 = sext i32 %t61 to i64
+  %t63 = getelementptr inbounds ptr, ptr %t60, i64 %t62
+  store ptr %t59, ptr %t63
+  %t64 = load ptr, ptr %t0
+  %t65 = getelementptr inbounds %Emitter, ptr %t64, i32 0, i32 0
+  %t66 = load ptr, ptr %t65
+  %t67 = getelementptr inbounds %Ast, ptr %t66, i32 0, i32 0
+  %t68 = load ptr, ptr %t67
+  %t69 = load ptr, ptr %t0
+  %t70 = getelementptr inbounds %Emitter, ptr %t69, i32 0, i32 0
+  %t71 = load ptr, ptr %t70
+  %t72 = getelementptr inbounds %Ast, ptr %t71, i32 0, i32 0
+  %t73 = load ptr, ptr %t72
+  %t74 = load i32, ptr %t1
+  %t75 = sext i32 %t74 to i64
+  %t76 = getelementptr inbounds %Node, ptr %t73, i64 %t75
+  %t77 = getelementptr inbounds %Node, ptr %t76, i32 0, i32 9
+  %t78 = load ptr, ptr %t77
+  %t79 = load i32, ptr %t55
+  %t80 = sext i32 %t79 to i64
+  %t81 = getelementptr inbounds i32, ptr %t78, i64 %t80
+  %t82 = load i32, ptr %t81
+  %t83 = sext i32 %t82 to i64
+  %t84 = getelementptr inbounds %Node, ptr %t68, i64 %t83
+  %t85 = getelementptr inbounds %Node, ptr %t84, i32 0, i32 8
+  %t86 = load i32, ptr %t85
+  %t87 = icmp eq i32 %t86, 1
+  br i1 %t87, label %L7, label %L9
+L7:
+  %t88 = load ptr, ptr %t51
+  %t89 = load i32, ptr %t55
+  %t90 = sext i32 %t89 to i64
+  %t91 = getelementptr inbounds ptr, ptr %t88, i64 %t90
+  %t92 = load ptr, ptr %t91
+  store ptr %t92, ptr %t35
+  br label %L9
+L9:
+  br label %L5
+L5:
+  %t93 = load i32, ptr %t54
+  %t94 = add i32 %t93, 1
+  store i32 %t94, ptr %t54
+  br label %L3
+L6:
+  %t95 = call ptr @Builder.new()
+  store ptr %t95, ptr %t96
+  %t97 = load ptr, ptr %t96
+  call void @Builder.add(ptr %t97, ptr @.str.1036)
+  %t98 = load ptr, ptr %t96
+  %t99 = load ptr, ptr %t26
+  call void @Builder.add(ptr %t98, ptr %t99)
+  %t100 = load ptr, ptr %t96
+  call void @Builder.push(ptr %t100, i8 32)
+  %t101 = load ptr, ptr %t96
+  %t102 = load ptr, ptr %t30
+  call void @Builder.add(ptr %t101, ptr %t102)
+  %t103 = load ptr, ptr %t96
+  call void @Builder.add(ptr %t103, ptr @.str.1037)
+  %t104 = load ptr, ptr %t96
+  %t105 = load ptr, ptr %t35
+  call void @Builder.add(ptr %t104, ptr %t105)
+  %t106 = load ptr, ptr %t96
+  call void @Builder.add(ptr %t106, ptr @.str.1038)
+  %t107 = load i32, ptr %t46
+  store i32 0, ptr %t108
+  br label %L10
+L10:
+  %t110 = load i32, ptr %t108
+  %t111 = icmp slt i32 %t110, %t107
+  br i1 %t111, label %L11, label %L13
+L11:
+  store i32 %t110, ptr %t109
+  %t112 = load ptr, ptr %t0
+  %t113 = getelementptr inbounds %Emitter, ptr %t112, i32 0, i32 0
+  %t114 = load ptr, ptr %t113
+  %t115 = getelementptr inbounds %Ast, ptr %t114, i32 0, i32 0
+  %t116 = load ptr, ptr %t115
+  %t117 = load i32, ptr %t1
+  %t118 = sext i32 %t117 to i64
+  %t119 = getelementptr inbounds %Node, ptr %t116, i64 %t118
+  %t120 = getelementptr inbounds %Node, ptr %t119, i32 0, i32 9
+  %t121 = load ptr, ptr %t120
+  %t122 = load i32, ptr %t109
+  %t123 = sext i32 %t122 to i64
+  %t124 = getelementptr inbounds i32, ptr %t121, i64 %t123
+  %t125 = load i32, ptr %t124
+  store i32 %t125, ptr %t126
+  store i32 0, ptr %t127
+  br label %L14
+L14:
+  %t128 = load i32, ptr %t127
+  %t129 = load ptr, ptr %t0
+  %t130 = getelementptr inbounds %Emitter, ptr %t129, i32 0, i32 0
+  %t131 = load ptr, ptr %t130
+  %t132 = getelementptr inbounds %Ast, ptr %t131, i32 0, i32 0
+  %t133 = load ptr, ptr %t132
+  %t134 = load i32, ptr %t126
+  %t135 = sext i32 %t134 to i64
+  %t136 = getelementptr inbounds %Node, ptr %t133, i64 %t135
+  %t137 = getelementptr inbounds %Node, ptr %t136, i32 0, i32 10
+  %t138 = load i32, ptr %t137
+  %t139 = icmp slt i32 %t128, %t138
+  br i1 %t139, label %L15, label %L16
+L15:
+  %t140 = load ptr, ptr %t0
+  %t141 = getelementptr inbounds %Emitter, ptr %t140, i32 0, i32 0
+  %t142 = load ptr, ptr %t141
+  %t143 = getelementptr inbounds %Ast, ptr %t142, i32 0, i32 0
+  %t144 = load ptr, ptr %t143
+  %t145 = load i32, ptr %t126
+  %t146 = sext i32 %t145 to i64
+  %t147 = getelementptr inbounds %Node, ptr %t144, i64 %t146
+  %t148 = getelementptr inbounds %Node, ptr %t147, i32 0, i32 9
+  %t149 = load ptr, ptr %t148
+  %t150 = load i32, ptr %t127
+  %t151 = sext i32 %t150 to i64
+  %t152 = getelementptr inbounds i32, ptr %t149, i64 %t151
+  %t153 = load i32, ptr %t152
+  store i32 %t153, ptr %t154
+  %t155 = load ptr, ptr %t96
+  call void @Builder.push(ptr %t155, i8 32)
+  %t156 = load ptr, ptr %t96
+  %t157 = load ptr, ptr %t26
+  call void @Builder.add(ptr %t156, ptr %t157)
+  %t158 = load ptr, ptr %t96
+  call void @Builder.push(ptr %t158, i8 32)
+  %t159 = load ptr, ptr %t96
+  %t160 = load ptr, ptr %t0
+  %t161 = getelementptr inbounds %Emitter, ptr %t160, i32 0, i32 1
+  %t162 = load ptr, ptr %t161
+  %t163 = getelementptr inbounds %Analyzer, ptr %t162, i32 0, i32 11
+  %t164 = load ptr, ptr %t163
+  %t165 = load i32, ptr %t154
+  %t166 = sext i32 %t165 to i64
+  %t167 = getelementptr inbounds i64, ptr %t164, i64 %t166
+  %t168 = load i64, ptr %t167
+  %t169 = load %Type, ptr %t17
+  %t170 = call i32 @Type.bitWidth(%Type %t169)
+  %t171 = call ptr @switchConstant(i64 %t168, i32 %t170)
+  call void @Builder.add(ptr %t159, ptr %t171)
+  %t172 = load ptr, ptr %t96
+  call void @Builder.add(ptr %t172, ptr @.str.1039)
+  %t173 = load ptr, ptr %t96
+  %t174 = load ptr, ptr %t51
+  %t175 = load i32, ptr %t109
+  %t176 = sext i32 %t175 to i64
+  %t177 = getelementptr inbounds ptr, ptr %t174, i64 %t176
+  %t178 = load ptr, ptr %t177
+  call void @Builder.add(ptr %t173, ptr %t178)
+  %t179 = load i32, ptr %t127
+  %t180 = add i32 %t179, 1
+  store i32 %t180, ptr %t127
+  br label %L14
+L16:
+  br label %L12
+L12:
+  %t181 = load i32, ptr %t108
+  %t182 = add i32 %t181, 1
+  store i32 %t182, ptr %t108
+  br label %L10
+L13:
+  %t183 = load ptr, ptr %t96
+  call void @Builder.add(ptr %t183, ptr @.str.1040)
+  %t184 = load ptr, ptr %t0
+  %t185 = getelementptr inbounds %Emitter, ptr %t184, i32 0, i32 8
+  %t186 = load i1, ptr %t185
+  %t187 = xor i1 %t186, true
+  br i1 %t187, label %L17, label %L19
+L17:
+  %t188 = load ptr, ptr %t0
+  %t189 = load ptr, ptr %t96
+  %t190 = getelementptr inbounds %Builder, ptr %t189, i32 0, i32 0
+  %t191 = load ptr, ptr %t190
+  call void @emitLine(ptr %t188, ptr %t191)
+  %t192 = load ptr, ptr %t0
+  %t193 = getelementptr inbounds %Emitter, ptr %t192, i32 0, i32 8
+  store i1 true, ptr %t193
+  br label %L19
+L19:
+  %t194 = load i32, ptr %t46
+  store i32 0, ptr %t195
+  br label %L20
+L20:
+  %t197 = load i32, ptr %t195
+  %t198 = icmp slt i32 %t197, %t194
+  br i1 %t198, label %L21, label %L23
+L21:
+  store i32 %t197, ptr %t196
+  %t199 = load ptr, ptr %t0
+  %t200 = load ptr, ptr %t51
+  %t201 = load i32, ptr %t196
+  %t202 = sext i32 %t201 to i64
+  %t203 = getelementptr inbounds ptr, ptr %t200, i64 %t202
+  %t204 = load ptr, ptr %t203
+  call void @emitLabel(ptr %t199, ptr %t204)
+  %t205 = load ptr, ptr %t0
+  %t206 = load i32, ptr %t1
+  %t207 = load ptr, ptr %t0
+  %t208 = getelementptr inbounds %Emitter, ptr %t207, i32 0, i32 0
+  %t209 = load ptr, ptr %t208
+  %t210 = getelementptr inbounds %Ast, ptr %t209, i32 0, i32 0
+  %t211 = load ptr, ptr %t210
+  %t212 = load i32, ptr %t1
+  %t213 = sext i32 %t212 to i64
+  %t214 = getelementptr inbounds %Node, ptr %t211, i64 %t213
+  %t215 = getelementptr inbounds %Node, ptr %t214, i32 0, i32 9
+  %t216 = load ptr, ptr %t215
+  %t217 = load i32, ptr %t196
+  %t218 = sext i32 %t217 to i64
+  %t219 = getelementptr inbounds i32, ptr %t216, i64 %t218
+  %t220 = load i32, ptr %t219
+  %t221 = load ptr, ptr %t2
+  call void @genArmBody(ptr %t205, i32 %t206, i32 %t220, ptr %t221)
+  %t222 = load ptr, ptr %t0
+  %t223 = load ptr, ptr %t33
+  call void @emitBranch(ptr %t222, ptr %t223)
+  br label %L22
+L22:
+  %t224 = load i32, ptr %t195
+  %t225 = add i32 %t224, 1
+  store i32 %t225, ptr %t195
+  br label %L20
+L23:
+  %t226 = load ptr, ptr %t0
+  %t227 = load ptr, ptr %t33
+  call void @emitLabel(ptr %t226, ptr %t227)
+  ret void
+}
+
+define void @genUnionMatch(ptr %p0, i32 %p1, %Type %p2, ptr %p3) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i32
+  %t2 = alloca %Type
+  %t3 = alloca ptr
+  %t16 = alloca ptr
+  %t21 = alloca ptr
+  %t24 = alloca ptr
+  %t35 = alloca i32
+  %t39 = alloca ptr
+  %t41 = alloca i32
+  %t42 = alloca i32
+  %t54 = alloca i32
+  %t55 = alloca i32
+  %t72 = alloca i32
+  %t92 = alloca ptr
+  %t103 = alloca i32
+  %t104 = alloca i32
+  %t121 = alloca i32
+  %t135 = alloca ptr
+  %t147 = alloca ptr
+  %t168 = alloca i32
+  %t169 = alloca i32
+  store ptr %p0, ptr %t0
+  store i32 %p1, ptr %t1
+  store %Type %p2, ptr %t2
+  store ptr %p3, ptr %t3
+  %t4 = load ptr, ptr %t0
+  %t5 = load ptr, ptr %t0
+  %t6 = getelementptr inbounds %Emitter, ptr %t5, i32 0, i32 0
+  %t7 = load ptr, ptr %t6
+  %t8 = getelementptr inbounds %Ast, ptr %t7, i32 0, i32 0
+  %t9 = load ptr, ptr %t8
+  %t10 = load i32, ptr %t1
+  %t11 = sext i32 %t10 to i64
+  %t12 = getelementptr inbounds %Node, ptr %t9, i64 %t11
+  %t13 = getelementptr inbounds %Node, ptr %t12, i32 0, i32 5
+  %t14 = load i32, ptr %t13
+  %t15 = call ptr @genExpr(ptr %t4, i32 %t14)
+  store ptr %t15, ptr %t16
+  %t17 = load ptr, ptr %t0
+  %t18 = load %Type, ptr %t2
+  %t19 = load ptr, ptr %t16
+  %t20 = call ptr @unionCode(ptr %t17, %Type %t18, ptr %t19)
+  store ptr %t20, ptr %t21
+  %t22 = load ptr, ptr %t0
+  %t23 = call ptr @freshLabel(ptr %t22)
+  store ptr %t23, ptr %t24
+  %t25 = load ptr, ptr %t0
+  %t26 = getelementptr inbounds %Emitter, ptr %t25, i32 0, i32 0
+  %t27 = load ptr, ptr %t26
+  %t28 = getelementptr inbounds %Ast, ptr %t27, i32 0, i32 0
+  %t29 = load ptr, ptr %t28
+  %t30 = load i32, ptr %t1
+  %t31 = sext i32 %t30 to i64
+  %t32 = getelementptr inbounds %Node, ptr %t29, i64 %t31
+  %t33 = getelementptr inbounds %Node, ptr %t32, i32 0, i32 10
+  %t34 = load i32, ptr %t33
+  store i32 %t34, ptr %t35
+  %t36 = load i32, ptr %t35
+  %t37 = sext i32 %t36 to i64
+  %t38 = call ptr @"alloc<*i8>"(i64 %t37)
+  store ptr %t38, ptr %t39
+  %t40 = load i32, ptr %t35
+  store i32 0, ptr %t41
   br label %L0
 L0:
-  %t42 = load i32, ptr %t40
-  %t43 = icmp slt i32 %t42, %t39
-  br i1 %t43, label %L1, label %L3
+  %t43 = load i32, ptr %t41
+  %t44 = icmp slt i32 %t43, %t40
+  br i1 %t44, label %L1, label %L3
 L1:
-  store i32 %t42, ptr %t41
-  %t44 = load ptr, ptr %t0
-  %t45 = call ptr @freshLabel(ptr %t44)
-  %t46 = load ptr, ptr %t38
-  %t47 = load i32, ptr %t41
-  %t48 = sext i32 %t47 to i64
-  %t49 = getelementptr inbounds ptr, ptr %t46, i64 %t48
-  store ptr %t45, ptr %t49
+  store i32 %t43, ptr %t42
+  %t45 = load ptr, ptr %t0
+  %t46 = call ptr @freshLabel(ptr %t45)
+  %t47 = load ptr, ptr %t39
+  %t48 = load i32, ptr %t42
+  %t49 = sext i32 %t48 to i64
+  %t50 = getelementptr inbounds ptr, ptr %t47, i64 %t49
+  store ptr %t46, ptr %t50
   br label %L2
 L2:
-  %t50 = load i32, ptr %t40
-  %t51 = add i32 %t50, 1
-  store i32 %t51, ptr %t40
+  %t51 = load i32, ptr %t41
+  %t52 = add i32 %t51, 1
+  store i32 %t52, ptr %t41
   br label %L0
 L3:
-  %t52 = load i32, ptr %t34
-  store i32 0, ptr %t53
+  %t53 = load i32, ptr %t35
+  store i32 0, ptr %t54
   br label %L4
 L4:
-  %t55 = load i32, ptr %t53
-  %t56 = icmp slt i32 %t55, %t52
-  br i1 %t56, label %L5, label %L7
+  %t56 = load i32, ptr %t54
+  %t57 = icmp slt i32 %t56, %t53
+  br i1 %t57, label %L5, label %L7
 L5:
-  store i32 %t55, ptr %t54
-  %t57 = load ptr, ptr %t0
-  %t58 = getelementptr inbounds %Emitter, ptr %t57, i32 0, i32 0
-  %t59 = load ptr, ptr %t58
-  %t60 = getelementptr inbounds %Ast, ptr %t59, i32 0, i32 0
-  %t61 = load ptr, ptr %t60
-  %t62 = load i32, ptr %t1
-  %t63 = sext i32 %t62 to i64
-  %t64 = getelementptr inbounds %Node, ptr %t61, i64 %t63
-  %t65 = getelementptr inbounds %Node, ptr %t64, i32 0, i32 9
-  %t66 = load ptr, ptr %t65
-  %t67 = load i32, ptr %t54
-  %t68 = sext i32 %t67 to i64
-  %t69 = getelementptr inbounds i32, ptr %t66, i64 %t68
-  %t70 = load i32, ptr %t69
-  store i32 %t70, ptr %t71
-  %t72 = load ptr, ptr %t0
-  %t73 = getelementptr inbounds %Emitter, ptr %t72, i32 0, i32 0
-  %t74 = load ptr, ptr %t73
-  %t75 = getelementptr inbounds %Ast, ptr %t74, i32 0, i32 0
-  %t76 = load ptr, ptr %t75
-  %t77 = load i32, ptr %t71
-  %t78 = sext i32 %t77 to i64
-  %t79 = getelementptr inbounds %Node, ptr %t76, i64 %t78
-  %t80 = getelementptr inbounds %Node, ptr %t79, i32 0, i32 8
-  %t81 = load i32, ptr %t80
-  %t82 = icmp eq i32 %t81, 1
-  br i1 %t82, label %L8, label %L10
+  store i32 %t56, ptr %t55
+  %t58 = load ptr, ptr %t0
+  %t59 = getelementptr inbounds %Emitter, ptr %t58, i32 0, i32 0
+  %t60 = load ptr, ptr %t59
+  %t61 = getelementptr inbounds %Ast, ptr %t60, i32 0, i32 0
+  %t62 = load ptr, ptr %t61
+  %t63 = load i32, ptr %t1
+  %t64 = sext i32 %t63 to i64
+  %t65 = getelementptr inbounds %Node, ptr %t62, i64 %t64
+  %t66 = getelementptr inbounds %Node, ptr %t65, i32 0, i32 9
+  %t67 = load ptr, ptr %t66
+  %t68 = load i32, ptr %t55
+  %t69 = sext i32 %t68 to i64
+  %t70 = getelementptr inbounds i32, ptr %t67, i64 %t69
+  %t71 = load i32, ptr %t70
+  store i32 %t71, ptr %t72
+  %t73 = load ptr, ptr %t0
+  %t74 = getelementptr inbounds %Emitter, ptr %t73, i32 0, i32 0
+  %t75 = load ptr, ptr %t74
+  %t76 = getelementptr inbounds %Ast, ptr %t75, i32 0, i32 0
+  %t77 = load ptr, ptr %t76
+  %t78 = load i32, ptr %t72
+  %t79 = sext i32 %t78 to i64
+  %t80 = getelementptr inbounds %Node, ptr %t77, i64 %t79
+  %t81 = getelementptr inbounds %Node, ptr %t80, i32 0, i32 8
+  %t82 = load i32, ptr %t81
+  %t83 = icmp eq i32 %t82, 1
+  br i1 %t83, label %L8, label %L10
 L8:
-  %t83 = load ptr, ptr %t0
-  %t84 = load ptr, ptr %t38
-  %t85 = load i32, ptr %t54
-  %t86 = sext i32 %t85 to i64
-  %t87 = getelementptr inbounds ptr, ptr %t84, i64 %t86
-  %t88 = load ptr, ptr %t87
-  call void @emitBranch(ptr %t83, ptr %t88)
-  %t89 = load ptr, ptr %t0
-  %t90 = getelementptr inbounds %Emitter, ptr %t89, i32 0, i32 8
-  store i1 true, ptr %t90
+  %t84 = load ptr, ptr %t0
+  %t85 = load ptr, ptr %t39
+  %t86 = load i32, ptr %t55
+  %t87 = sext i32 %t86 to i64
+  %t88 = getelementptr inbounds ptr, ptr %t85, i64 %t87
+  %t89 = load ptr, ptr %t88
+  call void @emitBranch(ptr %t84, ptr %t89)
+  %t90 = load ptr, ptr %t0
+  %t91 = getelementptr inbounds %Emitter, ptr %t90, i32 0, i32 8
+  store i1 true, ptr %t91
   br label %L7
 L11:
   br label %L10
 L10:
-  store ptr @.str.1031, ptr %t91
-  %t92 = load ptr, ptr %t0
-  %t93 = getelementptr inbounds %Emitter, ptr %t92, i32 0, i32 0
-  %t94 = load ptr, ptr %t93
-  %t95 = getelementptr inbounds %Ast, ptr %t94, i32 0, i32 0
-  %t96 = load ptr, ptr %t95
-  %t97 = load i32, ptr %t71
-  %t98 = sext i32 %t97 to i64
-  %t99 = getelementptr inbounds %Node, ptr %t96, i64 %t98
-  %t100 = getelementptr inbounds %Node, ptr %t99, i32 0, i32 10
-  %t101 = load i32, ptr %t100
-  store i32 0, ptr %t102
+  store ptr @.str.1041, ptr %t92
+  %t93 = load ptr, ptr %t0
+  %t94 = getelementptr inbounds %Emitter, ptr %t93, i32 0, i32 0
+  %t95 = load ptr, ptr %t94
+  %t96 = getelementptr inbounds %Ast, ptr %t95, i32 0, i32 0
+  %t97 = load ptr, ptr %t96
+  %t98 = load i32, ptr %t72
+  %t99 = sext i32 %t98 to i64
+  %t100 = getelementptr inbounds %Node, ptr %t97, i64 %t99
+  %t101 = getelementptr inbounds %Node, ptr %t100, i32 0, i32 10
+  %t102 = load i32, ptr %t101
+  store i32 0, ptr %t103
   br label %L12
 L12:
-  %t104 = load i32, ptr %t102
-  %t105 = icmp slt i32 %t104, %t101
-  br i1 %t105, label %L13, label %L15
+  %t105 = load i32, ptr %t103
+  %t106 = icmp slt i32 %t105, %t102
+  br i1 %t106, label %L13, label %L15
 L13:
-  store i32 %t104, ptr %t103
-  %t106 = load ptr, ptr %t0
-  %t107 = getelementptr inbounds %Emitter, ptr %t106, i32 0, i32 0
-  %t108 = load ptr, ptr %t107
-  %t109 = getelementptr inbounds %Ast, ptr %t108, i32 0, i32 0
-  %t110 = load ptr, ptr %t109
-  %t111 = load i32, ptr %t71
-  %t112 = sext i32 %t111 to i64
-  %t113 = getelementptr inbounds %Node, ptr %t110, i64 %t112
-  %t114 = getelementptr inbounds %Node, ptr %t113, i32 0, i32 9
-  %t115 = load ptr, ptr %t114
-  %t116 = load i32, ptr %t103
-  %t117 = sext i32 %t116 to i64
-  %t118 = getelementptr inbounds i32, ptr %t115, i64 %t117
-  %t119 = load i32, ptr %t118
-  store i32 %t119, ptr %t120
-  %t121 = load ptr, ptr %t0
-  %t122 = load %Type, ptr %t2
-  %t123 = load ptr, ptr %t20
-  %t124 = load ptr, ptr %t0
-  %t125 = getelementptr inbounds %Emitter, ptr %t124, i32 0, i32 1
-  %t126 = load ptr, ptr %t125
-  %t127 = getelementptr inbounds %Analyzer, ptr %t126, i32 0, i32 3
-  %t128 = load ptr, ptr %t127
-  %t129 = load i32, ptr %t120
-  %t130 = sext i32 %t129 to i64
-  %t131 = getelementptr inbounds %Type, ptr %t128, i64 %t130
-  %t132 = load %Type, ptr %t131
-  %t133 = call ptr @holdsTest(ptr %t121, %Type %t122, ptr %t123, %Type %t132)
-  store ptr %t133, ptr %t134
-  %t135 = load i32, ptr %t103
-  %t136 = icmp eq i32 %t135, 0
-  br i1 %t136, label %L16, label %L17
+  store i32 %t105, ptr %t104
+  %t107 = load ptr, ptr %t0
+  %t108 = getelementptr inbounds %Emitter, ptr %t107, i32 0, i32 0
+  %t109 = load ptr, ptr %t108
+  %t110 = getelementptr inbounds %Ast, ptr %t109, i32 0, i32 0
+  %t111 = load ptr, ptr %t110
+  %t112 = load i32, ptr %t72
+  %t113 = sext i32 %t112 to i64
+  %t114 = getelementptr inbounds %Node, ptr %t111, i64 %t113
+  %t115 = getelementptr inbounds %Node, ptr %t114, i32 0, i32 9
+  %t116 = load ptr, ptr %t115
+  %t117 = load i32, ptr %t104
+  %t118 = sext i32 %t117 to i64
+  %t119 = getelementptr inbounds i32, ptr %t116, i64 %t118
+  %t120 = load i32, ptr %t119
+  store i32 %t120, ptr %t121
+  %t122 = load ptr, ptr %t0
+  %t123 = load %Type, ptr %t2
+  %t124 = load ptr, ptr %t21
+  %t125 = load ptr, ptr %t0
+  %t126 = getelementptr inbounds %Emitter, ptr %t125, i32 0, i32 1
+  %t127 = load ptr, ptr %t126
+  %t128 = getelementptr inbounds %Analyzer, ptr %t127, i32 0, i32 3
+  %t129 = load ptr, ptr %t128
+  %t130 = load i32, ptr %t121
+  %t131 = sext i32 %t130 to i64
+  %t132 = getelementptr inbounds %Type, ptr %t129, i64 %t131
+  %t133 = load %Type, ptr %t132
+  %t134 = call ptr @holdsTest(ptr %t122, %Type %t123, ptr %t124, %Type %t133)
+  store ptr %t134, ptr %t135
+  %t136 = load i32, ptr %t104
+  %t137 = icmp eq i32 %t136, 0
+  br i1 %t137, label %L16, label %L17
 L16:
-  %t137 = load ptr, ptr %t134
-  store ptr %t137, ptr %t91
+  %t138 = load ptr, ptr %t135
+  store ptr %t138, ptr %t92
   br label %L18
 L17:
-  %t138 = load ptr, ptr %t0
-  %t139 = load ptr, ptr %t91
-  %t140 = load ptr, ptr %t134
-  %t141 = call ptr @instruction(ptr %t138, ptr @.str.1032, ptr %t139, ptr %t140)
-  store ptr %t141, ptr %t91
+  %t139 = load ptr, ptr %t0
+  %t140 = load ptr, ptr %t92
+  %t141 = load ptr, ptr %t135
+  %t142 = call ptr @instruction(ptr %t139, ptr @.str.1042, ptr %t140, ptr %t141)
+  store ptr %t142, ptr %t92
   br label %L18
 L18:
   br label %L14
 L14:
-  %t142 = load i32, ptr %t102
-  %t143 = add i32 %t142, 1
-  store i32 %t143, ptr %t102
+  %t143 = load i32, ptr %t103
+  %t144 = add i32 %t143, 1
+  store i32 %t144, ptr %t103
   br label %L12
 L15:
-  %t144 = load ptr, ptr %t0
-  %t145 = call ptr @freshLabel(ptr %t144)
-  store ptr %t145, ptr %t146
-  %t147 = load ptr, ptr %t0
-  %t148 = load ptr, ptr %t91
-  %t149 = load ptr, ptr %t38
-  %t150 = load i32, ptr %t54
-  %t151 = sext i32 %t150 to i64
-  %t152 = getelementptr inbounds ptr, ptr %t149, i64 %t151
-  %t153 = load ptr, ptr %t152
-  %t154 = load ptr, ptr %t146
-  call void @emitCondBranch(ptr %t147, ptr %t148, ptr %t153, ptr %t154)
-  %t155 = load ptr, ptr %t0
-  %t156 = load ptr, ptr %t146
-  call void @emitLabel(ptr %t155, ptr %t156)
+  %t145 = load ptr, ptr %t0
+  %t146 = call ptr @freshLabel(ptr %t145)
+  store ptr %t146, ptr %t147
+  %t148 = load ptr, ptr %t0
+  %t149 = load ptr, ptr %t92
+  %t150 = load ptr, ptr %t39
+  %t151 = load i32, ptr %t55
+  %t152 = sext i32 %t151 to i64
+  %t153 = getelementptr inbounds ptr, ptr %t150, i64 %t152
+  %t154 = load ptr, ptr %t153
+  %t155 = load ptr, ptr %t147
+  call void @emitCondBranch(ptr %t148, ptr %t149, ptr %t154, ptr %t155)
+  %t156 = load ptr, ptr %t0
+  %t157 = load ptr, ptr %t147
+  call void @emitLabel(ptr %t156, ptr %t157)
   br label %L6
 L6:
-  %t157 = load i32, ptr %t53
-  %t158 = add i32 %t157, 1
-  store i32 %t158, ptr %t53
+  %t158 = load i32, ptr %t54
+  %t159 = add i32 %t158, 1
+  store i32 %t159, ptr %t54
   br label %L4
 L7:
-  %t159 = load ptr, ptr %t0
-  %t160 = getelementptr inbounds %Emitter, ptr %t159, i32 0, i32 8
-  %t161 = load i1, ptr %t160
-  %t162 = xor i1 %t161, true
-  br i1 %t162, label %L19, label %L21
+  %t160 = load ptr, ptr %t0
+  %t161 = getelementptr inbounds %Emitter, ptr %t160, i32 0, i32 8
+  %t162 = load i1, ptr %t161
+  %t163 = xor i1 %t162, true
+  br i1 %t163, label %L19, label %L21
 L19:
-  %t163 = load ptr, ptr %t0
-  call void @emitLine(ptr %t163, ptr @.str.1033)
   %t164 = load ptr, ptr %t0
-  %t165 = getelementptr inbounds %Emitter, ptr %t164, i32 0, i32 8
-  store i1 true, ptr %t165
+  call void @emitLine(ptr %t164, ptr @.str.1043)
+  %t165 = load ptr, ptr %t0
+  %t166 = getelementptr inbounds %Emitter, ptr %t165, i32 0, i32 8
+  store i1 true, ptr %t166
   br label %L21
 L21:
-  %t166 = load i32, ptr %t34
-  store i32 0, ptr %t167
+  %t167 = load i32, ptr %t35
+  store i32 0, ptr %t168
   br label %L22
 L22:
-  %t169 = load i32, ptr %t167
-  %t170 = icmp slt i32 %t169, %t166
-  br i1 %t170, label %L23, label %L25
+  %t170 = load i32, ptr %t168
+  %t171 = icmp slt i32 %t170, %t167
+  br i1 %t171, label %L23, label %L25
 L23:
-  store i32 %t169, ptr %t168
-  %t171 = load ptr, ptr %t0
-  %t172 = load ptr, ptr %t38
-  %t173 = load i32, ptr %t168
-  %t174 = sext i32 %t173 to i64
-  %t175 = getelementptr inbounds ptr, ptr %t172, i64 %t174
-  %t176 = load ptr, ptr %t175
-  call void @emitLabel(ptr %t171, ptr %t176)
-  %t177 = load ptr, ptr %t0
+  store i32 %t170, ptr %t169
+  %t172 = load ptr, ptr %t0
+  %t173 = load ptr, ptr %t39
+  %t174 = load i32, ptr %t169
+  %t175 = sext i32 %t174 to i64
+  %t176 = getelementptr inbounds ptr, ptr %t173, i64 %t175
+  %t177 = load ptr, ptr %t176
+  call void @emitLabel(ptr %t172, ptr %t177)
   %t178 = load ptr, ptr %t0
-  %t179 = getelementptr inbounds %Emitter, ptr %t178, i32 0, i32 0
-  %t180 = load ptr, ptr %t179
-  %t181 = getelementptr inbounds %Ast, ptr %t180, i32 0, i32 0
+  %t179 = load i32, ptr %t1
+  %t180 = load ptr, ptr %t0
+  %t181 = getelementptr inbounds %Emitter, ptr %t180, i32 0, i32 0
   %t182 = load ptr, ptr %t181
-  %t183 = load ptr, ptr %t0
-  %t184 = getelementptr inbounds %Emitter, ptr %t183, i32 0, i32 0
-  %t185 = load ptr, ptr %t184
-  %t186 = getelementptr inbounds %Ast, ptr %t185, i32 0, i32 0
-  %t187 = load ptr, ptr %t186
-  %t188 = load i32, ptr %t1
-  %t189 = sext i32 %t188 to i64
-  %t190 = getelementptr inbounds %Node, ptr %t187, i64 %t189
-  %t191 = getelementptr inbounds %Node, ptr %t190, i32 0, i32 9
-  %t192 = load ptr, ptr %t191
-  %t193 = load i32, ptr %t168
-  %t194 = sext i32 %t193 to i64
-  %t195 = getelementptr inbounds i32, ptr %t192, i64 %t194
-  %t196 = load i32, ptr %t195
-  %t197 = sext i32 %t196 to i64
-  %t198 = getelementptr inbounds %Node, ptr %t182, i64 %t197
-  %t199 = getelementptr inbounds %Node, ptr %t198, i32 0, i32 5
-  %t200 = load i32, ptr %t199
-  call void @genStatement(ptr %t177, i32 %t200)
-  %t201 = load ptr, ptr %t0
-  %t202 = load ptr, ptr %t23
-  call void @emitBranch(ptr %t201, ptr %t202)
+  %t183 = getelementptr inbounds %Ast, ptr %t182, i32 0, i32 0
+  %t184 = load ptr, ptr %t183
+  %t185 = load i32, ptr %t1
+  %t186 = sext i32 %t185 to i64
+  %t187 = getelementptr inbounds %Node, ptr %t184, i64 %t186
+  %t188 = getelementptr inbounds %Node, ptr %t187, i32 0, i32 9
+  %t189 = load ptr, ptr %t188
+  %t190 = load i32, ptr %t169
+  %t191 = sext i32 %t190 to i64
+  %t192 = getelementptr inbounds i32, ptr %t189, i64 %t191
+  %t193 = load i32, ptr %t192
+  %t194 = load ptr, ptr %t3
+  call void @genArmBody(ptr %t178, i32 %t179, i32 %t193, ptr %t194)
+  %t195 = load ptr, ptr %t0
+  %t196 = load ptr, ptr %t24
+  call void @emitBranch(ptr %t195, ptr %t196)
   br label %L24
 L24:
-  %t203 = load i32, ptr %t167
-  %t204 = add i32 %t203, 1
-  store i32 %t204, ptr %t167
+  %t197 = load i32, ptr %t168
+  %t198 = add i32 %t197, 1
+  store i32 %t198, ptr %t168
   br label %L22
 L25:
-  %t205 = load ptr, ptr %t0
-  %t206 = load ptr, ptr %t23
-  call void @emitLabel(ptr %t205, ptr %t206)
+  %t199 = load ptr, ptr %t0
+  %t200 = load ptr, ptr %t24
+  call void @emitLabel(ptr %t199, ptr %t200)
   ret void
 }
 
@@ -43496,11 +44173,11 @@ entry:
   br i1 %t73, label %L0, label %L1
 L0:
   %t74 = load ptr, ptr %t71
-  call void @Builder.add(ptr %t74, ptr @.str.1034)
+  call void @Builder.add(ptr %t74, ptr @.str.1044)
   br label %L2
 L1:
   %t75 = load ptr, ptr %t71
-  call void @Builder.add(ptr %t75, ptr @.str.1035)
+  call void @Builder.add(ptr %t75, ptr @.str.1045)
   br label %L2
 L2:
   %t76 = load ptr, ptr %t71
@@ -43512,7 +44189,7 @@ L2:
   %t80 = load ptr, ptr %t69
   call void @Builder.add(ptr %t79, ptr %t80)
   %t81 = load ptr, ptr %t71
-  call void @Builder.add(ptr %t81, ptr @.str.1036)
+  call void @Builder.add(ptr %t81, ptr @.str.1046)
   %t82 = load ptr, ptr %t71
   %t83 = load ptr, ptr %t36
   call void @Builder.add(ptr %t82, ptr %t83)
@@ -43583,7 +44260,7 @@ L2:
   %t137 = call ptr @Builder.new()
   store ptr %t137, ptr %t138
   %t139 = load ptr, ptr %t138
-  call void @Builder.add(ptr %t139, ptr @.str.1037)
+  call void @Builder.add(ptr %t139, ptr @.str.1047)
   %t140 = load ptr, ptr %t138
   %t141 = load ptr, ptr %t19
   call void @Builder.add(ptr %t140, ptr %t141)
@@ -43593,7 +44270,7 @@ L2:
   %t144 = load ptr, ptr %t136
   call void @Builder.add(ptr %t143, ptr %t144)
   %t145 = load ptr, ptr %t138
-  call void @Builder.add(ptr %t145, ptr @.str.1038)
+  call void @Builder.add(ptr %t145, ptr @.str.1048)
   %t146 = load ptr, ptr %t0
   %t147 = load %Type, ptr %t16
   %t148 = load ptr, ptr %t0
@@ -43690,7 +44367,7 @@ entry:
   %t5 = call ptr @Builder.new()
   store ptr %t5, ptr %t6
   %t7 = load ptr, ptr %t6
-  call void @Builder.add(ptr %t7, ptr @.str.1039)
+  call void @Builder.add(ptr %t7, ptr @.str.1049)
   %t8 = load ptr, ptr %t6
   %t9 = load ptr, ptr %t0
   %t10 = load ptr, ptr %t1
@@ -43711,9 +44388,9 @@ entry:
   %t22 = load ptr, ptr %t21
   %t23 = call ptr @emitAssign(ptr %t19, ptr %t22)
   %t24 = load ptr, ptr %t0
-  call void @emitLine(ptr %t24, ptr @.str.1040)
+  call void @emitLine(ptr %t24, ptr @.str.1050)
   %t25 = load ptr, ptr %t0
-  call void @emitLine(ptr %t25, ptr @.str.1041)
+  call void @emitLine(ptr %t25, ptr @.str.1051)
   %t26 = load ptr, ptr %t0
   %t27 = getelementptr inbounds %Emitter, ptr %t26, i32 0, i32 8
   store i1 true, ptr %t27
@@ -43775,7 +44452,7 @@ entry:
   %t41 = call ptr @Builder.new()
   store ptr %t41, ptr %t42
   %t43 = load ptr, ptr %t42
-  call void @Builder.add(ptr %t43, ptr @.str.1042)
+  call void @Builder.add(ptr %t43, ptr @.str.1052)
   %t44 = load ptr, ptr %t42
   %t45 = load ptr, ptr %t0
   %t46 = load i32, ptr %t1
@@ -43795,7 +44472,7 @@ entry:
   br i1 %t58, label %L0, label %L1
 L0:
   %t59 = load ptr, ptr %t42
-  call void @Builder.add(ptr %t59, ptr @.str.1043)
+  call void @Builder.add(ptr %t59, ptr @.str.1053)
   %t60 = load ptr, ptr %t42
   %t61 = load ptr, ptr %t0
   %t62 = load ptr, ptr %t0
@@ -43815,18 +44492,18 @@ L0:
   call void @Builder.add(ptr %t60, ptr %t75)
   %t76 = load ptr, ptr %t0
   %t77 = load ptr, ptr %t42
-  call void @emitFailure(ptr %t76, ptr @.str.1044, ptr %t77)
+  call void @emitFailure(ptr %t76, ptr @.str.1054, ptr %t77)
   br label %L2
 L1:
   %t78 = load ptr, ptr %t0
   %t79 = load ptr, ptr %t42
-  call void @emitFailure(ptr %t78, ptr @.str.1045, ptr %t79)
+  call void @emitFailure(ptr %t78, ptr @.str.1055, ptr %t79)
   br label %L2
 L2:
   %t80 = load ptr, ptr %t0
   %t81 = load ptr, ptr %t31
   call void @emitLabel(ptr %t80, ptr %t81)
-  ret ptr @.str.1046
+  ret ptr @.str.1056
 }
 
 define i1 @isText(%Type %p0) {
@@ -43919,12 +44596,12 @@ L10:
   %t35 = getelementptr inbounds %Emitter, ptr %t34, i32 0, i32 9
   store i1 true, ptr %t35
   %t36 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t36, ptr @.str.1047)
+  call void @Builder.add(ptr %t36, ptr @.str.1057)
   %t37 = load ptr, ptr %t27
   %t38 = load ptr, ptr %t1
   call void @Builder.add(ptr %t37, ptr %t38)
   %t39 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t39, ptr @.str.1048)
+  call void @Builder.add(ptr %t39, ptr @.str.1058)
   %t40 = load ptr, ptr %t27
   %t41 = load ptr, ptr %t3
   call void @Builder.add(ptr %t40, ptr %t41)
@@ -43942,11 +44619,11 @@ L12:
   br i1 %t49, label %L13, label %L14
 L13:
   %t50 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t50, ptr @.str.1049)
+  call void @Builder.add(ptr %t50, ptr @.str.1059)
   br label %L15
 L14:
   %t51 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t51, ptr @.str.1050)
+  call void @Builder.add(ptr %t51, ptr @.str.1060)
   br label %L15
 L15:
   %t52 = load %Type, ptr %t2
@@ -43969,7 +44646,7 @@ L18:
   %t62 = load ptr, ptr %t1
   call void @Builder.add(ptr %t61, ptr %t62)
   %t63 = load ptr, ptr %t27
-  call void @Builder.add(ptr %t63, ptr @.str.1051)
+  call void @Builder.add(ptr %t63, ptr @.str.1061)
   %t64 = load ptr, ptr %t27
   %t65 = load ptr, ptr %t3
   call void @Builder.add(ptr %t64, ptr %t65)
@@ -44035,7 +44712,7 @@ L5:
   %t24 = load ptr, ptr %t0
   %t25 = load ptr, ptr %t21
   %t26 = load ptr, ptr %t3
-  %t27 = call ptr @instruction(ptr %t24, ptr @.str.1052, ptr %t25, ptr %t26)
+  %t27 = call ptr @instruction(ptr %t24, ptr @.str.1062, ptr %t25, ptr %t26)
   ret ptr %t27
 L7:
   %t28 = load %Type, ptr %t2
@@ -44051,7 +44728,7 @@ L8:
   %t36 = load %Type, ptr %t4
   %t37 = load ptr, ptr %t3
   %t38 = call ptr @unionPart(ptr %t35, %Type %t36, ptr %t37, i32 0)
-  %t39 = call ptr @instruction(ptr %t33, ptr @.str.1053, ptr %t34, ptr %t38)
+  %t39 = call ptr @instruction(ptr %t33, ptr @.str.1063, ptr %t34, ptr %t38)
   store ptr %t39, ptr %t40
   %t41 = load %Type, ptr %t30
   %t42 = call i1 @Type.isVoid(%Type %t41)
@@ -44075,22 +44752,22 @@ L13:
   store ptr %t55, ptr %t56
   %t57 = load ptr, ptr %t0
   %t58 = load ptr, ptr %t21
-  %t59 = call ptr @instruction(ptr %t57, ptr @.str.1054, ptr %t58, ptr @.str.1055)
+  %t59 = call ptr @instruction(ptr %t57, ptr @.str.1064, ptr %t58, ptr @.str.1065)
   store ptr %t59, ptr %t60
   %t61 = load ptr, ptr %t0
   %t62 = load ptr, ptr %t60
   %t63 = load ptr, ptr %t56
-  %t64 = call ptr @instruction(ptr %t61, ptr @.str.1056, ptr %t62, ptr %t63)
+  %t64 = call ptr @instruction(ptr %t61, ptr @.str.1066, ptr %t62, ptr %t63)
   store ptr %t64, ptr %t65
   %t66 = load ptr, ptr %t0
   %t67 = load ptr, ptr %t40
   %t68 = load ptr, ptr %t65
-  %t69 = call ptr @instruction(ptr %t66, ptr @.str.1057, ptr %t67, ptr %t68)
+  %t69 = call ptr @instruction(ptr %t66, ptr @.str.1067, ptr %t67, ptr %t68)
   ret ptr %t69
 L10:
   %t70 = load ptr, ptr %t0
   %t71 = load ptr, ptr %t21
-  %t72 = call ptr @instruction(ptr %t70, ptr @.str.1058, ptr %t71, ptr @.str.1059)
+  %t72 = call ptr @instruction(ptr %t70, ptr @.str.1068, ptr %t71, ptr @.str.1069)
   store ptr %t72, ptr %t73
   %t74 = load %Type, ptr %t30
   %t75 = call i1 @Type.isVoid(%Type %t74)
@@ -44112,7 +44789,7 @@ L16:
   %t87 = load ptr, ptr %t0
   %t88 = load ptr, ptr %t73
   %t89 = load ptr, ptr %t86
-  %t90 = call ptr @instruction(ptr %t87, ptr @.str.1060, ptr %t88, ptr %t89)
+  %t90 = call ptr @instruction(ptr %t87, ptr @.str.1070, ptr %t88, ptr %t89)
   ret ptr %t90
 }
 
@@ -44168,7 +44845,7 @@ L2:
   %t18 = load ptr, ptr %t0
   %t19 = load ptr, ptr %t9
   %t20 = load ptr, ptr %t3
-  %t21 = call ptr @instruction(ptr %t18, ptr @.str.1061, ptr %t19, ptr %t20)
+  %t21 = call ptr @instruction(ptr %t18, ptr @.str.1071, ptr %t19, ptr %t20)
   ret ptr %t21
 L4:
   %t22 = load %Type, ptr %t4
@@ -44185,7 +44862,7 @@ L5:
   %t31 = load %Type, ptr %t28
   %t32 = call i64 @valueTag(%Type %t31)
   %t33 = call ptr @fromInt(i64 %t32)
-  %t34 = call ptr @instruction(ptr %t29, ptr @.str.1062, ptr %t30, ptr %t33)
+  %t34 = call ptr @instruction(ptr %t29, ptr @.str.1072, ptr %t30, ptr %t33)
   store ptr %t34, ptr %t35
   %t36 = load ptr, ptr %t0
   %t37 = load ptr, ptr %t0
@@ -44201,7 +44878,7 @@ L5:
   %t47 = load ptr, ptr %t0
   %t48 = load ptr, ptr %t35
   %t49 = load ptr, ptr %t46
-  %t50 = call ptr @instruction(ptr %t47, ptr @.str.1063, ptr %t48, ptr %t49)
+  %t50 = call ptr @instruction(ptr %t47, ptr @.str.1073, ptr %t48, ptr %t49)
   ret ptr %t50
 L7:
   %t51 = load %Type, ptr %t2
@@ -44239,11 +44916,11 @@ L10:
   %t78 = load %Type, ptr %t52
   %t79 = load ptr, ptr %t69
   %t80 = call ptr @unionPart(ptr %t77, %Type %t78, ptr %t79, i32 0)
-  %t81 = call ptr @instruction(ptr %t75, ptr @.str.1064, ptr %t76, ptr %t80)
+  %t81 = call ptr @instruction(ptr %t75, ptr @.str.1074, ptr %t76, ptr %t80)
   store ptr %t81, ptr %t82
   %t83 = load ptr, ptr %t0
   %t84 = load ptr, ptr %t74
-  %t85 = call ptr @instruction(ptr %t83, ptr @.str.1065, ptr %t84, ptr @.str.1066)
+  %t85 = call ptr @instruction(ptr %t83, ptr @.str.1075, ptr %t84, ptr @.str.1076)
   store ptr %t85, ptr %t86
   %t87 = load %Type, ptr %t52
   %t88 = call ptr @valuesOf(%Type %t87)
@@ -44268,7 +44945,7 @@ L12:
   %t103 = load %Type, ptr %t100
   %t104 = call i64 @valueTag(%Type %t103)
   %t105 = call ptr @fromInt(i64 %t104)
-  %t106 = call ptr @instruction(ptr %t101, ptr @.str.1067, ptr %t102, ptr %t105)
+  %t106 = call ptr @instruction(ptr %t101, ptr @.str.1077, ptr %t102, ptr %t105)
   store ptr %t106, ptr %t107
   %t108 = load ptr, ptr %t0
   %t109 = load ptr, ptr %t0
@@ -44290,8 +44967,8 @@ L12:
   %t125 = load ptr, ptr %t0
   %t126 = load ptr, ptr %t107
   %t127 = load ptr, ptr %t122
-  %t128 = call ptr @instruction(ptr %t125, ptr @.str.1069, ptr %t126, ptr %t127)
-  %t129 = call ptr @instruction(ptr %t123, ptr @.str.1068, ptr %t124, ptr %t128)
+  %t128 = call ptr @instruction(ptr %t125, ptr @.str.1079, ptr %t126, ptr %t127)
+  %t129 = call ptr @instruction(ptr %t123, ptr @.str.1078, ptr %t124, ptr %t128)
   store ptr %t129, ptr %t86
   br label %L13
 L13:
@@ -44303,7 +44980,7 @@ L14:
   %t132 = load ptr, ptr %t0
   %t133 = load ptr, ptr %t82
   %t134 = load ptr, ptr %t86
-  %t135 = call ptr @instruction(ptr %t132, ptr @.str.1070, ptr %t133, ptr %t134)
+  %t135 = call ptr @instruction(ptr %t132, ptr @.str.1080, ptr %t133, ptr %t134)
   ret ptr %t135
 }
 
@@ -44321,7 +44998,7 @@ entry:
   %t4 = call ptr @Builder.new()
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t6, ptr @.str.1071)
+  call void @Builder.add(ptr %t6, ptr @.str.1081)
   %t7 = load ptr, ptr %t5
   %t8 = load %Type, ptr %t1
   %t9 = call ptr @llvmTypeName(%Type %t8)
@@ -44332,7 +45009,7 @@ entry:
   %t12 = load ptr, ptr %t2
   call void @Builder.add(ptr %t11, ptr %t12)
   %t13 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t13, ptr @.str.1072)
+  call void @Builder.add(ptr %t13, ptr @.str.1082)
   %t14 = load ptr, ptr %t5
   %t15 = load i32, ptr %t3
   %t16 = sext i32 %t15 to i64
@@ -44365,7 +45042,7 @@ entry:
   %t9 = load ptr, ptr %t2
   call void @Builder.add(ptr %t8, ptr %t9)
   %t10 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t10, ptr @.str.1073)
+  call void @Builder.add(ptr %t10, ptr @.str.1083)
   %t11 = load ptr, ptr %t5
   %t12 = load ptr, ptr %t3
   call void @Builder.add(ptr %t11, ptr %t12)
@@ -44410,7 +45087,7 @@ entry:
   %t10 = call ptr @Builder.new()
   store ptr %t10, ptr %t11
   %t12 = load ptr, ptr %t11
-  call void @Builder.add(ptr %t12, ptr @.str.1074)
+  call void @Builder.add(ptr %t12, ptr @.str.1084)
   %t13 = load ptr, ptr %t11
   %t14 = load ptr, ptr %t9
   call void @Builder.add(ptr %t13, ptr %t14)
@@ -44452,7 +45129,7 @@ L6:
   %t39 = call ptr @Builder.new()
   store ptr %t39, ptr %t40
   %t41 = load ptr, ptr %t40
-  call void @Builder.add(ptr %t41, ptr @.str.1075)
+  call void @Builder.add(ptr %t41, ptr @.str.1085)
   %t42 = load ptr, ptr %t40
   %t43 = load %Type, ptr %t36
   %t44 = call ptr @Type.toText(%Type %t43)
@@ -44468,22 +45145,22 @@ L6:
   store ptr %t52, ptr %t53
   %t54 = load ptr, ptr %t0
   %t55 = load ptr, ptr %t9
-  %t56 = call ptr @instruction(ptr %t54, ptr @.str.1076, ptr %t55, ptr @.str.1077)
+  %t56 = call ptr @instruction(ptr %t54, ptr @.str.1086, ptr %t55, ptr @.str.1087)
   store ptr %t56, ptr %t57
   %t58 = call ptr @Builder.new()
   store ptr %t58, ptr %t59
   %t60 = load ptr, ptr %t59
-  call void @Builder.add(ptr %t60, ptr @.str.1078)
+  call void @Builder.add(ptr %t60, ptr @.str.1088)
   %t61 = load ptr, ptr %t59
   %t62 = load ptr, ptr %t57
   call void @Builder.add(ptr %t61, ptr %t62)
   %t63 = load ptr, ptr %t59
-  call void @Builder.add(ptr %t63, ptr @.str.1079)
+  call void @Builder.add(ptr %t63, ptr @.str.1089)
   %t64 = load ptr, ptr %t59
   %t65 = load ptr, ptr %t53
   call void @Builder.add(ptr %t64, ptr %t65)
   %t66 = load ptr, ptr %t59
-  call void @Builder.add(ptr %t66, ptr @.str.1080)
+  call void @Builder.add(ptr %t66, ptr @.str.1090)
   %t67 = load ptr, ptr %t59
   %t68 = load ptr, ptr %t21
   call void @Builder.add(ptr %t67, ptr %t68)
@@ -44495,7 +45172,7 @@ L6:
   ret ptr %t73
 L8:
   %t74 = load ptr, ptr %t0
-  %t75 = call ptr @emitAlloca(ptr %t74, ptr @.str.1081)
+  %t75 = call ptr @emitAlloca(ptr %t74, ptr @.str.1091)
   store ptr %t75, ptr %t76
   %t77 = call ptr @Builder.new()
   store ptr %t77, ptr %t78
@@ -44512,12 +45189,12 @@ L8:
   %t89 = call ptr @Builder.new()
   store ptr %t89, ptr %t90
   %t91 = load ptr, ptr %t90
-  call void @Builder.add(ptr %t91, ptr @.str.1082)
+  call void @Builder.add(ptr %t91, ptr @.str.1092)
   %t92 = load ptr, ptr %t90
   %t93 = load ptr, ptr %t76
   call void @Builder.add(ptr %t92, ptr %t93)
   %t94 = load ptr, ptr %t90
-  call void @Builder.add(ptr %t94, ptr @.str.1083)
+  call void @Builder.add(ptr %t94, ptr @.str.1093)
   %t95 = load ptr, ptr %t90
   %t96 = load ptr, ptr %t0
   %t97 = load ptr, ptr %t88
@@ -44539,22 +45216,22 @@ L8:
   %t110 = call ptr @emitAssign(ptr %t106, ptr %t109)
   %t111 = load ptr, ptr %t0
   %t112 = load ptr, ptr %t9
-  %t113 = call ptr @instruction(ptr %t111, ptr @.str.1084, ptr %t112, ptr @.str.1085)
+  %t113 = call ptr @instruction(ptr %t111, ptr @.str.1094, ptr %t112, ptr @.str.1095)
   store ptr %t113, ptr %t114
   %t115 = call ptr @Builder.new()
   store ptr %t115, ptr %t116
   %t117 = load ptr, ptr %t116
-  call void @Builder.add(ptr %t117, ptr @.str.1086)
+  call void @Builder.add(ptr %t117, ptr @.str.1096)
   %t118 = load ptr, ptr %t116
   %t119 = load ptr, ptr %t114
   call void @Builder.add(ptr %t118, ptr %t119)
   %t120 = load ptr, ptr %t116
-  call void @Builder.add(ptr %t120, ptr @.str.1087)
+  call void @Builder.add(ptr %t120, ptr @.str.1097)
   %t121 = load ptr, ptr %t116
   %t122 = load ptr, ptr %t76
   call void @Builder.add(ptr %t121, ptr %t122)
   %t123 = load ptr, ptr %t116
-  call void @Builder.add(ptr %t123, ptr @.str.1088)
+  call void @Builder.add(ptr %t123, ptr @.str.1098)
   %t124 = load ptr, ptr %t116
   %t125 = load ptr, ptr %t21
   call void @Builder.add(ptr %t124, ptr %t125)
@@ -44620,22 +45297,22 @@ L1:
   %t32 = load %Type, ptr %t20
   %t33 = call i64 @valueTag(%Type %t32)
   %t34 = call ptr @fromInt(i64 %t33)
-  %t35 = call ptr @instruction(ptr %t30, ptr @.str.1089, ptr %t31, ptr %t34)
+  %t35 = call ptr @instruction(ptr %t30, ptr @.str.1099, ptr %t31, ptr %t34)
   store ptr %t35, ptr %t36
   %t37 = call ptr @Builder.new()
   store ptr %t37, ptr %t38
   %t39 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t39, ptr @.str.1090)
+  call void @Builder.add(ptr %t39, ptr @.str.1100)
   %t40 = load ptr, ptr %t38
   %t41 = load ptr, ptr %t36
   call void @Builder.add(ptr %t40, ptr %t41)
   %t42 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t42, ptr @.str.1091)
+  call void @Builder.add(ptr %t42, ptr @.str.1101)
   %t43 = load ptr, ptr %t38
   %t44 = load ptr, ptr %t29
   call void @Builder.add(ptr %t43, ptr %t44)
   %t45 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t45, ptr @.str.1092)
+  call void @Builder.add(ptr %t45, ptr @.str.1102)
   %t46 = load ptr, ptr %t38
   %t47 = load ptr, ptr %t6
   call void @Builder.add(ptr %t46, ptr %t47)
@@ -44676,7 +45353,7 @@ L0:
   %t5 = call ptr @Builder.new()
   store ptr %t5, ptr %t6
   %t7 = load ptr, ptr %t6
-  call void @Builder.add(ptr %t7, ptr @.str.1093)
+  call void @Builder.add(ptr %t7, ptr @.str.1103)
   %t8 = load ptr, ptr %t6
   %t9 = load %Type, ptr %t2
   %t10 = call ptr @Type.toText(%Type %t9)
@@ -44692,7 +45369,7 @@ L0:
   ret ptr %t18
 L2:
   %t19 = load ptr, ptr %t0
-  %t20 = call ptr @emitAlloca(ptr %t19, ptr @.str.1094)
+  %t20 = call ptr @emitAlloca(ptr %t19, ptr @.str.1104)
   store ptr %t20, ptr %t21
   %t22 = call ptr @Builder.new()
   store ptr %t22, ptr %t23
@@ -44705,12 +45382,12 @@ L2:
   %t30 = call ptr @Builder.new()
   store ptr %t30, ptr %t31
   %t32 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t32, ptr @.str.1095)
+  call void @Builder.add(ptr %t32, ptr @.str.1105)
   %t33 = load ptr, ptr %t31
   %t34 = load ptr, ptr %t21
   call void @Builder.add(ptr %t33, ptr %t34)
   %t35 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t35, ptr @.str.1096)
+  call void @Builder.add(ptr %t35, ptr @.str.1106)
   %t36 = load ptr, ptr %t31
   %t37 = load ptr, ptr %t0
   %t38 = load ptr, ptr %t29
@@ -44755,24 +45432,24 @@ L0:
   %t6 = call ptr @Builder.new()
   store ptr %t6, ptr %t7
   %t8 = load ptr, ptr %t7
-  call void @Builder.add(ptr %t8, ptr @.str.1097)
+  call void @Builder.add(ptr %t8, ptr @.str.1107)
   %t9 = load ptr, ptr %t7
   %t10 = load ptr, ptr %t1
   call void @Builder.add(ptr %t9, ptr %t10)
   %t11 = load ptr, ptr %t7
-  call void @Builder.add(ptr %t11, ptr @.str.1098)
+  call void @Builder.add(ptr %t11, ptr @.str.1108)
   %t12 = load ptr, ptr %t7
   %t13 = load ptr, ptr %t0
-  %t14 = call ptr @internString(ptr %t13, ptr @.str.1099, i64 4)
+  %t14 = call ptr @internString(ptr %t13, ptr @.str.1109, i64 4)
   call void @Builder.add(ptr %t12, ptr %t14)
   %t15 = load ptr, ptr %t7
-  call void @Builder.add(ptr %t15, ptr @.str.1100)
+  call void @Builder.add(ptr %t15, ptr @.str.1110)
   %t16 = load ptr, ptr %t7
   %t17 = load ptr, ptr %t0
-  %t18 = call ptr @internString(ptr %t17, ptr @.str.1101, i64 5)
+  %t18 = call ptr @internString(ptr %t17, ptr @.str.1111, i64 5)
   call void @Builder.add(ptr %t16, ptr %t18)
   %t19 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t19, ptr @.str.1102)
+  call void @Builder.add(ptr %t19, ptr @.str.1112)
   %t20 = load ptr, ptr %t3
   %t21 = load ptr, ptr %t0
   %t22 = load ptr, ptr %t7
@@ -44780,39 +45457,39 @@ L0:
   %t24 = load ptr, ptr %t23
   %t25 = call ptr @emitAssign(ptr %t21, ptr %t24)
   call void @Builder.add(ptr %t20, ptr %t25)
-  ret ptr @.str.1103
+  ret ptr @.str.1113
 L2:
   %t26 = load %Type, ptr %t2
   %t27 = call i1 @isText(%Type %t26)
   br i1 %t27, label %L3, label %L5
 L3:
   %t28 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t28, ptr @.str.1104)
+  call void @Builder.add(ptr %t28, ptr @.str.1114)
   %t29 = load ptr, ptr %t3
   %t30 = load ptr, ptr %t1
   call void @Builder.add(ptr %t29, ptr %t30)
-  ret ptr @.str.1105
+  ret ptr @.str.1115
 L5:
   %t31 = load %Type, ptr %t2
   %t32 = call i1 @Type.isUnion(%Type %t31)
   br i1 %t32, label %L6, label %L8
 L6:
   %t33 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t33, ptr @.str.1106)
+  call void @Builder.add(ptr %t33, ptr @.str.1116)
   %t34 = load ptr, ptr %t3
   %t35 = load ptr, ptr %t0
   %t36 = load ptr, ptr %t1
   %t37 = load %Type, ptr %t2
   %t38 = call ptr @unionText(ptr %t35, ptr %t36, %Type %t37)
   call void @Builder.add(ptr %t34, ptr %t38)
-  ret ptr @.str.1107
+  ret ptr @.str.1117
 L8:
   %t39 = load %Type, ptr %t2
   %t40 = call i1 @Type.isEnum(%Type %t39)
   br i1 %t40, label %L9, label %L11
 L9:
   %t41 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t41, ptr @.str.1108)
+  call void @Builder.add(ptr %t41, ptr @.str.1118)
   %t42 = load ptr, ptr %t3
   %t43 = load ptr, ptr %t0
   %t44 = load %Type, ptr %t2
@@ -44823,14 +45500,14 @@ L9:
   %t49 = call ptr @internString(ptr %t43, ptr %t45, i64 %t48)
   call void @Builder.add(ptr %t42, ptr %t49)
   %t50 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t50, ptr @.str.1109)
+  call void @Builder.add(ptr %t50, ptr @.str.1119)
   %t51 = load ptr, ptr %t3
   %t52 = load ptr, ptr %t0
   %t53 = load ptr, ptr %t1
   %t54 = load %Type, ptr %t2
   %t55 = call ptr @memberName(ptr %t52, ptr %t53, %Type %t54)
   call void @Builder.add(ptr %t51, ptr %t55)
-  ret ptr @.str.1110
+  ret ptr @.str.1120
 L11:
   %t58 = load %Type, ptr %t2
   %t59 = call i1 @Type.isPointer(%Type %t58)
@@ -44855,18 +45532,18 @@ L15:
   br i1 %t65, label %L16, label %L18
 L16:
   %t66 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t66, ptr @.str.1111)
+  call void @Builder.add(ptr %t66, ptr @.str.1121)
   %t67 = load ptr, ptr %t3
   %t68 = load ptr, ptr %t1
   call void @Builder.add(ptr %t67, ptr %t68)
-  ret ptr @.str.1112
+  ret ptr @.str.1122
 L18:
   %t69 = load %Type, ptr %t2
   %t70 = call i1 @Type.isFloat(%Type %t69)
   br i1 %t70, label %L19, label %L21
 L19:
   %t71 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t71, ptr @.str.1113)
+  call void @Builder.add(ptr %t71, ptr @.str.1123)
   %t72 = load ptr, ptr %t3
   %t73 = load ptr, ptr %t0
   %t74 = load ptr, ptr %t1
@@ -44874,7 +45551,7 @@ L19:
   %t76 = call %Type @Type.make(i32 10, i32 0)
   %t77 = call ptr @emitCast(ptr %t73, ptr %t74, %Type %t75, %Type %t76)
   call void @Builder.add(ptr %t72, ptr %t77)
-  ret ptr @.str.1114
+  ret ptr @.str.1124
 L21:
   %t79 = load %Type, ptr %t2
   %t80 = call i1 @Type.isSigned(%Type %t79)
@@ -44890,7 +45567,7 @@ L23:
   br i1 %t83, label %L24, label %L26
 L24:
   %t84 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t84, ptr @.str.1115)
+  call void @Builder.add(ptr %t84, ptr @.str.1125)
   %t85 = load ptr, ptr %t3
   %t86 = load ptr, ptr %t0
   %t87 = load ptr, ptr %t1
@@ -44898,10 +45575,10 @@ L24:
   %t89 = call %Type @Type.make(i32 7, i32 0)
   %t90 = call ptr @emitCast(ptr %t86, ptr %t87, %Type %t88, %Type %t89)
   call void @Builder.add(ptr %t85, ptr %t90)
-  ret ptr @.str.1116
+  ret ptr @.str.1126
 L26:
   %t91 = load ptr, ptr %t3
-  call void @Builder.add(ptr %t91, ptr @.str.1117)
+  call void @Builder.add(ptr %t91, ptr @.str.1127)
   %t92 = load ptr, ptr %t3
   %t93 = load ptr, ptr %t0
   %t94 = load ptr, ptr %t1
@@ -44909,7 +45586,7 @@ L26:
   %t96 = call %Type @Type.make(i32 8, i32 0)
   %t97 = call ptr @emitCast(ptr %t93, ptr %t94, %Type %t95, %Type %t96)
   call void @Builder.add(ptr %t92, ptr %t97)
-  ret ptr @.str.1118
+  ret ptr @.str.1128
 }
 
 define ptr @genAssertEq(ptr %p0, i32 %p1) {
@@ -45009,7 +45686,7 @@ entry:
   %t76 = call ptr @Builder.new()
   store ptr %t76, ptr %t77
   %t78 = load ptr, ptr %t77
-  call void @Builder.add(ptr %t78, ptr @.str.1119)
+  call void @Builder.add(ptr %t78, ptr @.str.1129)
   %t79 = load ptr, ptr %t77
   %t80 = load ptr, ptr %t0
   %t81 = load i32, ptr %t1
@@ -45018,7 +45695,7 @@ entry:
   %t83 = call ptr @Builder.new()
   store ptr %t83, ptr %t84
   %t85 = load ptr, ptr %t84
-  call void @Builder.add(ptr %t85, ptr @.str.1120)
+  call void @Builder.add(ptr %t85, ptr @.str.1130)
   %t86 = load ptr, ptr %t84
   %t87 = load ptr, ptr %t0
   %t88 = load ptr, ptr %t52
@@ -45027,7 +45704,7 @@ entry:
   %t91 = call ptr @formatValue(ptr %t87, ptr %t88, %Type %t89, ptr %t90)
   call void @Builder.add(ptr %t86, ptr %t91)
   %t92 = load ptr, ptr %t84
-  call void @Builder.add(ptr %t92, ptr @.str.1121)
+  call void @Builder.add(ptr %t92, ptr @.str.1131)
   %t93 = load ptr, ptr %t84
   %t94 = load ptr, ptr %t0
   %t95 = load ptr, ptr %t56
@@ -45046,7 +45723,7 @@ entry:
   %t105 = load ptr, ptr %t0
   %t106 = load ptr, ptr %t66
   call void @emitLabel(ptr %t105, ptr %t106)
-  ret ptr @.str.1122
+  ret ptr @.str.1132
 }
 
 define void @emitCheckSupport(ptr %p0, ptr %p1) {
@@ -45064,47 +45741,47 @@ L0:
   ret void
 L2:
   %t6 = load ptr, ptr %t1
-  %t7 = call i1 @NameSet.has(ptr %t6, ptr @.str.1123)
+  %t7 = call i1 @NameSet.has(ptr %t6, ptr @.str.1133)
   %t8 = xor i1 %t7, true
   br i1 %t8, label %L3, label %L5
 L3:
   %t9 = load ptr, ptr %t0
   %t10 = getelementptr inbounds %Emitter, ptr %t9, i32 0, i32 2
   %t11 = load ptr, ptr %t10
-  call void @Builder.add(ptr %t11, ptr @.str.1124)
+  call void @Builder.add(ptr %t11, ptr @.str.1134)
   br label %L5
 L5:
   %t12 = load ptr, ptr %t1
-  %t13 = call i1 @NameSet.has(ptr %t12, ptr @.str.1125)
+  %t13 = call i1 @NameSet.has(ptr %t12, ptr @.str.1135)
   %t14 = xor i1 %t13, true
   br i1 %t14, label %L6, label %L8
 L6:
   %t15 = load ptr, ptr %t0
   %t16 = getelementptr inbounds %Emitter, ptr %t15, i32 0, i32 2
   %t17 = load ptr, ptr %t16
-  call void @Builder.add(ptr %t17, ptr @.str.1126)
+  call void @Builder.add(ptr %t17, ptr @.str.1136)
   br label %L8
 L8:
   %t18 = load ptr, ptr %t1
-  %t19 = call i1 @NameSet.has(ptr %t18, ptr @.str.1127)
+  %t19 = call i1 @NameSet.has(ptr %t18, ptr @.str.1137)
   %t20 = xor i1 %t19, true
   br i1 %t20, label %L9, label %L11
 L9:
   %t21 = load ptr, ptr %t0
   %t22 = getelementptr inbounds %Emitter, ptr %t21, i32 0, i32 2
   %t23 = load ptr, ptr %t22
-  call void @Builder.add(ptr %t23, ptr @.str.1128)
+  call void @Builder.add(ptr %t23, ptr @.str.1138)
   br label %L11
 L11:
   %t24 = load ptr, ptr %t1
-  %t25 = call i1 @NameSet.has(ptr %t24, ptr @.str.1129)
+  %t25 = call i1 @NameSet.has(ptr %t24, ptr @.str.1139)
   %t26 = xor i1 %t25, true
   br i1 %t26, label %L12, label %L14
 L12:
   %t27 = load ptr, ptr %t0
   %t28 = getelementptr inbounds %Emitter, ptr %t27, i32 0, i32 2
   %t29 = load ptr, ptr %t28
-  call void @Builder.add(ptr %t29, ptr @.str.1130)
+  call void @Builder.add(ptr %t29, ptr @.str.1140)
   br label %L14
 L14:
   %t30 = load ptr, ptr %t0
@@ -45119,75 +45796,75 @@ L17:
   %t34 = load ptr, ptr %t0
   %t35 = getelementptr inbounds %Emitter, ptr %t34, i32 0, i32 3
   %t36 = load ptr, ptr %t35
-  call void @Builder.add(ptr %t36, ptr @.str.1131)
+  call void @Builder.add(ptr %t36, ptr @.str.1141)
   %t37 = load ptr, ptr %t0
   %t38 = getelementptr inbounds %Emitter, ptr %t37, i32 0, i32 3
   %t39 = load ptr, ptr %t38
-  call void @Builder.add(ptr %t39, ptr @.str.1132)
+  call void @Builder.add(ptr %t39, ptr @.str.1142)
   %t40 = load ptr, ptr %t0
   %t41 = getelementptr inbounds %Emitter, ptr %t40, i32 0, i32 3
   %t42 = load ptr, ptr %t41
-  call void @Builder.add(ptr %t42, ptr @.str.1133)
+  call void @Builder.add(ptr %t42, ptr @.str.1143)
   %t43 = load ptr, ptr %t0
   %t44 = getelementptr inbounds %Emitter, ptr %t43, i32 0, i32 3
   %t45 = load ptr, ptr %t44
-  call void @Builder.add(ptr %t45, ptr @.str.1134)
+  call void @Builder.add(ptr %t45, ptr @.str.1144)
   %t46 = load ptr, ptr %t0
   %t47 = getelementptr inbounds %Emitter, ptr %t46, i32 0, i32 3
   %t48 = load ptr, ptr %t47
-  call void @Builder.add(ptr %t48, ptr @.str.1135)
+  call void @Builder.add(ptr %t48, ptr @.str.1145)
   %t49 = load ptr, ptr %t0
   %t50 = getelementptr inbounds %Emitter, ptr %t49, i32 0, i32 3
   %t51 = load ptr, ptr %t50
-  call void @Builder.add(ptr %t51, ptr @.str.1136)
+  call void @Builder.add(ptr %t51, ptr @.str.1146)
   %t52 = load ptr, ptr %t0
   %t53 = getelementptr inbounds %Emitter, ptr %t52, i32 0, i32 3
   %t54 = load ptr, ptr %t53
-  call void @Builder.add(ptr %t54, ptr @.str.1137)
+  call void @Builder.add(ptr %t54, ptr @.str.1147)
   %t55 = load ptr, ptr %t0
   %t56 = getelementptr inbounds %Emitter, ptr %t55, i32 0, i32 3
   %t57 = load ptr, ptr %t56
-  call void @Builder.add(ptr %t57, ptr @.str.1138)
+  call void @Builder.add(ptr %t57, ptr @.str.1148)
   %t58 = load ptr, ptr %t0
   %t59 = getelementptr inbounds %Emitter, ptr %t58, i32 0, i32 3
   %t60 = load ptr, ptr %t59
-  call void @Builder.add(ptr %t60, ptr @.str.1139)
+  call void @Builder.add(ptr %t60, ptr @.str.1149)
   %t61 = load ptr, ptr %t0
   %t62 = getelementptr inbounds %Emitter, ptr %t61, i32 0, i32 3
   %t63 = load ptr, ptr %t62
-  call void @Builder.add(ptr %t63, ptr @.str.1140)
+  call void @Builder.add(ptr %t63, ptr @.str.1150)
   %t64 = load ptr, ptr %t0
   %t65 = getelementptr inbounds %Emitter, ptr %t64, i32 0, i32 3
   %t66 = load ptr, ptr %t65
-  call void @Builder.add(ptr %t66, ptr @.str.1141)
+  call void @Builder.add(ptr %t66, ptr @.str.1151)
   %t67 = load ptr, ptr %t0
   %t68 = getelementptr inbounds %Emitter, ptr %t67, i32 0, i32 3
   %t69 = load ptr, ptr %t68
-  call void @Builder.add(ptr %t69, ptr @.str.1142)
+  call void @Builder.add(ptr %t69, ptr @.str.1152)
   %t70 = load ptr, ptr %t0
   %t71 = getelementptr inbounds %Emitter, ptr %t70, i32 0, i32 3
   %t72 = load ptr, ptr %t71
-  call void @Builder.add(ptr %t72, ptr @.str.1143)
+  call void @Builder.add(ptr %t72, ptr @.str.1153)
   %t73 = load ptr, ptr %t0
   %t74 = getelementptr inbounds %Emitter, ptr %t73, i32 0, i32 3
   %t75 = load ptr, ptr %t74
-  call void @Builder.add(ptr %t75, ptr @.str.1144)
+  call void @Builder.add(ptr %t75, ptr @.str.1154)
   %t76 = load ptr, ptr %t0
   %t77 = getelementptr inbounds %Emitter, ptr %t76, i32 0, i32 3
   %t78 = load ptr, ptr %t77
-  call void @Builder.add(ptr %t78, ptr @.str.1145)
+  call void @Builder.add(ptr %t78, ptr @.str.1155)
   %t79 = load ptr, ptr %t0
   %t80 = getelementptr inbounds %Emitter, ptr %t79, i32 0, i32 3
   %t81 = load ptr, ptr %t80
-  call void @Builder.add(ptr %t81, ptr @.str.1146)
+  call void @Builder.add(ptr %t81, ptr @.str.1156)
   %t82 = load ptr, ptr %t0
   %t83 = getelementptr inbounds %Emitter, ptr %t82, i32 0, i32 3
   %t84 = load ptr, ptr %t83
-  call void @Builder.add(ptr %t84, ptr @.str.1147)
+  call void @Builder.add(ptr %t84, ptr @.str.1157)
   %t85 = load ptr, ptr %t0
   %t86 = getelementptr inbounds %Emitter, ptr %t85, i32 0, i32 3
   %t87 = load ptr, ptr %t86
-  call void @Builder.add(ptr %t87, ptr @.str.1148)
+  call void @Builder.add(ptr %t87, ptr @.str.1158)
   ret void
 }
 
@@ -45287,7 +45964,7 @@ L6:
   %t68 = getelementptr inbounds %Node, ptr %t65, i64 %t67
   %t69 = getelementptr inbounds %Node, ptr %t68, i32 0, i32 3
   %t70 = load ptr, ptr %t69
-  %t71 = call i1 @equals(ptr %t70, ptr @.str.1149)
+  %t71 = call i1 @equals(ptr %t70, ptr @.str.1159)
   store i1 %t71, ptr %t35
   br label %L7
 L7:
@@ -45322,11 +45999,11 @@ L3:
   %t89 = sext i32 %t88 to i64
   call void @Builder.addInt(ptr %t87, i64 %t89)
   %t90 = load ptr, ptr %t85
-  call void @Builder.add(ptr %t90, ptr @.str.1150)
+  call void @Builder.add(ptr %t90, ptr @.str.1160)
   %t91 = load ptr, ptr %t0
   %t92 = getelementptr inbounds %Emitter, ptr %t91, i32 0, i32 2
   %t93 = load ptr, ptr %t92
-  call void @Builder.add(ptr %t93, ptr @.str.1151)
+  call void @Builder.add(ptr %t93, ptr @.str.1161)
   %t94 = load ptr, ptr %t0
   %t95 = getelementptr inbounds %Emitter, ptr %t94, i32 0, i32 2
   %t96 = load ptr, ptr %t95
@@ -45341,7 +46018,7 @@ L11:
   %t102 = load ptr, ptr %t0
   %t103 = getelementptr inbounds %Emitter, ptr %t102, i32 0, i32 2
   %t104 = load ptr, ptr %t103
-  call void @Builder.add(ptr %t104, ptr @.str.1152)
+  call void @Builder.add(ptr %t104, ptr @.str.1162)
   br label %L13
 L12:
   %t105 = load ptr, ptr %t0
@@ -45358,13 +46035,13 @@ L12:
   %t114 = load ptr, ptr %t0
   %t115 = getelementptr inbounds %Emitter, ptr %t114, i32 0, i32 2
   %t116 = load ptr, ptr %t115
-  call void @Builder.add(ptr %t116, ptr @.str.1153)
+  call void @Builder.add(ptr %t116, ptr @.str.1163)
   br label %L13
 L13:
   %t117 = load ptr, ptr %t0
   %t118 = getelementptr inbounds %Emitter, ptr %t117, i32 0, i32 2
   %t119 = load ptr, ptr %t118
-  call void @Builder.add(ptr %t119, ptr @.str.1154)
+  call void @Builder.add(ptr %t119, ptr @.str.1164)
   %t120 = load ptr, ptr %t0
   %t121 = getelementptr inbounds %Emitter, ptr %t120, i32 0, i32 2
   %t122 = load ptr, ptr %t121
@@ -45379,7 +46056,7 @@ L14:
   %t128 = load ptr, ptr %t0
   %t129 = getelementptr inbounds %Emitter, ptr %t128, i32 0, i32 2
   %t130 = load ptr, ptr %t129
-  call void @Builder.add(ptr %t130, ptr @.str.1155)
+  call void @Builder.add(ptr %t130, ptr @.str.1165)
   br label %L16
 L15:
   %t131 = load ptr, ptr %t0
@@ -45396,17 +46073,17 @@ L15:
   %t140 = load ptr, ptr %t0
   %t141 = getelementptr inbounds %Emitter, ptr %t140, i32 0, i32 2
   %t142 = load ptr, ptr %t141
-  call void @Builder.add(ptr %t142, ptr @.str.1156)
+  call void @Builder.add(ptr %t142, ptr @.str.1166)
   br label %L16
 L16:
   %t143 = load ptr, ptr %t0
   %t144 = getelementptr inbounds %Emitter, ptr %t143, i32 0, i32 3
   %t145 = load ptr, ptr %t144
-  call void @Builder.add(ptr %t145, ptr @.str.1157)
+  call void @Builder.add(ptr %t145, ptr @.str.1167)
   %t146 = load ptr, ptr %t0
   %t147 = getelementptr inbounds %Emitter, ptr %t146, i32 0, i32 3
   %t148 = load ptr, ptr %t147
-  call void @Builder.add(ptr %t148, ptr @.str.1158)
+  call void @Builder.add(ptr %t148, ptr @.str.1168)
   %t149 = load ptr, ptr %t0
   %t150 = getelementptr inbounds %Emitter, ptr %t149, i32 0, i32 3
   %t151 = load ptr, ptr %t150
@@ -45416,7 +46093,7 @@ L16:
   %t154 = load ptr, ptr %t0
   %t155 = getelementptr inbounds %Emitter, ptr %t154, i32 0, i32 3
   %t156 = load ptr, ptr %t155
-  call void @Builder.add(ptr %t156, ptr @.str.1159)
+  call void @Builder.add(ptr %t156, ptr @.str.1169)
   %t157 = load ptr, ptr %t0
   %t158 = getelementptr inbounds %Emitter, ptr %t157, i32 0, i32 3
   %t159 = load ptr, ptr %t158
@@ -45426,15 +46103,15 @@ L16:
   %t162 = load ptr, ptr %t0
   %t163 = getelementptr inbounds %Emitter, ptr %t162, i32 0, i32 3
   %t164 = load ptr, ptr %t163
-  call void @Builder.add(ptr %t164, ptr @.str.1160)
+  call void @Builder.add(ptr %t164, ptr @.str.1170)
   %t165 = load ptr, ptr %t0
   %t166 = getelementptr inbounds %Emitter, ptr %t165, i32 0, i32 3
   %t167 = load ptr, ptr %t166
-  call void @Builder.add(ptr %t167, ptr @.str.1161)
+  call void @Builder.add(ptr %t167, ptr @.str.1171)
   %t168 = load ptr, ptr %t0
   %t169 = getelementptr inbounds %Emitter, ptr %t168, i32 0, i32 3
   %t170 = load ptr, ptr %t169
-  call void @Builder.add(ptr %t170, ptr @.str.1162)
+  call void @Builder.add(ptr %t170, ptr @.str.1172)
   ret void
 }
 
@@ -45540,14 +46217,14 @@ L9:
   %t30 = call ptr @Builder.new()
   store ptr %t30, ptr %t31
   %t32 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t32, ptr @.str.1163)
+  call void @Builder.add(ptr %t32, ptr @.str.1173)
   %t33 = load ptr, ptr %t31
   %t34 = getelementptr inbounds %Type, ptr %t2, i32 0, i32 2
   %t35 = load ptr, ptr %t34
   %t36 = call ptr @namesFunction(ptr %t35)
   call void @Builder.add(ptr %t33, ptr %t36)
   %t37 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t37, ptr @.str.1164)
+  call void @Builder.add(ptr %t37, ptr @.str.1174)
   %t38 = load ptr, ptr %t31
   %t39 = load ptr, ptr %t1
   call void @Builder.add(ptr %t38, ptr %t39)
@@ -45569,7 +46246,7 @@ entry:
   %t1 = call ptr @Builder.new()
   store ptr %t1, ptr %t2
   %t3 = load ptr, ptr %t2
-  call void @Builder.add(ptr %t3, ptr @.str.1165)
+  call void @Builder.add(ptr %t3, ptr @.str.1175)
   %t4 = load ptr, ptr %t2
   %t5 = load ptr, ptr %t0
   call void @Builder.add(ptr %t4, ptr %t5)
@@ -45625,7 +46302,7 @@ L1:
   %t22 = load ptr, ptr %t0
   %t23 = getelementptr inbounds %Emitter, ptr %t22, i32 0, i32 3
   %t24 = load ptr, ptr %t23
-  call void @Builder.add(ptr %t24, ptr @.str.1166)
+  call void @Builder.add(ptr %t24, ptr @.str.1176)
   %t25 = load ptr, ptr %t0
   %t26 = getelementptr inbounds %Emitter, ptr %t25, i32 0, i32 3
   %t27 = load ptr, ptr %t26
@@ -45635,7 +46312,7 @@ L1:
   %t30 = load ptr, ptr %t0
   %t31 = getelementptr inbounds %Emitter, ptr %t30, i32 0, i32 3
   %t32 = load ptr, ptr %t31
-  call void @Builder.add(ptr %t32, ptr @.str.1167)
+  call void @Builder.add(ptr %t32, ptr @.str.1177)
   %t33 = call ptr @"List<i64>.new"()
   store ptr %t33, ptr %t34
   %t35 = call ptr @Builder.new()
@@ -45722,7 +46399,7 @@ L15:
   %t95 = load ptr, ptr %t0
   %t96 = getelementptr inbounds %Emitter, ptr %t95, i32 0, i32 3
   %t97 = load ptr, ptr %t96
-  call void @Builder.add(ptr %t97, ptr @.str.1168)
+  call void @Builder.add(ptr %t97, ptr @.str.1178)
   %t98 = load ptr, ptr %t0
   %t99 = getelementptr inbounds %Emitter, ptr %t98, i32 0, i32 3
   %t100 = load ptr, ptr %t99
@@ -45731,7 +46408,7 @@ L15:
   %t102 = load ptr, ptr %t0
   %t103 = getelementptr inbounds %Emitter, ptr %t102, i32 0, i32 3
   %t104 = load ptr, ptr %t103
-  call void @Builder.add(ptr %t104, ptr @.str.1169)
+  call void @Builder.add(ptr %t104, ptr @.str.1179)
   %t105 = load ptr, ptr %t0
   %t106 = getelementptr inbounds %Emitter, ptr %t105, i32 0, i32 3
   %t107 = load ptr, ptr %t106
@@ -45739,13 +46416,13 @@ L15:
   %t109 = sext i32 %t108 to i64
   call void @Builder.addInt(ptr %t107, i64 %t109)
   %t110 = load ptr, ptr %t36
-  call void @Builder.add(ptr %t110, ptr @.str.1170)
+  call void @Builder.add(ptr %t110, ptr @.str.1180)
   %t111 = load ptr, ptr %t36
   %t112 = load i32, ptr %t48
   %t113 = sext i32 %t112 to i64
   call void @Builder.addInt(ptr %t111, i64 %t113)
   %t114 = load ptr, ptr %t36
-  call void @Builder.add(ptr %t114, ptr @.str.1171)
+  call void @Builder.add(ptr %t114, ptr @.str.1181)
   %t115 = load ptr, ptr %t36
   %t116 = load ptr, ptr %t0
   %t117 = load ptr, ptr %t0
@@ -45785,7 +46462,7 @@ L7:
   %t142 = load ptr, ptr %t0
   %t143 = getelementptr inbounds %Emitter, ptr %t142, i32 0, i32 3
   %t144 = load ptr, ptr %t143
-  call void @Builder.add(ptr %t144, ptr @.str.1172)
+  call void @Builder.add(ptr %t144, ptr @.str.1182)
   %t145 = load ptr, ptr %t0
   %t146 = getelementptr inbounds %Emitter, ptr %t145, i32 0, i32 3
   %t147 = load ptr, ptr %t146
@@ -45796,17 +46473,17 @@ L7:
   %t151 = load ptr, ptr %t0
   %t152 = getelementptr inbounds %Emitter, ptr %t151, i32 0, i32 3
   %t153 = load ptr, ptr %t152
-  call void @Builder.add(ptr %t153, ptr @.str.1173)
+  call void @Builder.add(ptr %t153, ptr @.str.1183)
   %t154 = load ptr, ptr %t0
   %t155 = getelementptr inbounds %Emitter, ptr %t154, i32 0, i32 3
   %t156 = load ptr, ptr %t155
   %t157 = load ptr, ptr %t0
-  %t158 = call ptr @internString(ptr %t157, ptr @.str.1174, i64 1)
+  %t158 = call ptr @internString(ptr %t157, ptr @.str.1184, i64 1)
   call void @Builder.add(ptr %t156, ptr %t158)
   %t159 = load ptr, ptr %t0
   %t160 = getelementptr inbounds %Emitter, ptr %t159, i32 0, i32 3
   %t161 = load ptr, ptr %t160
-  call void @Builder.add(ptr %t161, ptr @.str.1175)
+  call void @Builder.add(ptr %t161, ptr @.str.1185)
   br label %L2
 L2:
   %t162 = load i64, ptr %t6
@@ -45836,11 +46513,11 @@ entry:
   %t3 = load ptr, ptr %t0
   %t4 = getelementptr inbounds %Emitter, ptr %t3, i32 0, i32 3
   %t5 = load ptr, ptr %t4
-  call void @Builder.add(ptr %t5, ptr @.str.1176)
+  call void @Builder.add(ptr %t5, ptr @.str.1186)
   %t6 = load ptr, ptr %t0
   %t7 = getelementptr inbounds %Emitter, ptr %t6, i32 0, i32 3
   %t8 = load ptr, ptr %t7
-  call void @Builder.add(ptr %t8, ptr @.str.1177)
+  call void @Builder.add(ptr %t8, ptr @.str.1187)
   %t9 = load ptr, ptr %t0
   %t10 = getelementptr inbounds %Emitter, ptr %t9, i32 0, i32 1
   %t11 = load ptr, ptr %t10
@@ -45914,7 +46591,7 @@ L5:
   %t71 = load ptr, ptr %t0
   %t72 = getelementptr inbounds %Emitter, ptr %t71, i32 0, i32 3
   %t73 = load ptr, ptr %t72
-  call void @Builder.add(ptr %t73, ptr @.str.1178)
+  call void @Builder.add(ptr %t73, ptr @.str.1188)
   %t74 = load ptr, ptr %t0
   %t75 = getelementptr inbounds %Emitter, ptr %t74, i32 0, i32 3
   %t76 = load ptr, ptr %t75
@@ -45923,7 +46600,7 @@ L5:
   %t78 = load ptr, ptr %t0
   %t79 = getelementptr inbounds %Emitter, ptr %t78, i32 0, i32 3
   %t80 = load ptr, ptr %t79
-  call void @Builder.add(ptr %t80, ptr @.str.1179)
+  call void @Builder.add(ptr %t80, ptr @.str.1189)
   %t81 = load ptr, ptr %t0
   %t82 = getelementptr inbounds %Emitter, ptr %t81, i32 0, i32 3
   %t83 = load ptr, ptr %t82
@@ -45953,12 +46630,12 @@ L5:
   %t104 = load ptr, ptr %t103
   call void @Builder.add(ptr %t94, ptr %t104)
   %t105 = load ptr, ptr %t2
-  call void @Builder.add(ptr %t105, ptr @.str.1180)
+  call void @Builder.add(ptr %t105, ptr @.str.1190)
   %t106 = load ptr, ptr %t2
   %t107 = load i64, ptr %t70
   call void @Builder.addInt(ptr %t106, i64 %t107)
   %t108 = load ptr, ptr %t2
-  call void @Builder.add(ptr %t108, ptr @.str.1181)
+  call void @Builder.add(ptr %t108, ptr @.str.1191)
   %t109 = load ptr, ptr %t2
   %t110 = load ptr, ptr %t0
   %t111 = load ptr, ptr %t86
@@ -45988,17 +46665,17 @@ L3:
   %t123 = load ptr, ptr %t0
   %t124 = getelementptr inbounds %Emitter, ptr %t123, i32 0, i32 3
   %t125 = load ptr, ptr %t124
-  call void @Builder.add(ptr %t125, ptr @.str.1182)
+  call void @Builder.add(ptr %t125, ptr @.str.1192)
   %t126 = load ptr, ptr %t0
   %t127 = getelementptr inbounds %Emitter, ptr %t126, i32 0, i32 3
   %t128 = load ptr, ptr %t127
   %t129 = load ptr, ptr %t0
-  %t130 = call ptr @internString(ptr %t129, ptr @.str.1183, i64 2)
+  %t130 = call ptr @internString(ptr %t129, ptr @.str.1193, i64 2)
   call void @Builder.add(ptr %t128, ptr %t130)
   %t131 = load ptr, ptr %t0
   %t132 = getelementptr inbounds %Emitter, ptr %t131, i32 0, i32 3
   %t133 = load ptr, ptr %t132
-  call void @Builder.add(ptr %t133, ptr @.str.1184)
+  call void @Builder.add(ptr %t133, ptr @.str.1194)
   %t134 = load ptr, ptr %t0
   %t135 = getelementptr inbounds %Emitter, ptr %t134, i32 0, i32 3
   %t136 = load ptr, ptr %t135
@@ -46009,17 +46686,17 @@ L3:
   %t140 = load ptr, ptr %t0
   %t141 = getelementptr inbounds %Emitter, ptr %t140, i32 0, i32 3
   %t142 = load ptr, ptr %t141
-  call void @Builder.add(ptr %t142, ptr @.str.1185)
+  call void @Builder.add(ptr %t142, ptr @.str.1195)
   %t143 = load ptr, ptr %t0
   %t144 = getelementptr inbounds %Emitter, ptr %t143, i32 0, i32 3
   %t145 = load ptr, ptr %t144
   %t146 = load ptr, ptr %t0
-  %t147 = call ptr @internString(ptr %t146, ptr @.str.1186, i64 1)
+  %t147 = call ptr @internString(ptr %t146, ptr @.str.1196, i64 1)
   call void @Builder.add(ptr %t145, ptr %t147)
   %t148 = load ptr, ptr %t0
   %t149 = getelementptr inbounds %Emitter, ptr %t148, i32 0, i32 3
   %t150 = load ptr, ptr %t149
-  call void @Builder.add(ptr %t150, ptr @.str.1187)
+  call void @Builder.add(ptr %t150, ptr @.str.1197)
   ret void
 }
 
@@ -46047,7 +46724,10 @@ entry:
   %t13 = getelementptr inbounds %Parser, ptr %t12, i32 0, i32 3
   store i1 true, ptr %t13
   %t14 = load ptr, ptr %t3
-  ret ptr %t14
+  %t15 = getelementptr inbounds %Parser, ptr %t14, i32 0, i32 4
+  store i1 false, ptr %t15
+  %t16 = load ptr, ptr %t3
+  ret ptr %t16
 }
 
 define ptr @Parser.current(ptr %p0) {
@@ -46129,7 +46809,7 @@ entry:
   %t2 = load ptr, ptr %t0
   %t3 = call ptr @Parser.current(ptr %t2)
   store ptr %t3, ptr %t4
-  store ptr @.str.1188, ptr %t5
+  store ptr @.str.1198, ptr %t5
   %t6 = load ptr, ptr %t4
   %t7 = getelementptr inbounds %Token, ptr %t6, i32 0, i32 0
   %t8 = load i32, ptr %t7
@@ -46494,7 +47174,7 @@ L6:
   %t50 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t50)
   %t51 = load ptr, ptr %t0
-  %t52 = call ptr @Parser.expect(ptr %t51, i32 53, ptr @.str.1189)
+  %t52 = call ptr @Parser.expect(ptr %t51, i32 53, ptr @.str.1199)
   %t53 = load ptr, ptr %t0
   %t54 = call i32 @Parser.kind(ptr %t53)
   %t55 = icmp ne i32 %t54, 54
@@ -46535,9 +47215,9 @@ L14:
   br label %L11
 L11:
   %t69 = load ptr, ptr %t0
-  %t70 = call ptr @Parser.expect(ptr %t69, i32 54, ptr @.str.1190)
+  %t70 = call ptr @Parser.expect(ptr %t69, i32 54, ptr @.str.1200)
   %t71 = load ptr, ptr %t0
-  %t72 = call ptr @Parser.expect(ptr %t71, i32 62, ptr @.str.1191)
+  %t72 = call ptr @Parser.expect(ptr %t71, i32 62, ptr @.str.1201)
   %t73 = load ptr, ptr %t0
   %t74 = call i32 @parseType(ptr %t73)
   %t75 = load ptr, ptr %t0
@@ -46569,7 +47249,7 @@ L22:
   br i1 %t92, label %L23, label %L25
 L23:
   %t93 = load ptr, ptr %t0
-  call void @Parser.fail(ptr %t93, ptr @.str.1192)
+  call void @Parser.fail(ptr %t93, ptr @.str.1202)
   %t94 = load ptr, ptr %t0
   %t95 = getelementptr inbounds %Parser, ptr %t94, i32 0, i32 1
   %t96 = load ptr, ptr %t95
@@ -46667,7 +47347,7 @@ entry:
   %t20 = getelementptr inbounds %Node, ptr %t19, i32 0, i32 8
   store i32 %t11, ptr %t20
   %t21 = load ptr, ptr %t0
-  %t22 = call ptr @Parser.expect(ptr %t21, i32 53, ptr @.str.1193)
+  %t22 = call ptr @Parser.expect(ptr %t21, i32 53, ptr @.str.1203)
   %t23 = load ptr, ptr %t0
   %t24 = call i32 @Parser.kind(ptr %t23)
   %t25 = icmp ne i32 %t24, 54
@@ -46708,7 +47388,7 @@ L5:
   br label %L2
 L2:
   %t39 = load ptr, ptr %t0
-  %t40 = call ptr @Parser.expect(ptr %t39, i32 54, ptr @.str.1194)
+  %t40 = call ptr @Parser.expect(ptr %t39, i32 54, ptr @.str.1204)
   %t43 = load ptr, ptr %t0
   %t44 = call i32 @Parser.kind(ptr %t43)
   %t45 = icmp ne i32 %t44, 63
@@ -46816,7 +47496,7 @@ L24:
   br label %L26
 L26:
   %t118 = load ptr, ptr %t0
-  %t119 = call ptr @Parser.expect(ptr %t118, i32 63, ptr @.str.1195)
+  %t119 = call ptr @Parser.expect(ptr %t118, i32 63, ptr @.str.1205)
   %t120 = load ptr, ptr %t0
   %t121 = call i32 @parseDeclaredType(ptr %t120)
   %t122 = load ptr, ptr %t0
@@ -46921,7 +47601,7 @@ entry:
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
-  %t3 = call ptr @Parser.expect(ptr %t2, i32 44, ptr @.str.1196)
+  %t3 = call ptr @Parser.expect(ptr %t2, i32 44, ptr @.str.1206)
   br label %L0
 L0:
   br i1 true, label %L1, label %L2
@@ -46977,7 +47657,7 @@ L0:
   store i32 46, ptr %t8
   %t9 = load ptr, ptr %t6
   %t10 = getelementptr inbounds %Token, ptr %t9, i32 0, i32 1
-  store ptr @.str.1197, ptr %t10
+  store ptr @.str.1207, ptr %t10
   %t11 = load ptr, ptr %t6
   %t12 = getelementptr inbounds %Token, ptr %t11, i32 0, i32 2
   store i64 1, ptr %t12
@@ -46991,7 +47671,7 @@ L0:
   ret void
 L2:
   %t19 = load ptr, ptr %t0
-  %t20 = call ptr @Parser.expect(ptr %t19, i32 46, ptr @.str.1198)
+  %t20 = call ptr @Parser.expect(ptr %t19, i32 46, ptr @.str.1208)
   ret void
 }
 
@@ -47018,13 +47698,13 @@ entry:
   %t13 = call i32 @Ast.add(ptr %t6, i32 46, i32 %t9, i32 %t12)
   store i32 %t13, ptr %t14
   %t15 = load ptr, ptr %t0
-  %t16 = call ptr @Parser.expect(ptr %t15, i32 44, ptr @.str.1199)
+  %t16 = call ptr @Parser.expect(ptr %t15, i32 44, ptr @.str.1209)
   br label %L0
 L0:
   br i1 true, label %L1, label %L2
 L1:
   %t17 = load ptr, ptr %t0
-  %t18 = call ptr @Parser.expect(ptr %t17, i32 2, ptr @.str.1200)
+  %t18 = call ptr @Parser.expect(ptr %t17, i32 2, ptr @.str.1210)
   store ptr %t18, ptr %t19
   %t20 = load i1, ptr @FAILED
   br i1 %t20, label %L3, label %L5
@@ -47392,7 +48072,7 @@ L10:
   %t27 = load ptr, ptr %t0
   %t28 = load ptr, ptr %t1
   %t29 = load i32, ptr %t26
-  %t30 = call i32 @requireTopLevel(ptr %t27, ptr %t28, ptr @.str.1201, i32 %t29)
+  %t30 = call i32 @requireTopLevel(ptr %t27, ptr %t28, ptr @.str.1211, i32 %t29)
   ret i32 %t30
 L12:
   %t31 = load i32, ptr %t4
@@ -47405,7 +48085,7 @@ L13:
   %t36 = load ptr, ptr %t0
   %t37 = load ptr, ptr %t1
   %t38 = load i32, ptr %t35
-  %t39 = call i32 @requireTopLevel(ptr %t36, ptr %t37, ptr @.str.1202, i32 %t38)
+  %t39 = call i32 @requireTopLevel(ptr %t36, ptr %t37, ptr @.str.1212, i32 %t38)
   ret i32 %t39
 L15:
   %t40 = load i32, ptr %t4
@@ -47418,7 +48098,7 @@ L16:
   %t45 = load ptr, ptr %t0
   %t46 = load ptr, ptr %t1
   %t47 = load i32, ptr %t44
-  %t48 = call i32 @requireTopLevel(ptr %t45, ptr %t46, ptr @.str.1203, i32 %t47)
+  %t48 = call i32 @requireTopLevel(ptr %t45, ptr %t46, ptr @.str.1213, i32 %t47)
   ret i32 %t48
 L18:
   %t49 = load i32, ptr %t4
@@ -47439,7 +48119,7 @@ L22:
   %t58 = load ptr, ptr %t0
   %t59 = load ptr, ptr %t1
   %t60 = load i32, ptr %t57
-  %t61 = call i32 @requireTopLevel(ptr %t58, ptr %t59, ptr @.str.1204, i32 %t60)
+  %t61 = call i32 @requireTopLevel(ptr %t58, ptr %t59, ptr @.str.1214, i32 %t60)
   ret i32 %t61
 L24:
   %t62 = load ptr, ptr %t0
@@ -47452,7 +48132,7 @@ L25:
   %t67 = load ptr, ptr %t0
   %t68 = load ptr, ptr %t1
   %t69 = load i32, ptr %t66
-  %t70 = call i32 @requireTopLevel(ptr %t67, ptr %t68, ptr @.str.1205, i32 %t69)
+  %t70 = call i32 @requireTopLevel(ptr %t67, ptr %t68, ptr @.str.1215, i32 %t69)
   ret i32 %t70
 L27:
   %t71 = load i32, ptr %t4
@@ -47465,7 +48145,7 @@ L28:
   %t76 = load ptr, ptr %t0
   %t77 = load ptr, ptr %t1
   %t78 = load i32, ptr %t75
-  %t79 = call i32 @requireTopLevel(ptr %t76, ptr %t77, ptr @.str.1206, i32 %t78)
+  %t79 = call i32 @requireTopLevel(ptr %t76, ptr %t77, ptr @.str.1216, i32 %t78)
   ret i32 %t79
 L30:
   %t80 = load i32, ptr %t4
@@ -47478,7 +48158,7 @@ L31:
   %t85 = load ptr, ptr %t0
   %t86 = load ptr, ptr %t1
   %t87 = load i32, ptr %t84
-  %t88 = call i32 @requireTopLevel(ptr %t85, ptr %t86, ptr @.str.1207, i32 %t87)
+  %t88 = call i32 @requireTopLevel(ptr %t85, ptr %t86, ptr @.str.1217, i32 %t87)
   ret i32 %t88
 L33:
   %t89 = load ptr, ptr %t0
@@ -47491,7 +48171,7 @@ L34:
   %t94 = load ptr, ptr %t0
   %t95 = load ptr, ptr %t1
   %t96 = load i32, ptr %t93
-  %t97 = call i32 @requireTopLevel(ptr %t94, ptr %t95, ptr @.str.1208, i32 %t96)
+  %t97 = call i32 @requireTopLevel(ptr %t94, ptr %t95, ptr @.str.1218, i32 %t96)
   ret i32 %t97
 L36:
   %t98 = load ptr, ptr %t0
@@ -47504,7 +48184,7 @@ L37:
   %t103 = load ptr, ptr %t0
   %t104 = load ptr, ptr %t1
   %t105 = load i32, ptr %t102
-  %t106 = call i32 @requireTopLevel(ptr %t103, ptr %t104, ptr @.str.1209, i32 %t105)
+  %t106 = call i32 @requireTopLevel(ptr %t103, ptr %t104, ptr @.str.1219, i32 %t105)
   ret i32 %t106
 L39:
   %t107 = load ptr, ptr %t0
@@ -47552,22 +48232,22 @@ entry:
   %t22 = alloca i32
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 8, ptr @.str.1210)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 8, ptr @.str.1220)
   %t3 = load ptr, ptr %t0
-  %t4 = call ptr @Parser.expect(ptr %t3, i32 2, ptr @.str.1211)
+  %t4 = call ptr @Parser.expect(ptr %t3, i32 2, ptr @.str.1221)
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t0
-  %t7 = call ptr @Parser.expect(ptr %t6, i32 62, ptr @.str.1212)
+  %t7 = call ptr @Parser.expect(ptr %t6, i32 62, ptr @.str.1222)
   %t8 = load ptr, ptr %t0
   %t9 = call i32 @parseDeclaredType(ptr %t8)
   store i32 %t9, ptr %t10
   %t11 = load ptr, ptr %t0
-  %t12 = call ptr @Parser.expect(ptr %t11, i32 28, ptr @.str.1213)
+  %t12 = call ptr @Parser.expect(ptr %t11, i32 28, ptr @.str.1223)
   %t13 = load ptr, ptr %t0
   %t14 = call i32 @parseExpr(ptr %t13)
   store i32 %t14, ptr %t15
   %t16 = load ptr, ptr %t0
-  %t17 = call ptr @Parser.expect(ptr %t16, i32 60, ptr @.str.1214)
+  %t17 = call ptr @Parser.expect(ptr %t16, i32 60, ptr @.str.1224)
   %t18 = load ptr, ptr %t0
   %t19 = getelementptr inbounds %Parser, ptr %t18, i32 0, i32 1
   %t20 = load ptr, ptr %t19
@@ -47641,7 +48321,7 @@ L0:
   %t13 = call i32 @parseExpr(ptr %t12)
   store i32 %t13, ptr %t14
   %t15 = load ptr, ptr %t0
-  %t16 = call ptr @Parser.expect(ptr %t15, i32 60, ptr @.str.1215)
+  %t16 = call ptr @Parser.expect(ptr %t15, i32 60, ptr @.str.1225)
   %t17 = load ptr, ptr %t0
   %t18 = getelementptr inbounds %Parser, ptr %t17, i32 0, i32 1
   %t19 = load ptr, ptr %t18
@@ -47701,7 +48381,7 @@ L3:
   %t66 = call i32 @parseExpr(ptr %t65)
   store i32 %t66, ptr %t67
   %t68 = load ptr, ptr %t0
-  %t69 = call ptr @Parser.expect(ptr %t68, i32 60, ptr @.str.1216)
+  %t69 = call ptr @Parser.expect(ptr %t68, i32 60, ptr @.str.1226)
   %t70 = load ptr, ptr %t0
   %t71 = getelementptr inbounds %Parser, ptr %t70, i32 0, i32 1
   %t72 = load ptr, ptr %t71
@@ -47762,7 +48442,7 @@ L3:
   ret i32 %t122
 L5:
   %t123 = load ptr, ptr %t0
-  %t124 = call ptr @Parser.expect(ptr %t123, i32 60, ptr @.str.1217)
+  %t124 = call ptr @Parser.expect(ptr %t123, i32 60, ptr @.str.1227)
   %t125 = load ptr, ptr %t0
   %t126 = getelementptr inbounds %Parser, ptr %t125, i32 0, i32 1
   %t127 = load ptr, ptr %t126
@@ -47812,7 +48492,7 @@ entry:
   br i1 %t17, label %L0, label %L2
 L0:
   %t18 = load ptr, ptr %t0
-  %t19 = call ptr @Parser.expect(ptr %t18, i32 55, ptr @.str.1218)
+  %t19 = call ptr @Parser.expect(ptr %t18, i32 55, ptr @.str.1228)
   %t20 = load i32, ptr %t14
   ret i32 %t20
 L2:
@@ -47865,7 +48545,7 @@ L5:
   %t49 = getelementptr inbounds %Parser, ptr %t48, i32 0, i32 3
   store i1 %t47, ptr %t49
   %t50 = load ptr, ptr %t0
-  %t51 = call ptr @Parser.expect(ptr %t50, i32 56, ptr @.str.1219)
+  %t51 = call ptr @Parser.expect(ptr %t50, i32 56, ptr @.str.1229)
   %t52 = load i32, ptr %t14
   ret i32 %t52
 }
@@ -47879,14 +48559,14 @@ entry:
   %t30 = alloca i32
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 9, ptr @.str.1220)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 9, ptr @.str.1230)
   %t3 = load ptr, ptr %t0
-  %t4 = call ptr @Parser.expect(ptr %t3, i32 53, ptr @.str.1221)
+  %t4 = call ptr @Parser.expect(ptr %t3, i32 53, ptr @.str.1231)
   %t5 = load ptr, ptr %t0
   %t6 = call i32 @parseExpr(ptr %t5)
   store i32 %t6, ptr %t7
   %t8 = load ptr, ptr %t0
-  %t9 = call ptr @Parser.expect(ptr %t8, i32 54, ptr @.str.1222)
+  %t9 = call ptr @Parser.expect(ptr %t8, i32 54, ptr @.str.1232)
   %t10 = load ptr, ptr %t0
   %t11 = call i32 @parseBlock(ptr %t10)
   store i32 %t11, ptr %t12
@@ -47982,11 +48662,11 @@ entry:
   %t13 = call i32 @Ast.add(ptr %t6, i32 45, i32 %t9, i32 %t12)
   store i32 %t13, ptr %t14
   %t15 = load ptr, ptr %t0
-  %t16 = call ptr @Parser.expect(ptr %t15, i32 27, ptr @.str.1223)
+  %t16 = call ptr @Parser.expect(ptr %t15, i32 27, ptr @.str.1233)
   %t17 = load ptr, ptr %t0
-  %t18 = call ptr @Parser.expect(ptr %t17, i32 53, ptr @.str.1224)
+  %t18 = call ptr @Parser.expect(ptr %t17, i32 53, ptr @.str.1234)
   %t19 = load ptr, ptr %t0
-  %t20 = call ptr @Parser.expect(ptr %t19, i32 2, ptr @.str.1225)
+  %t20 = call ptr @Parser.expect(ptr %t19, i32 2, ptr @.str.1235)
   store ptr %t20, ptr %t21
   %t22 = load ptr, ptr %t0
   %t23 = getelementptr inbounds %Parser, ptr %t22, i32 0, i32 1
@@ -48007,7 +48687,7 @@ L0:
   %t35 = load ptr, ptr %t29
   %t36 = getelementptr inbounds %Token, ptr %t35, i32 0, i32 1
   %t37 = load ptr, ptr %t36
-  %t38 = call i1 @equals(ptr %t37, ptr @.str.1226)
+  %t38 = call i1 @equals(ptr %t37, ptr @.str.1236)
   %t39 = xor i1 %t38, true
   store i1 %t39, ptr %t30
   br label %L1
@@ -48016,7 +48696,7 @@ L1:
   br i1 %t40, label %L2, label %L4
 L2:
   %t41 = load ptr, ptr %t0
-  call void @Parser.fail(ptr %t41, ptr @.str.1227)
+  call void @Parser.fail(ptr %t41, ptr @.str.1237)
   %t42 = load i32, ptr %t14
   ret i32 %t42
 L4:
@@ -48035,7 +48715,7 @@ L4:
   %t54 = getelementptr inbounds %Node, ptr %t53, i32 0, i32 5
   store i32 %t45, ptr %t54
   %t55 = load ptr, ptr %t0
-  %t56 = call ptr @Parser.expect(ptr %t55, i32 64, ptr @.str.1228)
+  %t56 = call ptr @Parser.expect(ptr %t55, i32 64, ptr @.str.1238)
   %t57 = load ptr, ptr %t0
   %t58 = call i32 @parseExpr(ptr %t57)
   %t59 = load ptr, ptr %t0
@@ -48049,7 +48729,7 @@ L4:
   %t67 = getelementptr inbounds %Node, ptr %t66, i32 0, i32 6
   store i32 %t58, ptr %t67
   %t68 = load ptr, ptr %t0
-  %t69 = call ptr @Parser.expect(ptr %t68, i32 54, ptr @.str.1229)
+  %t69 = call ptr @Parser.expect(ptr %t68, i32 54, ptr @.str.1239)
   %t70 = load ptr, ptr %t0
   %t71 = call i32 @parseBlock(ptr %t70)
   %t72 = load ptr, ptr %t0
@@ -48074,14 +48754,14 @@ entry:
   %t17 = alloca i32
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 18, ptr @.str.1230)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 18, ptr @.str.1240)
   %t3 = load ptr, ptr %t0
-  %t4 = call ptr @Parser.expect(ptr %t3, i32 53, ptr @.str.1231)
+  %t4 = call ptr @Parser.expect(ptr %t3, i32 53, ptr @.str.1241)
   %t5 = load ptr, ptr %t0
   %t6 = call i32 @parseExpr(ptr %t5)
   store i32 %t6, ptr %t7
   %t8 = load ptr, ptr %t0
-  %t9 = call ptr @Parser.expect(ptr %t8, i32 54, ptr @.str.1232)
+  %t9 = call ptr @Parser.expect(ptr %t8, i32 54, ptr @.str.1242)
   %t10 = load ptr, ptr %t0
   %t11 = call i32 @parseBlock(ptr %t10)
   store i32 %t11, ptr %t12
@@ -48121,9 +48801,9 @@ entry:
   %t0 = alloca ptr
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 19, ptr @.str.1233)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 19, ptr @.str.1243)
   %t3 = load ptr, ptr %t0
-  %t4 = call ptr @Parser.expect(ptr %t3, i32 60, ptr @.str.1234)
+  %t4 = call ptr @Parser.expect(ptr %t3, i32 60, ptr @.str.1244)
   %t5 = load ptr, ptr %t0
   %t6 = getelementptr inbounds %Parser, ptr %t5, i32 0, i32 1
   %t7 = load ptr, ptr %t6
@@ -48136,9 +48816,9 @@ entry:
   %t0 = alloca ptr
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 20, ptr @.str.1235)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 20, ptr @.str.1245)
   %t3 = load ptr, ptr %t0
-  %t4 = call ptr @Parser.expect(ptr %t3, i32 60, ptr @.str.1236)
+  %t4 = call ptr @Parser.expect(ptr %t3, i32 60, ptr @.str.1246)
   %t5 = load ptr, ptr %t0
   %t6 = getelementptr inbounds %Parser, ptr %t5, i32 0, i32 1
   %t7 = load ptr, ptr %t6
@@ -48152,7 +48832,7 @@ entry:
   %t7 = alloca i32
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 15, ptr @.str.1237)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 15, ptr @.str.1247)
   %t3 = load ptr, ptr %t0
   %t4 = getelementptr inbounds %Parser, ptr %t3, i32 0, i32 1
   %t5 = load ptr, ptr %t4
@@ -48181,7 +48861,7 @@ L2:
   %t23 = getelementptr inbounds %Node, ptr %t22, i32 0, i32 5
   store i32 %t14, ptr %t23
   %t24 = load ptr, ptr %t0
-  %t25 = call ptr @Parser.expect(ptr %t24, i32 60, ptr @.str.1238)
+  %t25 = call ptr @Parser.expect(ptr %t24, i32 60, ptr @.str.1248)
   %t26 = load i32, ptr %t7
   ret i32 %t26
 }
@@ -48209,7 +48889,7 @@ entry:
   %t13 = call i32 @Ast.add(ptr %t6, i32 29, i32 %t9, i32 %t12)
   store i32 %t13, ptr %t14
   %t15 = load ptr, ptr %t0
-  %t16 = call ptr @Parser.expect(ptr %t15, i32 53, ptr @.str.1239)
+  %t16 = call ptr @Parser.expect(ptr %t15, i32 53, ptr @.str.1249)
   %t17 = load ptr, ptr %t0
   %t18 = call i32 @Parser.kind(ptr %t17)
   %t19 = icmp eq i32 %t18, 54
@@ -48246,10 +48926,10 @@ L9:
   br label %L8
 L8:
   %t35 = load ptr, ptr %t0
-  %t36 = call ptr @Parser.expect(ptr %t35, i32 2, ptr @.str.1240)
+  %t36 = call ptr @Parser.expect(ptr %t35, i32 2, ptr @.str.1250)
   store ptr %t36, ptr %t37
   %t38 = load ptr, ptr %t0
-  %t39 = call ptr @Parser.expect(ptr %t38, i32 62, ptr @.str.1241)
+  %t39 = call ptr @Parser.expect(ptr %t38, i32 62, ptr @.str.1251)
   %t40 = load ptr, ptr %t0
   %t41 = getelementptr inbounds %Parser, ptr %t40, i32 0, i32 1
   %t42 = load ptr, ptr %t41
@@ -48299,7 +48979,7 @@ L12:
   br label %L3
 L5:
   %t76 = load ptr, ptr %t0
-  %t77 = call ptr @Parser.expect(ptr %t76, i32 54, ptr @.str.1242)
+  %t77 = call ptr @Parser.expect(ptr %t76, i32 54, ptr @.str.1252)
   %t78 = load i32, ptr %t14
   ret i32 %t78
 }
@@ -48329,9 +49009,9 @@ entry:
   %t10 = load i32, ptr %t9
   store i32 %t10, ptr %t11
   %t12 = load ptr, ptr %t0
-  %t13 = call ptr @Parser.expect(ptr %t12, i32 11, ptr @.str.1243)
+  %t13 = call ptr @Parser.expect(ptr %t12, i32 11, ptr @.str.1253)
   %t14 = load ptr, ptr %t0
-  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1244)
+  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1254)
   store ptr %t15, ptr %t16
   store i32 0, ptr %t17
   %t18 = load ptr, ptr %t0
@@ -48348,7 +49028,7 @@ L2:
   %t24 = call i32 @parseParamList(ptr %t23)
   store i32 %t24, ptr %t25
   %t26 = load ptr, ptr %t0
-  %t27 = call ptr @Parser.expect(ptr %t26, i32 62, ptr @.str.1245)
+  %t27 = call ptr @Parser.expect(ptr %t26, i32 62, ptr @.str.1255)
   %t28 = load ptr, ptr %t0
   %t29 = call i32 @parseDeclaredType(ptr %t28)
   store i32 %t29, ptr %t30
@@ -48436,7 +49116,7 @@ L0:
   %t10 = load ptr, ptr %t3
   %t11 = getelementptr inbounds %Token, ptr %t10, i32 0, i32 1
   %t12 = load ptr, ptr %t11
-  %t13 = call i1 @equals(ptr %t12, ptr @.str.1246)
+  %t13 = call i1 @equals(ptr %t12, ptr @.str.1256)
   store i1 %t13, ptr %t5
   br label %L1
 L1:
@@ -48482,7 +49162,7 @@ entry:
   %t12 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t12)
   %t13 = load ptr, ptr %t0
-  %t14 = call ptr @Parser.expect(ptr %t13, i32 4, ptr @.str.1247)
+  %t14 = call ptr @Parser.expect(ptr %t13, i32 4, ptr @.str.1257)
   store ptr %t14, ptr %t15
   %t16 = load ptr, ptr %t0
   %t17 = getelementptr inbounds %Parser, ptr %t16, i32 0, i32 1
@@ -48510,7 +49190,7 @@ entry:
   %t39 = sext i32 %t38 to i64
   %t40 = getelementptr inbounds %Node, ptr %t37, i64 %t39
   %t41 = getelementptr inbounds %Node, ptr %t40, i32 0, i32 3
-  store ptr @.str.1248, ptr %t41
+  store ptr @.str.1258, ptr %t41
   %t42 = load ptr, ptr %t0
   %t43 = getelementptr inbounds %Parser, ptr %t42, i32 0, i32 1
   %t44 = load ptr, ptr %t43
@@ -48594,22 +49274,22 @@ entry:
   %t10 = load i32, ptr %t9
   store i32 %t10, ptr %t11
   %t12 = load ptr, ptr %t0
-  %t13 = call ptr @Parser.expect(ptr %t12, i32 12, ptr @.str.1249)
+  %t13 = call ptr @Parser.expect(ptr %t12, i32 12, ptr @.str.1259)
   %t14 = load ptr, ptr %t0
-  %t15 = call ptr @Parser.expect(ptr %t14, i32 11, ptr @.str.1250)
+  %t15 = call ptr @Parser.expect(ptr %t14, i32 11, ptr @.str.1260)
   %t16 = load ptr, ptr %t0
-  %t17 = call ptr @Parser.expect(ptr %t16, i32 2, ptr @.str.1251)
+  %t17 = call ptr @Parser.expect(ptr %t16, i32 2, ptr @.str.1261)
   store ptr %t17, ptr %t18
   %t19 = load ptr, ptr %t0
   %t20 = call i32 @parseParamList(ptr %t19)
   store i32 %t20, ptr %t21
   %t22 = load ptr, ptr %t0
-  %t23 = call ptr @Parser.expect(ptr %t22, i32 62, ptr @.str.1252)
+  %t23 = call ptr @Parser.expect(ptr %t22, i32 62, ptr @.str.1262)
   %t24 = load ptr, ptr %t0
   %t25 = call i32 @parseType(ptr %t24)
   store i32 %t25, ptr %t26
   %t27 = load ptr, ptr %t0
-  %t28 = call ptr @Parser.expect(ptr %t27, i32 60, ptr @.str.1253)
+  %t28 = call ptr @Parser.expect(ptr %t27, i32 60, ptr @.str.1263)
   %t29 = load ptr, ptr %t0
   %t30 = getelementptr inbounds %Parser, ptr %t29, i32 0, i32 1
   %t31 = load ptr, ptr %t30
@@ -48674,9 +49354,9 @@ entry:
   %t10 = load i32, ptr %t9
   store i32 %t10, ptr %t11
   %t12 = load ptr, ptr %t0
-  %t13 = call ptr @Parser.expect(ptr %t12, i32 13, ptr @.str.1254)
+  %t13 = call ptr @Parser.expect(ptr %t12, i32 13, ptr @.str.1264)
   %t14 = load ptr, ptr %t0
-  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1255)
+  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1265)
   store ptr %t15, ptr %t16
   store i32 0, ptr %t17
   %t18 = load ptr, ptr %t0
@@ -48690,7 +49370,7 @@ L0:
   br label %L2
 L2:
   %t23 = load ptr, ptr %t0
-  %t24 = call ptr @Parser.expect(ptr %t23, i32 55, ptr @.str.1256)
+  %t24 = call ptr @Parser.expect(ptr %t23, i32 55, ptr @.str.1266)
   %t25 = load ptr, ptr %t0
   %t26 = getelementptr inbounds %Parser, ptr %t25, i32 0, i32 1
   %t27 = load ptr, ptr %t26
@@ -48756,10 +49436,10 @@ L15:
   br label %L10
 L10:
   %t65 = load ptr, ptr %t0
-  %t66 = call ptr @Parser.expect(ptr %t65, i32 2, ptr @.str.1257)
+  %t66 = call ptr @Parser.expect(ptr %t65, i32 2, ptr @.str.1267)
   store ptr %t66, ptr %t67
   %t68 = load ptr, ptr %t0
-  %t69 = call ptr @Parser.expect(ptr %t68, i32 62, ptr @.str.1258)
+  %t69 = call ptr @Parser.expect(ptr %t68, i32 62, ptr @.str.1268)
   %t70 = load ptr, ptr %t0
   %t71 = getelementptr inbounds %Parser, ptr %t70, i32 0, i32 1
   %t72 = load ptr, ptr %t71
@@ -48814,7 +49494,7 @@ L21:
   br label %L3
 L5:
   %t107 = load ptr, ptr %t0
-  %t108 = call ptr @Parser.expect(ptr %t107, i32 56, ptr @.str.1259)
+  %t108 = call ptr @Parser.expect(ptr %t107, i32 56, ptr @.str.1269)
   %t109 = load i32, ptr %t31
   ret i32 %t109
 }
@@ -48861,9 +49541,9 @@ entry:
   %t24 = getelementptr inbounds %Node, ptr %t23, i32 0, i32 8
   store i32 %t15, ptr %t24
   %t25 = load ptr, ptr %t0
-  %t26 = call ptr @Parser.expect(ptr %t25, i32 22, ptr @.str.1260)
+  %t26 = call ptr @Parser.expect(ptr %t25, i32 22, ptr @.str.1270)
   %t27 = load ptr, ptr %t0
-  %t28 = call ptr @Parser.expect(ptr %t27, i32 55, ptr @.str.1261)
+  %t28 = call ptr @Parser.expect(ptr %t27, i32 55, ptr @.str.1271)
   br label %L0
 L0:
   %t30 = load ptr, ptr %t0
@@ -48882,7 +49562,7 @@ L4:
   br i1 %t36, label %L1, label %L2
 L1:
   %t37 = load ptr, ptr %t0
-  %t38 = call ptr @Parser.expect(ptr %t37, i32 2, ptr @.str.1262)
+  %t38 = call ptr @Parser.expect(ptr %t37, i32 2, ptr @.str.1272)
   store ptr %t38, ptr %t39
   %t40 = load i1, ptr @FAILED
   br i1 %t40, label %L5, label %L7
@@ -48916,7 +49596,7 @@ L9:
   %t60 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t60)
   %t61 = load ptr, ptr %t0
-  %t62 = call ptr @Parser.expect(ptr %t61, i32 2, ptr @.str.1263)
+  %t62 = call ptr @Parser.expect(ptr %t61, i32 2, ptr @.str.1273)
   store ptr %t62, ptr %t63
   %t64 = load ptr, ptr %t0
   %t65 = getelementptr inbounds %Parser, ptr %t64, i32 0, i32 1
@@ -48968,7 +49648,7 @@ L14:
   br label %L0
 L2:
   %t99 = load ptr, ptr %t0
-  %t100 = call ptr @Parser.expect(ptr %t99, i32 56, ptr @.str.1264)
+  %t100 = call ptr @Parser.expect(ptr %t99, i32 56, ptr @.str.1274)
   %t101 = load i1, ptr @FAILED
   br i1 %t101, label %L16, label %L18
 L16:
@@ -49029,7 +49709,7 @@ L29:
   %t130 = load ptr, ptr %t124
   %t131 = getelementptr inbounds %Token, ptr %t130, i32 0, i32 1
   %t132 = load ptr, ptr %t131
-  %t133 = call i1 @equals(ptr %t132, ptr @.str.1265)
+  %t133 = call i1 @equals(ptr %t132, ptr @.str.1275)
   store i1 %t133, ptr %t125
   br label %L30
 L30:
@@ -49041,11 +49721,11 @@ L31:
   br label %L33
 L32:
   %t136 = load ptr, ptr %t0
-  call void @Parser.fail(ptr %t136, ptr @.str.1266)
+  call void @Parser.fail(ptr %t136, ptr @.str.1276)
   br label %L33
 L33:
   %t137 = load ptr, ptr %t0
-  %t138 = call ptr @Parser.expect(ptr %t137, i32 4, ptr @.str.1267)
+  %t138 = call ptr @Parser.expect(ptr %t137, i32 4, ptr @.str.1277)
   store ptr %t138, ptr %t139
   %t140 = load ptr, ptr %t0
   %t141 = getelementptr inbounds %Parser, ptr %t140, i32 0, i32 1
@@ -49054,7 +49734,7 @@ L33:
   %t144 = load ptr, ptr %t139
   call void @Ast.setText(ptr %t142, i32 %t143, ptr %t144)
   %t145 = load ptr, ptr %t0
-  %t146 = call ptr @Parser.expect(ptr %t145, i32 60, ptr @.str.1268)
+  %t146 = call ptr @Parser.expect(ptr %t145, i32 60, ptr @.str.1278)
   %t147 = load i32, ptr %t14
   ret i32 %t147
 }
@@ -49066,7 +49746,7 @@ entry:
   %t7 = alloca i32
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 23, ptr @.str.1269)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 23, ptr @.str.1279)
   %t3 = load ptr, ptr %t0
   %t4 = call i32 @Parser.kind(ptr %t3)
   store i32 %t4, ptr %t5
@@ -49136,7 +49816,7 @@ L18:
   br label %L20
 L19:
   %t36 = load ptr, ptr %t0
-  call void @Parser.fail(ptr %t36, ptr @.str.1270)
+  call void @Parser.fail(ptr %t36, ptr @.str.1280)
   %t37 = load ptr, ptr %t0
   %t38 = call i32 @Parser.errorNode(ptr %t37)
   ret i32 %t38
@@ -49183,7 +49863,7 @@ L0:
   %t7 = call ptr @Parser.current(ptr %t6)
   %t8 = getelementptr inbounds %Token, ptr %t7, i32 0, i32 1
   %t9 = load ptr, ptr %t8
-  %t10 = call i1 @equals(ptr %t9, ptr @.str.1271)
+  %t10 = call i1 @equals(ptr %t9, ptr @.str.1281)
   store i1 %t10, ptr %t2
   br label %L1
 L1:
@@ -49281,12 +49961,12 @@ entry:
   %t10 = load i32, ptr %t9
   store i32 %t10, ptr %t11
   %t12 = load ptr, ptr %t0
-  %t13 = call ptr @Parser.expect(ptr %t12, i32 25, ptr @.str.1272)
+  %t13 = call ptr @Parser.expect(ptr %t12, i32 25, ptr @.str.1282)
   %t14 = load ptr, ptr %t0
-  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1273)
+  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1283)
   store ptr %t15, ptr %t16
   %t17 = load ptr, ptr %t0
-  %t18 = call ptr @Parser.expect(ptr %t17, i32 55, ptr @.str.1274)
+  %t18 = call ptr @Parser.expect(ptr %t17, i32 55, ptr @.str.1284)
   %t19 = load ptr, ptr %t0
   %t20 = getelementptr inbounds %Parser, ptr %t19, i32 0, i32 1
   %t21 = load ptr, ptr %t20
@@ -49318,7 +49998,7 @@ L4:
   br i1 %t38, label %L1, label %L2
 L1:
   %t39 = load ptr, ptr %t0
-  %t40 = call ptr @Parser.expect(ptr %t39, i32 2, ptr @.str.1275)
+  %t40 = call ptr @Parser.expect(ptr %t39, i32 2, ptr @.str.1285)
   store ptr %t40, ptr %t41
   %t42 = load i1, ptr @FAILED
   br i1 %t42, label %L5, label %L7
@@ -49385,7 +50065,7 @@ L14:
   br label %L0
 L2:
   %t83 = load ptr, ptr %t0
-  %t84 = call ptr @Parser.expect(ptr %t83, i32 56, ptr @.str.1276)
+  %t84 = call ptr @Parser.expect(ptr %t83, i32 56, ptr @.str.1286)
   %t85 = load i32, ptr %t25
   ret i32 %t85
 }
@@ -49393,182 +50073,291 @@ L2:
 define i32 @parseMatchStmt(ptr %p0) {
 entry:
   %t0 = alloca ptr
-  %t3 = alloca ptr
-  %t14 = alloca i32
-  %t34 = alloca i1
-  %t44 = alloca ptr
-  %t55 = alloca i32
-  %t69 = alloca i1
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.current(ptr %t1)
-  store ptr %t2, ptr %t3
-  %t4 = load ptr, ptr %t0
-  %t5 = getelementptr inbounds %Parser, ptr %t4, i32 0, i32 1
-  %t6 = load ptr, ptr %t5
-  %t7 = load ptr, ptr %t3
-  %t8 = getelementptr inbounds %Token, ptr %t7, i32 0, i32 3
-  %t9 = load i32, ptr %t8
-  %t10 = load ptr, ptr %t3
-  %t11 = getelementptr inbounds %Token, ptr %t10, i32 0, i32 4
-  %t12 = load i32, ptr %t11
-  %t13 = call i32 @Ast.add(ptr %t6, i32 39, i32 %t9, i32 %t12)
-  store i32 %t13, ptr %t14
-  %t15 = load ptr, ptr %t0
-  %t16 = call ptr @Parser.expect(ptr %t15, i32 26, ptr @.str.1277)
-  %t17 = load ptr, ptr %t0
-  %t18 = call ptr @Parser.expect(ptr %t17, i32 53, ptr @.str.1278)
-  %t19 = load ptr, ptr %t0
-  %t20 = call i32 @parseExpr(ptr %t19)
-  %t21 = load ptr, ptr %t0
-  %t22 = getelementptr inbounds %Parser, ptr %t21, i32 0, i32 1
-  %t23 = load ptr, ptr %t22
-  %t24 = getelementptr inbounds %Ast, ptr %t23, i32 0, i32 0
-  %t25 = load ptr, ptr %t24
-  %t26 = load i32, ptr %t14
-  %t27 = sext i32 %t26 to i64
-  %t28 = getelementptr inbounds %Node, ptr %t25, i64 %t27
-  %t29 = getelementptr inbounds %Node, ptr %t28, i32 0, i32 5
-  store i32 %t20, ptr %t29
-  %t30 = load ptr, ptr %t0
-  %t31 = call ptr @Parser.expect(ptr %t30, i32 54, ptr @.str.1279)
-  %t32 = load ptr, ptr %t0
-  %t33 = call ptr @Parser.expect(ptr %t32, i32 55, ptr @.str.1280)
-  br label %L0
+  %t2 = call i32 @parseMatch(ptr %t1, i1 false)
+  ret i32 %t2
+}
+
+define i32 @parseMatch(ptr %p0, i1 %p1) {
+entry:
+  %t0 = alloca ptr
+  %t1 = alloca i1
+  %t4 = alloca ptr
+  %t15 = alloca i32
+  %t45 = alloca i1
+  %t55 = alloca ptr
+  %t66 = alloca i32
+  %t82 = alloca i1
+  %t126 = alloca ptr
+  %t129 = alloca i32
+  %t142 = alloca i32
+  store ptr %p0, ptr %t0
+  store i1 %p1, ptr %t1
+  %t2 = load ptr, ptr %t0
+  %t3 = call ptr @Parser.current(ptr %t2)
+  store ptr %t3, ptr %t4
+  %t5 = load ptr, ptr %t0
+  %t6 = getelementptr inbounds %Parser, ptr %t5, i32 0, i32 1
+  %t7 = load ptr, ptr %t6
+  %t8 = load ptr, ptr %t4
+  %t9 = getelementptr inbounds %Token, ptr %t8, i32 0, i32 3
+  %t10 = load i32, ptr %t9
+  %t11 = load ptr, ptr %t4
+  %t12 = getelementptr inbounds %Token, ptr %t11, i32 0, i32 4
+  %t13 = load i32, ptr %t12
+  %t14 = call i32 @Ast.add(ptr %t7, i32 39, i32 %t10, i32 %t13)
+  store i32 %t14, ptr %t15
+  %t16 = load i1, ptr %t1
+  br i1 %t16, label %L0, label %L2
 L0:
-  %t35 = load ptr, ptr %t0
-  %t36 = call i32 @Parser.kind(ptr %t35)
-  %t37 = icmp ne i32 %t36, 56
-  store i1 %t37, ptr %t34
-  br i1 %t37, label %L3, label %L4
+  %t17 = load ptr, ptr %t0
+  %t18 = getelementptr inbounds %Parser, ptr %t17, i32 0, i32 1
+  %t19 = load ptr, ptr %t18
+  %t20 = getelementptr inbounds %Ast, ptr %t19, i32 0, i32 0
+  %t21 = load ptr, ptr %t20
+  %t22 = load i32, ptr %t15
+  %t23 = sext i32 %t22 to i64
+  %t24 = getelementptr inbounds %Node, ptr %t21, i64 %t23
+  %t25 = getelementptr inbounds %Node, ptr %t24, i32 0, i32 8
+  store i32 1, ptr %t25
+  br label %L2
+L2:
+  %t26 = load ptr, ptr %t0
+  %t27 = call ptr @Parser.expect(ptr %t26, i32 26, ptr @.str.1287)
+  %t28 = load ptr, ptr %t0
+  %t29 = call ptr @Parser.expect(ptr %t28, i32 53, ptr @.str.1288)
+  %t30 = load ptr, ptr %t0
+  %t31 = call i32 @parseExpr(ptr %t30)
+  %t32 = load ptr, ptr %t0
+  %t33 = getelementptr inbounds %Parser, ptr %t32, i32 0, i32 1
+  %t34 = load ptr, ptr %t33
+  %t35 = getelementptr inbounds %Ast, ptr %t34, i32 0, i32 0
+  %t36 = load ptr, ptr %t35
+  %t37 = load i32, ptr %t15
+  %t38 = sext i32 %t37 to i64
+  %t39 = getelementptr inbounds %Node, ptr %t36, i64 %t38
+  %t40 = getelementptr inbounds %Node, ptr %t39, i32 0, i32 5
+  store i32 %t31, ptr %t40
+  %t41 = load ptr, ptr %t0
+  %t42 = call ptr @Parser.expect(ptr %t41, i32 54, ptr @.str.1289)
+  %t43 = load ptr, ptr %t0
+  %t44 = call ptr @Parser.expect(ptr %t43, i32 55, ptr @.str.1290)
+  br label %L3
 L3:
-  %t38 = load ptr, ptr %t0
-  %t39 = call i32 @Parser.kind(ptr %t38)
-  %t40 = icmp ne i32 %t39, 1
-  store i1 %t40, ptr %t34
-  br label %L4
-L4:
-  %t41 = load i1, ptr %t34
-  br i1 %t41, label %L1, label %L2
-L1:
-  %t42 = load ptr, ptr %t0
-  %t43 = call ptr @Parser.current(ptr %t42)
-  store ptr %t43, ptr %t44
-  %t45 = load ptr, ptr %t0
-  %t46 = getelementptr inbounds %Parser, ptr %t45, i32 0, i32 1
-  %t47 = load ptr, ptr %t46
-  %t48 = load ptr, ptr %t44
-  %t49 = getelementptr inbounds %Token, ptr %t48, i32 0, i32 3
-  %t50 = load i32, ptr %t49
-  %t51 = load ptr, ptr %t44
-  %t52 = getelementptr inbounds %Token, ptr %t51, i32 0, i32 4
-  %t53 = load i32, ptr %t52
-  %t54 = call i32 @Ast.add(ptr %t47, i32 40, i32 %t50, i32 %t53)
-  store i32 %t54, ptr %t55
-  %t56 = load ptr, ptr %t0
-  %t57 = call i32 @Parser.kind(ptr %t56)
-  %t58 = icmp eq i32 %t57, 10
-  br i1 %t58, label %L5, label %L6
-L5:
-  %t59 = load ptr, ptr %t0
-  call void @Parser.advance(ptr %t59)
-  %t60 = load ptr, ptr %t0
-  %t61 = getelementptr inbounds %Parser, ptr %t60, i32 0, i32 1
-  %t62 = load ptr, ptr %t61
-  %t63 = getelementptr inbounds %Ast, ptr %t62, i32 0, i32 0
-  %t64 = load ptr, ptr %t63
-  %t65 = load i32, ptr %t55
-  %t66 = sext i32 %t65 to i64
-  %t67 = getelementptr inbounds %Node, ptr %t64, i64 %t66
-  %t68 = getelementptr inbounds %Node, ptr %t67, i32 0, i32 8
-  store i32 1, ptr %t68
-  br label %L7
+  %t46 = load ptr, ptr %t0
+  %t47 = call i32 @Parser.kind(ptr %t46)
+  %t48 = icmp ne i32 %t47, 56
+  store i1 %t48, ptr %t45
+  br i1 %t48, label %L6, label %L7
 L6:
-  br label %L8
-L8:
-  br i1 true, label %L9, label %L10
-L9:
-  %t70 = load ptr, ptr %t0
-  %t71 = call i32 @Parser.kind(ptr %t70)
-  %t72 = icmp eq i32 %t71, 7
-  store i1 %t72, ptr %t69
-  br i1 %t72, label %L12, label %L11
-L11:
-  %t73 = load ptr, ptr %t0
-  %t74 = call i32 @Parser.kind(ptr %t73)
-  %t75 = icmp eq i32 %t74, 31
-  store i1 %t75, ptr %t69
-  br label %L12
-L12:
-  %t76 = load i1, ptr %t69
-  br i1 %t76, label %L13, label %L14
-L13:
-  %t77 = load ptr, ptr %t0
-  %t78 = getelementptr inbounds %Parser, ptr %t77, i32 0, i32 1
-  %t79 = load ptr, ptr %t78
-  %t80 = load i32, ptr %t55
-  %t81 = load ptr, ptr %t0
-  %t82 = call i32 @parseType(ptr %t81)
-  call void @Ast.addItem(ptr %t79, i32 %t80, i32 %t82)
-  br label %L15
-L14:
-  %t83 = load ptr, ptr %t0
-  %t84 = getelementptr inbounds %Parser, ptr %t83, i32 0, i32 1
-  %t85 = load ptr, ptr %t84
-  %t86 = load i32, ptr %t55
-  %t87 = load ptr, ptr %t0
-  %t88 = call i32 @parseExpr(ptr %t87)
-  call void @Ast.addItem(ptr %t85, i32 %t86, i32 %t88)
-  br label %L15
-L15:
-  %t89 = load ptr, ptr %t0
-  %t90 = call i32 @Parser.kind(ptr %t89)
-  %t91 = icmp ne i32 %t90, 61
-  br i1 %t91, label %L16, label %L18
-L16:
-  br label %L10
-L19:
-  br label %L18
-L18:
-  %t92 = load ptr, ptr %t0
-  call void @Parser.advance(ptr %t92)
-  br label %L8
-L10:
+  %t49 = load ptr, ptr %t0
+  %t50 = call i32 @Parser.kind(ptr %t49)
+  %t51 = icmp ne i32 %t50, 1
+  store i1 %t51, ptr %t45
   br label %L7
 L7:
-  %t93 = load ptr, ptr %t0
-  %t94 = call ptr @Parser.expect(ptr %t93, i32 63, ptr @.str.1281)
-  %t95 = load ptr, ptr %t0
-  %t96 = call i32 @parseBlock(ptr %t95)
-  %t97 = load ptr, ptr %t0
-  %t98 = getelementptr inbounds %Parser, ptr %t97, i32 0, i32 1
-  %t99 = load ptr, ptr %t98
-  %t100 = getelementptr inbounds %Ast, ptr %t99, i32 0, i32 0
-  %t101 = load ptr, ptr %t100
-  %t102 = load i32, ptr %t55
-  %t103 = sext i32 %t102 to i64
-  %t104 = getelementptr inbounds %Node, ptr %t101, i64 %t103
-  %t105 = getelementptr inbounds %Node, ptr %t104, i32 0, i32 5
-  store i32 %t96, ptr %t105
-  %t106 = load ptr, ptr %t0
-  %t107 = getelementptr inbounds %Parser, ptr %t106, i32 0, i32 1
-  %t108 = load ptr, ptr %t107
-  %t109 = load i32, ptr %t14
-  %t110 = load i32, ptr %t55
-  call void @Ast.addItem(ptr %t108, i32 %t109, i32 %t110)
-  %t111 = load i1, ptr @FAILED
-  br i1 %t111, label %L20, label %L22
-L20:
-  br label %L2
-L23:
-  br label %L22
+  %t52 = load i1, ptr %t45
+  br i1 %t52, label %L4, label %L5
+L4:
+  %t53 = load ptr, ptr %t0
+  %t54 = call ptr @Parser.current(ptr %t53)
+  store ptr %t54, ptr %t55
+  %t56 = load ptr, ptr %t0
+  %t57 = getelementptr inbounds %Parser, ptr %t56, i32 0, i32 1
+  %t58 = load ptr, ptr %t57
+  %t59 = load ptr, ptr %t55
+  %t60 = getelementptr inbounds %Token, ptr %t59, i32 0, i32 3
+  %t61 = load i32, ptr %t60
+  %t62 = load ptr, ptr %t55
+  %t63 = getelementptr inbounds %Token, ptr %t62, i32 0, i32 4
+  %t64 = load i32, ptr %t63
+  %t65 = call i32 @Ast.add(ptr %t58, i32 40, i32 %t61, i32 %t64)
+  store i32 %t65, ptr %t66
+  %t67 = load ptr, ptr %t0
+  %t68 = call i32 @Parser.kind(ptr %t67)
+  %t69 = icmp eq i32 %t68, 10
+  br i1 %t69, label %L8, label %L9
+L8:
+  %t70 = load ptr, ptr %t0
+  call void @Parser.advance(ptr %t70)
+  %t71 = load ptr, ptr %t0
+  %t72 = getelementptr inbounds %Parser, ptr %t71, i32 0, i32 1
+  %t73 = load ptr, ptr %t72
+  %t74 = getelementptr inbounds %Ast, ptr %t73, i32 0, i32 0
+  %t75 = load ptr, ptr %t74
+  %t76 = load i32, ptr %t66
+  %t77 = sext i32 %t76 to i64
+  %t78 = getelementptr inbounds %Node, ptr %t75, i64 %t77
+  %t79 = getelementptr inbounds %Node, ptr %t78, i32 0, i32 8
+  store i32 1, ptr %t79
+  br label %L10
+L9:
+  %t80 = load ptr, ptr %t0
+  %t81 = getelementptr inbounds %Parser, ptr %t80, i32 0, i32 4
+  store i1 true, ptr %t81
+  br label %L11
+L11:
+  br i1 true, label %L12, label %L13
+L12:
+  %t83 = load ptr, ptr %t0
+  %t84 = call i32 @Parser.kind(ptr %t83)
+  %t85 = icmp eq i32 %t84, 7
+  store i1 %t85, ptr %t82
+  br i1 %t85, label %L15, label %L14
+L14:
+  %t86 = load ptr, ptr %t0
+  %t87 = call i32 @Parser.kind(ptr %t86)
+  %t88 = icmp eq i32 %t87, 31
+  store i1 %t88, ptr %t82
+  br label %L15
+L15:
+  %t89 = load i1, ptr %t82
+  br i1 %t89, label %L16, label %L17
+L16:
+  %t90 = load ptr, ptr %t0
+  %t91 = getelementptr inbounds %Parser, ptr %t90, i32 0, i32 1
+  %t92 = load ptr, ptr %t91
+  %t93 = load i32, ptr %t66
+  %t94 = load ptr, ptr %t0
+  %t95 = call i32 @parseType(ptr %t94)
+  call void @Ast.addItem(ptr %t92, i32 %t93, i32 %t95)
+  br label %L18
+L17:
+  %t96 = load ptr, ptr %t0
+  %t97 = getelementptr inbounds %Parser, ptr %t96, i32 0, i32 1
+  %t98 = load ptr, ptr %t97
+  %t99 = load i32, ptr %t66
+  %t100 = load ptr, ptr %t0
+  %t101 = call i32 @parseExpr(ptr %t100)
+  call void @Ast.addItem(ptr %t98, i32 %t99, i32 %t101)
+  br label %L18
+L18:
+  %t102 = load ptr, ptr %t0
+  %t103 = call i32 @Parser.kind(ptr %t102)
+  %t104 = icmp ne i32 %t103, 61
+  br i1 %t104, label %L19, label %L21
+L19:
+  br label %L13
 L22:
-  br label %L0
-L2:
-  %t112 = load ptr, ptr %t0
-  %t113 = call ptr @Parser.expect(ptr %t112, i32 56, ptr @.str.1282)
-  %t114 = load i32, ptr %t14
-  ret i32 %t114
+  br label %L21
+L21:
+  %t105 = load ptr, ptr %t0
+  call void @Parser.advance(ptr %t105)
+  br label %L11
+L13:
+  %t106 = load ptr, ptr %t0
+  %t107 = getelementptr inbounds %Parser, ptr %t106, i32 0, i32 4
+  store i1 false, ptr %t107
+  br label %L10
+L10:
+  %t108 = load ptr, ptr %t0
+  %t109 = call ptr @Parser.expect(ptr %t108, i32 63, ptr @.str.1291)
+  %t110 = load ptr, ptr %t0
+  %t111 = call i32 @Parser.kind(ptr %t110)
+  %t112 = icmp eq i32 %t111, 55
+  br i1 %t112, label %L23, label %L24
+L23:
+  %t113 = load ptr, ptr %t0
+  %t114 = call i32 @parseBlock(ptr %t113)
+  %t115 = load ptr, ptr %t0
+  %t116 = getelementptr inbounds %Parser, ptr %t115, i32 0, i32 1
+  %t117 = load ptr, ptr %t116
+  %t118 = getelementptr inbounds %Ast, ptr %t117, i32 0, i32 0
+  %t119 = load ptr, ptr %t118
+  %t120 = load i32, ptr %t66
+  %t121 = sext i32 %t120 to i64
+  %t122 = getelementptr inbounds %Node, ptr %t119, i64 %t121
+  %t123 = getelementptr inbounds %Node, ptr %t122, i32 0, i32 5
+  store i32 %t114, ptr %t123
+  br label %L25
+L24:
+  %t124 = load ptr, ptr %t0
+  %t125 = call ptr @Parser.current(ptr %t124)
+  store ptr %t125, ptr %t126
+  %t127 = load ptr, ptr %t0
+  %t128 = call i32 @parseExpr(ptr %t127)
+  store i32 %t128, ptr %t129
+  %t130 = load i1, ptr %t1
+  %t131 = xor i1 %t130, true
+  br i1 %t131, label %L26, label %L28
+L26:
+  %t132 = load ptr, ptr %t0
+  %t133 = getelementptr inbounds %Parser, ptr %t132, i32 0, i32 1
+  %t134 = load ptr, ptr %t133
+  %t135 = load ptr, ptr %t126
+  %t136 = getelementptr inbounds %Token, ptr %t135, i32 0, i32 3
+  %t137 = load i32, ptr %t136
+  %t138 = load ptr, ptr %t126
+  %t139 = getelementptr inbounds %Token, ptr %t138, i32 0, i32 4
+  %t140 = load i32, ptr %t139
+  %t141 = call i32 @Ast.add(ptr %t134, i32 14, i32 %t137, i32 %t140)
+  store i32 %t141, ptr %t142
+  %t143 = load i32, ptr %t129
+  %t144 = load ptr, ptr %t0
+  %t145 = getelementptr inbounds %Parser, ptr %t144, i32 0, i32 1
+  %t146 = load ptr, ptr %t145
+  %t147 = getelementptr inbounds %Ast, ptr %t146, i32 0, i32 0
+  %t148 = load ptr, ptr %t147
+  %t149 = load i32, ptr %t142
+  %t150 = sext i32 %t149 to i64
+  %t151 = getelementptr inbounds %Node, ptr %t148, i64 %t150
+  %t152 = getelementptr inbounds %Node, ptr %t151, i32 0, i32 5
+  store i32 %t143, ptr %t152
+  %t153 = load i32, ptr %t142
+  store i32 %t153, ptr %t129
+  br label %L28
+L28:
+  %t154 = load i32, ptr %t129
+  %t155 = load ptr, ptr %t0
+  %t156 = getelementptr inbounds %Parser, ptr %t155, i32 0, i32 1
+  %t157 = load ptr, ptr %t156
+  %t158 = getelementptr inbounds %Ast, ptr %t157, i32 0, i32 0
+  %t159 = load ptr, ptr %t158
+  %t160 = load i32, ptr %t66
+  %t161 = sext i32 %t160 to i64
+  %t162 = getelementptr inbounds %Node, ptr %t159, i64 %t161
+  %t163 = getelementptr inbounds %Node, ptr %t162, i32 0, i32 5
+  store i32 %t154, ptr %t163
+  %t164 = load ptr, ptr %t0
+  %t165 = call i32 @Parser.kind(ptr %t164)
+  %t166 = icmp ne i32 %t165, 56
+  br i1 %t166, label %L29, label %L31
+L29:
+  %t167 = load ptr, ptr %t0
+  %t168 = call ptr @Parser.expect(ptr %t167, i32 61, ptr @.str.1292)
+  br label %L31
+L31:
+  br label %L25
+L25:
+  %t169 = load ptr, ptr %t0
+  %t170 = call i32 @Parser.kind(ptr %t169)
+  %t171 = icmp eq i32 %t170, 61
+  br i1 %t171, label %L32, label %L34
+L32:
+  %t172 = load ptr, ptr %t0
+  call void @Parser.advance(ptr %t172)
+  br label %L34
+L34:
+  %t173 = load ptr, ptr %t0
+  %t174 = getelementptr inbounds %Parser, ptr %t173, i32 0, i32 1
+  %t175 = load ptr, ptr %t174
+  %t176 = load i32, ptr %t15
+  %t177 = load i32, ptr %t66
+  call void @Ast.addItem(ptr %t175, i32 %t176, i32 %t177)
+  %t178 = load i1, ptr @FAILED
+  br i1 %t178, label %L35, label %L37
+L35:
+  br label %L5
+L38:
+  br label %L37
+L37:
+  br label %L3
+L5:
+  %t179 = load ptr, ptr %t0
+  %t180 = call ptr @Parser.expect(ptr %t179, i32 56, ptr @.str.1293)
+  %t181 = load i32, ptr %t15
+  ret i32 %t181
 }
 
 define void @parseModuleInto(ptr %p0, i32 %p1) {
@@ -49627,7 +50416,7 @@ L0:
   %t11 = load ptr, ptr %t3
   %t12 = getelementptr inbounds %Token, ptr %t11, i32 0, i32 1
   %t13 = load ptr, ptr %t12
-  %t14 = call i1 @equals(ptr %t13, ptr @.str.1283)
+  %t14 = call i1 @equals(ptr %t13, ptr @.str.1294)
   store i1 %t14, ptr %t6
   br label %L1
 L1:
@@ -49679,15 +50468,15 @@ entry:
   %t4 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t4)
   %t5 = load ptr, ptr %t0
-  %t6 = call ptr @Parser.expect(ptr %t5, i32 2, ptr @.str.1284)
+  %t6 = call ptr @Parser.expect(ptr %t5, i32 2, ptr @.str.1295)
   store ptr %t6, ptr %t7
   %t8 = load ptr, ptr %t0
-  %t9 = call ptr @Parser.expect(ptr %t8, i32 28, ptr @.str.1285)
+  %t9 = call ptr @Parser.expect(ptr %t8, i32 28, ptr @.str.1296)
   %t10 = load ptr, ptr %t0
   %t11 = call i32 @parseDeclaredType(ptr %t10)
   store i32 %t11, ptr %t12
   %t13 = load ptr, ptr %t0
-  %t14 = call ptr @Parser.expect(ptr %t13, i32 60, ptr @.str.1286)
+  %t14 = call ptr @Parser.expect(ptr %t13, i32 60, ptr @.str.1297)
   %t15 = load ptr, ptr %t0
   %t16 = getelementptr inbounds %Parser, ptr %t15, i32 0, i32 1
   %t17 = load ptr, ptr %t16
@@ -49886,141 +50675,141 @@ entry:
   %t1 = load i32, ptr %t0
   switch i32 %t1, label %L67 [ i32 1, label %L1 i32 2, label %L2 i32 3, label %L3 i32 4, label %L4 i32 5, label %L5 i32 6, label %L6 i32 7, label %L7 i32 8, label %L8 i32 9, label %L9 i32 10, label %L10 i32 11, label %L11 i32 12, label %L12 i32 13, label %L13 i32 14, label %L14 i32 15, label %L15 i32 16, label %L16 i32 17, label %L17 i32 18, label %L18 i32 19, label %L19 i32 20, label %L20 i32 21, label %L21 i32 22, label %L22 i32 23, label %L23 i32 24, label %L24 i32 25, label %L25 i32 26, label %L26 i32 27, label %L27 i32 28, label %L28 i32 29, label %L29 i32 30, label %L30 i32 31, label %L31 i32 32, label %L32 i32 33, label %L33 i32 34, label %L34 i32 35, label %L35 i32 36, label %L36 i32 37, label %L37 i32 38, label %L38 i32 39, label %L39 i32 40, label %L40 i32 41, label %L41 i32 42, label %L42 i32 43, label %L43 i32 44, label %L44 i32 45, label %L45 i32 46, label %L46 i32 47, label %L47 i32 48, label %L48 i32 49, label %L49 i32 50, label %L50 i32 51, label %L51 i32 52, label %L52 i32 53, label %L53 i32 54, label %L54 i32 55, label %L55 i32 56, label %L56 i32 57, label %L57 i32 58, label %L58 i32 59, label %L59 i32 60, label %L60 i32 61, label %L61 i32 62, label %L62 i32 63, label %L63 i32 64, label %L64 i32 65, label %L65 i32 66, label %L66 ]
 L1:
-  ret ptr @.str.1287
-L2:
-  ret ptr @.str.1288
-L3:
-  ret ptr @.str.1289
-L4:
-  ret ptr @.str.1290
-L5:
-  ret ptr @.str.1291
-L6:
-  ret ptr @.str.1292
-L7:
-  ret ptr @.str.1293
-L8:
-  ret ptr @.str.1294
-L9:
-  ret ptr @.str.1295
-L10:
-  ret ptr @.str.1296
-L11:
-  ret ptr @.str.1297
-L12:
   ret ptr @.str.1298
-L13:
+L2:
   ret ptr @.str.1299
-L14:
+L3:
   ret ptr @.str.1300
-L15:
+L4:
   ret ptr @.str.1301
-L16:
+L5:
   ret ptr @.str.1302
-L17:
+L6:
   ret ptr @.str.1303
-L18:
+L7:
   ret ptr @.str.1304
-L19:
+L8:
   ret ptr @.str.1305
-L20:
+L9:
   ret ptr @.str.1306
-L21:
+L10:
   ret ptr @.str.1307
-L22:
+L11:
   ret ptr @.str.1308
-L23:
+L12:
   ret ptr @.str.1309
-L24:
+L13:
   ret ptr @.str.1310
-L25:
+L14:
   ret ptr @.str.1311
-L26:
+L15:
   ret ptr @.str.1312
-L27:
+L16:
   ret ptr @.str.1313
-L28:
+L17:
   ret ptr @.str.1314
-L29:
+L18:
   ret ptr @.str.1315
-L30:
+L19:
   ret ptr @.str.1316
-L31:
+L20:
   ret ptr @.str.1317
-L32:
+L21:
   ret ptr @.str.1318
-L33:
+L22:
   ret ptr @.str.1319
-L34:
+L23:
   ret ptr @.str.1320
-L35:
+L24:
   ret ptr @.str.1321
-L36:
+L25:
   ret ptr @.str.1322
-L37:
+L26:
   ret ptr @.str.1323
-L38:
+L27:
   ret ptr @.str.1324
-L39:
+L28:
   ret ptr @.str.1325
-L40:
+L29:
   ret ptr @.str.1326
-L41:
+L30:
   ret ptr @.str.1327
-L42:
+L31:
   ret ptr @.str.1328
-L43:
+L32:
   ret ptr @.str.1329
-L44:
+L33:
   ret ptr @.str.1330
-L45:
+L34:
   ret ptr @.str.1331
-L46:
+L35:
   ret ptr @.str.1332
-L47:
+L36:
   ret ptr @.str.1333
-L48:
+L37:
   ret ptr @.str.1334
-L49:
+L38:
   ret ptr @.str.1335
-L50:
+L39:
   ret ptr @.str.1336
-L51:
+L40:
   ret ptr @.str.1337
-L52:
+L41:
   ret ptr @.str.1338
-L53:
+L42:
   ret ptr @.str.1339
-L54:
+L43:
   ret ptr @.str.1340
-L55:
+L44:
   ret ptr @.str.1341
-L56:
+L45:
   ret ptr @.str.1342
-L57:
+L46:
   ret ptr @.str.1343
-L58:
+L47:
   ret ptr @.str.1344
-L59:
+L48:
   ret ptr @.str.1345
-L60:
+L49:
   ret ptr @.str.1346
-L61:
+L50:
   ret ptr @.str.1347
-L62:
+L51:
   ret ptr @.str.1348
-L63:
+L52:
   ret ptr @.str.1349
-L64:
+L53:
   ret ptr @.str.1350
-L65:
+L54:
   ret ptr @.str.1351
-L66:
+L55:
   ret ptr @.str.1352
+L56:
+  ret ptr @.str.1353
+L57:
+  ret ptr @.str.1354
+L58:
+  ret ptr @.str.1355
+L59:
+  ret ptr @.str.1356
+L60:
+  ret ptr @.str.1357
+L61:
+  ret ptr @.str.1358
+L62:
+  ret ptr @.str.1359
+L63:
+  ret ptr @.str.1360
+L64:
+  ret ptr @.str.1361
+L65:
+  ret ptr @.str.1362
+L66:
+  ret ptr @.str.1363
 L67:
   br label %L0
 L0:
-  ret ptr @.str.1353
+  ret ptr @.str.1364
 }
 
 define i1 @isLValue(ptr %p0, i32 %p1) {
@@ -50112,9 +50901,9 @@ entry:
   %t1 = alloca i32
   %t2 = alloca %Type
   %t6 = alloca %Type
-  %t15 = alloca %Type
-  %t23 = alloca i1
-  %t24 = alloca i1
+  %t12 = alloca %Type
+  %t46 = alloca i1
+  %t47 = alloca i1
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   store %Type %p2, ptr %t2
@@ -50135,56 +50924,94 @@ L3:
   store %Type %t10, ptr %t6
   br label %L5
 L5:
-  %t11 = load ptr, ptr %t0
-  %t12 = load i32, ptr %t1
-  %t13 = load %Type, ptr %t6
-  %t14 = call %Type @inferExprType(ptr %t11, i32 %t12, %Type %t13)
-  store %Type %t14, ptr %t15
-  %t16 = load %Type, ptr %t15
-  %t17 = load ptr, ptr %t0
-  %t18 = getelementptr inbounds %Analyzer, ptr %t17, i32 0, i32 3
-  %t19 = load ptr, ptr %t18
-  %t20 = load i32, ptr %t1
-  %t21 = sext i32 %t20 to i64
-  %t22 = getelementptr inbounds %Type, ptr %t19, i64 %t21
-  store %Type %t16, ptr %t22
-  %t25 = load %Type, ptr %t2
-  %t26 = call i1 @Type.isUnion(%Type %t25)
-  store i1 %t26, ptr %t24
-  br i1 %t26, label %L6, label %L7
+  %t11 = call %Type @Type.make(i32 0, i32 0)
+  store %Type %t11, ptr %t12
+  %t13 = load ptr, ptr %t0
+  %t14 = load i32, ptr %t1
+  %t15 = call i1 @isShorthand(ptr %t13, i32 %t14)
+  br i1 %t15, label %L6, label %L7
 L6:
-  %t27 = load %Type, ptr %t15
-  %t28 = load %Type, ptr %t2
-  %t29 = call i1 @Type.equals(%Type %t27, %Type %t28)
-  %t30 = xor i1 %t29, true
-  store i1 %t30, ptr %t24
-  br label %L7
+  %t16 = load ptr, ptr %t0
+  %t17 = load i32, ptr %t1
+  %t18 = load %Type, ptr %t2
+  %t19 = call %Type @checkShorthand(ptr %t16, i32 %t17, %Type %t18)
+  store %Type %t19, ptr %t12
+  br label %L8
 L7:
-  %t31 = load i1, ptr %t24
-  store i1 %t31, ptr %t23
-  br i1 %t31, label %L8, label %L9
-L8:
-  %t32 = load %Type, ptr %t2
-  %t33 = load %Type, ptr %t15
-  %t34 = call i1 @Type.accepts(%Type %t32, %Type %t33)
-  store i1 %t34, ptr %t23
-  br label %L9
+  %t20 = load ptr, ptr %t0
+  %t21 = getelementptr inbounds %Analyzer, ptr %t20, i32 0, i32 0
+  %t22 = load ptr, ptr %t21
+  %t23 = getelementptr inbounds %Ast, ptr %t22, i32 0, i32 0
+  %t24 = load ptr, ptr %t23
+  %t25 = load i32, ptr %t1
+  %t26 = sext i32 %t25 to i64
+  %t27 = getelementptr inbounds %Node, ptr %t24, i64 %t26
+  %t28 = getelementptr inbounds %Node, ptr %t27, i32 0, i32 0
+  %t29 = load i32, ptr %t28
+  %t30 = icmp eq i32 %t29, 39
+  br i1 %t30, label %L9, label %L10
 L9:
-  %t35 = load i1, ptr %t23
-  br i1 %t35, label %L10, label %L12
+  %t31 = load ptr, ptr %t0
+  %t32 = load i32, ptr %t1
+  %t33 = load %Type, ptr %t2
+  %t34 = call %Type @checkMatchValue(ptr %t31, i32 %t32, %Type %t33)
+  store %Type %t34, ptr %t12
+  br label %L11
 L10:
-  %t36 = load %Type, ptr %t2
-  %t37 = load ptr, ptr %t0
-  %t38 = getelementptr inbounds %Analyzer, ptr %t37, i32 0, i32 20
-  %t39 = load ptr, ptr %t38
-  %t40 = load i32, ptr %t1
-  %t41 = sext i32 %t40 to i64
-  %t42 = getelementptr inbounds %Type, ptr %t39, i64 %t41
-  store %Type %t36, ptr %t42
-  br label %L12
+  %t35 = load ptr, ptr %t0
+  %t36 = load i32, ptr %t1
+  %t37 = load %Type, ptr %t6
+  %t38 = call %Type @inferExprType(ptr %t35, i32 %t36, %Type %t37)
+  store %Type %t38, ptr %t12
+  br label %L11
+L11:
+  br label %L8
+L8:
+  %t39 = load %Type, ptr %t12
+  %t40 = load ptr, ptr %t0
+  %t41 = getelementptr inbounds %Analyzer, ptr %t40, i32 0, i32 3
+  %t42 = load ptr, ptr %t41
+  %t43 = load i32, ptr %t1
+  %t44 = sext i32 %t43 to i64
+  %t45 = getelementptr inbounds %Type, ptr %t42, i64 %t44
+  store %Type %t39, ptr %t45
+  %t48 = load %Type, ptr %t2
+  %t49 = call i1 @Type.isUnion(%Type %t48)
+  store i1 %t49, ptr %t47
+  br i1 %t49, label %L12, label %L13
 L12:
-  %t43 = load %Type, ptr %t15
-  ret %Type %t43
+  %t50 = load %Type, ptr %t12
+  %t51 = load %Type, ptr %t2
+  %t52 = call i1 @Type.equals(%Type %t50, %Type %t51)
+  %t53 = xor i1 %t52, true
+  store i1 %t53, ptr %t47
+  br label %L13
+L13:
+  %t54 = load i1, ptr %t47
+  store i1 %t54, ptr %t46
+  br i1 %t54, label %L14, label %L15
+L14:
+  %t55 = load %Type, ptr %t2
+  %t56 = load %Type, ptr %t12
+  %t57 = call i1 @Type.accepts(%Type %t55, %Type %t56)
+  store i1 %t57, ptr %t46
+  br label %L15
+L15:
+  %t58 = load i1, ptr %t46
+  br i1 %t58, label %L16, label %L18
+L16:
+  %t59 = load %Type, ptr %t2
+  %t60 = load ptr, ptr %t0
+  %t61 = getelementptr inbounds %Analyzer, ptr %t60, i32 0, i32 20
+  %t62 = load ptr, ptr %t61
+  %t63 = load i32, ptr %t1
+  %t64 = sext i32 %t63 to i64
+  %t65 = getelementptr inbounds %Type, ptr %t62, i64 %t64
+  store %Type %t59, ptr %t65
+  br label %L18
+L18:
+  %t66 = load %Type, ptr %t12
+  ret %Type %t66
 }
 
 define %Type @literalHint(%Type %p0) {
@@ -50446,7 +51273,7 @@ L35:
   %t98 = load ptr, ptr %t0
   %t99 = load i32, ptr %t1
   %t100 = load %Type, ptr %t97
-  call void @analyzerValidateType(ptr %t98, i32 %t99, %Type %t100, ptr @.str.1354)
+  call void @analyzerValidateType(ptr %t98, i32 %t99, %Type %t100, ptr @.str.1365)
   %t101 = load %Type, ptr %t97
   %t102 = call i1 @Type.isVoid(%Type %t101)
   br i1 %t102, label %L38, label %L40
@@ -50509,7 +51336,7 @@ L50:
   %t140 = load i32, ptr %t1
   %t141 = load ptr, ptr %t122
   %t142 = call %Facts @Facts.about(ptr %t141)
-  call void @analyzerFail(ptr %t139, i32 %t140, i32 147, %Facts %t142)
+  call void @analyzerFail(ptr %t139, i32 %t140, i32 150, %Facts %t142)
   %t143 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t143
 L52:
@@ -50563,8 +51390,8 @@ L55:
 L46:
   %t185 = load ptr, ptr %t0
   %t186 = load i32, ptr %t1
-  %t187 = call %Facts @Facts.about(ptr @.str.1355)
-  call void @analyzerFail(ptr %t185, i32 %t186, i32 161, %Facts %t187)
+  %t187 = call %Facts @Facts.about(ptr @.str.1366)
+  call void @analyzerFail(ptr %t185, i32 %t186, i32 164, %Facts %t187)
   %t188 = call %Type @Type.make(i32 12, i32 0)
   ret %Type %t188
 }
@@ -50591,11 +51418,12 @@ entry:
   %t12 = alloca i32
   %t13 = alloca i1
   %t14 = alloca i1
-  %t33 = alloca { i32, [2 x i64] }
-  %t39 = alloca i1
-  %t40 = alloca i1
-  %t56 = alloca i1
-  %t57 = alloca i1
+  %t15 = alloca i1
+  %t38 = alloca { i32, [2 x i64] }
+  %t44 = alloca i1
+  %t45 = alloca i1
+  %t61 = alloca i1
+  %t62 = alloca i1
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   %t2 = load ptr, ptr %t0
@@ -50609,115 +51437,125 @@ entry:
   %t10 = getelementptr inbounds %Node, ptr %t9, i32 0, i32 0
   %t11 = load i32, ptr %t10
   store i32 %t11, ptr %t12
-  %t15 = load i32, ptr %t12
-  %t16 = icmp eq i32 %t15, 23
-  store i1 %t16, ptr %t14
-  br i1 %t16, label %L1, label %L0
+  %t16 = load i32, ptr %t12
+  %t17 = icmp eq i32 %t16, 23
+  store i1 %t17, ptr %t15
+  br i1 %t17, label %L1, label %L0
 L0:
-  %t17 = load i32, ptr %t12
-  %t18 = icmp eq i32 %t17, 22
-  store i1 %t18, ptr %t14
+  %t18 = load i32, ptr %t12
+  %t19 = icmp eq i32 %t18, 22
+  store i1 %t19, ptr %t15
   br label %L1
 L1:
-  %t19 = load i1, ptr %t14
-  store i1 %t19, ptr %t13
-  br i1 %t19, label %L3, label %L2
+  %t20 = load i1, ptr %t15
+  store i1 %t20, ptr %t14
+  br i1 %t20, label %L3, label %L2
 L2:
-  %t20 = load i32, ptr %t12
-  %t21 = icmp eq i32 %t20, 25
-  store i1 %t21, ptr %t13
+  %t21 = load i32, ptr %t12
+  %t22 = icmp eq i32 %t21, 25
+  store i1 %t22, ptr %t14
   br label %L3
 L3:
-  %t22 = load i1, ptr %t13
-  br i1 %t22, label %L4, label %L6
+  %t23 = load i1, ptr %t14
+  store i1 %t23, ptr %t13
+  br i1 %t23, label %L5, label %L4
 L4:
-  ret i1 true
+  %t24 = load ptr, ptr %t0
+  %t25 = load i32, ptr %t1
+  %t26 = call i1 @isShorthand(ptr %t24, i32 %t25)
+  store i1 %t26, ptr %t13
+  br label %L5
+L5:
+  %t27 = load i1, ptr %t13
+  br i1 %t27, label %L6, label %L8
 L6:
-  %t23 = load ptr, ptr %t0
-  %t24 = getelementptr inbounds %Analyzer, ptr %t23, i32 0, i32 0
-  %t25 = load ptr, ptr %t24
-  %t26 = getelementptr inbounds %Ast, ptr %t25, i32 0, i32 0
-  %t27 = load ptr, ptr %t26
-  %t28 = load i32, ptr %t1
-  %t29 = sext i32 %t28 to i64
-  %t30 = getelementptr inbounds %Node, ptr %t27, i64 %t29
-  %t31 = getelementptr inbounds %Node, ptr %t30, i32 0, i32 14
-  %t32 = load { i32, [2 x i64] }, ptr %t31
-  store { i32, [2 x i64] } %t32, ptr %t33
-  %t34 = load { i32, [2 x i64] }, ptr %t33
-  %t35 = extractvalue { i32, [2 x i64] } %t34, 0
-  %t36 = icmp eq i32 %t35, -2
-  br i1 %t36, label %L8, label %L11
-L11:
-  %t37 = icmp eq i32 %t35, -1
-  br i1 %t37, label %L9, label %L12
-L12:
-  %t38 = icmp eq i32 %t35, -3
-  br i1 %t38, label %L10, label %L13
-L13:
-  unreachable
+  ret i1 true
 L8:
-  %t41 = getelementptr inbounds { i32, [2 x i64] }, ptr %t33, i32 0, i32 1
-  %t42 = getelementptr inbounds %Unary, ptr %t41, i32 0, i32 0
-  %t43 = load i32, ptr %t42
-  %t44 = icmp eq i32 %t43, 0
-  store i1 %t44, ptr %t40
-  br i1 %t44, label %L15, label %L14
+  %t28 = load ptr, ptr %t0
+  %t29 = getelementptr inbounds %Analyzer, ptr %t28, i32 0, i32 0
+  %t30 = load ptr, ptr %t29
+  %t31 = getelementptr inbounds %Ast, ptr %t30, i32 0, i32 0
+  %t32 = load ptr, ptr %t31
+  %t33 = load i32, ptr %t1
+  %t34 = sext i32 %t33 to i64
+  %t35 = getelementptr inbounds %Node, ptr %t32, i64 %t34
+  %t36 = getelementptr inbounds %Node, ptr %t35, i32 0, i32 14
+  %t37 = load { i32, [2 x i64] }, ptr %t36
+  store { i32, [2 x i64] } %t37, ptr %t38
+  %t39 = load { i32, [2 x i64] }, ptr %t38
+  %t40 = extractvalue { i32, [2 x i64] } %t39, 0
+  %t41 = icmp eq i32 %t40, -2
+  br i1 %t41, label %L10, label %L13
+L13:
+  %t42 = icmp eq i32 %t40, -1
+  br i1 %t42, label %L11, label %L14
 L14:
-  %t45 = getelementptr inbounds { i32, [2 x i64] }, ptr %t33, i32 0, i32 1
-  %t46 = getelementptr inbounds %Unary, ptr %t45, i32 0, i32 0
-  %t47 = load i32, ptr %t46
-  %t48 = icmp eq i32 %t47, 1
-  store i1 %t48, ptr %t40
-  br label %L15
+  %t43 = icmp eq i32 %t40, -3
+  br i1 %t43, label %L12, label %L15
 L15:
-  %t49 = load i1, ptr %t40
-  store i1 %t49, ptr %t39
-  br i1 %t49, label %L16, label %L17
+  unreachable
+L10:
+  %t46 = getelementptr inbounds { i32, [2 x i64] }, ptr %t38, i32 0, i32 1
+  %t47 = getelementptr inbounds %Unary, ptr %t46, i32 0, i32 0
+  %t48 = load i32, ptr %t47
+  %t49 = icmp eq i32 %t48, 0
+  store i1 %t49, ptr %t45
+  br i1 %t49, label %L17, label %L16
 L16:
-  %t50 = load ptr, ptr %t0
-  %t51 = getelementptr inbounds { i32, [2 x i64] }, ptr %t33, i32 0, i32 1
-  %t52 = getelementptr inbounds %Unary, ptr %t51, i32 0, i32 1
-  %t53 = load i32, ptr %t52
-  %t54 = call i1 @isLiteralTree(ptr %t50, i32 %t53)
-  store i1 %t54, ptr %t39
+  %t50 = getelementptr inbounds { i32, [2 x i64] }, ptr %t38, i32 0, i32 1
+  %t51 = getelementptr inbounds %Unary, ptr %t50, i32 0, i32 0
+  %t52 = load i32, ptr %t51
+  %t53 = icmp eq i32 %t52, 1
+  store i1 %t53, ptr %t45
   br label %L17
 L17:
-  %t55 = load i1, ptr %t39
-  ret i1 %t55
-L9:
-  %t58 = getelementptr inbounds { i32, [2 x i64] }, ptr %t33, i32 0, i32 1
-  %t59 = getelementptr inbounds %Binary, ptr %t58, i32 0, i32 0
-  %t60 = load i32, ptr %t59
-  %t61 = call i1 @isArithmetic(i32 %t60)
-  store i1 %t61, ptr %t57
-  br i1 %t61, label %L18, label %L19
+  %t54 = load i1, ptr %t45
+  store i1 %t54, ptr %t44
+  br i1 %t54, label %L18, label %L19
 L18:
-  %t62 = load ptr, ptr %t0
-  %t63 = getelementptr inbounds { i32, [2 x i64] }, ptr %t33, i32 0, i32 1
-  %t64 = getelementptr inbounds %Binary, ptr %t63, i32 0, i32 1
-  %t65 = load i32, ptr %t64
-  %t66 = call i1 @isLiteralTree(ptr %t62, i32 %t65)
-  store i1 %t66, ptr %t57
+  %t55 = load ptr, ptr %t0
+  %t56 = getelementptr inbounds { i32, [2 x i64] }, ptr %t38, i32 0, i32 1
+  %t57 = getelementptr inbounds %Unary, ptr %t56, i32 0, i32 1
+  %t58 = load i32, ptr %t57
+  %t59 = call i1 @isLiteralTree(ptr %t55, i32 %t58)
+  store i1 %t59, ptr %t44
   br label %L19
 L19:
-  %t67 = load i1, ptr %t57
-  store i1 %t67, ptr %t56
-  br i1 %t67, label %L20, label %L21
+  %t60 = load i1, ptr %t44
+  ret i1 %t60
+L11:
+  %t63 = getelementptr inbounds { i32, [2 x i64] }, ptr %t38, i32 0, i32 1
+  %t64 = getelementptr inbounds %Binary, ptr %t63, i32 0, i32 0
+  %t65 = load i32, ptr %t64
+  %t66 = call i1 @isArithmetic(i32 %t65)
+  store i1 %t66, ptr %t62
+  br i1 %t66, label %L20, label %L21
 L20:
-  %t68 = load ptr, ptr %t0
-  %t69 = getelementptr inbounds { i32, [2 x i64] }, ptr %t33, i32 0, i32 1
-  %t70 = getelementptr inbounds %Binary, ptr %t69, i32 0, i32 2
-  %t71 = load i32, ptr %t70
-  %t72 = call i1 @isLiteralTree(ptr %t68, i32 %t71)
-  store i1 %t72, ptr %t56
+  %t67 = load ptr, ptr %t0
+  %t68 = getelementptr inbounds { i32, [2 x i64] }, ptr %t38, i32 0, i32 1
+  %t69 = getelementptr inbounds %Binary, ptr %t68, i32 0, i32 1
+  %t70 = load i32, ptr %t69
+  %t71 = call i1 @isLiteralTree(ptr %t67, i32 %t70)
+  store i1 %t71, ptr %t62
   br label %L21
 L21:
-  %t73 = load i1, ptr %t56
-  ret i1 %t73
-L10:
+  %t72 = load i1, ptr %t62
+  store i1 %t72, ptr %t61
+  br i1 %t72, label %L22, label %L23
+L22:
+  %t73 = load ptr, ptr %t0
+  %t74 = getelementptr inbounds { i32, [2 x i64] }, ptr %t38, i32 0, i32 1
+  %t75 = getelementptr inbounds %Binary, ptr %t74, i32 0, i32 2
+  %t76 = load i32, ptr %t75
+  %t77 = call i1 @isLiteralTree(ptr %t73, i32 %t76)
+  store i1 %t77, ptr %t61
+  br label %L23
+L23:
+  %t78 = load i1, ptr %t61
+  ret i1 %t78
+L12:
   ret i1 false
-L7:
+L9:
   ret i1 false
 }
 
@@ -51424,8 +52262,8 @@ L2:
 L3:
   %t35 = load ptr, ptr %t0
   %t36 = load i32, ptr %t1
-  %t37 = call %Facts @Facts.about(ptr @.str.1356)
-  call void @analyzerFail(ptr %t35, i32 %t36, i32 161, %Facts %t37)
+  %t37 = call %Facts @Facts.about(ptr @.str.1367)
+  call void @analyzerFail(ptr %t35, i32 %t36, i32 164, %Facts %t37)
   %t38 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t38
 L0:
@@ -51995,7 +52833,7 @@ L7:
   %t17 = load i32, ptr %t1
   %t18 = load %Type, ptr %t11
   %t19 = call %Facts @Facts.aboutType(%Type %t18)
-  call void @analyzerFail(ptr %t16, i32 %t17, i32 152, %Facts %t19)
+  call void @analyzerFail(ptr %t16, i32 %t17, i32 155, %Facts %t19)
   %t20 = call %Type @Type.make(i32 11, i32 0)
   ret %Type %t20
 L4:
@@ -52185,17 +53023,27 @@ define %Type @operandHint(%Type %p0, %Type %p1) {
 entry:
   %t0 = alloca %Type
   %t1 = alloca %Type
+  %t2 = alloca i1
   store %Type %p0, ptr %t0
   store %Type %p1, ptr %t1
-  %t2 = load %Type, ptr %t0
-  %t3 = call i1 @Type.isNumeric(%Type %t2)
-  br i1 %t3, label %L0, label %L2
+  %t3 = load %Type, ptr %t0
+  %t4 = call i1 @Type.isNumeric(%Type %t3)
+  store i1 %t4, ptr %t2
+  br i1 %t4, label %L1, label %L0
 L0:
-  %t4 = load %Type, ptr %t0
-  ret %Type %t4
+  %t5 = load %Type, ptr %t0
+  %t6 = call i1 @Type.isEnum(%Type %t5)
+  store i1 %t6, ptr %t2
+  br label %L1
+L1:
+  %t7 = load i1, ptr %t2
+  br i1 %t7, label %L2, label %L4
 L2:
-  %t5 = load %Type, ptr %t1
-  ret %Type %t5
+  %t8 = load %Type, ptr %t0
+  ret %Type %t8
+L4:
+  %t9 = load %Type, ptr %t1
+  ret %Type %t9
 }
 
 define void @castRejection(ptr %p0, i32 %p1, %Type %p2, %Type %p3, i32 %p4) {
@@ -52989,7 +53837,7 @@ L18:
   %t142 = load %Type, ptr %t118
   %t143 = call ptr @Type.toText(%Type %t142)
   %t144 = load ptr, ptr %t102
-  %t145 = call ptr @quoted(ptr @.str.1357, ptr %t144, ptr @.str.1358)
+  %t145 = call ptr @quoted(ptr @.str.1368, ptr %t144, ptr @.str.1369)
   %t146 = call %Facts @Facts.aboutTwo(ptr %t143, ptr %t145)
   call void @analyzerFail(ptr %t140, i32 %t141, i32 25, %Facts %t146)
   %t147 = call %Type @Type.make(i32 0, i32 0)
@@ -53232,7 +54080,7 @@ L0:
   %t43 = load i32, ptr %t1
   %t44 = load ptr, ptr %t33
   %t45 = load ptr, ptr %t33
-  %t46 = call ptr @quoted(ptr @.str.1359, ptr %t45, ptr @.str.1360)
+  %t46 = call ptr @quoted(ptr @.str.1370, ptr %t45, ptr @.str.1371)
   %t47 = call %Facts @Facts.aboutTwo(ptr %t44, ptr %t46)
   call void @analyzerFail(ptr %t42, i32 %t43, i32 25, %Facts %t47)
   %t48 = load ptr, ptr %t33
@@ -53818,308 +54666,303 @@ L13:
   ret i1 true
 }
 
-define void @analyzeUnionMatch(ptr %p0, i32 %p1, %Type %p2) {
+define void @analyzeUnionMatch(ptr %p0, i32 %p1, %Type %p2, %Type %p3) {
 entry:
   %t0 = alloca ptr
   %t1 = alloca i32
   %t2 = alloca %Type
-  %t4 = alloca ptr
-  %t5 = alloca i1
-  %t16 = alloca i32
+  %t3 = alloca %Type
+  %t5 = alloca ptr
+  %t6 = alloca i1
   %t17 = alloca i32
-  %t34 = alloca i32
-  %t40 = alloca %Type
-  %t56 = alloca ptr
-  %t58 = alloca ptr
-  %t69 = alloca i32
+  %t18 = alloca i32
+  %t35 = alloca i32
+  %t41 = alloca %Type
+  %t57 = alloca ptr
+  %t59 = alloca ptr
   %t70 = alloca i32
-  %t87 = alloca i32
-  %t92 = alloca %Type
-  %t121 = alloca i1
-  %t152 = alloca i32
-  %t153 = alloca i1
-  %t185 = alloca %Type
+  %t71 = alloca i32
+  %t88 = alloca i32
+  %t93 = alloca %Type
+  %t122 = alloca i1
+  %t153 = alloca i32
+  %t154 = alloca i1
+  %t179 = alloca %Type
   store ptr %p0, ptr %t0
   store i32 %p1, ptr %t1
   store %Type %p2, ptr %t2
-  %t3 = call ptr @"List<Type>.new"()
-  store ptr %t3, ptr %t4
-  store i1 false, ptr %t5
-  %t6 = load ptr, ptr %t0
-  %t7 = getelementptr inbounds %Analyzer, ptr %t6, i32 0, i32 0
-  %t8 = load ptr, ptr %t7
-  %t9 = getelementptr inbounds %Ast, ptr %t8, i32 0, i32 0
-  %t10 = load ptr, ptr %t9
-  %t11 = load i32, ptr %t1
-  %t12 = sext i32 %t11 to i64
-  %t13 = getelementptr inbounds %Node, ptr %t10, i64 %t12
-  %t14 = getelementptr inbounds %Node, ptr %t13, i32 0, i32 10
-  %t15 = load i32, ptr %t14
-  store i32 0, ptr %t16
+  store %Type %p3, ptr %t3
+  %t4 = call ptr @"List<Type>.new"()
+  store ptr %t4, ptr %t5
+  store i1 false, ptr %t6
+  %t7 = load ptr, ptr %t0
+  %t8 = getelementptr inbounds %Analyzer, ptr %t7, i32 0, i32 0
+  %t9 = load ptr, ptr %t8
+  %t10 = getelementptr inbounds %Ast, ptr %t9, i32 0, i32 0
+  %t11 = load ptr, ptr %t10
+  %t12 = load i32, ptr %t1
+  %t13 = sext i32 %t12 to i64
+  %t14 = getelementptr inbounds %Node, ptr %t11, i64 %t13
+  %t15 = getelementptr inbounds %Node, ptr %t14, i32 0, i32 10
+  %t16 = load i32, ptr %t15
+  store i32 0, ptr %t17
   br label %L0
 L0:
-  %t18 = load i32, ptr %t16
-  %t19 = icmp slt i32 %t18, %t15
-  br i1 %t19, label %L1, label %L3
+  %t19 = load i32, ptr %t17
+  %t20 = icmp slt i32 %t19, %t16
+  br i1 %t20, label %L1, label %L3
 L1:
-  store i32 %t18, ptr %t17
-  %t20 = load ptr, ptr %t0
-  %t21 = getelementptr inbounds %Analyzer, ptr %t20, i32 0, i32 0
-  %t22 = load ptr, ptr %t21
-  %t23 = getelementptr inbounds %Ast, ptr %t22, i32 0, i32 0
-  %t24 = load ptr, ptr %t23
-  %t25 = load i32, ptr %t1
-  %t26 = sext i32 %t25 to i64
-  %t27 = getelementptr inbounds %Node, ptr %t24, i64 %t26
-  %t28 = getelementptr inbounds %Node, ptr %t27, i32 0, i32 9
-  %t29 = load ptr, ptr %t28
-  %t30 = load i32, ptr %t17
-  %t31 = sext i32 %t30 to i64
-  %t32 = getelementptr inbounds i32, ptr %t29, i64 %t31
-  %t33 = load i32, ptr %t32
-  store i32 %t33, ptr %t34
-  %t35 = load i1, ptr %t5
-  br i1 %t35, label %L4, label %L6
+  store i32 %t19, ptr %t18
+  %t21 = load ptr, ptr %t0
+  %t22 = getelementptr inbounds %Analyzer, ptr %t21, i32 0, i32 0
+  %t23 = load ptr, ptr %t22
+  %t24 = getelementptr inbounds %Ast, ptr %t23, i32 0, i32 0
+  %t25 = load ptr, ptr %t24
+  %t26 = load i32, ptr %t1
+  %t27 = sext i32 %t26 to i64
+  %t28 = getelementptr inbounds %Node, ptr %t25, i64 %t27
+  %t29 = getelementptr inbounds %Node, ptr %t28, i32 0, i32 9
+  %t30 = load ptr, ptr %t29
+  %t31 = load i32, ptr %t18
+  %t32 = sext i32 %t31 to i64
+  %t33 = getelementptr inbounds i32, ptr %t30, i64 %t32
+  %t34 = load i32, ptr %t33
+  store i32 %t34, ptr %t35
+  %t36 = load i1, ptr %t6
+  br i1 %t36, label %L4, label %L6
 L4:
-  %t36 = load ptr, ptr %t0
-  %t37 = load i32, ptr %t34
-  %t38 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t36, i32 %t37, i32 114, %Facts %t38)
+  %t37 = load ptr, ptr %t0
+  %t38 = load i32, ptr %t35
+  %t39 = call %Facts @Facts.none()
+  call void @analyzerFail(ptr %t37, i32 %t38, i32 114, %Facts %t39)
   ret void
 L6:
-  %t39 = call %Type @Type.make(i32 0, i32 0)
-  store %Type %t39, ptr %t40
-  %t41 = load ptr, ptr %t0
-  %t42 = getelementptr inbounds %Analyzer, ptr %t41, i32 0, i32 0
-  %t43 = load ptr, ptr %t42
-  %t44 = getelementptr inbounds %Ast, ptr %t43, i32 0, i32 0
-  %t45 = load ptr, ptr %t44
-  %t46 = load i32, ptr %t34
-  %t47 = sext i32 %t46 to i64
-  %t48 = getelementptr inbounds %Node, ptr %t45, i64 %t47
-  %t49 = getelementptr inbounds %Node, ptr %t48, i32 0, i32 8
-  %t50 = load i32, ptr %t49
-  %t51 = icmp eq i32 %t50, 1
-  br i1 %t51, label %L7, label %L8
+  %t40 = call %Type @Type.make(i32 0, i32 0)
+  store %Type %t40, ptr %t41
+  %t42 = load ptr, ptr %t0
+  %t43 = getelementptr inbounds %Analyzer, ptr %t42, i32 0, i32 0
+  %t44 = load ptr, ptr %t43
+  %t45 = getelementptr inbounds %Ast, ptr %t44, i32 0, i32 0
+  %t46 = load ptr, ptr %t45
+  %t47 = load i32, ptr %t35
+  %t48 = sext i32 %t47 to i64
+  %t49 = getelementptr inbounds %Node, ptr %t46, i64 %t48
+  %t50 = getelementptr inbounds %Node, ptr %t49, i32 0, i32 8
+  %t51 = load i32, ptr %t50
+  %t52 = icmp eq i32 %t51, 1
+  br i1 %t52, label %L7, label %L8
 L7:
-  store i1 true, ptr %t5
-  %t52 = load %Type, ptr %t2
-  %t53 = load ptr, ptr %t4
-  %t54 = call %Type @rest(%Type %t52, ptr %t53)
-  store %Type %t54, ptr %t40
+  store i1 true, ptr %t6
+  %t53 = load %Type, ptr %t2
+  %t54 = load ptr, ptr %t5
+  %t55 = call %Type @rest(%Type %t53, ptr %t54)
+  store %Type %t55, ptr %t41
   br label %L9
 L8:
-  %t55 = call ptr @"List<Type>.new"()
-  store ptr %t55, ptr %t56
-  %t57 = call ptr @"List<*i8>.new"()
-  store ptr %t57, ptr %t58
-  %t59 = load ptr, ptr %t0
-  %t60 = getelementptr inbounds %Analyzer, ptr %t59, i32 0, i32 0
-  %t61 = load ptr, ptr %t60
-  %t62 = getelementptr inbounds %Ast, ptr %t61, i32 0, i32 0
-  %t63 = load ptr, ptr %t62
-  %t64 = load i32, ptr %t34
-  %t65 = sext i32 %t64 to i64
-  %t66 = getelementptr inbounds %Node, ptr %t63, i64 %t65
-  %t67 = getelementptr inbounds %Node, ptr %t66, i32 0, i32 10
-  %t68 = load i32, ptr %t67
-  store i32 0, ptr %t69
+  %t56 = call ptr @"List<Type>.new"()
+  store ptr %t56, ptr %t57
+  %t58 = call ptr @"List<*i8>.new"()
+  store ptr %t58, ptr %t59
+  %t60 = load ptr, ptr %t0
+  %t61 = getelementptr inbounds %Analyzer, ptr %t60, i32 0, i32 0
+  %t62 = load ptr, ptr %t61
+  %t63 = getelementptr inbounds %Ast, ptr %t62, i32 0, i32 0
+  %t64 = load ptr, ptr %t63
+  %t65 = load i32, ptr %t35
+  %t66 = sext i32 %t65 to i64
+  %t67 = getelementptr inbounds %Node, ptr %t64, i64 %t66
+  %t68 = getelementptr inbounds %Node, ptr %t67, i32 0, i32 10
+  %t69 = load i32, ptr %t68
+  store i32 0, ptr %t70
   br label %L10
 L10:
-  %t71 = load i32, ptr %t69
-  %t72 = icmp slt i32 %t71, %t68
-  br i1 %t72, label %L11, label %L13
+  %t72 = load i32, ptr %t70
+  %t73 = icmp slt i32 %t72, %t69
+  br i1 %t73, label %L11, label %L13
 L11:
-  store i32 %t71, ptr %t70
-  %t73 = load ptr, ptr %t0
-  %t74 = getelementptr inbounds %Analyzer, ptr %t73, i32 0, i32 0
-  %t75 = load ptr, ptr %t74
-  %t76 = getelementptr inbounds %Ast, ptr %t75, i32 0, i32 0
-  %t77 = load ptr, ptr %t76
-  %t78 = load i32, ptr %t34
-  %t79 = sext i32 %t78 to i64
-  %t80 = getelementptr inbounds %Node, ptr %t77, i64 %t79
-  %t81 = getelementptr inbounds %Node, ptr %t80, i32 0, i32 9
-  %t82 = load ptr, ptr %t81
-  %t83 = load i32, ptr %t70
-  %t84 = sext i32 %t83 to i64
-  %t85 = getelementptr inbounds i32, ptr %t82, i64 %t84
-  %t86 = load i32, ptr %t85
-  store i32 %t86, ptr %t87
-  %t88 = load ptr, ptr %t0
-  %t89 = load i32, ptr %t87
-  %t90 = load %Type, ptr %t2
-  %t91 = call %Type @patternType(ptr %t88, i32 %t89, %Type %t90)
-  store %Type %t91, ptr %t92
-  %t93 = load i1, ptr @FAILED
-  br i1 %t93, label %L14, label %L16
+  store i32 %t72, ptr %t71
+  %t74 = load ptr, ptr %t0
+  %t75 = getelementptr inbounds %Analyzer, ptr %t74, i32 0, i32 0
+  %t76 = load ptr, ptr %t75
+  %t77 = getelementptr inbounds %Ast, ptr %t76, i32 0, i32 0
+  %t78 = load ptr, ptr %t77
+  %t79 = load i32, ptr %t35
+  %t80 = sext i32 %t79 to i64
+  %t81 = getelementptr inbounds %Node, ptr %t78, i64 %t80
+  %t82 = getelementptr inbounds %Node, ptr %t81, i32 0, i32 9
+  %t83 = load ptr, ptr %t82
+  %t84 = load i32, ptr %t71
+  %t85 = sext i32 %t84 to i64
+  %t86 = getelementptr inbounds i32, ptr %t83, i64 %t85
+  %t87 = load i32, ptr %t86
+  store i32 %t87, ptr %t88
+  %t89 = load ptr, ptr %t0
+  %t90 = load i32, ptr %t88
+  %t91 = load %Type, ptr %t2
+  %t92 = call %Type @patternType(ptr %t89, i32 %t90, %Type %t91)
+  store %Type %t92, ptr %t93
+  %t94 = load i1, ptr @FAILED
+  br i1 %t94, label %L14, label %L16
 L14:
   ret void
 L16:
-  %t94 = load %Type, ptr %t2
-  %t95 = load %Type, ptr %t92
-  %t96 = call i1 @holdsMember(%Type %t94, %Type %t95)
-  %t97 = xor i1 %t96, true
-  br i1 %t97, label %L17, label %L19
+  %t95 = load %Type, ptr %t2
+  %t96 = load %Type, ptr %t93
+  %t97 = call i1 @holdsMember(%Type %t95, %Type %t96)
+  %t98 = xor i1 %t97, true
+  br i1 %t98, label %L17, label %L19
 L17:
-  %t98 = load ptr, ptr %t0
-  %t99 = load i32, ptr %t87
-  %t100 = load %Type, ptr %t92
-  %t101 = call ptr @Type.toText(%Type %t100)
-  %t102 = call %Facts @Facts.about(ptr %t101)
-  %t103 = load %Type, ptr %t2
-  %t104 = load %Type, ptr %t92
-  %t105 = call %Facts @Facts.withTypes(%Facts %t102, %Type %t103, %Type %t104)
-  call void @analyzerFail(ptr %t98, i32 %t99, i32 154, %Facts %t105)
+  %t99 = load ptr, ptr %t0
+  %t100 = load i32, ptr %t88
+  %t101 = load %Type, ptr %t93
+  %t102 = call ptr @Type.toText(%Type %t101)
+  %t103 = call %Facts @Facts.about(ptr %t102)
+  %t104 = load %Type, ptr %t2
+  %t105 = load %Type, ptr %t93
+  %t106 = call %Facts @Facts.withTypes(%Facts %t103, %Type %t104, %Type %t105)
+  call void @analyzerFail(ptr %t99, i32 %t100, i32 157, %Facts %t106)
   ret void
 L19:
-  %t106 = load ptr, ptr %t4
-  %t107 = load %Type, ptr %t92
-  %t108 = call i1 @isHandled(ptr %t106, %Type %t107)
-  br i1 %t108, label %L20, label %L22
+  %t107 = load ptr, ptr %t5
+  %t108 = load %Type, ptr %t93
+  %t109 = call i1 @isHandled(ptr %t107, %Type %t108)
+  br i1 %t109, label %L20, label %L22
 L20:
-  %t109 = load ptr, ptr %t0
-  %t110 = load i32, ptr %t87
-  %t111 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t109, i32 %t110, i32 115, %Facts %t111)
+  %t110 = load ptr, ptr %t0
+  %t111 = load i32, ptr %t88
+  %t112 = call %Facts @Facts.none()
+  call void @analyzerFail(ptr %t110, i32 %t111, i32 115, %Facts %t112)
   ret void
 L22:
-  %t112 = load ptr, ptr %t4
-  %t113 = load %Type, ptr %t92
-  call void @"List<Type>.push"(ptr %t112, %Type %t113)
-  %t114 = load %Type, ptr %t92
-  %t115 = load ptr, ptr %t0
-  %t116 = getelementptr inbounds %Analyzer, ptr %t115, i32 0, i32 3
-  %t117 = load ptr, ptr %t116
-  %t118 = load i32, ptr %t87
-  %t119 = sext i32 %t118 to i64
-  %t120 = getelementptr inbounds %Type, ptr %t117, i64 %t119
-  store %Type %t114, ptr %t120
-  %t122 = load %Type, ptr %t92
-  %t123 = call i1 @Type.isEnum(%Type %t122)
-  store i1 %t123, ptr %t121
-  br i1 %t123, label %L23, label %L24
+  %t113 = load ptr, ptr %t5
+  %t114 = load %Type, ptr %t93
+  call void @"List<Type>.push"(ptr %t113, %Type %t114)
+  %t115 = load %Type, ptr %t93
+  %t116 = load ptr, ptr %t0
+  %t117 = getelementptr inbounds %Analyzer, ptr %t116, i32 0, i32 3
+  %t118 = load ptr, ptr %t117
+  %t119 = load i32, ptr %t88
+  %t120 = sext i32 %t119 to i64
+  %t121 = getelementptr inbounds %Type, ptr %t118, i64 %t120
+  store %Type %t115, ptr %t121
+  %t123 = load %Type, ptr %t93
+  %t124 = call i1 @Type.isEnum(%Type %t123)
+  store i1 %t124, ptr %t122
+  br i1 %t124, label %L23, label %L24
 L23:
-  %t124 = load %Type, ptr %t2
-  %t125 = getelementptr inbounds %Type, ptr %t92, i32 0, i32 2
-  %t126 = load ptr, ptr %t125
-  %t127 = call i1 @holdsError(%Type %t124, ptr %t126)
-  store i1 %t127, ptr %t121
+  %t125 = load %Type, ptr %t2
+  %t126 = getelementptr inbounds %Type, ptr %t93, i32 0, i32 2
+  %t127 = load ptr, ptr %t126
+  %t128 = call i1 @holdsError(%Type %t125, ptr %t127)
+  store i1 %t128, ptr %t122
   br label %L24
 L24:
-  %t128 = load i1, ptr %t121
-  br i1 %t128, label %L25, label %L26
+  %t129 = load i1, ptr %t122
+  br i1 %t129, label %L25, label %L26
 L25:
-  %t129 = load ptr, ptr %t58
-  %t130 = getelementptr inbounds %Type, ptr %t92, i32 0, i32 2
-  %t131 = load ptr, ptr %t130
-  call void @"List<*i8>.push"(ptr %t129, ptr %t131)
+  %t130 = load ptr, ptr %t59
+  %t131 = getelementptr inbounds %Type, ptr %t93, i32 0, i32 2
+  %t132 = load ptr, ptr %t131
+  call void @"List<*i8>.push"(ptr %t130, ptr %t132)
   br label %L27
 L26:
-  %t132 = load ptr, ptr %t56
-  %t133 = load %Type, ptr %t92
-  call void @"List<Type>.push"(ptr %t132, %Type %t133)
+  %t133 = load ptr, ptr %t57
+  %t134 = load %Type, ptr %t93
+  call void @"List<Type>.push"(ptr %t133, %Type %t134)
   br label %L27
 L27:
   br label %L12
 L12:
-  %t134 = load i32, ptr %t69
-  %t135 = add i32 %t134, 1
-  store i32 %t135, ptr %t69
+  %t135 = load i32, ptr %t70
+  %t136 = add i32 %t135, 1
+  store i32 %t136, ptr %t70
   br label %L10
 L13:
-  %t136 = load ptr, ptr %t56
-  %t137 = load ptr, ptr %t58
-  %t138 = call %Type @unionOfAll(ptr %t136, ptr %t137)
-  store %Type %t138, ptr %t40
+  %t137 = load ptr, ptr %t57
+  %t138 = load ptr, ptr %t59
+  %t139 = call %Type @unionOfAll(ptr %t137, ptr %t138)
+  store %Type %t139, ptr %t41
   br label %L9
 L9:
-  %t139 = load ptr, ptr %t0
-  %t140 = getelementptr inbounds %Analyzer, ptr %t139, i32 0, i32 1
-  %t141 = load ptr, ptr %t140
-  call void @SymbolTable.enterScope(ptr %t141)
-  %t142 = load ptr, ptr %t0
-  %t143 = getelementptr inbounds %Analyzer, ptr %t142, i32 0, i32 0
-  %t144 = load ptr, ptr %t143
-  %t145 = getelementptr inbounds %Ast, ptr %t144, i32 0, i32 0
-  %t146 = load ptr, ptr %t145
-  %t147 = load i32, ptr %t1
-  %t148 = sext i32 %t147 to i64
-  %t149 = getelementptr inbounds %Node, ptr %t146, i64 %t148
-  %t150 = getelementptr inbounds %Node, ptr %t149, i32 0, i32 5
-  %t151 = load i32, ptr %t150
-  store i32 %t151, ptr %t152
-  %t154 = load ptr, ptr %t0
-  %t155 = load i32, ptr %t152
-  %t156 = call i1 @isNarrowable(ptr %t154, i32 %t155)
-  store i1 %t156, ptr %t153
-  br i1 %t156, label %L28, label %L29
+  %t140 = load ptr, ptr %t0
+  %t141 = getelementptr inbounds %Analyzer, ptr %t140, i32 0, i32 1
+  %t142 = load ptr, ptr %t141
+  call void @SymbolTable.enterScope(ptr %t142)
+  %t143 = load ptr, ptr %t0
+  %t144 = getelementptr inbounds %Analyzer, ptr %t143, i32 0, i32 0
+  %t145 = load ptr, ptr %t144
+  %t146 = getelementptr inbounds %Ast, ptr %t145, i32 0, i32 0
+  %t147 = load ptr, ptr %t146
+  %t148 = load i32, ptr %t1
+  %t149 = sext i32 %t148 to i64
+  %t150 = getelementptr inbounds %Node, ptr %t147, i64 %t149
+  %t151 = getelementptr inbounds %Node, ptr %t150, i32 0, i32 5
+  %t152 = load i32, ptr %t151
+  store i32 %t152, ptr %t153
+  %t155 = load ptr, ptr %t0
+  %t156 = load i32, ptr %t153
+  %t157 = call i1 @isNarrowable(ptr %t155, i32 %t156)
+  store i1 %t157, ptr %t154
+  br i1 %t157, label %L28, label %L29
 L28:
-  %t157 = getelementptr inbounds %Type, ptr %t40, i32 0, i32 0
-  %t158 = load i32, ptr %t157
-  %t159 = icmp ne i32 %t158, 0
-  store i1 %t159, ptr %t153
+  %t158 = getelementptr inbounds %Type, ptr %t41, i32 0, i32 0
+  %t159 = load i32, ptr %t158
+  %t160 = icmp ne i32 %t159, 0
+  store i1 %t160, ptr %t154
   br label %L29
 L29:
-  %t160 = load i1, ptr %t153
-  br i1 %t160, label %L30, label %L32
+  %t161 = load i1, ptr %t154
+  br i1 %t161, label %L30, label %L32
 L30:
-  %t161 = load ptr, ptr %t0
-  %t162 = load i32, ptr %t152
-  %t163 = load %Type, ptr %t40
-  call void @narrow(ptr %t161, i32 %t162, %Type %t163)
+  %t162 = load ptr, ptr %t0
+  %t163 = load i32, ptr %t153
+  %t164 = load %Type, ptr %t41
+  call void @narrow(ptr %t162, i32 %t163, %Type %t164)
   br label %L32
 L32:
-  %t164 = load ptr, ptr %t0
   %t165 = load ptr, ptr %t0
-  %t166 = getelementptr inbounds %Analyzer, ptr %t165, i32 0, i32 0
-  %t167 = load ptr, ptr %t166
-  %t168 = getelementptr inbounds %Ast, ptr %t167, i32 0, i32 0
-  %t169 = load ptr, ptr %t168
-  %t170 = load i32, ptr %t34
-  %t171 = sext i32 %t170 to i64
-  %t172 = getelementptr inbounds %Node, ptr %t169, i64 %t171
-  %t173 = getelementptr inbounds %Node, ptr %t172, i32 0, i32 5
-  %t174 = load i32, ptr %t173
-  call void @analyzeStatement(ptr %t164, i32 %t174)
-  %t175 = load ptr, ptr %t0
-  %t176 = getelementptr inbounds %Analyzer, ptr %t175, i32 0, i32 1
-  %t177 = load ptr, ptr %t176
-  call void @SymbolTable.exitScope(ptr %t177)
-  %t178 = load i1, ptr @FAILED
-  br i1 %t178, label %L33, label %L35
+  %t166 = load i32, ptr %t1
+  %t167 = load i32, ptr %t35
+  %t168 = load %Type, ptr %t3
+  call void @checkArmBody(ptr %t165, i32 %t166, i32 %t167, %Type %t168)
+  %t169 = load ptr, ptr %t0
+  %t170 = getelementptr inbounds %Analyzer, ptr %t169, i32 0, i32 1
+  %t171 = load ptr, ptr %t170
+  call void @SymbolTable.exitScope(ptr %t171)
+  %t172 = load i1, ptr @FAILED
+  br i1 %t172, label %L33, label %L35
 L33:
   ret void
 L35:
   br label %L2
 L2:
-  %t179 = load i32, ptr %t16
-  %t180 = add i32 %t179, 1
-  store i32 %t180, ptr %t16
+  %t173 = load i32, ptr %t17
+  %t174 = add i32 %t173, 1
+  store i32 %t174, ptr %t17
   br label %L0
 L3:
-  %t181 = load i1, ptr %t5
-  br i1 %t181, label %L36, label %L38
+  %t175 = load i1, ptr %t6
+  br i1 %t175, label %L36, label %L38
 L36:
   ret void
 L38:
-  %t182 = load %Type, ptr %t2
-  %t183 = load ptr, ptr %t4
-  %t184 = call %Type @rest(%Type %t182, ptr %t183)
-  store %Type %t184, ptr %t185
-  %t186 = getelementptr inbounds %Type, ptr %t185, i32 0, i32 0
-  %t187 = load i32, ptr %t186
-  %t188 = icmp ne i32 %t187, 0
-  br i1 %t188, label %L39, label %L41
+  %t176 = load %Type, ptr %t2
+  %t177 = load ptr, ptr %t5
+  %t178 = call %Type @rest(%Type %t176, ptr %t177)
+  store %Type %t178, ptr %t179
+  %t180 = getelementptr inbounds %Type, ptr %t179, i32 0, i32 0
+  %t181 = load i32, ptr %t180
+  %t182 = icmp ne i32 %t181, 0
+  br i1 %t182, label %L39, label %L41
 L39:
-  %t189 = load ptr, ptr %t0
-  %t190 = load i32, ptr %t1
-  %t191 = load %Type, ptr %t2
-  %t192 = call ptr @Type.toText(%Type %t191)
-  %t193 = load %Type, ptr %t185
-  %t194 = call ptr @firstMember(%Type %t193)
-  %t195 = call %Facts @Facts.aboutTwo(ptr %t192, ptr %t194)
-  call void @analyzerFail(ptr %t189, i32 %t190, i32 116, %Facts %t195)
+  %t183 = load ptr, ptr %t0
+  %t184 = load i32, ptr %t1
+  %t185 = load %Type, ptr %t2
+  %t186 = call ptr @Type.toText(%Type %t185)
+  %t187 = load %Type, ptr %t179
+  %t188 = call ptr @firstMember(%Type %t187)
+  %t189 = call %Facts @Facts.aboutTwo(ptr %t186, ptr %t188)
+  call void @analyzerFail(ptr %t183, i32 %t184, i32 119, %Facts %t189)
   br label %L41
 L41:
   ret void
@@ -54218,7 +55061,7 @@ L8:
   %t62 = load %Type, ptr %t2
   %t63 = call ptr @Type.toText(%Type %t62)
   %t64 = call %Facts @Facts.about(ptr %t63)
-  call void @analyzerFail(ptr %t60, i32 %t61, i32 117, %Facts %t64)
+  call void @analyzerFail(ptr %t60, i32 %t61, i32 120, %Facts %t64)
   %t65 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t65
 L10:
@@ -54229,7 +55072,7 @@ L10:
   %t70 = load ptr, ptr %t0
   %t71 = load i32, ptr %t1
   %t72 = load %Type, ptr %t69
-  call void @analyzerValidateType(ptr %t70, i32 %t71, %Type %t72, ptr @.str.1361)
+  call void @analyzerValidateType(ptr %t70, i32 %t71, %Type %t72, ptr @.str.1372)
   %t73 = load %Type, ptr %t69
   ret %Type %t73
 }
@@ -54552,18 +55395,18 @@ L8:
   %t18 = call ptr @Builder.new()
   store ptr %t18, ptr %t19
   %t20 = load ptr, ptr %t19
-  call void @Builder.add(ptr %t20, ptr @.str.1362)
+  call void @Builder.add(ptr %t20, ptr @.str.1373)
   %t21 = load ptr, ptr %t19
   %t22 = load %Type, ptr %t3
   %t23 = call ptr @llvmTypeName(%Type %t22)
   call void @Builder.add(ptr %t21, ptr %t23)
   %t24 = load ptr, ptr %t19
-  call void @Builder.add(ptr %t24, ptr @.str.1363)
+  call void @Builder.add(ptr %t24, ptr @.str.1374)
   %t25 = load ptr, ptr %t19
   %t26 = load ptr, ptr %t1
   call void @Builder.add(ptr %t25, ptr %t26)
   %t27 = load ptr, ptr %t19
-  call void @Builder.add(ptr %t27, ptr @.str.1364)
+  call void @Builder.add(ptr %t27, ptr @.str.1375)
   %t28 = load ptr, ptr %t0
   %t29 = load ptr, ptr %t19
   %t30 = getelementptr inbounds %Builder, ptr %t29, i32 0, i32 0
@@ -54588,13 +55431,13 @@ L14:
   %t43 = call ptr @Builder.new()
   store ptr %t43, ptr %t44
   %t45 = load ptr, ptr %t44
-  call void @Builder.add(ptr %t45, ptr @.str.1365)
+  call void @Builder.add(ptr %t45, ptr @.str.1376)
   %t46 = load ptr, ptr %t44
   %t47 = load %Type, ptr %t3
   %t48 = call ptr @llvmTypeName(%Type %t47)
   call void @Builder.add(ptr %t46, ptr %t48)
   %t49 = load ptr, ptr %t44
-  call void @Builder.add(ptr %t49, ptr @.str.1366)
+  call void @Builder.add(ptr %t49, ptr @.str.1377)
   %t50 = load ptr, ptr %t44
   %t51 = load %Type, ptr %t39
   %t52 = call ptr @llvmTypeName(%Type %t51)
@@ -54605,7 +55448,7 @@ L14:
   %t55 = load ptr, ptr %t1
   call void @Builder.add(ptr %t54, ptr %t55)
   %t56 = load ptr, ptr %t44
-  call void @Builder.add(ptr %t56, ptr @.str.1367)
+  call void @Builder.add(ptr %t56, ptr @.str.1378)
   %t57 = load ptr, ptr %t0
   %t58 = load ptr, ptr %t44
   %t59 = getelementptr inbounds %Builder, ptr %t58, i32 0, i32 0
@@ -54789,7 +55632,7 @@ L4:
   %t28 = load ptr, ptr %t0
   %t29 = load ptr, ptr %t0
   %t30 = load ptr, ptr %t8
-  %t31 = call ptr @compare(ptr %t29, ptr @.str.1368, ptr @.str.1369, ptr %t30, ptr @.str.1370)
+  %t31 = call ptr @compare(ptr %t29, ptr @.str.1379, ptr @.str.1380, ptr %t30, ptr @.str.1381)
   %t32 = load ptr, ptr %t11
   %t33 = call %Type @"List<Type>.at"(ptr %t32, i64 0)
   %t34 = call i64 @valueTag(%Type %t33)
@@ -54831,9 +55674,9 @@ L11:
   %t55 = call %Type @"List<Type>.at"(ptr %t54, i64 0)
   %t56 = call i64 @valueTag(%Type %t55)
   %t57 = call ptr @fromInt(i64 %t56)
-  %t58 = call ptr @compare(ptr %t52, ptr @.str.1371, ptr @.str.1372, ptr %t53, ptr %t57)
+  %t58 = call ptr @compare(ptr %t52, ptr @.str.1382, ptr @.str.1383, ptr %t53, ptr %t57)
   %t59 = load ptr, ptr %t8
-  %t60 = call ptr @pick(ptr %t51, ptr %t58, ptr @.str.1373, ptr %t59)
+  %t60 = call ptr @pick(ptr %t51, ptr %t58, ptr @.str.1384, ptr %t59)
   store ptr %t60, ptr %t8
   br label %L13
 L13:
@@ -54968,18 +55811,18 @@ L29:
   %t157 = sext i32 %t156 to i64
   call void @Builder.addInt(ptr %t155, i64 %t157)
   %t158 = load ptr, ptr %t153
-  call void @Builder.add(ptr %t158, ptr @.str.1374)
+  call void @Builder.add(ptr %t158, ptr @.str.1385)
   %t159 = call ptr @Builder.new()
   store ptr %t159, ptr %t160
   %t161 = load ptr, ptr %t160
-  call void @Builder.add(ptr %t161, ptr @.str.1375)
+  call void @Builder.add(ptr %t161, ptr @.str.1386)
   %t162 = load ptr, ptr %t160
   %t163 = load ptr, ptr %t153
   %t164 = getelementptr inbounds %Builder, ptr %t163, i32 0, i32 0
   %t165 = load ptr, ptr %t164
   call void @Builder.add(ptr %t162, ptr %t165)
   %t166 = load ptr, ptr %t160
-  call void @Builder.add(ptr %t166, ptr @.str.1376)
+  call void @Builder.add(ptr %t166, ptr @.str.1387)
   %t167 = load ptr, ptr %t160
   %t168 = load ptr, ptr %t0
   %t169 = load %Type, ptr %t2
@@ -54995,7 +55838,7 @@ L29:
   %t178 = call ptr @Builder.new()
   store ptr %t178, ptr %t179
   %t180 = load ptr, ptr %t179
-  call void @Builder.add(ptr %t180, ptr @.str.1377)
+  call void @Builder.add(ptr %t180, ptr @.str.1388)
   %t181 = load ptr, ptr %t179
   %t182 = load ptr, ptr %t153
   %t183 = getelementptr inbounds %Builder, ptr %t182, i32 0, i32 0
@@ -55007,7 +55850,7 @@ L29:
   %t187 = load ptr, ptr %t177
   call void @Builder.add(ptr %t186, ptr %t187)
   %t188 = load ptr, ptr %t179
-  call void @Builder.add(ptr %t188, ptr @.str.1378)
+  call void @Builder.add(ptr %t188, ptr @.str.1389)
   %t189 = load ptr, ptr %t179
   %t190 = load ptr, ptr %t0
   %t191 = load %Type, ptr %t3
@@ -55040,18 +55883,18 @@ entry:
   %t4 = call ptr @Builder.new()
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t6, ptr @.str.1379)
+  call void @Builder.add(ptr %t6, ptr @.str.1390)
   %t7 = load ptr, ptr %t5
   %t8 = load %Type, ptr %t1
   %t9 = call ptr @llvmTypeName(%Type %t8)
   call void @Builder.add(ptr %t7, ptr %t9)
   %t10 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t10, ptr @.str.1380)
+  call void @Builder.add(ptr %t10, ptr @.str.1391)
   %t11 = load ptr, ptr %t5
   %t12 = load ptr, ptr %t2
   call void @Builder.add(ptr %t11, ptr %t12)
   %t13 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t13, ptr @.str.1381)
+  call void @Builder.add(ptr %t13, ptr @.str.1392)
   %t14 = load ptr, ptr %t5
   %t15 = load i32, ptr %t3
   %t16 = sext i32 %t15 to i64
@@ -55078,17 +55921,17 @@ entry:
   %t4 = call ptr @Builder.new()
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t6, ptr @.str.1382)
+  call void @Builder.add(ptr %t6, ptr @.str.1393)
   %t7 = load ptr, ptr %t5
   %t8 = load ptr, ptr %t1
   call void @Builder.add(ptr %t7, ptr %t8)
   %t9 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t9, ptr @.str.1383)
+  call void @Builder.add(ptr %t9, ptr @.str.1394)
   %t10 = load ptr, ptr %t5
   %t11 = load ptr, ptr %t2
   call void @Builder.add(ptr %t10, ptr %t11)
   %t12 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t12, ptr @.str.1384)
+  call void @Builder.add(ptr %t12, ptr @.str.1395)
   %t13 = load ptr, ptr %t5
   %t14 = load ptr, ptr %t3
   call void @Builder.add(ptr %t13, ptr %t14)
@@ -55129,7 +55972,7 @@ entry:
   %t4 = call ptr @Builder.new()
   store ptr %t4, ptr %t5
   %t6 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t6, ptr @.str.1385)
+  call void @Builder.add(ptr %t6, ptr @.str.1396)
   %t7 = load ptr, ptr %t5
   %t8 = load %Type, ptr %t1
   %t9 = call ptr @llvmTypeName(%Type %t8)
@@ -55140,7 +55983,7 @@ entry:
   %t12 = load ptr, ptr %t2
   call void @Builder.add(ptr %t11, ptr %t12)
   %t13 = load ptr, ptr %t5
-  call void @Builder.add(ptr %t13, ptr @.str.1386)
+  call void @Builder.add(ptr %t13, ptr @.str.1397)
   %t14 = load ptr, ptr %t5
   %t15 = load i32, ptr %t3
   %t16 = sext i32 %t15 to i64
@@ -55169,7 +56012,7 @@ entry:
   %t5 = call ptr @Builder.new()
   store ptr %t5, ptr %t6
   %t7 = load ptr, ptr %t6
-  call void @Builder.add(ptr %t7, ptr @.str.1387)
+  call void @Builder.add(ptr %t7, ptr @.str.1398)
   %t8 = load ptr, ptr %t6
   %t9 = load ptr, ptr %t1
   call void @Builder.add(ptr %t8, ptr %t9)
@@ -55184,7 +56027,7 @@ entry:
   %t15 = load ptr, ptr %t3
   call void @Builder.add(ptr %t14, ptr %t15)
   %t16 = load ptr, ptr %t6
-  call void @Builder.add(ptr %t16, ptr @.str.1388)
+  call void @Builder.add(ptr %t16, ptr @.str.1399)
   %t17 = load ptr, ptr %t6
   %t18 = load ptr, ptr %t4
   call void @Builder.add(ptr %t17, ptr %t18)
@@ -55386,7 +56229,7 @@ entry:
   %t32 = load ptr, ptr %t0
   %t33 = load ptr, ptr %t0
   %t34 = load ptr, ptr %t25
-  %t35 = call ptr @compare(ptr %t33, ptr @.str.1389, ptr @.str.1390, ptr %t34, ptr @.str.1391)
+  %t35 = call ptr @compare(ptr %t33, ptr @.str.1400, ptr @.str.1401, ptr %t34, ptr @.str.1402)
   %t36 = load ptr, ptr %t28
   %t37 = load ptr, ptr %t31
   call void @emitCondBranch(ptr %t32, ptr %t35, ptr %t36, ptr %t37)
@@ -55396,7 +56239,7 @@ entry:
   %t40 = call ptr @Builder.new()
   store ptr %t40, ptr %t41
   %t42 = load ptr, ptr %t41
-  call void @Builder.add(ptr %t42, ptr @.str.1392)
+  call void @Builder.add(ptr %t42, ptr @.str.1403)
   %t43 = load ptr, ptr %t41
   %t44 = load ptr, ptr %t0
   %t45 = getelementptr inbounds %Emitter, ptr %t44, i32 0, i32 11
@@ -55404,12 +56247,12 @@ entry:
   %t47 = call ptr @llvmTypeName(%Type %t46)
   call void @Builder.add(ptr %t43, ptr %t47)
   %t48 = load ptr, ptr %t41
-  call void @Builder.add(ptr %t48, ptr @.str.1393)
+  call void @Builder.add(ptr %t48, ptr @.str.1404)
   %t49 = load ptr, ptr %t41
   %t50 = load ptr, ptr %t25
   call void @Builder.add(ptr %t49, ptr %t50)
   %t51 = load ptr, ptr %t41
-  call void @Builder.add(ptr %t51, ptr @.str.1394)
+  call void @Builder.add(ptr %t51, ptr @.str.1405)
   %t52 = load ptr, ptr %t0
   %t53 = load ptr, ptr %t41
   %t54 = getelementptr inbounds %Builder, ptr %t53, i32 0, i32 0
@@ -55419,7 +56262,7 @@ entry:
   %t58 = call ptr @Builder.new()
   store ptr %t58, ptr %t59
   %t60 = load ptr, ptr %t59
-  call void @Builder.add(ptr %t60, ptr @.str.1395)
+  call void @Builder.add(ptr %t60, ptr @.str.1406)
   %t61 = load ptr, ptr %t59
   %t62 = load ptr, ptr %t0
   %t63 = getelementptr inbounds %Emitter, ptr %t62, i32 0, i32 11
@@ -55447,7 +56290,7 @@ entry:
   %t79 = call i1 @Type.isVoid(%Type %t78)
   br i1 %t79, label %L0, label %L2
 L0:
-  ret ptr @.str.1396
+  ret ptr @.str.1407
 L2:
   %t80 = load ptr, ptr %t0
   %t81 = load ptr, ptr %t20
@@ -55495,7 +56338,7 @@ entry:
   %t20 = load i32, ptr %t5
   %t21 = call ptr @genExpr(ptr %t19, i32 %t20)
   store ptr %t21, ptr %t22
-  store ptr @.str.1397, ptr %t23
+  store ptr @.str.1408, ptr %t23
   %t24 = load %Type, ptr %t9
   %t25 = call i1 @Type.isUnion(%Type %t24)
   br i1 %t25, label %L0, label %L1
@@ -55505,13 +56348,13 @@ L0:
   %t28 = load %Type, ptr %t9
   %t29 = load ptr, ptr %t22
   %t30 = call ptr @extract(ptr %t27, %Type %t28, ptr %t29, i32 0)
-  %t31 = call ptr @compare(ptr %t26, ptr @.str.1398, ptr @.str.1399, ptr %t30, ptr @.str.1400)
+  %t31 = call ptr @compare(ptr %t26, ptr @.str.1409, ptr @.str.1410, ptr %t30, ptr @.str.1411)
   store ptr %t31, ptr %t23
   br label %L2
 L1:
   %t32 = load ptr, ptr %t0
   %t33 = load ptr, ptr %t22
-  %t34 = call ptr @compare(ptr %t32, ptr @.str.1401, ptr @.str.1402, ptr %t33, ptr @.str.1403)
+  %t34 = call ptr @compare(ptr %t32, ptr @.str.1412, ptr @.str.1413, ptr %t33, ptr @.str.1414)
   store ptr %t34, ptr %t23
   br label %L2
 L2:
@@ -55628,7 +56471,7 @@ entry:
   %t32 = load ptr, ptr %t0
   %t33 = load ptr, ptr %t0
   %t34 = load ptr, ptr %t25
-  %t35 = call ptr @compare(ptr %t33, ptr @.str.1404, ptr @.str.1405, ptr %t34, ptr @.str.1406)
+  %t35 = call ptr @compare(ptr %t33, ptr @.str.1415, ptr @.str.1416, ptr %t34, ptr @.str.1417)
   %t36 = load ptr, ptr %t28
   %t37 = load ptr, ptr %t31
   call void @emitCondBranch(ptr %t32, ptr %t35, ptr %t36, ptr %t37)
@@ -55636,7 +56479,7 @@ entry:
   %t39 = load ptr, ptr %t28
   call void @emitLabel(ptr %t38, ptr %t39)
   %t40 = load ptr, ptr %t0
-  %t41 = call ptr @emitAlloca(ptr %t40, ptr @.str.1407)
+  %t41 = call ptr @emitAlloca(ptr %t40, ptr @.str.1418)
   store ptr %t41, ptr %t42
   %t43 = load %Type, ptr %t16
   %t44 = call %UnionInfo @unionInfo(%Type %t43)
@@ -55686,7 +56529,7 @@ entry:
   br i1 %t82, label %L0, label %L2
 L0:
   %t83 = load ptr, ptr %t0
-  call void @emitLine(ptr %t83, ptr @.str.1408)
+  call void @emitLine(ptr %t83, ptr @.str.1419)
   %t84 = load ptr, ptr %t0
   %t85 = getelementptr inbounds %Emitter, ptr %t84, i32 0, i32 8
   store i1 true, ptr %t85
@@ -55700,7 +56543,7 @@ L2:
   %t90 = call i1 @Type.isVoid(%Type %t89)
   br i1 %t90, label %L3, label %L5
 L3:
-  ret ptr @.str.1409
+  ret ptr @.str.1420
 L5:
   %t91 = load ptr, ptr %t0
   %t92 = load ptr, ptr %t20
@@ -55805,12 +56648,12 @@ L5:
   %t18 = load %Type, ptr %t3
   %t19 = call i64 @valueTag(%Type %t18)
   %t20 = call ptr @fromInt(i64 %t19)
-  %t21 = call ptr @compare(ptr %t16, ptr @.str.1410, ptr @.str.1411, ptr %t17, ptr %t20)
+  %t21 = call ptr @compare(ptr %t16, ptr @.str.1421, ptr @.str.1422, ptr %t17, ptr %t20)
   ret ptr %t21
 L7:
   %t22 = load ptr, ptr %t0
   %t23 = load ptr, ptr %t2
-  %t24 = call ptr @compare(ptr %t22, ptr @.str.1412, ptr @.str.1413, ptr %t23, ptr @.str.1414)
+  %t24 = call ptr @compare(ptr %t22, ptr @.str.1423, ptr @.str.1424, ptr %t23, ptr @.str.1425)
   ret ptr %t24
 L4:
   store i64 0, ptr %t25
@@ -55825,23 +56668,23 @@ L4:
   %t33 = load ptr, ptr %t2
   %t34 = load i64, ptr %t25
   %t35 = call ptr @fromInt(i64 %t34)
-  %t36 = call ptr @compare(ptr %t32, ptr @.str.1415, ptr @.str.1416, ptr %t33, ptr %t35)
+  %t36 = call ptr @compare(ptr %t32, ptr @.str.1426, ptr @.str.1427, ptr %t33, ptr %t35)
   store ptr %t36, ptr %t37
   %t38 = load ptr, ptr %t0
   %t39 = load ptr, ptr %t2
   %t40 = load i64, ptr %t26
   %t41 = call ptr @fromInt(i64 %t40)
-  %t42 = call ptr @compare(ptr %t38, ptr @.str.1417, ptr @.str.1418, ptr %t39, ptr %t41)
+  %t42 = call ptr @compare(ptr %t38, ptr @.str.1428, ptr @.str.1429, ptr %t39, ptr %t41)
   store ptr %t42, ptr %t43
   %t44 = call ptr @Builder.new()
   store ptr %t44, ptr %t45
   %t46 = load ptr, ptr %t45
-  call void @Builder.add(ptr %t46, ptr @.str.1419)
+  call void @Builder.add(ptr %t46, ptr @.str.1430)
   %t47 = load ptr, ptr %t45
   %t48 = load ptr, ptr %t37
   call void @Builder.add(ptr %t47, ptr %t48)
   %t49 = load ptr, ptr %t45
-  call void @Builder.add(ptr %t49, ptr @.str.1420)
+  call void @Builder.add(ptr %t49, ptr @.str.1431)
   %t50 = load ptr, ptr %t45
   %t51 = load ptr, ptr %t43
   call void @Builder.add(ptr %t50, ptr %t51)
@@ -55878,12 +56721,12 @@ L2:
   %t11 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t11)
   %t12 = load ptr, ptr %t0
-  %t13 = call ptr @Parser.expect(ptr %t12, i32 53, ptr @.str.1421)
+  %t13 = call ptr @Parser.expect(ptr %t12, i32 53, ptr @.str.1432)
   %t14 = load ptr, ptr %t0
-  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1422)
+  %t15 = call ptr @Parser.expect(ptr %t14, i32 2, ptr @.str.1433)
   store ptr %t15, ptr %t16
   %t17 = load ptr, ptr %t0
-  %t18 = call ptr @Parser.expect(ptr %t17, i32 54, ptr @.str.1423)
+  %t18 = call ptr @Parser.expect(ptr %t17, i32 54, ptr @.str.1434)
   %t19 = load i1, ptr @FAILED
   br i1 %t19, label %L3, label %L5
 L3:
@@ -56071,7 +56914,7 @@ L20:
 L0:
   br i1 false, label %L21, label %L22
 L22:
-  %t2 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1426, ptr @.str.1424, ptr @.str.1425)
+  %t2 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1437, ptr @.str.1435, ptr @.str.1436)
   call void @exit(i32 1)
   unreachable
 L21:
@@ -56357,7 +57200,7 @@ L0:
   %t9 = call ptr @Parser.current(ptr %t8)
   %t10 = getelementptr inbounds %Token, ptr %t9, i32 0, i32 1
   %t11 = load ptr, ptr %t10
-  %t12 = call i1 @equals(ptr %t11, ptr @.str.1427)
+  %t12 = call i1 @equals(ptr %t11, ptr @.str.1438)
   store i1 %t12, ptr %t4
   br label %L1
 L1:
@@ -56889,7 +57732,7 @@ L3:
   %t20 = call i32 @parseArgList(ptr %t19)
   store i32 %t20, ptr %t21
   %t22 = load ptr, ptr %t0
-  %t23 = call ptr @Parser.expect(ptr %t22, i32 54, ptr @.str.1428)
+  %t23 = call ptr @Parser.expect(ptr %t22, i32 54, ptr @.str.1439)
   %t24 = load i1, ptr @FAILED
   br i1 %t24, label %L6, label %L8
 L6:
@@ -56939,7 +57782,7 @@ L10:
   %t57 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t57)
   %t58 = load ptr, ptr %t0
-  %t59 = call ptr @Parser.expect(ptr %t58, i32 2, ptr @.str.1429)
+  %t59 = call ptr @Parser.expect(ptr %t58, i32 2, ptr @.str.1440)
   store ptr %t59, ptr %t60
   %t61 = load i1, ptr @FAILED
   br i1 %t61, label %L13, label %L15
@@ -56966,7 +57809,7 @@ L16:
   %t76 = call i32 @parseArgList(ptr %t75)
   store i32 %t76, ptr %t77
   %t78 = load ptr, ptr %t0
-  %t79 = call ptr @Parser.expect(ptr %t78, i32 54, ptr @.str.1430)
+  %t79 = call ptr @Parser.expect(ptr %t78, i32 54, ptr @.str.1441)
   %t80 = load i1, ptr @FAILED
   br i1 %t80, label %L19, label %L21
 L19:
@@ -57066,7 +57909,7 @@ L24:
   %t154 = call i32 @parseExpr(ptr %t153)
   store i32 %t154, ptr %t155
   %t156 = load ptr, ptr %t0
-  %t157 = call ptr @Parser.expect(ptr %t156, i32 58, ptr @.str.1431)
+  %t157 = call ptr @Parser.expect(ptr %t156, i32 58, ptr @.str.1442)
   %t158 = load i1, ptr @FAILED
   br i1 %t158, label %L27, label %L29
 L27:
@@ -57155,137 +57998,222 @@ entry:
   %t0 = alloca ptr
   %t3 = alloca i32
   %t4 = alloca i1
-  %t17 = alloca i32
-  %t34 = alloca i1
-  %t35 = alloca i1
+  %t5 = alloca i1
+  %t23 = alloca i1
+  %t28 = alloca i32
+  %t33 = alloca i1
+  %t44 = alloca ptr
+  %t48 = alloca ptr
+  %t60 = alloca i32
+  %t72 = alloca i32
+  %t89 = alloca i1
+  %t90 = alloca i1
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
   %t2 = call i32 @Parser.kind(ptr %t1)
   store i32 %t2, ptr %t3
-  %t5 = load i32, ptr %t3
-  %t6 = icmp eq i32 %t5, 53
-  store i1 %t6, ptr %t4
-  br i1 %t6, label %L0, label %L1
+  %t6 = load i32, ptr %t3
+  %t7 = icmp eq i32 %t6, 53
+  store i1 %t7, ptr %t5
+  br i1 %t7, label %L0, label %L1
 L0:
-  %t7 = load ptr, ptr %t0
-  %t8 = call i1 @looksLikeLambda(ptr %t7)
-  store i1 %t8, ptr %t4
+  %t8 = load ptr, ptr %t0
+  %t9 = getelementptr inbounds %Parser, ptr %t8, i32 0, i32 4
+  %t10 = load i1, ptr %t9
+  %t11 = xor i1 %t10, true
+  store i1 %t11, ptr %t5
   br label %L1
 L1:
-  %t9 = load i1, ptr %t4
-  br i1 %t9, label %L2, label %L4
+  %t12 = load i1, ptr %t5
+  store i1 %t12, ptr %t4
+  br i1 %t12, label %L2, label %L3
 L2:
-  %t10 = load ptr, ptr %t0
-  %t11 = call i32 @parseLambda(ptr %t10)
-  ret i32 %t11
+  %t13 = load ptr, ptr %t0
+  %t14 = call i1 @looksLikeLambda(ptr %t13)
+  store i1 %t14, ptr %t4
+  br label %L3
+L3:
+  %t15 = load i1, ptr %t4
+  br i1 %t15, label %L4, label %L6
 L4:
-  %t12 = load i32, ptr %t3
-  %t13 = icmp eq i32 %t12, 53
-  br i1 %t13, label %L5, label %L7
-L5:
-  %t14 = load ptr, ptr %t0
-  call void @Parser.advance(ptr %t14)
-  %t15 = load ptr, ptr %t0
-  %t16 = call i32 @parseExpr(ptr %t15)
-  store i32 %t16, ptr %t17
-  %t18 = load ptr, ptr %t0
-  %t19 = call ptr @Parser.expect(ptr %t18, i32 54, ptr @.str.1432)
-  %t20 = load i32, ptr %t17
-  ret i32 %t20
+  %t16 = load ptr, ptr %t0
+  %t17 = call i32 @parseLambda(ptr %t16)
+  ret i32 %t17
+L6:
+  %t18 = load i32, ptr %t3
+  %t19 = icmp eq i32 %t18, 26
+  br i1 %t19, label %L7, label %L9
 L7:
-  %t21 = load i32, ptr %t3
-  switch i32 %t21, label %L15 [ i32 3, label %L9 i32 6, label %L10 i32 4, label %L11 i32 5, label %L12 i32 14, label %L13 i32 24, label %L14 ]
-L9:
-  %t22 = load ptr, ptr %t0
-  %t23 = call i32 @parseLiteral(ptr %t22, i32 23)
-  ret i32 %t23
-L10:
+  %t20 = load ptr, ptr %t0
+  %t21 = getelementptr inbounds %Parser, ptr %t20, i32 0, i32 4
+  %t22 = load i1, ptr %t21
+  store i1 %t22, ptr %t23
   %t24 = load ptr, ptr %t0
-  %t25 = call i32 @parseLiteral(ptr %t24, i32 26)
-  ret i32 %t25
-L11:
+  %t25 = getelementptr inbounds %Parser, ptr %t24, i32 0, i32 4
+  store i1 false, ptr %t25
   %t26 = load ptr, ptr %t0
-  %t27 = call i32 @parseLiteral(ptr %t26, i32 24)
-  ret i32 %t27
-L12:
-  %t28 = load ptr, ptr %t0
-  %t29 = call i32 @parseLiteral(ptr %t28, i32 25)
-  ret i32 %t29
-L13:
+  %t27 = call i32 @parseMatch(ptr %t26, i1 true)
+  store i32 %t27, ptr %t28
+  %t29 = load i1, ptr %t23
   %t30 = load ptr, ptr %t0
-  %t31 = call i32 @parseSizeOf(ptr %t30)
-  ret i32 %t31
-L14:
-  %t32 = load ptr, ptr %t0
-  %t33 = call i32 @parseLiteral(ptr %t32, i32 36)
-  ret i32 %t33
-L15:
-  br label %L8
-L8:
-  %t36 = load i32, ptr %t3
-  %t37 = icmp eq i32 %t36, 2
-  store i1 %t37, ptr %t35
-  br i1 %t37, label %L16, label %L17
-L16:
-  %t38 = load ptr, ptr %t0
-  %t39 = call ptr @Parser.peek(ptr %t38)
-  %t40 = getelementptr inbounds %Token, ptr %t39, i32 0, i32 0
-  %t41 = load i32, ptr %t40
-  %t42 = icmp eq i32 %t41, 44
-  store i1 %t42, ptr %t35
-  br label %L17
-L17:
-  %t43 = load i1, ptr %t35
-  store i1 %t43, ptr %t34
-  br i1 %t43, label %L18, label %L19
-L18:
-  %t44 = load ptr, ptr %t0
-  %t45 = call i1 @looksLikeTypeArgs(ptr %t44)
-  store i1 %t45, ptr %t34
-  br label %L19
-L19:
-  %t46 = load i1, ptr %t34
-  br i1 %t46, label %L20, label %L22
-L20:
-  %t47 = load ptr, ptr %t0
-  %t48 = call i32 @parseGenericPrimary(ptr %t47)
-  ret i32 %t48
-L22:
-  %t49 = load i32, ptr %t3
-  %t50 = icmp eq i32 %t49, 2
-  br i1 %t50, label %L23, label %L25
-L23:
-  %t51 = load ptr, ptr %t0
-  %t52 = call ptr @Parser.peek(ptr %t51)
-  %t53 = getelementptr inbounds %Token, ptr %t52, i32 0, i32 0
-  %t54 = load i32, ptr %t53
-  %t55 = icmp eq i32 %t54, 53
-  br i1 %t55, label %L26, label %L28
-L26:
-  %t56 = load ptr, ptr %t0
-  %t57 = call i32 @parseFuncCall(ptr %t56)
-  ret i32 %t57
-L28:
-  %t58 = load ptr, ptr %t0
-  %t59 = call ptr @Parser.peek(ptr %t58)
-  %t60 = getelementptr inbounds %Token, ptr %t59, i32 0, i32 0
-  %t61 = load i32, ptr %t60
-  %t62 = icmp eq i32 %t61, 55
-  br i1 %t62, label %L29, label %L31
-L29:
-  %t63 = load ptr, ptr %t0
-  %t64 = call i32 @parseStructLiteral(ptr %t63)
-  ret i32 %t64
-L31:
-  %t65 = load ptr, ptr %t0
-  %t66 = call i32 @parseLiteral(ptr %t65, i32 27)
+  %t31 = getelementptr inbounds %Parser, ptr %t30, i32 0, i32 4
+  store i1 %t29, ptr %t31
+  %t32 = load i32, ptr %t28
+  ret i32 %t32
+L9:
+  %t34 = load i32, ptr %t3
+  %t35 = icmp eq i32 %t34, 59
+  store i1 %t35, ptr %t33
+  br i1 %t35, label %L10, label %L11
+L10:
+  %t36 = load ptr, ptr %t0
+  %t37 = call ptr @Parser.peek(ptr %t36)
+  %t38 = getelementptr inbounds %Token, ptr %t37, i32 0, i32 0
+  %t39 = load i32, ptr %t38
+  %t40 = icmp eq i32 %t39, 2
+  store i1 %t40, ptr %t33
+  br label %L11
+L11:
+  %t41 = load i1, ptr %t33
+  br i1 %t41, label %L12, label %L14
+L12:
+  %t42 = load ptr, ptr %t0
+  %t43 = call ptr @Parser.current(ptr %t42)
+  store ptr %t43, ptr %t44
+  %t45 = load ptr, ptr %t0
+  call void @Parser.advance(ptr %t45)
+  %t46 = load ptr, ptr %t0
+  %t47 = call ptr @Parser.current(ptr %t46)
+  store ptr %t47, ptr %t48
+  %t49 = load ptr, ptr %t0
+  call void @Parser.advance(ptr %t49)
+  %t50 = load ptr, ptr %t0
+  %t51 = getelementptr inbounds %Parser, ptr %t50, i32 0, i32 1
+  %t52 = load ptr, ptr %t51
+  %t53 = load ptr, ptr %t44
+  %t54 = getelementptr inbounds %Token, ptr %t53, i32 0, i32 3
+  %t55 = load i32, ptr %t54
+  %t56 = load ptr, ptr %t44
+  %t57 = getelementptr inbounds %Token, ptr %t56, i32 0, i32 4
+  %t58 = load i32, ptr %t57
+  %t59 = call i32 @Ast.add(ptr %t52, i32 18, i32 %t55, i32 %t58)
+  store i32 %t59, ptr %t60
+  %t61 = load ptr, ptr %t0
+  %t62 = getelementptr inbounds %Parser, ptr %t61, i32 0, i32 1
+  %t63 = load ptr, ptr %t62
+  %t64 = load i32, ptr %t60
+  %t65 = load ptr, ptr %t48
+  call void @Ast.setText(ptr %t63, i32 %t64, ptr %t65)
+  %t66 = load i32, ptr %t60
   ret i32 %t66
+L14:
+  %t67 = load i32, ptr %t3
+  %t68 = icmp eq i32 %t67, 53
+  br i1 %t68, label %L15, label %L17
+L15:
+  %t69 = load ptr, ptr %t0
+  call void @Parser.advance(ptr %t69)
+  %t70 = load ptr, ptr %t0
+  %t71 = call i32 @parseExpr(ptr %t70)
+  store i32 %t71, ptr %t72
+  %t73 = load ptr, ptr %t0
+  %t74 = call ptr @Parser.expect(ptr %t73, i32 54, ptr @.str.1443)
+  %t75 = load i32, ptr %t72
+  ret i32 %t75
+L17:
+  %t76 = load i32, ptr %t3
+  switch i32 %t76, label %L25 [ i32 3, label %L19 i32 6, label %L20 i32 4, label %L21 i32 5, label %L22 i32 14, label %L23 i32 24, label %L24 ]
+L19:
+  %t77 = load ptr, ptr %t0
+  %t78 = call i32 @parseLiteral(ptr %t77, i32 23)
+  ret i32 %t78
+L20:
+  %t79 = load ptr, ptr %t0
+  %t80 = call i32 @parseLiteral(ptr %t79, i32 26)
+  ret i32 %t80
+L21:
+  %t81 = load ptr, ptr %t0
+  %t82 = call i32 @parseLiteral(ptr %t81, i32 24)
+  ret i32 %t82
+L22:
+  %t83 = load ptr, ptr %t0
+  %t84 = call i32 @parseLiteral(ptr %t83, i32 25)
+  ret i32 %t84
+L23:
+  %t85 = load ptr, ptr %t0
+  %t86 = call i32 @parseSizeOf(ptr %t85)
+  ret i32 %t86
+L24:
+  %t87 = load ptr, ptr %t0
+  %t88 = call i32 @parseLiteral(ptr %t87, i32 36)
+  ret i32 %t88
 L25:
-  %t67 = load ptr, ptr %t0
-  call void @Parser.fail(ptr %t67, ptr @.str.1433)
-  %t68 = load ptr, ptr %t0
-  %t69 = call i32 @Parser.errorNode(ptr %t68)
-  ret i32 %t69
+  br label %L18
+L18:
+  %t91 = load i32, ptr %t3
+  %t92 = icmp eq i32 %t91, 2
+  store i1 %t92, ptr %t90
+  br i1 %t92, label %L26, label %L27
+L26:
+  %t93 = load ptr, ptr %t0
+  %t94 = call ptr @Parser.peek(ptr %t93)
+  %t95 = getelementptr inbounds %Token, ptr %t94, i32 0, i32 0
+  %t96 = load i32, ptr %t95
+  %t97 = icmp eq i32 %t96, 44
+  store i1 %t97, ptr %t90
+  br label %L27
+L27:
+  %t98 = load i1, ptr %t90
+  store i1 %t98, ptr %t89
+  br i1 %t98, label %L28, label %L29
+L28:
+  %t99 = load ptr, ptr %t0
+  %t100 = call i1 @looksLikeTypeArgs(ptr %t99)
+  store i1 %t100, ptr %t89
+  br label %L29
+L29:
+  %t101 = load i1, ptr %t89
+  br i1 %t101, label %L30, label %L32
+L30:
+  %t102 = load ptr, ptr %t0
+  %t103 = call i32 @parseGenericPrimary(ptr %t102)
+  ret i32 %t103
+L32:
+  %t104 = load i32, ptr %t3
+  %t105 = icmp eq i32 %t104, 2
+  br i1 %t105, label %L33, label %L35
+L33:
+  %t106 = load ptr, ptr %t0
+  %t107 = call ptr @Parser.peek(ptr %t106)
+  %t108 = getelementptr inbounds %Token, ptr %t107, i32 0, i32 0
+  %t109 = load i32, ptr %t108
+  %t110 = icmp eq i32 %t109, 53
+  br i1 %t110, label %L36, label %L38
+L36:
+  %t111 = load ptr, ptr %t0
+  %t112 = call i32 @parseFuncCall(ptr %t111)
+  ret i32 %t112
+L38:
+  %t113 = load ptr, ptr %t0
+  %t114 = call ptr @Parser.peek(ptr %t113)
+  %t115 = getelementptr inbounds %Token, ptr %t114, i32 0, i32 0
+  %t116 = load i32, ptr %t115
+  %t117 = icmp eq i32 %t116, 55
+  br i1 %t117, label %L39, label %L41
+L39:
+  %t118 = load ptr, ptr %t0
+  %t119 = call i32 @parseStructLiteral(ptr %t118)
+  ret i32 %t119
+L41:
+  %t120 = load ptr, ptr %t0
+  %t121 = call i32 @parseLiteral(ptr %t120, i32 27)
+  ret i32 %t121
+L35:
+  %t122 = load ptr, ptr %t0
+  call void @Parser.fail(ptr %t122, ptr @.str.1444)
+  %t123 = load ptr, ptr %t0
+  %t124 = call i32 @Parser.errorNode(ptr %t123)
+  ret i32 %t124
 }
 
 define i32 @parseSizeOf(ptr %p0) {
@@ -57309,14 +58237,14 @@ entry:
   %t10 = load i32, ptr %t9
   store i32 %t10, ptr %t11
   %t12 = load ptr, ptr %t0
-  %t13 = call ptr @Parser.expect(ptr %t12, i32 14, ptr @.str.1434)
+  %t13 = call ptr @Parser.expect(ptr %t12, i32 14, ptr @.str.1445)
   %t14 = load ptr, ptr %t0
-  %t15 = call ptr @Parser.expect(ptr %t14, i32 53, ptr @.str.1435)
+  %t15 = call ptr @Parser.expect(ptr %t14, i32 53, ptr @.str.1446)
   %t16 = load ptr, ptr %t0
   %t17 = call i32 @parseType(ptr %t16)
   store i32 %t17, ptr %t18
   %t19 = load ptr, ptr %t0
-  %t20 = call ptr @Parser.expect(ptr %t19, i32 54, ptr @.str.1436)
+  %t20 = call ptr @Parser.expect(ptr %t19, i32 54, ptr @.str.1447)
   %t21 = load ptr, ptr %t0
   %t22 = getelementptr inbounds %Parser, ptr %t21, i32 0, i32 1
   %t23 = load ptr, ptr %t22
@@ -57362,12 +58290,12 @@ entry:
   %t12 = load ptr, ptr %t0
   call void @Parser.advance(ptr %t12)
   %t13 = load ptr, ptr %t0
-  %t14 = call ptr @Parser.expect(ptr %t13, i32 53, ptr @.str.1437)
+  %t14 = call ptr @Parser.expect(ptr %t13, i32 53, ptr @.str.1448)
   %t15 = load ptr, ptr %t0
   %t16 = call i32 @parseArgList(ptr %t15)
   store i32 %t16, ptr %t17
   %t18 = load ptr, ptr %t0
-  %t19 = call ptr @Parser.expect(ptr %t18, i32 54, ptr @.str.1438)
+  %t19 = call ptr @Parser.expect(ptr %t18, i32 54, ptr @.str.1449)
   %t20 = load ptr, ptr %t0
   %t21 = getelementptr inbounds %Parser, ptr %t20, i32 0, i32 1
   %t22 = load ptr, ptr %t21
@@ -57506,7 +58434,7 @@ L0:
   %t37 = call i32 @parseArgList(ptr %t36)
   store i32 %t37, ptr %t38
   %t39 = load ptr, ptr %t0
-  %t40 = call ptr @Parser.expect(ptr %t39, i32 54, ptr @.str.1439)
+  %t40 = call ptr @Parser.expect(ptr %t39, i32 54, ptr @.str.1450)
   %t41 = load ptr, ptr %t0
   %t42 = getelementptr inbounds %Parser, ptr %t41, i32 0, i32 1
   %t43 = load ptr, ptr %t42
@@ -57570,7 +58498,7 @@ entry:
   %t3 = alloca ptr
   store ptr %p0, ptr %t0
   %t1 = load ptr, ptr %t0
-  %t2 = call ptr @Parser.expect(ptr %t1, i32 2, ptr @.str.1440)
+  %t2 = call ptr @Parser.expect(ptr %t1, i32 2, ptr @.str.1451)
   store ptr %t2, ptr %t3
   %t4 = load ptr, ptr %t0
   %t5 = load ptr, ptr %t3
@@ -57620,7 +58548,7 @@ entry:
   %t28 = getelementptr inbounds %Node, ptr %t27, i32 0, i32 5
   store i32 %t19, ptr %t28
   %t29 = load ptr, ptr %t0
-  %t30 = call ptr @Parser.expect(ptr %t29, i32 55, ptr @.str.1441)
+  %t30 = call ptr @Parser.expect(ptr %t29, i32 55, ptr @.str.1452)
   br label %L0
 L0:
   %t32 = load ptr, ptr %t0
@@ -57639,10 +58567,10 @@ L4:
   br i1 %t38, label %L1, label %L2
 L1:
   %t39 = load ptr, ptr %t0
-  %t40 = call ptr @Parser.expect(ptr %t39, i32 2, ptr @.str.1442)
+  %t40 = call ptr @Parser.expect(ptr %t39, i32 2, ptr @.str.1453)
   store ptr %t40, ptr %t41
   %t42 = load ptr, ptr %t0
-  %t43 = call ptr @Parser.expect(ptr %t42, i32 62, ptr @.str.1443)
+  %t43 = call ptr @Parser.expect(ptr %t42, i32 62, ptr @.str.1454)
   %t44 = load ptr, ptr %t0
   %t45 = getelementptr inbounds %Parser, ptr %t44, i32 0, i32 1
   %t46 = load ptr, ptr %t45
@@ -57697,7 +58625,7 @@ L10:
   br label %L0
 L2:
   %t81 = load ptr, ptr %t0
-  %t82 = call ptr @Parser.expect(ptr %t81, i32 56, ptr @.str.1444)
+  %t82 = call ptr @Parser.expect(ptr %t81, i32 56, ptr @.str.1455)
   %t83 = load i32, ptr %t13
   ret i32 %t83
 }
@@ -57816,7 +58744,7 @@ entry:
   %t13 = call i32 @Ast.add(ptr %t6, i32 29, i32 %t9, i32 %t12)
   store i32 %t13, ptr %t14
   %t15 = load ptr, ptr %t0
-  %t16 = call ptr @Parser.expect(ptr %t15, i32 53, ptr @.str.1445)
+  %t16 = call ptr @Parser.expect(ptr %t15, i32 53, ptr @.str.1456)
   %t17 = load ptr, ptr %t0
   %t18 = call i32 @Parser.kind(ptr %t17)
   %t19 = icmp ne i32 %t18, 54
@@ -57827,7 +58755,7 @@ L3:
   br i1 true, label %L4, label %L5
 L4:
   %t20 = load ptr, ptr %t0
-  %t21 = call ptr @Parser.expect(ptr %t20, i32 2, ptr @.str.1446)
+  %t21 = call ptr @Parser.expect(ptr %t20, i32 2, ptr @.str.1457)
   store ptr %t21, ptr %t22
   %t23 = load i1, ptr @FAILED
   br i1 %t23, label %L6, label %L8
@@ -57896,7 +58824,7 @@ L5:
   br label %L2
 L2:
   %t64 = load ptr, ptr %t0
-  %t65 = call ptr @Parser.expect(ptr %t64, i32 54, ptr @.str.1447)
+  %t65 = call ptr @Parser.expect(ptr %t64, i32 54, ptr @.str.1458)
   %t66 = load ptr, ptr %t0
   %t67 = getelementptr inbounds %Parser, ptr %t66, i32 0, i32 1
   %t68 = load ptr, ptr %t67
@@ -57941,7 +58869,7 @@ L17:
   br label %L19
 L19:
   %t102 = load ptr, ptr %t0
-  %t103 = call ptr @Parser.expect(ptr %t102, i32 63, ptr @.str.1448)
+  %t103 = call ptr @Parser.expect(ptr %t102, i32 63, ptr @.str.1459)
   %t104 = load i1, ptr @FAILED
   br i1 %t104, label %L20, label %L22
 L20:
@@ -58124,7 +59052,7 @@ L3:
   %t56 = load i32, ptr %t24
   %t57 = sext i32 %t56 to i64
   %t58 = call %Facts @Facts.withCounts(%Facts %t48, i64 %t55, i64 %t57)
-  call void @analyzerFail(ptr %t43, i32 %t44, i32 150, %Facts %t58)
+  call void @analyzerFail(ptr %t43, i32 %t44, i32 153, %Facts %t58)
   %t59 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t59
 L5:
@@ -58228,7 +59156,7 @@ L13:
   %t140 = getelementptr inbounds %Node, ptr %t137, i64 %t139
   %t141 = getelementptr inbounds %Node, ptr %t140, i32 0, i32 3
   %t142 = load ptr, ptr %t141
-  %t143 = call ptr @quoted(ptr @.str.1449, ptr %t142, ptr @.str.1450)
+  %t143 = call ptr @quoted(ptr @.str.1460, ptr %t142, ptr @.str.1461)
   call void @analyzerValidateType(ptr %t126, i32 %t127, %Type %t132, ptr %t143)
   br label %L15
 L14:
@@ -58260,7 +59188,7 @@ L17:
   %t164 = getelementptr inbounds %Node, ptr %t163, i32 0, i32 3
   %t165 = load ptr, ptr %t164
   %t166 = call %Facts @Facts.about(ptr %t165)
-  call void @analyzerFail(ptr %t154, i32 %t155, i32 148, %Facts %t166)
+  call void @analyzerFail(ptr %t154, i32 %t155, i32 151, %Facts %t166)
   %t167 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t167
 L18:
@@ -58323,7 +59251,7 @@ L22:
   %t209 = load ptr, ptr %t0
   %t210 = load i32, ptr %t1
   %t211 = load %Type, ptr %t184
-  call void @analyzerValidateType(ptr %t209, i32 %t210, %Type %t211, ptr @.str.1451)
+  call void @analyzerValidateType(ptr %t209, i32 %t210, %Type %t211, ptr @.str.1462)
   br label %L24
 L23:
   %t212 = load i1, ptr %t25
@@ -58333,7 +59261,7 @@ L25:
   %t214 = load ptr, ptr %t0
   %t215 = load i32, ptr %t1
   %t216 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t214, i32 %t215, i32 149, %Facts %t216)
+  call void @analyzerFail(ptr %t214, i32 %t215, i32 152, %Facts %t216)
   %t217 = call %Type @Type.make(i32 0, i32 0)
   ret %Type %t217
 L27:
@@ -58447,13 +59375,13 @@ L42:
   %t291 = load ptr, ptr %t0
   %t292 = load i32, ptr %t1
   %t293 = call %Facts @Facts.none()
-  call void @analyzerFail(ptr %t291, i32 %t292, i32 151, %Facts %t293)
+  call void @analyzerFail(ptr %t291, i32 %t292, i32 154, %Facts %t293)
   br label %L44
 L44:
   %t294 = call ptr @Builder.new()
   store ptr %t294, ptr %t295
   %t296 = load ptr, ptr %t295
-  call void @Builder.add(ptr %t296, ptr @.str.1452)
+  call void @Builder.add(ptr %t296, ptr @.str.1463)
   %t297 = load ptr, ptr %t295
   %t298 = load i32, ptr %t1
   %t299 = sext i32 %t298 to i64
@@ -58945,7 +59873,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1455, ptr @.str.1453, ptr @.str.1454)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1466, ptr @.str.1464, ptr @.str.1465)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -58983,7 +59911,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1458, ptr @.str.1456, ptr @.str.1457)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1469, ptr @.str.1467, ptr @.str.1468)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -59007,7 +59935,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1461, ptr @.str.1459, ptr @.str.1460)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1472, ptr @.str.1470, ptr @.str.1471)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -59033,7 +59961,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1464, ptr @.str.1462, ptr @.str.1463)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1475, ptr @.str.1473, ptr @.str.1474)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -59685,7 +60613,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1467, ptr @.str.1465, ptr @.str.1466)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1478, ptr @.str.1476, ptr @.str.1477)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -59723,7 +60651,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1470, ptr @.str.1468, ptr @.str.1469)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1481, ptr @.str.1479, ptr @.str.1480)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -59747,7 +60675,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1473, ptr @.str.1471, ptr @.str.1472)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1484, ptr @.str.1482, ptr @.str.1483)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -59773,7 +60701,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1476, ptr @.str.1474, ptr @.str.1475)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1487, ptr @.str.1485, ptr @.str.1486)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -60713,7 +61641,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1479, ptr @.str.1477, ptr @.str.1478)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1490, ptr @.str.1488, ptr @.str.1489)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -60751,7 +61679,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1482, ptr @.str.1480, ptr @.str.1481)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1493, ptr @.str.1491, ptr @.str.1492)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -60775,7 +61703,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1485, ptr @.str.1483, ptr @.str.1484)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1496, ptr @.str.1494, ptr @.str.1495)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -60801,7 +61729,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1488, ptr @.str.1486, ptr @.str.1487)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1499, ptr @.str.1497, ptr @.str.1498)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -61453,7 +62381,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1491, ptr @.str.1489, ptr @.str.1490)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1502, ptr @.str.1500, ptr @.str.1501)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -61491,7 +62419,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1494, ptr @.str.1492, ptr @.str.1493)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1505, ptr @.str.1503, ptr @.str.1504)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -61515,7 +62443,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1497, ptr @.str.1495, ptr @.str.1496)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1508, ptr @.str.1506, ptr @.str.1507)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -61541,7 +62469,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1500, ptr @.str.1498, ptr @.str.1499)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1511, ptr @.str.1509, ptr @.str.1510)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -62582,7 +63510,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1503, ptr @.str.1501, ptr @.str.1502)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1514, ptr @.str.1512, ptr @.str.1513)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -62620,7 +63548,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1506, ptr @.str.1504, ptr @.str.1505)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1517, ptr @.str.1515, ptr @.str.1516)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -62644,7 +63572,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1509, ptr @.str.1507, ptr @.str.1508)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1520, ptr @.str.1518, ptr @.str.1519)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -62670,7 +63598,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1512, ptr @.str.1510, ptr @.str.1511)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1523, ptr @.str.1521, ptr @.str.1522)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -63322,7 +64250,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1515, ptr @.str.1513, ptr @.str.1514)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1526, ptr @.str.1524, ptr @.str.1525)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -63360,7 +64288,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1518, ptr @.str.1516, ptr @.str.1517)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1529, ptr @.str.1527, ptr @.str.1528)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -63384,7 +64312,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1521, ptr @.str.1519, ptr @.str.1520)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1532, ptr @.str.1530, ptr @.str.1531)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -63410,7 +64338,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1524, ptr @.str.1522, ptr @.str.1523)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1535, ptr @.str.1533, ptr @.str.1534)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -64096,7 +65024,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1527, ptr @.str.1525, ptr @.str.1526)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1538, ptr @.str.1536, ptr @.str.1537)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -64134,7 +65062,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1530, ptr @.str.1528, ptr @.str.1529)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1541, ptr @.str.1539, ptr @.str.1540)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -64158,7 +65086,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1533, ptr @.str.1531, ptr @.str.1532)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1544, ptr @.str.1542, ptr @.str.1543)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -64184,7 +65112,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1536, ptr @.str.1534, ptr @.str.1535)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1547, ptr @.str.1545, ptr @.str.1546)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -64836,7 +65764,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1539, ptr @.str.1537, ptr @.str.1538)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1550, ptr @.str.1548, ptr @.str.1549)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -64874,7 +65802,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1542, ptr @.str.1540, ptr @.str.1541)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1553, ptr @.str.1551, ptr @.str.1552)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -64898,7 +65826,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1545, ptr @.str.1543, ptr @.str.1544)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1556, ptr @.str.1554, ptr @.str.1555)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -64924,7 +65852,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1548, ptr @.str.1546, ptr @.str.1547)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1559, ptr @.str.1557, ptr @.str.1558)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -65783,7 +66711,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1551, ptr @.str.1549, ptr @.str.1550)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1562, ptr @.str.1560, ptr @.str.1561)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -65821,7 +66749,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1554, ptr @.str.1552, ptr @.str.1553)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1565, ptr @.str.1563, ptr @.str.1564)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -65845,7 +66773,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1557, ptr @.str.1555, ptr @.str.1556)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1568, ptr @.str.1566, ptr @.str.1567)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -65871,7 +66799,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1560, ptr @.str.1558, ptr @.str.1559)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1571, ptr @.str.1569, ptr @.str.1570)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -66523,7 +67451,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1563, ptr @.str.1561, ptr @.str.1562)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1574, ptr @.str.1572, ptr @.str.1573)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -66561,7 +67489,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1566, ptr @.str.1564, ptr @.str.1565)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1577, ptr @.str.1575, ptr @.str.1576)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -66585,7 +67513,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1569, ptr @.str.1567, ptr @.str.1568)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1580, ptr @.str.1578, ptr @.str.1579)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -66611,7 +67539,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1572, ptr @.str.1570, ptr @.str.1571)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1583, ptr @.str.1581, ptr @.str.1582)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -67309,7 +68237,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1575, ptr @.str.1573, ptr @.str.1574)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1586, ptr @.str.1584, ptr @.str.1585)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -67347,7 +68275,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1578, ptr @.str.1576, ptr @.str.1577)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1589, ptr @.str.1587, ptr @.str.1588)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -67371,7 +68299,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1581, ptr @.str.1579, ptr @.str.1580)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1592, ptr @.str.1590, ptr @.str.1591)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -67397,7 +68325,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1584, ptr @.str.1582, ptr @.str.1583)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1595, ptr @.str.1593, ptr @.str.1594)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -68602,7 +69530,7 @@ L1:
   %t10 = load i1, ptr %t2
   br i1 %t10, label %L2, label %L3
 L3:
-  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1587, ptr @.str.1585, ptr @.str.1586)
+  %t11 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1598, ptr @.str.1596, ptr @.str.1597)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -68640,7 +69568,7 @@ L1:
   %t11 = load i1, ptr %t3
   br i1 %t11, label %L2, label %L3
 L3:
-  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1590, ptr @.str.1588, ptr @.str.1589)
+  %t12 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1601, ptr @.str.1599, ptr @.str.1600)
   call void @exit(i32 1)
   unreachable
 L2:
@@ -68664,7 +69592,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1593, ptr @.str.1591, ptr @.str.1592)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1604, ptr @.str.1602, ptr @.str.1603)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -68690,7 +69618,7 @@ entry:
   %t4 = icmp sgt i64 %t3, 0
   br i1 %t4, label %L0, label %L1
 L1:
-  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1596, ptr @.str.1594, ptr @.str.1595)
+  %t5 = call i32 (i32, ptr, ...) @dprintf(i32 2, ptr @.str.1607, ptr @.str.1605, ptr @.str.1606)
   call void @exit(i32 1)
   unreachable
 L0:
@@ -71788,7 +72716,7 @@ entry:
   ret void
 }
 
-define i32 @ode.lambda.35764(%Type %p0, %Type %p1) {
+define i32 @ode.lambda.36304(%Type %p0, %Type %p1) {
 entry:
   %t0 = alloca %Type
   %t1 = alloca %Type
