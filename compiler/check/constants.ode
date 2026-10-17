@@ -163,28 +163,28 @@ fn foldBinary(an: *Analyzer, node: i32, binary: Binary, type: Type): bool {
 
   let value: i64 = 0;
   match (op) {
-    BinaryOp.Add => { value = left + right; }
-    BinaryOp.Subtract => { value = left - right; }
-    BinaryOp.Multiply => { value = left * right; }
-    BinaryOp.Divide => {
+    .Add => { value = left + right; }
+    .Subtract => { value = left - right; }
+    .Multiply => { value = left * right; }
+    .Divide => {
       if (signed) {
         value = left / right;
       } else {
         value = (left as u64 / right as u64) as i64;
       }
     }
-    BinaryOp.Remainder => {
+    .Remainder => {
       if (signed) {
         value = left % right;
       } else {
         value = (left as u64 % right as u64) as i64;
       }
     }
-    BinaryOp.BitAnd => { value = left & right; }
-    BinaryOp.BitOr => { value = left | right; }
-    BinaryOp.BitXor => { value = left ^ right; }
-    BinaryOp.ShiftLeft => { value = left << right; }
-    BinaryOp.ShiftRight => {
+    .BitAnd => { value = left & right; }
+    .BitOr => { value = left | right; }
+    .BitXor => { value = left ^ right; }
+    .ShiftLeft => { value = left << right; }
+    .ShiftRight => {
       if (signed) {
         value = left >> right;
       } else {

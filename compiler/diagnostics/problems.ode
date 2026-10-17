@@ -153,6 +153,13 @@ export enum Problem {
   CannotMatch,
   ArmAfterElse,
   DuplicatePattern,
+  // `.Red` where no enum is expected: `name` the member, `got` the union it
+  // was not found in once, when it was a union.
+  ShorthandWithoutEnum,
+  // A match used as a value: an arm's block that falls through, and an arm
+  // whose value is not of the match's type.
+  ArmFallsThrough,
+  ArmTypes,
   // A match on a union: `name` the union, `other` the member left out.
   UnhandledUnionMember,
   // A pattern in a match on a union that names no type: `name` the union.
@@ -366,74 +373,74 @@ export fn describe(problem: Problem, facts: Facts): Description {
   let other: *i8 = facts.other;
 
   match (problem) {
-    Problem.UnexpectedCharacter => { return says("unexpected character"); }
-    Problem.UnterminatedString => { return says("unterminated string literal"); }
-    Problem.StringCrossesLine => {
+    .UnexpectedCharacter => { return says("unexpected character"); }
+    .UnterminatedString => { return says("unterminated string literal"); }
+    .StringCrossesLine => {
       return says("string literal may not cross a newline");
     }
-    Problem.StringInterpolation => {
+    .StringInterpolation => {
       return says("a string cannot interpolate: `${` has no meaning in Ode");
     }
-    Problem.UnknownEscape => { return says("unknown escape sequence"); }
-    Problem.BadHexEscape => {
+    .UnknownEscape => { return says("unknown escape sequence"); }
+    .BadHexEscape => {
       return says("\\x must be followed by two hex digits");
     }
-    Problem.CharacterLiteralLength => {
+    .CharacterLiteralLength => {
       return says("character literal must hold exactly one character");
     }
 
-    Problem.UnexpectedToken => {
+    .UnexpectedToken => {
       return says(text4("expected ", q(name), " but got ", q(other)));
     }
-    Problem.PointerToFunctionType => {
+    .PointerToFunctionType => {
       return saysMore("a pointer to a function type needs parentheses",
                       "write `*((i32) => i32)`; `*(i32) => i32` could be a function taking a pointer");
     }
-    Problem.OldFunctionType => {
+    .OldFunctionType => {
       return saysMore("function types are written with `=>`",
                       "write `(i32) => i32` for what was `fn(i32): i32`");
     }
-    Problem.NotAtTopLevel => {
+    .NotAtTopLevel => {
       return says(text2(q(name),
                         " declarations are only allowed at the top level of the program"));
     }
 
-    Problem.CannotOpenInput => { return says("cannot open input file"); }
-    Problem.NothingToTest => { return says("no .ode files to test here"); }
-    Problem.CannotMakeScratchDirectory => {
+    .CannotOpenInput => { return says("cannot open input file"); }
+    .NothingToTest => { return says("no .ode files to test here"); }
+    .CannotMakeScratchDirectory => {
       return says("cannot make a scratch directory");
     }
-    Problem.CannotWriteIr => { return says("cannot write the LLVM IR"); }
-    Problem.AssemblingFailed => { return says("assembling failed"); }
-    Problem.LinkingFailed => { return says("linking failed"); }
-    Problem.ModuleNotFound => {
+    .CannotWriteIr => { return says("cannot write the LLVM IR"); }
+    .AssemblingFailed => { return says("assembling failed"); }
+    .LinkingFailed => { return says("linking failed"); }
+    .ModuleNotFound => {
       return says(text2("cannot find module ", q(name)));
     }
-    Problem.ImportNotAPath => {
+    .ImportNotAPath => {
       return says(text4("cannot find module ", q(name),
                         ": a file is imported by its path, such as './",
                         text2(name, "', and a library module as 'std/...'")));
     }
-    Problem.LibraryNotFound => {
+    .LibraryNotFound => {
       return says(text3("cannot find module ", q(name),
                         ": the standard library was not found; set ODE_STD to its directory"));
     }
-    Problem.NoSuchExport => {
+    .NoSuchExport => {
       return says(text4("module ", q(name), " has no export named ", q(other)));
     }
-    Problem.NotExported => {
+    .NotExported => {
       return says(text3(q(name), " is not exported from ", q(other)));
     }
-    Problem.TypeNotImported => {
+    .TypeNotImported => {
       return says(text4("type ", q(name), " is declared in ",
                         text2(q(other), " but not imported here")));
     }
-    Problem.NoMain => { return says("No main function found"); }
+    .NoMain => { return says("No main function found"); }
 
-    Problem.AlreadyDeclared => {
+    .AlreadyDeclared => {
       return says(text3("symbol ", q(name), " already declared in this scope"));
     }
-    Problem.UnknownType => {
+    .UnknownType => {
       // `other`, when there is one, says where the type was written.
       let unknown: *i8 = text2("unknown type ", q(name));
       if (other == null) {
@@ -441,370 +448,387 @@ export fn describe(problem: Problem, facts: Facts): Description {
       }
       return saysMore(other, unknown);
     }
-    Problem.DuplicateStruct => {
+    .DuplicateStruct => {
       return says(text3("struct ", q(name), " is declared more than once"));
     }
-    Problem.DuplicateField => {
+    .DuplicateField => {
       return says(text4("struct ", q(name), " declares field ",
                         text2(q(other), " twice")));
     }
-    Problem.VoidField => {
+    .VoidField => {
       return says(text4("field ", q(name), " of struct ",
                         text2(q(other), " cannot be void")));
     }
-    Problem.RecursiveStruct => {
+    .RecursiveStruct => {
       return saysMore(text3("struct ", q(name), " contains itself"),
                       "use a pointer to break the cycle");
     }
-    Problem.VoidVariable => {
+    .VoidVariable => {
       return says(text3("variable ", q(name), " cannot be void"));
     }
-    Problem.VoidParameter => {
+    .VoidParameter => {
       return says(text3("extern ", q(name), " has a void parameter"));
     }
-    Problem.ExternReturnsStruct => {
+    .ExternReturnsStruct => {
       return saysMore(text3("extern ", q(name), " returns a struct by value"),
                       "return a pointer instead");
     }
-    Problem.ExternTakesStruct => {
+    .ExternTakesStruct => {
       return saysMore(text3("extern ", q(name), " takes a struct by value"),
                       "take a pointer instead");
     }
-    Problem.VariadicFunction => {
+    .VariadicFunction => {
       return saysMore(text3("function ", q(name), " takes '...'"),
                       ONLY_EXTERN_VARIADIC);
     }
-    Problem.VariadicMethod => {
+    .VariadicMethod => {
       return saysMore(text3("method ", q(name), " takes '...'"),
                       ONLY_EXTERN_VARIADIC);
     }
-    Problem.GlobalNotConstant => {
+    .GlobalNotConstant => {
       return saysMore(text3("initialiser of global ", q(name), " is not constant"),
                       "globals may only be initialised from literals, sizeof, enum members and earlier globals");
     }
-    Problem.GlobalDeclaredLater => {
+    .GlobalDeclaredLater => {
       return saysMore(text3("initialiser of global ", q(name), " is not constant"),
                       text2(q(other), " is declared after it"));
     }
 
-    Problem.BreakOutsideLoop => { return says("break used outside of a loop"); }
-    Problem.ContinueOutsideLoop => {
+    .BreakOutsideLoop => { return says("break used outside of a loop"); }
+    .ContinueOutsideLoop => {
       return says("continue used outside of a loop");
     }
-    Problem.ReturnOutsideFunction => {
+    .ReturnOutsideFunction => {
       return says("return used outside of a function");
     }
-    Problem.ReturnWithoutValue => {
+    .ReturnWithoutValue => {
       return saysMore("return without a value",
                       text2("this function returns ", typeText(facts.expected)));
     }
-    Problem.ReturnFromVoid => {
+    .ReturnFromVoid => {
       return saysMore("returning a value from a void function", gotOne(facts));
     }
-    Problem.WrongReturnType => {
+    .WrongReturnType => {
       return saysMore("wrong return type", expectedButGot(facts));
     }
-    Problem.MissingReturn => {
+    .MissingReturn => {
       return saysMore(text3("function ", q(name), " does not return on every path"),
                       "only a void function may reach its end without a return");
     }
-    Problem.DeclarationMismatch => {
+    .DeclarationMismatch => {
       return saysMore(text3("type mismatch in declaration of ", q(name), ""),
                       text4("declared as ", typeText(facts.expected),
                             " but assigned ", typeText(facts.got)));
     }
-    Problem.AssignmentMismatch => {
+    .AssignmentMismatch => {
       return saysMore("type mismatch in assignment", expectedButGot(facts));
     }
-    Problem.NotAssignable => {
+    .NotAssignable => {
       return says("left-hand side of assignment is not assignable");
     }
-    Problem.ConditionNotBool => {
+    .ConditionNotBool => {
       // `name` is the statement: if, while.
       return saysMore(text2(name, " condition must be boolean"), gotOne(facts));
     }
-    Problem.ForBoundsNotIntegers => {
+    .ForBoundsNotIntegers => {
       return saysMore("for loop bounds must be integers", gotOne(facts));
     }
-    Problem.ForBoundsDiffer => {
+    .ForBoundsDiffer => {
       return saysMore("for loop bounds must have the same type", gotTwo(facts));
     }
 
-    Problem.UndefinedVariable => {
+    .UndefinedVariable => {
       return says(text2("undefined variable ", q(name)));
     }
-    Problem.UndefinedFunction => {
+    .UndefinedFunction => {
       return says(text2("undefined function ", q(name)));
     }
-    Problem.NotAFunction => { return says(text2(q(name), " is not a function")); }
-    Problem.CannotCall => {
+    .NotAFunction => { return says(text2(q(name), " is not a function")); }
+    .CannotCall => {
       return saysMore(text2("cannot call a value of type ", typeText(facts.got)),
                       "only functions and function values can be called");
     }
-    Problem.WrongArgumentCount => {
+    .WrongArgumentCount => {
       return saysMore(text2("wrong number of arguments to ", q(name)),
                       text4("expected ", fromInt(facts.count), " but got ",
                             fromInt(facts.given)));
     }
-    Problem.TooFewArguments => {
+    .TooFewArguments => {
       return saysMore(text2("wrong number of arguments to ", q(name)),
                       text4("expected at least ", fromInt(facts.count),
                             " but got ", fromInt(facts.given)));
     }
-    Problem.WrongArgumentType => {
+    .WrongArgumentType => {
       // `count` is the argument's position, from 1.
       return saysMore(text4("argument ", fromInt(facts.count), " of ",
                             text2(q(name), " has the wrong type")),
                       expectedButGot(facts));
     }
-    Problem.VariadicArgument => {
+    .VariadicArgument => {
       return saysMore(text4("argument ", fromInt(facts.count), " of ",
                             text2(q(name), " cannot go through '...'")),
                       text3("a ", typeText(facts.got),
                             " has no C type; pass a pointer or a number"));
     }
-    Problem.VariadicAsValue => {
+    .VariadicAsValue => {
       return saysMore(text3("cannot use ", q(name), " as a value"),
                       "it takes '...', which a function type cannot say");
     }
 
-    Problem.SizeofVoid => { return says("sizeof(void) is not allowed"); }
-    Problem.AddressOfTemporary => {
+    .SizeofVoid => { return says("sizeof(void) is not allowed"); }
+    .AddressOfTemporary => {
       return says("cannot take the address of a temporary value");
     }
-    Problem.AddressOfVoid => {
+    .AddressOfVoid => {
       return says("cannot take the address of a void value");
     }
-    Problem.UnaryMinusNotNumeric => {
+    .UnaryMinusNotNumeric => {
       return saysMore("unary minus requires a numeric operand", gotOne(facts));
     }
-    Problem.UnaryPlusNotNumeric => {
+    .UnaryPlusNotNumeric => {
       return saysMore("unary plus requires a numeric operand", gotOne(facts));
     }
-    Problem.NotNotBool => {
+    .NotNotBool => {
       return saysMore("logical NOT requires boolean operand", gotOne(facts));
     }
-    Problem.DereferenceNonPointer => {
+    .DereferenceNonPointer => {
       return saysMore("cannot dereference a non-pointer value", gotOne(facts));
     }
-    Problem.DereferenceVoidPointer => {
+    .DereferenceVoidPointer => {
       return saysMore("cannot dereference '*void'", CONCRETE_POINTER);
     }
-    Problem.LogicalNotBool => {
+    .LogicalNotBool => {
       return saysMore("logical operators require boolean operands",
                       gotTwo(facts));
     }
-    Problem.EqualityTypes => {
+    .EqualityTypes => {
       return saysMore("equality operators require same type operands",
                       gotTwo(facts));
     }
-    Problem.CompareVoid => { return says("cannot compare void values"); }
-    Problem.CompareStructs => {
+    .CompareVoid => { return says("cannot compare void values"); }
+    .CompareStructs => {
       return saysMore(text3("cannot compare struct ", q(name), " values"),
                       COMPARE_FIELDS);
     }
-    Problem.ComparisonTypes => {
+    .ComparisonTypes => {
       return saysMore("comparison operators require same type operands",
                       gotTwo(facts));
     }
-    Problem.OrderBoolOrVoid => {
+    .OrderBoolOrVoid => {
       return says("cannot compare boolean or void values");
     }
-    Problem.OrderEnum => {
+    .OrderEnum => {
       return saysMore(text3("cannot order enum ", q(name), " values"),
                       "compare them with == and !=, or match on them");
     }
-    Problem.OrderFunctions => { return says("cannot order function values"); }
-    Problem.OrderStructs => {
+    .OrderFunctions => { return says("cannot order function values"); }
+    .OrderStructs => {
       return saysMore(text3("cannot order struct ", q(name), " values"),
                       COMPARE_FIELDS);
     }
-    Problem.AddPointers => { return says("cannot add two pointers"); }
-    Problem.PointerDifferenceTypes => {
+    .AddPointers => { return says("cannot add two pointers"); }
+    .PointerDifferenceTypes => {
       return saysMore("pointer difference requires identical pointer types",
                       gotTwo(facts));
     }
-    Problem.VoidPointerDifference => {
+    .VoidPointerDifference => {
       return says("cannot take the difference of '*void' pointers");
     }
-    Problem.IntegerMinusPointer => {
+    .IntegerMinusPointer => {
       return says("cannot subtract a pointer from an integer");
     }
-    Problem.PointerOffsetNotInteger => {
+    .PointerOffsetNotInteger => {
       return saysMore("pointer arithmetic requires an integer offset",
                       gotOne(facts));
     }
-    Problem.VoidPointerArithmetic => {
+    .VoidPointerArithmetic => {
       return saysMore("cannot do arithmetic on '*void'", CONCRETE_POINTER);
     }
-    Problem.PointerOperator => {
+    .PointerOperator => {
       return says("pointers do not support this operator");
     }
-    Problem.ArithmeticTypes => {
+    .ArithmeticTypes => {
       return saysMore("arithmetic operators require same type operands",
                       gotTwo(facts));
     }
-    Problem.ArithmeticNotNumeric => {
+    .ArithmeticNotNumeric => {
       return saysMore("arithmetic requires numeric operands", gotOne(facts));
     }
-    Problem.OperatorTypes => {
+    .OperatorTypes => {
       // `name` is the operator.
       return saysMore(text2(q(name), " requires same type operands"),
                       gotTwo(facts));
     }
-    Problem.OperatorNotInteger => {
+    .OperatorNotInteger => {
       return saysMore(text2(q(name), " requires integer operands"),
                       gotOne(facts));
     }
-    Problem.IndexNonPointer => {
+    .IndexNonPointer => {
       return saysMore("cannot index a non-pointer value", gotOne(facts));
     }
-    Problem.IndexVoidPointer => {
+    .IndexVoidPointer => {
       return saysMore("cannot index '*void'", CONCRETE_POINTER);
     }
-    Problem.IndexNotInteger => {
+    .IndexNotInteger => {
       return saysMore("index must be an integer", gotOne(facts));
     }
 
-    Problem.CastFromVoid => {
+    .CastFromVoid => {
       return saysMore(castOf(facts), "void is not a value type");
     }
-    Problem.PointerToNarrowInteger => {
+    .PointerToNarrowInteger => {
       return saysMore(castOf(facts),
                       "pointers only convert to a 64-bit integer (i64, u64, usize)");
     }
-    Problem.NarrowIntegerToPointer => {
+    .NarrowIntegerToPointer => {
       return saysMore(castOf(facts),
                       "only a 64-bit integer (i64, u64, usize) converts to a pointer");
     }
-    Problem.InvalidCast => { return saysMore(castOf(facts), "no such conversion"); }
-    Problem.NumberOutOfRange => {
+    .InvalidCast => { return saysMore(castOf(facts), "no such conversion"); }
+    .NumberOutOfRange => {
       return says(text2("number is out of range for ", typeText(facts.expected)));
     }
-    Problem.NumberTooWideForCast => {
+    .NumberTooWideForCast => {
       return saysMore(text2("number is out of range for ",
                             typeText(facts.expected)),
                       "the value does not fit the type it is cast to");
     }
-    Problem.NumberNeedsCast => {
+    .NumberNeedsCast => {
       return saysMore(text2("number is out of range for ",
                             typeText(facts.expected)),
                       "use an explicit cast such as `... as i64`");
     }
-    Problem.ConstantDivisionByZero => {
+    .ConstantDivisionByZero => {
       return says("division by zero in a constant");
     }
-    Problem.ConstantShiftRange => {
+    .ConstantShiftRange => {
       return says("shift amount out of range in a constant");
     }
 
-    Problem.FieldOfNonStruct => {
+    .FieldOfNonStruct => {
       return saysMore(text2("cannot read field ", q(name)),
                       text2(typeText(facts.got), " is not a struct"));
     }
-    Problem.NoSuchField => {
+    .NoSuchField => {
       return says(text4("struct ", q(name), " has no field ", q(other)));
     }
-    Problem.FieldInitialisedTwice => {
+    .FieldInitialisedTwice => {
       return says(text3("field ", q(name), " is initialised twice"));
     }
-    Problem.FieldWrongType => {
+    .FieldWrongType => {
       return saysMore(text4("field ", q(name), " of ",
                             text2(q(other), " has the wrong type")),
                       expectedButGot(facts));
     }
-    Problem.FieldMissing => {
+    .FieldMissing => {
       return says(text4("field ", q(name), " of ", text2(q(other), " is missing")));
     }
 
-    Problem.DuplicateEnum => {
+    .DuplicateEnum => {
       return says(text3("enum ", q(name), " is declared more than once"));
     }
-    Problem.DuplicateMember => {
+    .DuplicateMember => {
       return says(text4("enum ", q(name), " declares member ",
                         text2(q(other), " twice")));
     }
-    Problem.EnumValueNotLiteral => {
+    .EnumValueNotLiteral => {
       return saysMore(text3("value of ", q(name), " is not an integer literal"),
                       "an enum member's value has to be written as a number");
     }
-    Problem.EnumValueOutOfRange => {
+    .EnumValueOutOfRange => {
       return saysMore(text3("value of ", q(name), " is out of range"),
                       "an enum's values have to fit in i32");
     }
-    Problem.NoSuchMember => {
+    .NoSuchMember => {
       return says(text4("enum ", q(name), " has no member ", q(other)));
     }
-    Problem.PatternNotMember => {
+    .PatternNotMember => {
       return saysMore(text2("pattern is not a member of ", q(name)),
                       text3("write one as ", q(name), ".<member>"));
     }
-    Problem.PatternNotLiteral => {
+    .PatternNotLiteral => {
       return saysMore("pattern is not a literal",
                       "a match on an integer takes number and character literals");
     }
-    Problem.PatternType => {
+    .PatternType => {
       return saysMore("pattern does not have the type of the value matched",
                       expectedButGot(facts));
     }
-    Problem.CannotMatch => {
+    .CannotMatch => {
       return saysMore(text2("cannot match on ", typeText(facts.got)),
                       "match works on enums, integers and characters");
     }
-    Problem.ArmAfterElse => {
+    .ArmAfterElse => {
       return says("an arm after 'else' can never be reached");
     }
-    Problem.DuplicatePattern => {
+    .DuplicatePattern => {
       return says("this value is already handled by an earlier pattern");
     }
-    Problem.UnhandledUnionMember => {
+    .ShorthandWithoutEnum => {
+      if (facts.got.kind == TypeKind.None) {
+        return saysMore(text2(q(text2(".", name)),
+                              " names a member of the enum expected here, and none is"),
+                        "name its enum, `Color.Red`, or use it where an enum is expected");
+      }
+      return saysMore(text4("no one enum in ", typeText(facts.got), " has a member ", q(name)),
+                      "name its enum, `ParseError.Empty`");
+    }
+    .ArmFallsThrough => {
+      return saysMore("this arm gives the match no value",
+                      "end its block with return, break or continue, or write the value after =>");
+    }
+    .ArmTypes => {
+      return saysMore("the arms of this match give values of different types",
+                      expectedButGot(facts));
+    }
+    .UnhandledUnionMember => {
       return saysMore(text4("match on ", q(name), " does not handle ", q(other)),
                       "add an arm for it, or an 'else' arm");
     }
-    Problem.PatternNotType => {
+    .PatternNotType => {
       return saysMore(text2("a match on a union names the types it may hold: ", q(name)),
                       "write a member's type, `Circle => { ... }`, or an error enum's name");
     }
-    Problem.UnhandledMember => {
+    .UnhandledMember => {
       return saysMore(text4("match on ", q(name), " does not handle ",
                             q(text3(name, ".", other))),
                       "add an arm for it, or an 'else' arm");
     }
-    Problem.MatchNeedsElse => {
+    .MatchNeedsElse => {
       return saysMore(text3("match on ", typeText(facts.got),
                             " needs an 'else' arm"),
                       "no list of arms can cover every value of an integer");
     }
 
-    Problem.DuplicateMethod => {
+    .DuplicateMethod => {
       return says(text3("method ", q(name), " is declared more than once"));
     }
-    Problem.SelfWrongType => {
+    .SelfWrongType => {
       // `name` is the method, `other` its struct.
       return saysMore(text3("'self' of ", q(name), " has the wrong type"),
                       text4("it must be ", q(other), " or ",
                             q(text2("*", other))));
     }
-    Problem.StaticCallOnValue => {
+    .StaticCallOnValue => {
       return says("only a struct's methods can be called on a type");
     }
-    Problem.MethodOfNonStruct => {
+    .MethodOfNonStruct => {
       return saysMore(text2("cannot call method ", q(name)),
                       text2(typeText(facts.got), " is not a struct"));
     }
-    Problem.NoSuchMethod => {
+    .NoSuchMethod => {
       return says(text4("struct ", q(name), " has no method ", q(other)));
     }
-    Problem.NoSelf => {
+    .NoSelf => {
       return saysMore(text2(q(name), " has no 'self' parameter"),
                       text3("call it on the struct instead: '", name, "(...)'"));
     }
-    Problem.MethodOnTemporary => {
+    .MethodOnTemporary => {
       return saysMore(text3("cannot call ", q(name), " on a temporary value"),
                       "it takes 'self' by pointer, so store the value first");
     }
 
-    Problem.WrongTypeArgumentCount => {
+    .WrongTypeArgumentCount => {
       // `other` is what it is: struct, function. `count` is what it takes.
       let plural: *i8 = "s";
       if (facts.count == 1) {
@@ -814,139 +838,139 @@ export fn describe(problem: Problem, facts: Facts): Description {
                         text3(" takes ", fromInt(facts.count), " type argument"),
                         plural, text2(" but got ", fromInt(facts.given))));
     }
-    Problem.NotGeneric => {
+    .NotGeneric => {
       return says(text3("struct ", q(name), " is not generic"));
     }
-    Problem.NotGenericFunction => {
+    .NotGenericFunction => {
       return says(text2(q(name), " is not a generic function"));
     }
-    Problem.GenericNeedsArguments => {
+    .GenericNeedsArguments => {
       return says(text4("generic struct ", q(name),
                         " needs type arguments: write ", text2(name, "<...>")));
     }
-    Problem.GenericFunctionNeedsArguments => {
+    .GenericFunctionNeedsArguments => {
       return says(text4("generic function ", q(name),
                         " needs type arguments: write ", text2(name, "<...>(...)")));
     }
-    Problem.InstancesNeverEnd => {
+    .InstancesNeverEnd => {
       return saysMore(text3("generic ", q(name),
                             " keeps asking for bigger instances of itself"),
                       "an instance's body uses one with more type arguments around them");
     }
 
-    Problem.ErrorValueWritten => {
+    .ErrorValueWritten => {
       return saysMore(text3("member ", q(name), " of an error enum has a value"),
                       "an error's value is given to it, so that every error is told apart");
     }
-    Problem.UnionVoidMember => {
+    .UnionVoidMember => {
       return saysMore("void cannot be one of a union's values",
                       "`void | SomeError` is a union that holds no value; one with values holds one of them");
     }
-    Problem.UnionWithoutValue => {
+    .UnionWithoutValue => {
       return saysMore(text2("a union needs a value as well as its errors, such as ",
                             typeText(facts.got)),
                       "write the type of what it holds when it holds no error: `i64 | ParseError`");
     }
-    Problem.TryNotFallible => {
+    .TryNotFallible => {
       return saysMore("try needs a value that may be an error", gotOne(facts));
     }
-    Problem.TryOutsideFunction => {
+    .TryOutsideFunction => {
       return says("try passes an error on to a caller, and is only allowed in a function");
     }
-    Problem.ErrorNotReturned => {
+    .ErrorNotReturned => {
       // `name` is the error enum, `got` the function's return type.
       return saysMore(text3("this function cannot return ", q(name), ""),
                       text4("it returns ", typeText(facts.got), "; add `| ",
                             text2(name, "` to that, or handle the error here")));
     }
-    Problem.CoalesceNotFallible => {
+    .CoalesceNotFallible => {
       return saysMore("?? needs a value that may be an error or null",
                       gotOne(facts));
     }
-    Problem.CoalesceTypes => {
+    .CoalesceTypes => {
       return saysMore("the fallback after ?? has the wrong type",
                       expectedButGot(facts));
     }
-    Problem.CatchNotFallible => {
+    .CatchNotFallible => {
       return saysMore("catch needs a value that may be an error", gotOne(facts));
     }
-    Problem.CatchSeveralErrors => {
+    .CatchSeveralErrors => {
       return saysMore(text2("catch takes one kind of error, not ", typeText(facts.got)),
                       "keep the value and tell the errors apart with `is`");
     }
-    Problem.CatchFallsThrough => {
+    .CatchFallsThrough => {
       return saysMore("a catch block must leave",
                       "end it with return, break or continue, or use ?? for a fallback value");
     }
-    Problem.DuplicateAlias => {
+    .DuplicateAlias => {
       return says(text3("type ", q(name), " is declared more than once"));
     }
-    Problem.AliasCycle => {
+    .AliasCycle => {
       return saysMore(text3("the type alias ", q(name), " stands for itself"),
                       "an alias names a type that already exists; one that goes round in a circle names none");
     }
-    Problem.LambdaCapture => {
+    .LambdaCapture => {
       return saysMore(text3("a lambda cannot use ", q(name),
                             ", a local of the function it is written in"),
                       "a lambda captures nothing: pass what it needs as a parameter");
     }
-    Problem.LambdaParameterType => {
+    .LambdaParameterType => {
       return saysMore(text3("the type of ", q(name), " is not known"),
                       "write it, `(x: i32) => ...`, or use the lambda where a function type is expected");
     }
-    Problem.LambdaReturnType => {
+    .LambdaReturnType => {
       return saysMore("the return type of this lambda is not known",
                       "write it, `(x: i32): i32 => ...`, or use the lambda where a function type is expected");
     }
-    Problem.LambdaParameterCount => {
+    .LambdaParameterCount => {
       return saysMore(text2("this lambda does not fit ", q(facts.expected.toText())),
                       text4("the type takes ", fromInt(facts.count),
                             " parameters, the lambda ", fromInt(facts.given)));
     }
-    Problem.LambdaMissingReturn => {
+    .LambdaMissingReturn => {
       return says("this lambda does not return on every path");
     }
-    Problem.UnhandledError => {
+    .UnhandledError => {
       return saysMore(text2("an error from this is ignored: ", typeText(facts.got)),
                       "pass it on with try, give a fallback with ??, or handle it with catch");
     }
-    Problem.UnionCompared => {
+    .UnionCompared => {
       return saysMore(text2("a value that may be an error cannot be compared: ",
                             typeText(facts.got)),
                       "take its value with ?? or try, or ask which error it holds with is");
     }
-    Problem.IsNotFallible => {
+    .IsNotFallible => {
       return saysMore("is asks which of a union's members a value holds, and this is no union",
                       gotOne(facts));
     }
-    Problem.IsNeverTrue => {
+    .IsNeverTrue => {
       return saysMore(text4("a ", typeText(facts.expected), " can never be ",
                             q(name)),
                       text2(q(name), " is not one of its members"));
     }
 
-    Problem.AssertArguments => {
+    .AssertArguments => {
       return saysMore("wrong number of arguments to 'assert'",
                       "expected a condition and, optionally, a message");
     }
-    Problem.AssertNotBool => {
+    .AssertNotBool => {
       return saysMore("assert needs a boolean condition", gotOne(facts));
     }
-    Problem.AssertMessageNotText => {
+    .AssertMessageNotText => {
       return saysMore("assert's message must be a string", gotOne(facts));
     }
-    Problem.AssertEqArguments => {
+    .AssertEqArguments => {
       return saysMore("wrong number of arguments to 'assertEq'",
                       "expected the actual value and the expected one");
     }
-    Problem.AssertEqTypes => {
+    .AssertEqTypes => {
       return saysMore("assertEq compares values of the same type", gotTwo(facts));
     }
-    Problem.AssertEqType => {
+    .AssertEqType => {
       return saysMore("assertEq cannot compare this type", gotOne(facts));
     }
 
-    Problem.Internal => { return says(name); }
+    .Internal => { return says(name); }
   }
 
   return says(name);

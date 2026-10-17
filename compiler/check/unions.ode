@@ -20,14 +20,15 @@ import {
 import {
   unionInfo, unionOfAll, holdsMember, holdsError, valuesOf, narrow, pathOf,
 } from "./errors";
-import { analyzeStatement } from "./statements";
+import { checkArmBody } from "./enums";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { NO_NODE, NodeKind } from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
-export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type): void {
+export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type,
+                             expected: Type): void {
   let handled: *List<Type> = List<Type>.new();
   let hasElse: bool = false;
 
@@ -76,7 +77,7 @@ export fn analyzeUnionMatch(an: *Analyzer, node: i32, subject: Type): void {
     if (isNarrowable(an, matched) && armType.kind != TypeKind.None) {
       narrow(an, matched, armType);
     }
-    analyzeStatement(an, an.ast.nodes[armNode].a);
+    checkArmBody(an, node, armNode, expected);
     an.symbols.exitScope();
     if (FAILED) {
       return;

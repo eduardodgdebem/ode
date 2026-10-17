@@ -622,7 +622,8 @@ export fn pathOf(an: *Analyzer, node: i32): *i8 {
     }
     return an.ast.nodes[node].text;
   }
-  if (kind != NodeKind.FieldAccess || an.isConstant[node] != 0) {
+  if (kind != NodeKind.FieldAccess || an.isConstant[node] != 0 ||
+      an.ast.nodes[node].a == NO_NODE) {
     return null;
   }
   let object: *i8 = pathOf(an, an.ast.nodes[node].a);

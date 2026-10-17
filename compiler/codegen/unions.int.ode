@@ -319,3 +319,75 @@ test "a narrowed field is read, and written, inside its union" {
     }
   `)), "7 15\nrect 3 42\ncircle 1 one\n500\n6\nHuge\n");
 }
+
+test "a match gives a value, from short arms and from members named alone" {
+  assertEq(outputOf(program(`
+    enum Op {
+      Add,
+      Sub,
+      Mul,
+    }
+
+    fn text(op: Op): *i8 {
+      return match (op) {
+        .Add => "+",
+        .Sub => "-",
+        .Mul => "*",
+      };
+    }
+
+    fn apply(op: Op, a: i64, b: i64): i64 {
+      return match (op) {
+        .Add => a + b,
+        .Sub => a - b,
+        .Mul => {
+          if (b == 0) {
+            return 0;
+          }
+          return a * b;
+        }
+      };
+    }
+
+    fn size(n: i64): *i8 {
+      return match (n) {
+        0 => "none",
+        1, 2 => "few",
+        else => "many",
+      };
+    }
+
+    fn check(n: i64): i64 | Bad {
+      if (n < 0) {
+        return .Negative;
+      }
+      return n;
+    }
+
+    fn main(): i32 {
+      let op: Op = .Sub;
+      printf("%s%s %ld %ld\n", text(.Add), text(op), apply(.Mul, 6, 7), apply(op, 1, 5));
+      let round: Shape = Circle { radius: 2 };
+      printf("%ld ", match (round) {
+        Circle => round.radius - 1,
+        Rect => 2,
+      });
+      let shape: Shape = match (op) {
+        .Add => Circle { radius: 1 },
+        else => Rect { width: 4, height: 5 },
+      };
+      printf("%ld %s %s %s\n", area(shape), size(0), size(2), size(9));
+      if (op == .Sub) {
+        match (op) {
+          .Add => printf("add\n"),
+          else => printf("not add\n"),
+        }
+      }
+      let checked: i64 | Bad = check(-1);
+      if (checked is Bad) {
+        printf("%s\n", nameOf(checked));
+      }
+      return 0;
+    }
+  `)), "+- 42 -4\n1 20 none few many\nnot add\nNegative\n");
+}

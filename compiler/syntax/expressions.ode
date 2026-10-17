@@ -12,7 +12,7 @@ import { FAILED } from "../diagnostics/report";
 import { line } from "../driver/options";
 import { NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp } from "./ast";
 import { Parser, parseType, parseDeclaredType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
-import { parseBlock } from "./statements";
+import { parseBlock, parseMatch } from "./statements";
 import { TokenKind, Token } from "./token";
 
 // Expr -> Coalesce ('catch' '(' IDENT ')' Block)?
@@ -66,41 +66,41 @@ fn parseBinaryNode(parser: *Parser, left: i32, right: i32,
 // The operator a token stands for between two operands. Only the tokens the
 // binary levels fold on reach here.
 export fn binaryOpOf(kind: TokenKind): BinaryOp {
-  match (kind) {
-    TokenKind.Plus => { return BinaryOp.Add; }
-    TokenKind.Minus => { return BinaryOp.Subtract; }
-    TokenKind.Star => { return BinaryOp.Multiply; }
-    TokenKind.Slash => { return BinaryOp.Divide; }
-    TokenKind.Percent => { return BinaryOp.Remainder; }
-    TokenKind.Eq => { return BinaryOp.Equal; }
-    TokenKind.Ne => { return BinaryOp.NotEqual; }
-    TokenKind.Lt => { return BinaryOp.Less; }
-    TokenKind.Le => { return BinaryOp.LessEqual; }
-    TokenKind.Gt => { return BinaryOp.Greater; }
-    TokenKind.Ge => { return BinaryOp.GreaterEqual; }
-    TokenKind.AndAnd => { return BinaryOp.And; }
-    TokenKind.OrOr => { return BinaryOp.Or; }
-    TokenKind.Amp => { return BinaryOp.BitAnd; }
-    TokenKind.Pipe => { return BinaryOp.BitOr; }
-    TokenKind.Caret => { return BinaryOp.BitXor; }
-    TokenKind.Shl => { return BinaryOp.ShiftLeft; }
-    TokenKind.Shr => { return BinaryOp.ShiftRight; }
-    TokenKind.Coalesce => { return BinaryOp.Coalesce; }
-    else => {}
-  }
-  assert(false, "a binary operator token without an operator");
-  return BinaryOp.Add;
+  return match (kind) {
+    .Plus => .Add,
+    .Minus => .Subtract,
+    .Star => .Multiply,
+    .Slash => .Divide,
+    .Percent => .Remainder,
+    .Eq => .Equal,
+    .Ne => .NotEqual,
+    .Lt => .Less,
+    .Le => .LessEqual,
+    .Gt => .Greater,
+    .Ge => .GreaterEqual,
+    .AndAnd => .And,
+    .OrOr => .Or,
+    .Amp => .BitAnd,
+    .Pipe => .BitOr,
+    .Caret => .BitXor,
+    .Shl => .ShiftLeft,
+    .Shr => .ShiftRight,
+    .Coalesce => .Coalesce,
+    else => {
+      assert(false, "a binary operator token without an operator");
+      return .Add;
+    }
+  };
 }
 
 fn unaryOpOf(kind: TokenKind): UnaryOp {
-  match (kind) {
-    TokenKind.Minus => { return UnaryOp.Negate; }
-    TokenKind.Plus => { return UnaryOp.Plus; }
-    TokenKind.Not => { return UnaryOp.Not; }
-    TokenKind.Star => { return UnaryOp.Deref; }
-    else => {}
-  }
-  return UnaryOp.AddressOf;
+  return match (kind) {
+    .Minus => .Negate,
+    .Plus => .Plus,
+    .Not => .Not,
+    .Star => .Deref,
+    else => .AddressOf,
+  };
 }
 
 fn parseLogicOr(parser: *Parser): i32 {
@@ -403,8 +403,29 @@ fn parseLiteral(parser: *Parser, kind: NodeKind): i32 {
 fn parsePrimary(parser: *Parser): i32 {
   let kind: TokenKind = parser.kind();
 
-  if (kind == TokenKind.LParen && looksLikeLambda(parser)) {
+  if (kind == TokenKind.LParen && !parser.inPattern && looksLikeLambda(parser)) {
     return parseLambda(parser);
+  }
+
+  // `match` used as a value: `let name: *i8 = match (op) { ... };`.
+  if (kind == TokenKind.Match) {
+    // Its arms are expressions and blocks of their own, not a pattern.
+    let wasInPattern: bool = parser.inPattern;
+    parser.inPattern = false;
+    let node: i32 = parseMatch(parser, true);
+    parser.inPattern = wasInPattern;
+    return node;
+  }
+
+  // `.Add`: a member of the enum the context expects, named without it.
+  if (kind == TokenKind.Dot && parser.peek().kind == TokenKind.Ident) {
+    let dot: *Token = parser.current();
+    parser.advance();
+    let member: *Token = parser.current();
+    parser.advance();
+    let node: i32 = parser.ast.add(NodeKind.FieldAccess, dot.line, dot.column);
+    parser.ast.setText(node, member);
+    return node;
   }
 
   if (kind == TokenKind.LParen) {
@@ -415,12 +436,12 @@ fn parsePrimary(parser: *Parser): i32 {
   }
 
   match (kind) {
-    TokenKind.Number => { return parseLiteral(parser, NodeKind.Number); }
-    TokenKind.Bool => { return parseLiteral(parser, NodeKind.Bool); }
-    TokenKind.String => { return parseLiteral(parser, NodeKind.String); }
-    TokenKind.Char => { return parseLiteral(parser, NodeKind.Char); }
-    TokenKind.Sizeof => { return parseSizeOf(parser); }
-    TokenKind.Null => { return parseLiteral(parser, NodeKind.Null); }
+    .Number => { return parseLiteral(parser, NodeKind.Number); }
+    .Bool => { return parseLiteral(parser, NodeKind.Bool); }
+    .String => { return parseLiteral(parser, NodeKind.String); }
+    .Char => { return parseLiteral(parser, NodeKind.Char); }
+    .Sizeof => { return parseSizeOf(parser); }
+    .Null => { return parseLiteral(parser, NodeKind.Null); }
     else => {}
   }
 

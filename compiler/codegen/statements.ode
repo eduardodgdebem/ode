@@ -192,10 +192,38 @@ fn switchConstant(value: i64, bits: i32): *i8 {
 // `else` arm -- or, for an enum match that handles every member, the end --
 // as the default.
 fn genMatch(e: *Emitter, node: i32): void {
+  genMatchInto(e, node, null);
+}
+
+// A match used as a value: each arm that gives one stores it in a slot of
+// its own, read once the arms meet again.
+export fn genMatchValue(e: *Emitter, node: i32): *i8 {
+  let type: Type = typeOfNode(e, node);
+  if (type.isVoid()) {
+    genMatchInto(e, node, null);
+    return "";
+  }
+  let slot: *i8 = emitAlloca(e, llvmTypeName(type));
+  genMatchInto(e, node, slot);
+  return emitLoad(e, type, slot);
+}
+
+// What an arm runs: its block, or -- in a match used as a value -- its
+// value, stored in `slot`.
+fn genArmBody(e: *Emitter, node: i32, arm: i32, slot: *i8): void {
+  let body: i32 = e.ast.nodes[arm].a;
+  if (slot == null || e.ast.nodes[body].kind == NodeKind.Block) {
+    genStatement(e, body);
+    return;
+  }
+  emitStore(e, typeOfNode(e, node), genExpr(e, body), slot);
+}
+
+fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
   let subject: i32 = e.ast.nodes[node].a;
   let type: Type = typeOfNode(e, subject);
   if (type.isUnion()) {
-    genUnionMatch(e, node, type);
+    genUnionMatch(e, node, type, slot);
     return;
   }
   let typeName: *i8 = llvmTypeName(type);
@@ -246,7 +274,7 @@ fn genMatch(e: *Emitter, node: i32): void {
 
   for (arm in 0..armCount) {
     emitLabel(e, labels[arm]);
-    genStatement(e, e.ast.nodes[e.ast.nodes[node].items[arm]].a);
+    genArmBody(e, node, e.ast.nodes[node].items[arm], slot);
     emitBranch(e, done);
   }
 
@@ -255,7 +283,7 @@ fn genMatch(e: *Emitter, node: i32): void {
 
 // A match on a union: each arm in turn asks whether the code is one of the
 // members it names, the way `is` does, and the first that holds runs.
-fn genUnionMatch(e: *Emitter, node: i32, type: Type): void {
+fn genUnionMatch(e: *Emitter, node: i32, type: Type, slot: *i8): void {
   let value: *i8 = genExpr(e, e.ast.nodes[node].a);
   let code: *i8 = unionCode(e, type, value);
 
@@ -295,7 +323,7 @@ fn genUnionMatch(e: *Emitter, node: i32, type: Type): void {
 
   for (arm in 0..armCount) {
     emitLabel(e, labels[arm]);
-    genStatement(e, e.ast.nodes[e.ast.nodes[node].items[arm]].a);
+    genArmBody(e, node, e.ast.nodes[node].items[arm], slot);
     emitBranch(e, done);
   }
   emitLabel(e, done);

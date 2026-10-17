@@ -24,6 +24,7 @@ import {
   narrowedAddress, memberAddress, convertUnion,
 } from "./errors";
 import { llvmTypeName, zeroValue } from "./layout";
+import { genMatchValue } from "./statements";
 import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
 import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
@@ -395,67 +396,62 @@ fn binaryOpcode(op: BinaryOp, type: Type): *i8 {
   let signed: bool = type.isSigned();
 
   match (op) {
-    BinaryOp.Add => { if (float) { return "fadd"; } return "add"; }
-    BinaryOp.Subtract => { if (float) { return "fsub"; } return "sub"; }
-    BinaryOp.Multiply => { if (float) { return "fmul"; } return "mul"; }
-    BinaryOp.Divide => {
+    .Add => { if (float) { return "fadd"; } return "add"; }
+    .Subtract => { if (float) { return "fsub"; } return "sub"; }
+    .Multiply => { if (float) { return "fmul"; } return "mul"; }
+    .Divide => {
       if (float) { return "fdiv"; }
       if (signed) { return "sdiv"; }
       return "udiv";
     }
-    BinaryOp.Remainder => {
+    .Remainder => {
       if (signed) { return "srem"; }
       return "urem";
     }
-    BinaryOp.BitAnd => { return "and"; }
-    BinaryOp.BitOr => { return "or"; }
-    BinaryOp.BitXor => { return "xor"; }
-    BinaryOp.ShiftLeft => { return "shl"; }
-    BinaryOp.ShiftRight => {
+    .BitAnd => { return "and"; }
+    .BitOr => { return "or"; }
+    .BitXor => { return "xor"; }
+    .ShiftLeft => { return "shl"; }
+    .ShiftRight => {
       if (signed) { return "ashr"; }
       return "lshr";
     }
 
     // The comparisons. A pointer compares as an unsigned integer.
-    BinaryOp.Equal => { if (float) { return "fcmp oeq"; } return "icmp eq"; }
-    BinaryOp.NotEqual => { if (float) { return "fcmp one"; } return "icmp ne"; }
-    BinaryOp.Less => {
+    .Equal => { if (float) { return "fcmp oeq"; } return "icmp eq"; }
+    .NotEqual => { if (float) { return "fcmp one"; } return "icmp ne"; }
+    .Less => {
       if (float) { return "fcmp olt"; }
       if (signed) { return "icmp slt"; }
       return "icmp ult";
     }
-    BinaryOp.LessEqual => {
+    .LessEqual => {
       if (float) { return "fcmp ole"; }
       if (signed) { return "icmp sle"; }
       return "icmp ule";
     }
-    BinaryOp.Greater => {
+    .Greater => {
       if (float) { return "fcmp ogt"; }
       if (signed) { return "icmp sgt"; }
       return "icmp ugt";
     }
-    BinaryOp.GreaterEqual => {
+    .GreaterEqual => {
       if (float) { return "fcmp oge"; }
       if (signed) { return "icmp sge"; }
       return "icmp uge";
     }
     // These branch instead, and never ask for an instruction of their own.
-    BinaryOp.And, BinaryOp.Or, BinaryOp.Coalesce => {
+    .And, .Or, .Coalesce => {
       return "";
     }
   }
 }
 
 fn isComparison(op: BinaryOp): bool {
-  match (op) {
-    BinaryOp.Equal, BinaryOp.NotEqual, BinaryOp.Less, BinaryOp.LessEqual,
-    BinaryOp.Greater, BinaryOp.GreaterEqual => {
-      return true;
-    }
-    else => {
-      return false;
-    }
-  }
+  return match (op) {
+    .Equal, .NotEqual, .Less, .LessEqual, .Greater, .GreaterEqual => true,
+    else => false,
+  };
 }
 
 fn genBinary(e: *Emitter, node: i32, binary: Binary): *i8 {
@@ -494,16 +490,16 @@ fn genBinary(e: *Emitter, node: i32, binary: Binary): *i8 {
 fn genUnary(e: *Emitter, node: i32, unary: Unary): *i8 {
   let operand: i32 = unary.operand;
   match (unary.op) {
-    UnaryOp.AddressOf => {
+    .AddressOf => {
       return genAddress(e, operand);
     }
-    UnaryOp.Deref => {
+    .Deref => {
       return emitLoad(e, typeOfNode(e, node), genExpr(e, operand));
     }
-    UnaryOp.Plus => {
+    .Plus => {
       return genExpr(e, operand);
     }
-    UnaryOp.Negate => {
+    .Negate => {
       let operandType: Type = typeOfNode(e, operand);
       let value: *i8 = genExpr(e, operand);
       let line: *Builder = Builder.new();
@@ -521,7 +517,7 @@ fn genUnary(e: *Emitter, node: i32, unary: Unary): *i8 {
       return emitAssign(e, line.data);
     }
     // Logical NOT on an i1 is a flip against true.
-    UnaryOp.Not => {
+    .Not => {
       let line: *Builder = Builder.new();
       line.add("xor i1 ");
       line.add(genExpr(e, operand));
@@ -790,9 +786,10 @@ fn genValue(e: *Emitter, node: i32): *i8 {
   let kind: NodeKind = e.ast.nodes[node].kind;
 
   match (kind) {
-    NodeKind.Try => { return genTry(e, node); }
-    NodeKind.Catch => { return genCatch(e, node); }
-    NodeKind.Is => { return genIs(e, node); }
+    .Match => { return genMatchValue(e, node); }
+    .Try => { return genTry(e, node); }
+    .Catch => { return genCatch(e, node); }
+    .Is => { return genIs(e, node); }
     else => {}
   }
 
@@ -831,12 +828,12 @@ fn genValue(e: *Emitter, node: i32): *i8 {
   }
 
   match (kind) {
-    NodeKind.Binary => { return genBinary(e, node, binaryOf(e.ast, node)); }
-    NodeKind.Unary => { return genUnary(e, node, unaryOf(e.ast, node)); }
-    NodeKind.Call => { return genCall(e, node); }
-    NodeKind.MethodCall => { return genMethodCall(e, node); }
-    NodeKind.CallValue => { return genCallValue(e, node); }
-    NodeKind.StructLit => { return genStructLiteral(e, node); }
+    .Binary => { return genBinary(e, node, binaryOf(e.ast, node)); }
+    .Unary => { return genUnary(e, node, unaryOf(e.ast, node)); }
+    .Call => { return genCall(e, node); }
+    .MethodCall => { return genMethodCall(e, node); }
+    .CallValue => { return genCallValue(e, node); }
+    .StructLit => { return genStructLiteral(e, node); }
     else => {}
   }
 

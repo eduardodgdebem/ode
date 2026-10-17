@@ -117,8 +117,8 @@ export struct Type {
     }
 
     match (self.kind) {
-      TypeKind.I8, TypeKind.U8, TypeKind.I16, TypeKind.U16, TypeKind.I32,
-      TypeKind.U32, TypeKind.I64, TypeKind.U64 => {
+      .I8, .U8, .I16, .U16, .I32,
+      .U32, .I64, .U64 => {
         return true;
       }
       else => {
@@ -156,18 +156,16 @@ export struct Type {
 
   // Zero for anything without a width of its own: bool, void, structs.
   fn bitWidth(self: Type): i32 {
-    match (self.kind) {
-      TypeKind.I8, TypeKind.U8 => { return 8; }
-      TypeKind.I16, TypeKind.U16 => { return 16; }
-      TypeKind.I32, TypeKind.U32 => { return 32; }
-      TypeKind.Enum => { return 32; }
-      TypeKind.F32 => { return 32; }
-      TypeKind.I64, TypeKind.U64 => { return 64; }
-      TypeKind.F64 => { return 64; }
-      else => {}
-    }
-
-    return 0;
+    return match (self.kind) {
+      .I8, .U8 => 8,
+      .I16, .U16 => 16,
+      .I32, .U32 => 32,
+      .Enum => 32,
+      .F32 => 32,
+      .I64, .U64 => 64,
+      .F64 => 64,
+      else => 0,
+    };
   }
 
   fn pointee(self: Type): Type {
@@ -202,28 +200,26 @@ export struct Type {
   }
 
   fn baseName(self: Type): *i8 {
-    match (self.kind) {
-      TypeKind.I8 => { return "i8"; }
-      TypeKind.U8 => { return "u8"; }
-      TypeKind.I16 => { return "i16"; }
-      TypeKind.U16 => { return "u16"; }
-      TypeKind.I32 => { return "i32"; }
-      TypeKind.U32 => { return "u32"; }
-      TypeKind.I64 => { return "i64"; }
-      TypeKind.U64 => { return "u64"; }
-      TypeKind.F32 => { return "f32"; }
-      TypeKind.F64 => { return "f64"; }
-      TypeKind.Bool => { return "bool"; }
-      TypeKind.Void => { return "void"; }
-      TypeKind.Struct => { return self.structName; }
-      TypeKind.Null => { return "null"; }
-      TypeKind.Enum => { return self.structName; }
-      TypeKind.Function => { return self.structName; }
-      TypeKind.Union => { return self.structName; }
-      else => {}
-    }
-
-    return "unknown";
+    return match (self.kind) {
+      .I8 => "i8",
+      .U8 => "u8",
+      .I16 => "i16",
+      .U16 => "u16",
+      .I32 => "i32",
+      .U32 => "u32",
+      .I64 => "i64",
+      .U64 => "u64",
+      .F32 => "f32",
+      .F64 => "f64",
+      .Bool => "bool",
+      .Void => "void",
+      .Struct => self.structName,
+      .Null => "null",
+      .Enum => self.structName,
+      .Function => self.structName,
+      .Union => self.structName,
+      else => "unknown",
+    };
   }
 
   fn toText(self: Type): *i8 {

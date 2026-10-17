@@ -23,10 +23,12 @@
 // every value. A value may appear in only one arm.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { equals } from "std/text";
 import { analyzeUnionMatch } from "./unions";
-import { Analyzer, analyzerFail } from "./analyzer";
-import { checkExpr, isNumberLiteral, checkLiteralAs } from "./expressions";
+import { Analyzer, analyzerFail, analyzerFailAtValue } from "./analyzer";
+import { unionInfo, valuesOf, alwaysLeaves } from "./errors";
+import { checkExpr, checkExprAs, isNumberLiteral, checkLiteralAs } from "./expressions";
 import { analyzeStatement } from "./statements";
 import { memberName } from "../codegen/testing";
 import { Problem, Facts } from "../diagnostics/problems";
@@ -181,6 +183,112 @@ export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
   return Type.make(TypeKind.None, 0);
 }
 
+// `.Red`: a member of the enum `expected` is, or, where a union is expected,
+// of the one enum among its members that has a member of that name -- so
+// `return .Empty;` in a function returning `i64 | ParseError`.
+export fn checkShorthand(an: *Analyzer, node: i32, expected: Type): Type {
+  let member: *i8 = an.ast.nodes[node].text;
+  if (expected.isEnum()) {
+    return checkEnumMember(an, node, expected.structName);
+  }
+  if (!expected.isUnion()) {
+    analyzerFail(an, node, Problem.ShorthandWithoutEnum, Facts.about(member));
+    return Type.make(TypeKind.None, 0);
+  }
+
+  let found: *i8 = null;
+  let count: i32 = 0;
+  let errors: *List<*i8> = unionInfo(expected).errors;
+  for (index in 0..errors.count) {
+    if (hasMember(an, errors.at(index), member)) {
+      found = errors.at(index);
+      count = count + 1;
+    }
+  }
+  let values: *List<Type> = valuesOf(expected);
+  for (index in 0..values.count) {
+    if (values.at(index).isEnum() && hasMember(an, values.at(index).structName, member)) {
+      found = values.at(index).structName;
+      count = count + 1;
+    }
+  }
+  if (count != 1) {
+    analyzerFail(an, node, Problem.ShorthandWithoutEnum,
+                 Facts.about(member).withType(expected));
+    return Type.make(TypeKind.None, 0);
+  }
+  return checkEnumMember(an, node, found);
+}
+
+fn hasMember(an: *Analyzer, enumName: *i8, member: *i8): bool {
+  let declaration: i32 = enumDeclOf(an, enumName);
+  for (index in 0..an.ast.nodes[declaration].itemCount) {
+    if (equals(an.ast.nodes[an.ast.nodes[declaration].items[index]].text, member)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether `node` is `.Red`, an enum member named without its enum.
+export fn isShorthand(an: *Analyzer, node: i32): bool {
+  return an.ast.nodes[node].kind == NodeKind.FieldAccess &&
+         an.ast.nodes[node].a == NO_NODE;
+}
+
+// Checks what an arm runs. In a match used as a value an expression arm is
+// that value -- of the type expected, or else of the first arm's type,
+// recorded as the match's own -- and a block has to leave, there being no
+// value for it to give.
+export fn checkArmBody(an: *Analyzer, matched: i32, arm: i32, expected: Type): void {
+  let body: i32 = an.ast.nodes[arm].a;
+  if (an.ast.nodes[matched].extra != 1) {
+    analyzeStatement(an, body);
+    return;
+  }
+  if (an.ast.nodes[body].kind == NodeKind.Block) {
+    analyzeStatement(an, body);
+    if (!FAILED && !alwaysLeaves(an, body)) {
+      analyzerFail(an, arm, Problem.ArmFallsThrough, Facts.none());
+    }
+    return;
+  }
+
+  let wanted: Type = expected;
+  if (wanted.kind == TypeKind.None) {
+    wanted = an.types[matched];
+  }
+  let type: Type = checkExprAs(an, body, wanted);
+  if (FAILED) {
+    return;
+  }
+  if (wanted.kind == TypeKind.None) {
+    an.types[matched] = type;
+    return;
+  }
+  if (!wanted.accepts(type)) {
+    analyzerFailAtValue(an, body, Problem.ArmTypes, Facts.aboutTypes(wanted, type));
+  }
+}
+
+// `match (...) { ... }` used as a value: its type is the one expected, or the
+// first arm's.
+export fn checkMatchValue(an: *Analyzer, node: i32, expected: Type): Type {
+  an.types[node] = Type.make(TypeKind.None, 0);
+  analyzeMatchWith(an, node, expected);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+  if (expected.kind != TypeKind.None) {
+    return expected;
+  }
+  if (an.types[node].kind == TypeKind.None) {
+    // Every arm left; there is no value, and nothing that could use one.
+    return Type.make(TypeKind.Void, 0);
+  }
+  return an.types[node];
+}
+
 // Checks one pattern of a match on a value of type `subject`, and records
 // the value it stands for.
 fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
@@ -191,7 +299,7 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
     return;
   }
   if (subject.isEnum()) {
-    let type: Type = checkExpr(an, pattern);
+    let type: Type = checkExprAs(an, pattern, subject);
     if (FAILED) {
       return;
     }
@@ -259,12 +367,18 @@ fn matchHandles(an: *Analyzer, node: i32, value: i64): bool {
 }
 
 export fn analyzeMatch(an: *Analyzer, node: i32): void {
+  analyzeMatchWith(an, node, Type.make(TypeKind.None, 0));
+}
+
+// A match, whose arms -- in one used as a value -- give a value of the type
+// `expected`, or of the first arm's when nothing is expected.
+fn analyzeMatchWith(an: *Analyzer, node: i32, expected: Type): void {
   let subject: Type = checkExpr(an, an.ast.nodes[node].a);
   if (FAILED) {
     return;
   }
   if (subject.isUnion()) {
-    analyzeUnionMatch(an, node, subject);
+    analyzeUnionMatch(an, node, subject, expected);
     return;
   }
 
@@ -304,7 +418,7 @@ export fn analyzeMatch(an: *Analyzer, node: i32): void {
       an.isConstant[patternNode] = 1;
     }
 
-    analyzeStatement(an, an.ast.nodes[armNode].a);
+    checkArmBody(an, node, armNode, expected);
     if (FAILED) {
       return;
     }

@@ -379,21 +379,35 @@ enum Shape { Circle, Square, Triangle }
 enum Status { Ok, NotFound = 404, Gone }   // Gone is 405
 ```
 
-Members are written `Shape.Circle`. An enum is not an integer: it compares
-with `==` and `!=`, and becomes one only through `as` (`Status.Gone as i32`).
+Members are written `Shape.Circle` -- or just `.Circle` wherever a `Shape`
+is expected: a variable's type, a parameter, a return, the other side of
+`==`, a match on one. An enum is not an integer: it compares with `==` and
+`!=`, and becomes one only through `as` (`Status.Gone as i32`).
 
 `match` runs the arm whose pattern equals the value. On an enum it has to
 handle every member, so adding one is a compile error everywhere it was
-forgotten -- unless the match has an `else` arm:
+forgotten -- unless the match has an `else` arm. A match is also a value,
+and an arm can be a single expression, ended by a comma:
 
 ```rust
 fn sides(shape: Shape): i32 {
-  match (shape) {
-    Shape.Circle => { return 0; }
-    Shape.Square => { return 4; }
-    Shape.Triangle => { return 3; }
-  }
-  return -1;
+  return match (shape) {
+    .Circle => 0,
+    .Square => 4,
+    .Triangle => 3,
+  };
+}
+```
+
+An arm can still run a block. In a match used as a value, a block arm has to
+leave -- `return`, `break` or `continue` -- since it gives no value; in a
+match used as a statement, an expression arm is simply run:
+
+```rust
+match (command) {
+  .Quit => { return 0; }
+  .Help => printUsage(),
+  else => run(command),
 }
 ```
 
@@ -401,12 +415,15 @@ It works on integers and characters too, with literal patterns and a
 required `else`:
 
 ```rust
-match (c) {
-  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => { return "digit"; }
-  ' ', '\t', '\n' => { return "space"; }
-  else => { return "other"; }
-}
+let kind: *i8 = match (c) {
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => "digit",
+  ' ', '\t', '\n' => "space",
+  else => "other",
+};
 ```
+
+A member named alone is found among a union's error enums too, when exactly
+one has it: `return .Empty;` in a function returning `i64 | ParseError`.
 
 `nameOf(value)` gives the name of the member an enum value is, as a string:
 `nameOf(Color.Red)` is `"Red"`, and a value that is no member's is `"?"`.
