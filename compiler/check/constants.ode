@@ -15,7 +15,8 @@ import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import {
-  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, binaryOf, unaryOf, syntaxChildren,
+  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, Cast, Sizeof, binaryOf, unaryOf,
+  castOf, sizeofOf, syntaxChildren,
 } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { TypeKind, Type, parseMagnitude } from "../types/types";
@@ -97,9 +98,9 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
     if (value < 0) {
       value = value + 256;
     }
-  } else if (kind == NodeKind.Sizeof) {
-    value = sizeOf(an.structs,
-                   analyzerParseType(an, an.ast.nodes[node].a)) as i64;
+  } else if (an.ast.nodes[node].syntax is Sizeof) {
+    let size: Sizeof = sizeofOf(an.ast, node);
+    value = sizeOf(an.structs, analyzerParseType(an, size.type)) as i64;
   } else if (kind == NodeKind.FieldAccess) {
     if (an.isConstant[node] == 0) {
       return false;
@@ -110,11 +111,12 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
       return false;
     }
     value = an.values[an.ast.nodes[globalDeclOf(an, node)].b];
-  } else if (kind == NodeKind.Cast) {
-    if (!foldInteger(an, an.ast.nodes[node].a)) {
+  } else if (an.ast.nodes[node].syntax is Cast) {
+    let operand: i32 = castOf(an.ast, node).value;
+    if (!foldInteger(an, operand)) {
       return false;
     }
-    value = an.values[an.ast.nodes[node].a];
+    value = an.values[operand];
   } else if (an.ast.nodes[node].syntax is Unary) {
     let unary: Unary = unaryOf(an.ast, node);
     if (!foldInteger(an, unary.operand)) {
@@ -219,9 +221,6 @@ export fn laterGlobalIn(an: *Analyzer, node: i32): i32 {
     return node;
   }
 
-  if (an.ast.nodes[node].kind == NodeKind.Cast) {
-    return laterGlobalIn(an, an.ast.nodes[node].a);
-  }
   let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
   for (index in 0..children.count) {
     let found: i32 = laterGlobalIn(an, children.at(index));

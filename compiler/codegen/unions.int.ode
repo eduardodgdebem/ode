@@ -391,3 +391,28 @@ test "a match gives a value, from short arms and from members named alone" {
     }
   `)), "+- 42 -4\n1 20 none few many\nnot add\nNegative\n");
 }
+
+test "a union narrowed through ! reads as what is left, or what was asked" {
+  assertEq(outputOf(program(`
+    fn radius(shape: Shape): i64 {
+      if (!(shape is Circle)) {
+        return -1;
+      }
+      return shape.radius;
+    }
+
+    fn width(shape: Shape): i64 {
+      if (!(shape is Circle)) {
+        return shape.width;
+      }
+      return 0;
+    }
+
+    fn main(): i32 {
+      printf("%ld %ld %ld %ld\n", radius(Circle { radius: 3 }),
+             radius(Rect { width: 2, height: 2 }), width(Rect { width: 7, height: 1 }),
+             width(Circle { radius: 1 }));
+      return 0;
+    }
+  `)), "3 -1 7 0\n");
+}

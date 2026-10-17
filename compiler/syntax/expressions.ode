@@ -10,7 +10,9 @@
 import { equals } from "std/text";
 import { FAILED } from "../diagnostics/report";
 import { line } from "../driver/options";
-import { NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp } from "./ast";
+import {
+  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try, Is, Catch,
+} from "./ast";
 import { Parser, parseType, parseDeclaredType, parseTypeArgs, looksLikeTypeArgs } from "./parser";
 import { parseBlock, parseMatch } from "./statements";
 import { TokenKind, Token } from "./token";
@@ -32,9 +34,8 @@ export fn parseExpr(parser: *Parser): i32 {
   }
 
   let node: i32 = parser.ast.add(NodeKind.Catch, at.line, at.column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = value;
-  parser.ast.nodes[node].b = parseBlock(parser);
+  let block: i32 = parseBlock(parser);
+  parser.ast.nodes[node].syntax = Catch { value: value, name: name.text, block: block };
   return node;
 }
 
@@ -192,8 +193,8 @@ fn parseComparison(parser: *Parser): i32 {
     let at: *Token = parser.current();
     parser.advance();
     let node: i32 = parser.ast.add(NodeKind.Is, at.line, at.column);
-    parser.ast.nodes[node].a = left;
-    parser.ast.nodes[node].b = parseType(parser);
+    let type: i32 = parseType(parser);
+    parser.ast.nodes[node].syntax = Is { value: left, type: type };
     return node;
   }
 
@@ -261,8 +262,7 @@ fn parseCast(parser: *Parser): i32 {
 
     let type: i32 = parseType(parser);
     let node: i32 = parser.ast.add(NodeKind.Cast, line, column);
-    parser.ast.nodes[node].a = expr;
-    parser.ast.nodes[node].b = type;
+    parser.ast.nodes[node].syntax = Cast { value: expr, type: type };
     expr = node;
   }
 
@@ -279,7 +279,8 @@ fn parseUnary(parser: *Parser): i32 {
     let at: *Token = parser.current();
     parser.advance();
     let node: i32 = parser.ast.add(NodeKind.Try, at.line, at.column);
-    parser.ast.nodes[node].a = parseUnary(parser);
+    let value: i32 = parseUnary(parser);
+    parser.ast.nodes[node].syntax = Try { value: value };
     return node;
   }
 
@@ -379,8 +380,7 @@ fn parsePostfix(parser: *Parser): i32 {
       }
 
       let node: i32 = parser.ast.add(NodeKind.Index, line, column);
-      parser.ast.nodes[node].a = expr;
-      parser.ast.nodes[node].b = index;
+      parser.ast.nodes[node].syntax = Index { base: expr, index: index };
       expr = node;
       continue;
     }
@@ -478,7 +478,7 @@ fn parseSizeOf(parser: *Parser): i32 {
   parser.expect(TokenKind.RParen, ")");
 
   let node: i32 = parser.ast.add(NodeKind.Sizeof, line, column);
-  parser.ast.nodes[node].a = type;
+  parser.ast.nodes[node].syntax = Sizeof { type: type };
 
   return node;
 }

@@ -10,7 +10,8 @@ import { List } from "std/list";
 import { Problem } from "../diagnostics/problems";
 import { Diagnostic } from "../diagnostics/report";
 import {
-  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, binaryOf, unaryOf,
+  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try,
+  Is, Catch, binaryOf, unaryOf, isOf, syntaxChildren,
 } from "./ast";
 import { Scope, Parsed, parse } from "../testkit/testkit";
 
@@ -530,4 +531,61 @@ test "an expression arm ends at a comma, or at the closing brace" {
   assertEq(found.at(0).line, 3);
   assertEq(found.at(0).facts.name, ",");
   assertEq(found.at(0).facts.other, "=");
+}
+
+test "casts, indexing, sizes, try, is and catch hold their parts by name" {
+  let tree: Parsed = parse(`
+    fn main(): void {
+      let a: i64 = values[2] as i64;
+      let b: u64 = sizeof(Point);
+      let c: i64 = try read(path);
+      let d: bool = c is ParseError;
+      let e: i64 = read(path) catch (problem) {
+        return;
+      };
+    }
+  `);
+  let cast: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 0)].b].syntax;
+  assert(cast is Cast);
+  if (cast is Cast) {
+    assertEq(tree.kind(cast.type), NodeKind.Type);
+    let index: Syntax = tree.ast.nodes[cast.value].syntax;
+    assert(index is Index);
+    if (index is Index) {
+      assertEq(tree.ast.nodes[index.base].text, "values");
+      assertEq(tree.kind(index.index), NodeKind.Number);
+    }
+  }
+
+  let size: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 1)].b].syntax;
+  assert(size is Sizeof);
+  if (size is Sizeof) {
+    assertEq(tree.ast.nodes[size.type].text, "Point");
+  }
+
+  let attempt: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 2)].b].syntax;
+  assert(attempt is Try);
+  if (attempt is Try) {
+    assertEq(tree.kind(attempt.value), NodeKind.Call);
+  }
+
+  let question: Is = isOf(tree.ast, tree.ast.nodes[statementOf(tree, 3)].b);
+  assertEq(tree.ast.nodes[question.value].text, "c");
+  assertEq(tree.ast.nodes[question.type].text, "ParseError");
+
+  let caught: Syntax = tree.ast.nodes[tree.ast.nodes[statementOf(tree, 4)].b].syntax;
+  assert(caught is Catch);
+  if (caught is Catch) {
+    assertEq(caught.name, "problem");
+    assertEq(tree.kind(caught.block), NodeKind.Block);
+  }
+}
+
+test "the parts a node's syntax holds are its children, types included" {
+  let tree: Parsed = parse("fn main(): void { let a: i64 = x as i64; }");
+  let cast: i32 = tree.ast.nodes[statementOf(tree, 0)].b;
+  let children: *List<i32> = syntaxChildren(tree.ast.nodes[cast].syntax);
+  assertEq(children.count, 2);
+  assertEq(tree.kind(children.at(0)), NodeKind.Ident);
+  assertEq(tree.kind(children.at(1)), NodeKind.Type);
 }

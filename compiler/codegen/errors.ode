@@ -27,7 +27,7 @@ import {
 import { llvmTypeName } from "./layout";
 import { genStatement } from "./statements";
 import { line } from "../driver/options";
-import { Binary } from "../syntax/ast";
+import { Binary, Try, Is, Catch } from "../syntax/ast";
 import { payloadWords } from "../types/layout";
 import { TypeKind, Type } from "../types/types";
 
@@ -243,8 +243,8 @@ export fn memberAddress(e: *Emitter, declared: Type, type: Type, address: *i8): 
 }
 
 // `try value`: the value, or a return of its error.
-export fn genTry(e: *Emitter, node: i32): *i8 {
-  let operand: i32 = e.ast.nodes[node].a;
+export fn genTry(e: *Emitter, attempt: Try): *i8 {
+  let operand: i32 = attempt.value;
   let union: Type = typeOfNode(e, operand);
   let value: *i8 = genExpr(e, operand);
   let code: *i8 = extract(e, union, value, 0);
@@ -316,8 +316,8 @@ export fn genCoalesce(e: *Emitter, node: i32, coalesce: Binary): *i8 {
 
 // `value catch (name) { ... }`: the value, or the block run with the error
 // bound to `name`. The block always leaves, so nothing follows it.
-export fn genCatch(e: *Emitter, node: i32): *i8 {
-  let operand: i32 = e.ast.nodes[node].a;
+export fn genCatch(e: *Emitter, caught: Catch): *i8 {
+  let operand: i32 = caught.value;
   let union: Type = typeOfNode(e, operand);
   let value: *i8 = genExpr(e, operand);
   let code: *i8 = extract(e, union, value, 0);
@@ -331,8 +331,8 @@ export fn genCatch(e: *Emitter, node: i32): *i8 {
   let errorType: Type = Type.ofEnum(unionInfo(union).errors.at(0), 0);
   emitStore(e, errorType, code, slot);
   emitterEnterScope(e);
-  declareLocal(e, e.ast.nodes[node].text, slot, errorType);
-  genStatement(e, e.ast.nodes[node].b);
+  declareLocal(e, caught.name, slot, errorType);
+  genStatement(e, caught.block);
   emitterExitScope(e);
   // Checking made sure the block leaves; whatever block its last statement
   // opened after itself is never reached.
@@ -351,11 +351,11 @@ export fn genCatch(e: *Emitter, node: i32): *i8 {
 // `value is SomeError`: whether the code is one of that enum's numbers,
 // which are given to its errors in order. `shape is Circle`: whether it is
 // Circle's code -- or, in a union of one value, whether it is no error.
-export fn genIs(e: *Emitter, node: i32): *i8 {
-  let operand: i32 = e.ast.nodes[node].a;
+export fn genIs(e: *Emitter, question: Is): *i8 {
+  let operand: i32 = question.value;
   let union: Type = typeOfNode(e, operand);
   let code: *i8 = extract(e, union, genExpr(e, operand), 0);
-  return holdsTest(e, union, code, analyzerParseType(e.an, e.ast.nodes[node].b));
+  return holdsTest(e, union, code, analyzerParseType(e.an, question.type));
 }
 
 // Whether a union whose code is `code` holds `asked`: one of its value

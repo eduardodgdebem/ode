@@ -29,7 +29,8 @@ import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
 import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
 import {
-  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, binaryOf, unaryOf,
+  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try, Is,
+  Catch, Unmoved, binaryOf, unaryOf,
 } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { TypeKind, Type } from "../types/types";
@@ -195,8 +196,9 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
     return address;
   }
 
-  if (kind == NodeKind.Index) {
-    return genIndexAddress(e, node);
+  let syntax: Syntax = e.ast.nodes[node].syntax;
+  if (syntax is Index) {
+    return genIndexAddress(e, syntax);
   }
 
   // For `*p` the address to read or write is simply the value of `p`.
@@ -275,12 +277,12 @@ fn genFieldValue(e: *Emitter, object: i32, field: *i8): *i8 {
 }
 
 // The address of element `b` of the pointer `a`.
-fn genIndexAddress(e: *Emitter, node: i32): *i8 {
-  let base: i32 = e.ast.nodes[node].a;
+fn genIndexAddress(e: *Emitter, index: Index): *i8 {
+  let base: i32 = index.base;
   let baseType: Type = typeOfNode(e, base);
   let pointer: *i8 = genExpr(e, base);
 
-  let indexNode: i32 = e.ast.nodes[node].b;
+  let indexNode: i32 = index.index;
   let offset: *i8 = emitCast(e, genExpr(e, indexNode), typeOfNode(e, indexNode),
                              Type.make(TypeKind.I64, 0));
 
@@ -785,12 +787,11 @@ export fn genExpr(e: *Emitter, node: i32): *i8 {
 fn genValue(e: *Emitter, node: i32): *i8 {
   let kind: NodeKind = e.ast.nodes[node].kind;
 
-  match (kind) {
-    .Match => { return genMatchValue(e, node); }
-    .Try => { return genTry(e, node); }
-    .Catch => { return genCatch(e, node); }
-    .Is => { return genIs(e, node); }
-    else => {}
+  if (kind == NodeKind.Match) {
+    return genMatchValue(e, node);
+  }
+  if (!(e.ast.nodes[node].syntax is Unmoved)) {
+    return genSyntax(e, node);
   }
 
   if (kind == NodeKind.Number) { return genNumberLiteral(e, node); }
@@ -828,24 +829,11 @@ fn genValue(e: *Emitter, node: i32): *i8 {
   }
 
   match (kind) {
-    .Binary => { return genBinary(e, node, binaryOf(e.ast, node)); }
-    .Unary => { return genUnary(e, node, unaryOf(e.ast, node)); }
     .Call => { return genCall(e, node); }
     .MethodCall => { return genMethodCall(e, node); }
     .CallValue => { return genCallValue(e, node); }
     .StructLit => { return genStructLiteral(e, node); }
     else => {}
-  }
-
-  if (kind == NodeKind.Cast) {
-    let from: Type = typeOfNode(e, e.ast.nodes[node].a);
-    let to: Type = typeOfNode(e, node);
-    return emitCast(e, genExpr(e, e.ast.nodes[node].a), from, to);
-  }
-
-  if (kind == NodeKind.Sizeof) {
-    let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
-    return fromInt(sizeOf(e.an.structs, type) as i64);
   }
 
   // `Color.Red` is a constant the analyzer already worked out.
@@ -863,10 +851,26 @@ fn genValue(e: *Emitter, node: i32): *i8 {
     return value;
   }
 
-  if (kind == NodeKind.Index) {
-    return emitLoad(e, typeOfNode(e, node), genAddress(e, node));
-  }
-
   codegenFault(e, node, "unsupported expression in code generation");
   return null;
+}
+
+// An expression whose kind has syntax of its own, by what it is.
+fn genSyntax(e: *Emitter, node: i32): *i8 {
+  let syntax: Syntax = e.ast.nodes[node].syntax;
+  return match (syntax) {
+    Binary => genBinary(e, node, syntax),
+    Unary => genUnary(e, node, syntax),
+    Cast => emitCast(e, genExpr(e, syntax.value), typeOfNode(e, syntax.value),
+                     typeOfNode(e, node)),
+    Sizeof => fromInt(sizeOf(e.an.structs, analyzerParseType(e.an, syntax.type)) as i64),
+    Index => emitLoad(e, typeOfNode(e, node), genIndexAddress(e, syntax)),
+    Try => genTry(e, syntax),
+    Catch => genCatch(e, syntax),
+    Is => genIs(e, syntax),
+    Unmoved => {
+      codegenFault(e, node, "an expression without syntax");
+      return null;
+    }
+  };
 }
