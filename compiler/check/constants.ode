@@ -15,8 +15,8 @@ import { Analyzer, analyzerFail, analyzerParseType } from "./analyzer";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import {
-  NO_NODE, NodeKind, Binary, BinaryOp, Unary, UnaryOp, Cast, Sizeof, binaryOf, unaryOf,
-  castOf, sizeofOf, syntaxChildren,
+  NO_NODE, NodeKind, Binary, BinaryOp, Cast, Sizeof, Unary, UnaryOp, binaryOf, castOf,
+  nodeName, nodeTextLength, sizeofOf, syntaxChildren, unaryOf, varDeclOf,
 } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { TypeKind, Type, parseMagnitude } from "../types/types";
@@ -81,20 +81,20 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
   }
 
   if (kind == NodeKind.Number) {
-    let text: *i8 = an.ast.nodes[node].text;
+    let text: *i8 = nodeName(an.ast, node);
     let start: i64 = 0;
     if (text[0] == '-') {
       start = 1;
     }
     let overflowed: bool = false;
-    value = parseMagnitude(text, start, an.ast.nodes[node].textLength,
+    value = parseMagnitude(text, start, nodeTextLength(an.ast, node),
                            &overflowed) as i64;
     if (start == 1) {
       value = -value;
     }
   } else if (kind == NodeKind.Char) {
     // The byte's value, which wrap() makes negative again in an i8.
-    value = an.ast.nodes[node].text[0] as i64;
+    value = nodeName(an.ast, node)[0] as i64;
     if (value < 0) {
       value = value + 256;
     }
@@ -110,7 +110,7 @@ export fn foldInteger(an: *Analyzer, node: i32): bool {
     if (!isReadyGlobal(an, node)) {
       return false;
     }
-    value = an.values[an.ast.nodes[globalDeclOf(an, node)].b];
+    value = an.values[varDeclOf(an.ast, globalDeclOf(an, node)).value];
   } else if (an.ast.nodes[node].syntax is Cast) {
     let operand: i32 = castOf(an.ast, node).value;
     if (!foldInteger(an, operand)) {

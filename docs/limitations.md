@@ -244,10 +244,9 @@ of memory -- stops the program. A test cannot say that it expects to stop; such 
 
 - `catch (e)` takes a union of one error enum; with several, keep the value
   and tell them apart with `is`.
-- `is` narrows in the branches of the `if` it is the condition of -- under
-  `!` too -- and after that `if` when its first branch always leaves; it
-  does not narrow through `&&` or `||`, so `if (x is A && x.size > 0)` reads
-  `x.size` from a union. Nest the `if`s instead.
+- `is` narrows in the branches of the `if` it is the condition of -- through
+  `!`, `&&` and `||` too -- and after that `if` when its first branch always
+  leaves. It does not narrow across a loop's condition, `while (x is A)`.
 - An error carries no data: it says what went wrong, not with what. A union
   can return a struct alongside the errors -- `Config | ParseFailure |
   IoError` -- when the details matter.

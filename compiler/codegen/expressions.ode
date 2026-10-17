@@ -29,8 +29,10 @@ import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
 import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
 import {
-  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try, Is,
-  Catch, Unmoved, binaryOf, unaryOf,
+  NO_NODE, NodeKind, Binary, BinaryOp, BoolLit, Call, CallValue, Cast, Catch, CharLit,
+  FieldAccess, Ident, Index, Is, Lambda, MethodCall, NullLit, NumberLit, Sizeof,
+  StringLit, StructLit, Syntax, Try, Unary, UnaryOp, fieldAccessOf, fieldInitOf, itemAt,
+  itemCount, nodeName, unaryOf,
 } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { TypeKind, Type } from "../types/types";
@@ -170,7 +172,7 @@ fn isAddressable(e: *Emitter, node: i32): bool {
     if (e.an.isConstant[node] != 0) {
       return false;
     }
-    let object: i32 = e.ast.nodes[node].a;
+    let object: i32 = fieldAccessOf(e.ast, node).object;
     return typeOfNode(e, object).isPointer() || isAddressable(e, object);
   }
   let syntax: Syntax = e.ast.nodes[node].syntax;
@@ -189,7 +191,8 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
   }
 
   if (kind == NodeKind.FieldAccess) {
-    let address: *i8 = genFieldAddress(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
+    let access: FieldAccess = fieldAccessOf(e.ast, node);
+    let address: *i8 = genFieldAddress(e, access.object, access.field);
     if (e.an.narrowedFrom[node].kind != TypeKind.None) {
       return memberAddress(e, e.an.narrowedFrom[node], typeOfNode(e, node), address);
     }
@@ -532,7 +535,7 @@ fn genUnary(e: *Emitter, node: i32, unary: Unary): *i8 {
 // The callee's signature is read off the analyzer's types rather than looked
 // up again: the call's own type is the return type, and every argument was
 // required to have exactly its parameter's type.
-fn genCall(e: *Emitter, node: i32): *i8 {
+fn genCall(e: *Emitter, node: i32, call: Call): *i8 {
   if (e.an.callTargets[node] == CallTarget.Assert) {
     return genAssert(e, node);
   }
@@ -546,10 +549,10 @@ fn genCall(e: *Emitter, node: i32): *i8 {
   // A variable holding a function is loaded, and the call goes through it.
   if (e.an.callTargets[node] == CallTarget.Value) {
     let callee: *i8 = emitLoad(e, codePointer(), variableAddress(e, node));
-    return genCallWith(e, node, callee, e.ast.nodes[node].a, "", "");
+    return genCallWith(e, node, callee, call.args, "", "");
   }
 
-  return genCallWith(e, node, direct(e, node), e.ast.nodes[node].a, "", "");
+  return genCallWith(e, node, direct(e, node), call.args, "", "");
 }
 
 // `@name`: a call straight to the function the analyzer resolved.
@@ -563,47 +566,46 @@ fn codePointer(): Type {
 }
 
 // `table[i](x)`: a call of whatever an expression produced.
-fn genCallValue(e: *Emitter, node: i32): *i8 {
-  let callee: *i8 = genExpr(e, e.ast.nodes[node].a);
-  return genCallWith(e, node, callee, e.ast.nodes[node].b, "", "");
+fn genCallValue(e: *Emitter, node: i32, call: CallValue): *i8 {
+  let callee: *i8 = genExpr(e, call.callee);
+  return genCallWith(e, node, callee, call.args, "", "");
 }
 
 // A method call is a call with the receiver, when there is one, put in front
 // of the arguments as `self`.
-fn genMethodCall(e: *Emitter, node: i32): *i8 {
+fn genMethodCall(e: *Emitter, node: i32, call: MethodCall): *i8 {
   // `ops.apply(x)` calls the function a field holds.
   if (e.an.callTargets[node] == CallTarget.Field) {
-    let callee: *i8 = genFieldValue(e, e.ast.nodes[node].a,
-                                    e.ast.nodes[node].text);
-    return genCallWith(e, node, callee, e.ast.nodes[node].b, "", "");
+    let callee: *i8 = genFieldValue(e, call.receiver, call.name);
+    return genCallWith(e, node, callee, call.args, "", "");
   }
 
   let mode: ReceiverMode = e.an.receivers[node];
   if (mode == ReceiverMode.None) {
-    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, "", "");
+    return genCallWith(e, node, direct(e, node), call.args, "", "");
   }
 
-  let object: i32 = e.ast.nodes[node].a;
+  let object: i32 = call.receiver;
   let objectType: Type = typeOfNode(e, object);
 
   if (mode == ReceiverMode.Address) {
-    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, "ptr",
+    return genCallWith(e, node, direct(e, node), call.args, "ptr",
                        genAddress(e, object));
   }
 
   if (mode == ReceiverMode.Load) {
     let structType: Type = objectType.base();
     let value: *i8 = emitLoad(e, structType, genStructPointer(e, object));
-    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b,
+    return genCallWith(e, node, direct(e, node), call.args,
                        llvmTypeName(structType), value);
   }
 
   if (objectType.isPointer()) {
-    return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, "ptr",
+    return genCallWith(e, node, direct(e, node), call.args, "ptr",
                        genStructPointer(e, object));
   }
 
-  return genCallWith(e, node, direct(e, node), e.ast.nodes[node].b, llvmTypeName(objectType),
+  return genCallWith(e, node, direct(e, node), call.args, llvmTypeName(objectType),
                      genExpr(e, object));
 }
 
@@ -627,7 +629,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
 
   let argCount: i32 = 0;
   if (args != NO_NODE) {
-    argCount = e.ast.nodes[args].itemCount;
+    argCount = itemCount(e.ast, args);
   }
 
   // Every argument is evaluated before the call is written, because each one
@@ -636,7 +638,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
   let types: *Type = alloc<Type>((argCount + 1) as i64);
   let named: i32 = e.an.variadicAfter[node] - 1;
   for (index in 0..argCount) {
-    let argument: i32 = e.ast.nodes[args].items[index];
+    let argument: i32 = itemAt(e.ast, args, index);
     values[index] = genExpr(e, argument);
     types[index] = resultTypeOf(e, argument);
 
@@ -698,7 +700,7 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
 }
 
 fn genStructLiteral(e: *Emitter, node: i32): *i8 {
-  let name: *i8 = e.ast.nodes[node].text;
+  let name: *i8 = nodeName(e.ast, node);
   let type: Type = Type.ofStruct(name, 0);
   let structIndex: i32 = e.an.structs.indexOf(name);
   let typeName: *i8 = llvmTypeName(type);
@@ -707,13 +709,13 @@ fn genStructLiteral(e: *Emitter, node: i32): *i8 {
   let current: *i8 = "undef";
   let index: i32 = 0;
 
-  while (index < e.ast.nodes[node].itemCount) {
-    let init: i32 = e.ast.nodes[node].items[index];
+  while (index < itemCount(e.ast, node)) {
+    let init: i32 = itemAt(e.ast, node, index);
     let fieldIndex: i32 =
-        e.an.structs.fieldIndex(structIndex, e.ast.nodes[init].text);
+        e.an.structs.fieldIndex(structIndex, nodeName(e.ast, init));
     let fieldType: Type =
         e.an.structs.items[structIndex].fields[fieldIndex].type;
-    let value: *i8 = genExpr(e, e.ast.nodes[init].a);
+    let value: *i8 = genExpr(e, fieldInitOf(e.ast, init).value);
 
     let line: *Builder = Builder.new();
     line.add("insertvalue ");
@@ -738,7 +740,7 @@ fn genStructLiteral(e: *Emitter, node: i32): *i8 {
 // be; plain decimal text round-trips for everything the language can express.
 export fn genNumberLiteral(e: *Emitter, node: i32): *i8 {
   let type: Type = typeOfNode(e, node);
-  let text: *i8 = e.ast.nodes[node].text;
+  let text: *i8 = nodeName(e.ast, node);
 
   if (type.isFloat()) {
     // LLVM wants a decimal point in a floating literal.
@@ -757,7 +759,7 @@ export fn genNumberLiteral(e: *Emitter, node: i32): *i8 {
 // A character is its byte's value, 0 to 255 -- except in an i8, which is
 // signed, where a byte above 127 is written as its negative form.
 export fn genCharLiteral(e: *Emitter, node: i32): *i8 {
-  let value: i32 = e.ast.nodes[node].text[0] as i32;
+  let value: i32 = nodeName(e.ast, node)[0] as i32;
   if (value < 0) {
     value = value + 256;
   }
@@ -790,69 +792,7 @@ fn genValue(e: *Emitter, node: i32): *i8 {
   if (kind == NodeKind.Match) {
     return genMatchValue(e, node);
   }
-  if (!(e.ast.nodes[node].syntax is Unmoved)) {
-    return genSyntax(e, node);
-  }
-
-  if (kind == NodeKind.Number) { return genNumberLiteral(e, node); }
-
-  if (kind == NodeKind.Bool) {
-    if (equals(e.ast.nodes[node].text, "true")) {
-      return "true";
-    }
-    return "false";
-  }
-
-  if (kind == NodeKind.Char) {
-    return genCharLiteral(e, node);
-  }
-
-  if (kind == NodeKind.Null) {
-    return "null";
-  }
-
-  if (kind == NodeKind.String) {
-    return internString(e, e.ast.nodes[node].text,
-                        e.ast.nodes[node].textLength);
-  }
-
-  // A function's name used as a value is the function's address.
-  if (kind == NodeKind.Ident && e.an.functionRefs[node] != 0) {
-    return direct(e, node);
-  }
-  if (kind == NodeKind.Lambda) {
-    return lambdaValue(e, node);
-  }
-
-  if (kind == NodeKind.Ident) {
-    return genVariable(e, node);
-  }
-
-  match (kind) {
-    .Call => { return genCall(e, node); }
-    .MethodCall => { return genMethodCall(e, node); }
-    .CallValue => { return genCallValue(e, node); }
-    .StructLit => { return genStructLiteral(e, node); }
-    else => {}
-  }
-
-  // `Color.Red` is a constant the analyzer already worked out.
-  if (kind == NodeKind.FieldAccess && e.an.isConstant[node] != 0) {
-    return fromInt(e.an.values[node]);
-  }
-
-  // A union field narrowed by `is` or `match` is read whole, as declared,
-  // and the member it holds taken out of it.
-  if (kind == NodeKind.FieldAccess) {
-    let value: *i8 = genFieldValue(e, e.ast.nodes[node].a, e.ast.nodes[node].text);
-    if (e.an.narrowedFrom[node].kind != TypeKind.None) {
-      return convertUnion(e, value, e.an.narrowedFrom[node], typeOfNode(e, node));
-    }
-    return value;
-  }
-
-  codegenFault(e, node, "unsupported expression in code generation");
-  return null;
+  return genSyntax(e, node);
 }
 
 // An expression whose kind has syntax of its own, by what it is.
@@ -868,9 +808,46 @@ fn genSyntax(e: *Emitter, node: i32): *i8 {
     Try => genTry(e, syntax),
     Catch => genCatch(e, syntax),
     Is => genIs(e, syntax),
-    Unmoved => {
-      codegenFault(e, node, "an expression without syntax");
+    NumberLit => genNumberLiteral(e, node),
+    BoolLit => {
+      if (syntax.value) {
+        return "true";
+      }
+      return "false";
+    }
+    CharLit => genCharLiteral(e, node),
+    NullLit => "null",
+    StringLit => internString(e, syntax.text, syntax.length),
+    Ident => {
+      // A function's name used as a value is the function's address.
+      if (e.an.functionRefs[node] != 0) {
+        return direct(e, node);
+      }
+      return genVariable(e, node);
+    }
+    Lambda => lambdaValue(e, node),
+    Call => genCall(e, node, syntax),
+    MethodCall => genMethodCall(e, node, syntax),
+    CallValue => genCallValue(e, node, syntax),
+    StructLit => genStructLiteral(e, node),
+    FieldAccess => genFieldRead(e, node, syntax),
+    else => {
+      codegenFault(e, node, "unsupported expression in code generation");
       return null;
     }
   };
+}
+
+// `object.field`: a constant the analyzer worked out, for `Color.Red`, or a
+// field's value -- a union field narrowed by `is` or `match` read whole, as
+// declared, and the member it holds taken out of it.
+fn genFieldRead(e: *Emitter, node: i32, access: FieldAccess): *i8 {
+  if (e.an.isConstant[node] != 0) {
+    return fromInt(e.an.values[node]);
+  }
+  let value: *i8 = genFieldValue(e, access.object, access.field);
+  if (e.an.narrowedFrom[node].kind != TypeKind.None) {
+    return convertUnion(e, value, e.an.narrowedFrom[node], typeOfNode(e, node));
+  }
+  return value;
 }

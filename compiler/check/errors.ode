@@ -42,7 +42,9 @@ import { analyzeStatement } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import {
-  NO_NODE, NodeKind, Ast, Syntax, Binary, Unary, Try, Is, Catch, syntaxChildren, isOf,
+  NO_NODE, NodeKind, Ast, Binary, Block, BoolLit, Break, Catch, Continue, FieldAccess,
+  Ident, If, Is, Match, Return, Syntax, Try, Unary, While, armOf, itemAt, itemCount,
+  nodeName, syntaxChildren,
 } from "../syntax/ast";
 import { SymbolKind, Symbol } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
@@ -319,8 +321,8 @@ fn isErrorEnum(an: *Analyzer, name: *i8): bool {
 // them in order.
 export fn errorCodeRange(an: *Analyzer, name: *i8, first: *i64, last: *i64): void {
   let declaration: i32 = enumDeclOf(an, name);
-  *first = an.values[an.ast.nodes[declaration].items[0]];
-  *last = an.values[an.ast.nodes[declaration].items[an.ast.nodes[declaration].itemCount - 1]];
+  *first = an.values[itemAt(an.ast, declaration, 0)];
+  *last = an.values[itemAt(an.ast, declaration, itemCount(an.ast, declaration) - 1)];
 }
 
 // ---------------------------------------------------------------------------
@@ -342,8 +344,8 @@ export fn parseUnionType(an: *Analyzer, node: i32): Type {
   let values: *List<Type> = List<Type>.new();
   let errors: *List<*i8> = List<*i8>.new();
   let hasVoid: bool = false;
-  for (index in 0..an.ast.nodes[node].itemCount) {
-    let member: Type = analyzerParseType(an, an.ast.nodes[node].items[index]);
+  for (index in 0..itemCount(an.ast, node)) {
+    let member: Type = analyzerParseType(an, itemAt(an.ast, node, index));
     if (FAILED) {
       an.isConstant[node] = 2;
       return Type.make(TypeKind.None, 0);
@@ -516,50 +518,54 @@ export fn alwaysReturns(an: *Analyzer, node: i32): bool {
 // alwaysLeaves, with `loopExits` saying whether leaving by break or continue
 // counts.
 fn leaves(an: *Analyzer, node: i32, loopExits: bool): bool {
-  let kind: NodeKind = an.ast.nodes[node].kind;
-  if (kind == NodeKind.Return) {
-    return true;
-  }
-  if (kind == NodeKind.Break || kind == NodeKind.Continue) {
-    return loopExits;
-  }
-  if (kind == NodeKind.Block) {
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  match (syntax) {
+    Return => {
+      return true;
+    }
+    Break, Continue => {
+      return loopExits;
+    }
     // A block leaves the way the first of its statements that cannot be
     // followed does; nothing after that one is reached.
-    for (index in 0..an.ast.nodes[node].itemCount) {
-      let item: i32 = an.ast.nodes[node].items[index];
-      if (leaves(an, item, loopExits)) {
-        return true;
+    Block => {
+      for (index in 0..syntax.items.count) {
+        let item: i32 = syntax.items.at(index);
+        if (leaves(an, item, loopExits)) {
+          return true;
+        }
+        if (alwaysLeaves(an, item)) {
+          return false;
+        }
       }
-      if (alwaysLeaves(an, item)) {
-        return false;
-      }
+      return false;
     }
-    return false;
-  }
-  if (kind == NodeKind.If) {
-    return an.ast.nodes[node].c != NO_NODE &&
-           leaves(an, an.ast.nodes[node].b, loopExits) &&
-           leaves(an, an.ast.nodes[node].c, loopExits);
-  }
-  // A match that checks covers every value, so it leaves when every arm does.
-  if (kind == NodeKind.Match) {
-    for (index in 0..an.ast.nodes[node].itemCount) {
-      let arm: i32 = an.ast.nodes[node].items[index];
-      if (!leaves(an, an.ast.nodes[arm].a, loopExits)) {
-        return false;
-      }
+    If => {
+      return syntax.otherwise != NO_NODE && leaves(an, syntax.then, loopExits) &&
+             leaves(an, syntax.otherwise, loopExits);
     }
-    return an.ast.nodes[node].itemCount > 0;
+    // A match that checks covers every value, so it leaves when every arm
+    // does.
+    Match => {
+      for (index in 0..syntax.arms.count) {
+        if (!leaves(an, armOf(an.ast, syntax.arms.at(index)).body, loopExits)) {
+          return false;
+        }
+      }
+      return syntax.arms.count > 0;
+    }
+    // `while (true)` is never followed, unless a break gets out of it.
+    While => {
+      let condition: Syntax = an.ast.nodes[syntax.condition].syntax;
+      if (condition is BoolLit) {
+        return condition.value && !breaksOut(an, syntax.body);
+      }
+      return false;
+    }
+    else => {
+      return false;
+    }
   }
-  // `while (true)` is never followed, unless a break gets out of it.
-  if (kind == NodeKind.While) {
-    let condition: i32 = an.ast.nodes[node].a;
-    return an.ast.nodes[condition].kind == NodeKind.Bool &&
-           equals(an.ast.nodes[condition].text, "true") &&
-           !breaksOut(an, an.ast.nodes[node].b);
-  }
-  return false;
 }
 
 // Whether `node` holds a break of the loop it is in: one not inside a loop
@@ -577,15 +583,6 @@ fn breaksOut(an: *Analyzer, node: i32): bool {
       kind == NodeKind.Lambda) {
     return false;
   }
-  if (breaksOut(an, an.ast.nodes[node].a) || breaksOut(an, an.ast.nodes[node].b) ||
-      breaksOut(an, an.ast.nodes[node].c)) {
-    return true;
-  }
-  for (index in 0..an.ast.nodes[node].itemCount) {
-    if (breaksOut(an, an.ast.nodes[node].items[index])) {
-      return true;
-    }
-  }
   let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
   for (index in 0..children.count) {
     if (breaksOut(an, children.at(index))) {
@@ -595,39 +592,56 @@ fn breaksOut(an: *Analyzer, node: i32): bool {
   return false;
 }
 
-// What `if (name is SomeError)` -- or `name is Circle` -- tells the branches
-// about `name`: in the first, it holds that member; in the second -- or
-// after the `if`, when the first always leaves -- it does not. `name` may be
-// a variable or a field of one, `holder.shape`, and is read there with the
-// narrower type; its storage is untouched.
-export fn narrowedLocal(an: *Analyzer, condition: i32): i32 {
-  let flipped: bool = false;
-  let question: i32 = questionIn(an, condition, &flipped);
-  if (question == NO_NODE) {
-    return NO_NODE;
-  }
-  let value: i32 = isOf(an.ast, question).value;
-  if (pathOf(an, value) == null || an.types[value].kind == TypeKind.None ||
-      !an.types[value].isUnion()) {
-    return NO_NODE;
-  }
-  return value;
+// What a condition tells the code it guards about the variables and fields
+// it asks about: `x is Circle`, where it holds, that `x` is a Circle, and
+// where it does not, that it is what else it may be. `!` swaps the two;
+// `a && b` holds where both do, so both narrow there, and `a || b` fails
+// where both fail. `x` is read there with the narrower type; its storage is
+// untouched.
+export struct Narrowing {
+  subject: i32,
+  type: Type,
 }
 
-// The `is` a condition asks, under any number of `!` -- each of which swaps
-// what the two branches learn, recorded in `flipped` -- or NO_NODE.
-fn questionIn(an: *Analyzer, condition: i32, flipped: *bool): i32 {
+// The narrowings `condition` makes where it holds -- or, with `holds` false,
+// where it does not -- added to `found`.
+export fn narrowingsOf(an: *Analyzer, condition: i32, holds: bool,
+                       found: *List<Narrowing>): void {
   let syntax: Syntax = an.ast.nodes[condition].syntax;
-  if (syntax is Is) {
-    return condition;
-  }
-  if (syntax is Unary) {
-    if (syntax.op == .Not) {
-      *flipped = !*flipped;
-      return questionIn(an, syntax.operand, flipped);
+  match (syntax) {
+    Is => {
+      let subject: i32 = syntax.value;
+      if (pathOf(an, subject) == null || an.types[subject].kind == TypeKind.None ||
+          !an.types[subject].isUnion()) {
+        return;
+      }
+      let asked: Type = analyzerParseType(an, syntax.type);
+      if (holds) {
+        found.push(Narrowing { subject: subject, type: asked });
+      } else {
+        found.push(Narrowing { subject: subject, type: without(an.types[subject], asked) });
+      }
     }
+    Unary => {
+      if (syntax.op == .Not) {
+        narrowingsOf(an, syntax.operand, !holds, found);
+      }
+    }
+    Binary => {
+      if ((syntax.op == .And && holds) || (syntax.op == .Or && !holds)) {
+        narrowingsOf(an, syntax.left, holds, found);
+        narrowingsOf(an, syntax.right, holds, found);
+      }
+    }
+    else => {}
   }
-  return NO_NODE;
+}
+
+// Narrows, innermost, everything `narrowings` says.
+export fn applyNarrowings(an: *Analyzer, narrowings: *List<Narrowing>): void {
+  for (index in 0..narrowings.count) {
+    narrow(an, narrowings.at(index).subject, narrowings.at(index).type);
+  }
 }
 
 // The name narrowing knows `node` by, when it can be narrowed: a variable's
@@ -636,24 +650,32 @@ fn questionIn(an: *Analyzer, condition: i32, flipped: *bool): i32 {
 export fn pathOf(an: *Analyzer, node: i32): *i8 {
   let kind: NodeKind = an.ast.nodes[node].kind;
   if (kind == NodeKind.Ident) {
-    let symbol: i32 = an.symbols.find(an.ast.nodes[node].text);
+    let symbol: i32 = an.symbols.find(nodeName(an.ast, node));
     if (symbol < 0 || an.symbols.items[symbol].kind != SymbolKind.Var) {
       return null;
     }
-    return an.ast.nodes[node].text;
+    return nodeName(an.ast, node);
   }
-  if (kind != NodeKind.FieldAccess || an.isConstant[node] != 0 ||
-      an.ast.nodes[node].a == NO_NODE) {
+  if (an.isConstant[node] != 0) {
     return null;
   }
-  let object: *i8 = pathOf(an, an.ast.nodes[node].a);
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  let object: *i8 = null;
+  match (syntax) {
+    FieldAccess => {
+      if (syntax.object != NO_NODE) {
+        object = pathOf(an, syntax.object);
+      }
+    }
+    else => {}
+  }
   if (object == null) {
     return null;
   }
   let path: *Builder = Builder.new();
   path.add(object);
   path.push('.');
-  path.add(an.ast.nodes[node].text);
+  path.add(nodeName(an.ast, node));
   return path.take();
 }
 
@@ -714,22 +736,6 @@ export fn forget(an: *Analyzer, path: *i8): void {
   }
 }
 
-// The type `name` has where `condition` -- `name is SomeError` -- held, and
-// where it did not.
-export fn narrowedTypes(an: *Analyzer, condition: i32, held: *Type,
-                        notHeld: *Type): void {
-  let flipped: bool = false;
-  let question: Is = isOf(an.ast, questionIn(an, condition, &flipped));
-  let union: Type = an.types[question.value];
-  let asked: Type = analyzerParseType(an, question.type);
-  *held = asked;
-  *notHeld = without(union, asked);
-  // `if (!(x is T))`: the first branch is where it is not.
-  if (flipped) {
-    *held = without(union, asked);
-    *notHeld = asked;
-  }
-}
 
 fn errorsOf(names: *i8, other: *i8): *List<*i8> {
   let list: *List<*i8> = List<*i8>.new();
@@ -774,33 +780,34 @@ test "ruling an error out leaves the rest, or the value alone" {
 
 // A block of `statements`, made by hand.
 fn blockOf(ast: *Ast, statements: *List<i32>): i32 {
-  let block: i32 = ast.add(NodeKind.Block, 1, 1);
-  for (index in 0..statements.count) {
-    ast.addItem(block, statements.at(index));
-  }
-  return block;
+  return ast.add(NodeKind.Block, 1, 1, Block { items: statements });
+}
+
+// A statement of `kind` with nothing in it: a break, a continue, a return.
+fn bare(ast: *Ast, kind: NodeKind): i32 {
+  let syntax: Syntax = match (kind) {
+    .Break => Break {},
+    .Continue => Continue {},
+    else => Return { value: NO_NODE },
+  };
+  return ast.add(kind, 1, 1, syntax);
 }
 
 // Two statements of these kinds -- `break; return;` -- with nothing in them.
 fn statementsOf(ast: *Ast, first: NodeKind, second: NodeKind): *List<i32> {
   let statements: *List<i32> = List<i32>.new();
-  statements.push(ast.add(first, 1, 1));
-  statements.push(ast.add(second, 1, 1));
+  statements.push(bare(ast, first));
+  statements.push(bare(ast, second));
   return statements;
 }
 
 // `while (condition) body`, its condition `true` or a variable.
 fn loopOf(ast: *Ast, forever: bool, body: i32): i32 {
-  let condition: i32 = ast.add(NodeKind.Ident, 1, 1);
-  ast.nodes[condition].text = "going";
+  let condition: i32 = ast.add(NodeKind.Ident, 1, 1, Ident { name: "going" });
   if (forever) {
-    ast.nodes[condition].kind = NodeKind.Bool;
-    ast.nodes[condition].text = "true";
+    condition = ast.add(NodeKind.Bool, 1, 1, BoolLit { value: true });
   }
-  let loop: i32 = ast.add(NodeKind.While, 1, 1);
-  ast.nodes[loop].a = condition;
-  ast.nodes[loop].b = body;
-  return loop;
+  return ast.add(NodeKind.While, 1, 1, While { condition: condition, body: body });
 }
 
 test "a break or continue leaves its loop, but not the function" {
@@ -826,7 +833,7 @@ test "a loop that never ends leaves, unless a break gets out of it" {
   let whileGoing: i32 = loopOf(ast, false, blockOf(ast, empty));
 
   let breaks: *List<i32> = List<i32>.new();
-  breaks.push(ast.add(NodeKind.Break, 1, 1));
+  breaks.push(bare(ast, NodeKind.Break));
   let brokenOut: i32 = loopOf(ast, true, blockOf(ast, breaks));
 
   // A break of a loop inside it is that loop's.

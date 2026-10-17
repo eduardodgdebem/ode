@@ -23,150 +23,125 @@ import {
 } from "./expressions";
 import { llvmTypeName } from "./layout";
 import { line } from "../driver/options";
-import { NO_NODE, NodeKind } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Assign, Block, Break, Continue, EnumDecl, ExprStmt, Extern, For,
+  If, Match, Return, StructDecl, Syntax, TypeAlias, VarDecl, While, armOf, itemAt,
+  itemCount, matchOf,
+} from "../syntax/ast";
 import { Type } from "../types/types";
 
 export fn genStatement(e: *Emitter, node: i32): void {
-  let kind: NodeKind = e.ast.nodes[node].kind;
-
-  // A struct declaration produced its type up front, and a nested function
-  // declaration is not reachable here.
-  if (kind == NodeKind.Struct || kind == NodeKind.Extern) {
-    return;
-  }
-
-  if (kind == NodeKind.Enum || kind == NodeKind.TypeAlias) {
-    return;
-  }
-
-  if (kind == NodeKind.Match) {
-    genMatch(e, node);
-    return;
-  }
-
-  if (kind == NodeKind.Block) {
-    emitterEnterScope(e);
-    for (index in 0..e.ast.nodes[node].itemCount) {
-      genStatement(e, e.ast.nodes[node].items[index]);
+  let syntax: Syntax = e.ast.nodes[node].syntax;
+  match (syntax) {
+    // A struct declaration produced its type up front, an enum and an alias
+    // need nothing, and a nested function declaration is not reachable here.
+    StructDecl, Extern, EnumDecl, TypeAlias => {}
+    Match => genMatch(e, node),
+    Block => {
+      emitterEnterScope(e);
+      for (index in 0..syntax.items.count) {
+        genStatement(e, syntax.items.at(index));
+      }
+      emitterExitScope(e);
     }
-    emitterExitScope(e);
-    return;
-  }
+    VarDecl => {
+      let type: Type = analyzerParseType(e.an, syntax.type);
+      let value: *i8 = genExpr(e, syntax.value);
 
-  if (kind == NodeKind.VarDecl) {
-    let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
-    let value: *i8 = genExpr(e, e.ast.nodes[node].b);
+      let slot: *i8 = emitAlloca(e, llvmTypeName(type));
 
-    let slot: *i8 = emitAlloca(e, llvmTypeName(type));
-
-    emitStore(e, type, value, slot);
-    // Bound after the initialiser, so `let x = x + 1;` reads the outer x.
-    declareLocal(e, e.ast.nodes[node].text, slot, type);
-    return;
-  }
-
-  if (kind == NodeKind.Assign) {
-    let target: i32 = e.ast.nodes[node].a;
-    let type: Type = typeOfNode(e, target);
-    let value: *i8 = genExpr(e, e.ast.nodes[node].b);
-    emitStore(e, type, value, genAddress(e, target));
-    return;
-  }
-
-  if (kind == NodeKind.ExprStmt) {
-    genExpr(e, e.ast.nodes[node].a);
-    return;
-  }
-
-  if (kind == NodeKind.Return) {
-    if (e.ast.nodes[node].a == NO_NODE && e.returnType.isUnion()) {
-      let line: *Builder = Builder.new();
-      line.add("ret ");
-      line.add(llvmTypeName(e.returnType));
-      line.add(" zeroinitializer");
-      emitLine(e, line.data);
-    } else if (e.ast.nodes[node].a == NO_NODE) {
-      emitLine(e, "ret void");
-    } else {
-      let type: Type = resultTypeOf(e, e.ast.nodes[node].a);
-      let value: *i8 = genExpr(e, e.ast.nodes[node].a);
-
-      let line: *Builder = Builder.new();
-      line.add("ret ");
-      line.add(llvmTypeName(type));
-      line.push(' ');
-      line.add(value);
-      emitLine(e, line.data);
+      emitStore(e, type, value, slot);
+      // Bound after the initialiser, so `let x = x + 1;` reads the outer x.
+      declareLocal(e, syntax.name, slot, type);
     }
-    e.terminated = true;
-    return;
+    Assign => {
+      let type: Type = typeOfNode(e, syntax.target);
+      let value: *i8 = genExpr(e, syntax.value);
+      emitStore(e, type, value, genAddress(e, syntax.target));
+    }
+    ExprStmt => genExpr(e, syntax.value),
+    Return => genReturn(e, syntax),
+    If => genIf(e, syntax),
+    While => genWhile(e, syntax),
+    For => genFor(e, node, syntax),
+    Break => {
+      emitBranch(e, e.loopBreak.last());
+      // Anything written after this needs a block of its own to live in.
+      emitLabel(e, freshLabel(e));
+    }
+    Continue => {
+      emitBranch(e, e.loopContinue.last());
+      emitLabel(e, freshLabel(e));
+    }
+    else => codegenFault(e, node, "unsupported statement in code generation"),
+  }
+}
+
+fn genReturn(e: *Emitter, statement: Return): void {
+  if (statement.value == NO_NODE && e.returnType.isUnion()) {
+    let line: *Builder = Builder.new();
+    line.add("ret ");
+    line.add(llvmTypeName(e.returnType));
+    line.add(" zeroinitializer");
+    emitLine(e, line.data);
+  } else if (statement.value == NO_NODE) {
+    emitLine(e, "ret void");
+  } else {
+    let type: Type = resultTypeOf(e, statement.value);
+    let value: *i8 = genExpr(e, statement.value);
+
+    let line: *Builder = Builder.new();
+    line.add("ret ");
+    line.add(llvmTypeName(type));
+    line.push(' ');
+    line.add(value);
+    emitLine(e, line.data);
+  }
+  e.terminated = true;
+}
+
+fn genIf(e: *Emitter, branch: If): void {
+  let condition: *i8 = genExpr(e, branch.condition);
+  let thenLabel: *i8 = freshLabel(e);
+  let elseLabel: *i8 = freshLabel(e);
+  let doneLabel: *i8 = freshLabel(e);
+
+  if (branch.otherwise == NO_NODE) {
+    emitCondBranch(e, condition, thenLabel, doneLabel);
+  } else {
+    emitCondBranch(e, condition, thenLabel, elseLabel);
   }
 
-  if (kind == NodeKind.If) {
-    let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
-    let thenLabel: *i8 = freshLabel(e);
-    let elseLabel: *i8 = freshLabel(e);
-    let doneLabel: *i8 = freshLabel(e);
+  emitLabel(e, thenLabel);
+  genStatement(e, branch.then);
+  emitBranch(e, doneLabel);
 
-    if (e.ast.nodes[node].c == NO_NODE) {
-      emitCondBranch(e, condition, thenLabel, doneLabel);
-    } else {
-      emitCondBranch(e, condition, thenLabel, elseLabel);
-    }
-
-    emitLabel(e, thenLabel);
-    genStatement(e, e.ast.nodes[node].b);
+  if (branch.otherwise != NO_NODE) {
+    emitLabel(e, elseLabel);
+    genStatement(e, branch.otherwise);
     emitBranch(e, doneLabel);
-
-    if (e.ast.nodes[node].c != NO_NODE) {
-      emitLabel(e, elseLabel);
-      genStatement(e, e.ast.nodes[node].c);
-      emitBranch(e, doneLabel);
-    }
-
-    emitLabel(e, doneLabel);
-    return;
   }
 
-  if (kind == NodeKind.While) {
-    let condLabel: *i8 = freshLabel(e);
-    let bodyLabel: *i8 = freshLabel(e);
-    let doneLabel: *i8 = freshLabel(e);
+  emitLabel(e, doneLabel);
+}
 
-    emitBranch(e, condLabel);
-    emitLabel(e, condLabel);
-    let condition: *i8 = genExpr(e, e.ast.nodes[node].a);
-    emitCondBranch(e, condition, bodyLabel, doneLabel);
+fn genWhile(e: *Emitter, loop: While): void {
+  let condLabel: *i8 = freshLabel(e);
+  let bodyLabel: *i8 = freshLabel(e);
+  let doneLabel: *i8 = freshLabel(e);
 
-    enterLoop(e, condLabel, doneLabel);
-    emitLabel(e, bodyLabel);
-    genStatement(e, e.ast.nodes[node].b);
-    emitBranch(e, condLabel);
-    leaveLoop(e);
+  emitBranch(e, condLabel);
+  emitLabel(e, condLabel);
+  let condition: *i8 = genExpr(e, loop.condition);
+  emitCondBranch(e, condition, bodyLabel, doneLabel);
 
-    emitLabel(e, doneLabel);
-    return;
-  }
+  enterLoop(e, condLabel, doneLabel);
+  emitLabel(e, bodyLabel);
+  genStatement(e, loop.body);
+  emitBranch(e, condLabel);
+  leaveLoop(e);
 
-  if (kind == NodeKind.For) {
-    genFor(e, node);
-    return;
-  }
-
-  if (kind == NodeKind.Break) {
-    emitBranch(e, e.loopBreak.last());
-    // Anything written after this needs a block of its own to live in.
-    emitLabel(e, freshLabel(e));
-    return;
-  }
-
-  if (kind == NodeKind.Continue) {
-    emitBranch(e, e.loopContinue.last());
-    emitLabel(e, freshLabel(e));
-    return;
-  }
-
-  codegenFault(e, node, "unsupported statement in code generation");
+  emitLabel(e, doneLabel);
 }
 
 // A pattern's value as LLVM spells it for an integer of `bits` bits: in the
@@ -211,7 +186,7 @@ export fn genMatchValue(e: *Emitter, node: i32): *i8 {
 // What an arm runs: its block, or -- in a match used as a value -- its
 // value, stored in `slot`.
 fn genArmBody(e: *Emitter, node: i32, arm: i32, slot: *i8): void {
-  let body: i32 = e.ast.nodes[arm].a;
+  let body: i32 = armOf(e.ast, arm).body;
   if (slot == null || e.ast.nodes[body].kind == NodeKind.Block) {
     genStatement(e, body);
     return;
@@ -220,7 +195,7 @@ fn genArmBody(e: *Emitter, node: i32, arm: i32, slot: *i8): void {
 }
 
 fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
-  let subject: i32 = e.ast.nodes[node].a;
+  let subject: i32 = matchOf(e.ast, node).subject;
   let type: Type = typeOfNode(e, subject);
   if (type.isUnion()) {
     genUnionMatch(e, node, type, slot);
@@ -231,13 +206,13 @@ fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
 
   let done: *i8 = freshLabel(e);
   let fallback: *i8 = done;
-  let armCount: i32 = e.ast.nodes[node].itemCount;
+  let armCount: i32 = itemCount(e.ast, node);
   let labels: **i8 = alloc<*i8>((armCount + 1) as i64);
 
   let arm: i32 = 0;
   for (arm in 0..armCount) {
     labels[arm] = freshLabel(e);
-    if (e.ast.nodes[e.ast.nodes[node].items[arm]].extra == 1) {
+    if (armOf(e.ast, itemAt(e.ast, node, arm)).isElse) {
       fallback = labels[arm];
     }
   }
@@ -252,10 +227,10 @@ fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
   line.add(" [");
 
   for (arm in 0..armCount) {
-    let armNode: i32 = e.ast.nodes[node].items[arm];
+    let armNode: i32 = itemAt(e.ast, node, arm);
     let pattern: i32 = 0;
-    while (pattern < e.ast.nodes[armNode].itemCount) {
-      let patternNode: i32 = e.ast.nodes[armNode].items[pattern];
+    while (pattern < itemCount(e.ast, armNode)) {
+      let patternNode: i32 = itemAt(e.ast, armNode, pattern);
       line.push(' ');
       line.add(typeName);
       line.push(' ');
@@ -274,7 +249,7 @@ fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
 
   for (arm in 0..armCount) {
     emitLabel(e, labels[arm]);
-    genArmBody(e, node, e.ast.nodes[node].items[arm], slot);
+    genArmBody(e, node, itemAt(e.ast, node, arm), slot);
     emitBranch(e, done);
   }
 
@@ -284,26 +259,26 @@ fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
 // A match on a union: each arm in turn asks whether the code is one of the
 // members it names, the way `is` does, and the first that holds runs.
 fn genUnionMatch(e: *Emitter, node: i32, type: Type, slot: *i8): void {
-  let value: *i8 = genExpr(e, e.ast.nodes[node].a);
+  let value: *i8 = genExpr(e, matchOf(e.ast, node).subject);
   let code: *i8 = unionCode(e, type, value);
 
   let done: *i8 = freshLabel(e);
-  let armCount: i32 = e.ast.nodes[node].itemCount;
+  let armCount: i32 = itemCount(e.ast, node);
   let labels: **i8 = alloc<*i8>(armCount as i64);
   for (arm in 0..armCount) {
     labels[arm] = freshLabel(e);
   }
 
   for (arm in 0..armCount) {
-    let armNode: i32 = e.ast.nodes[node].items[arm];
-    if (e.ast.nodes[armNode].extra == 1) {
+    let armNode: i32 = itemAt(e.ast, node, arm);
+    if (armOf(e.ast, armNode).isElse) {
       emitBranch(e, labels[arm]);
       e.terminated = true;
       break;
     }
     let holds: *i8 = "false";
-    for (index in 0..e.ast.nodes[armNode].itemCount) {
-      let pattern: i32 = e.ast.nodes[armNode].items[index];
+    for (index in 0..itemCount(e.ast, armNode)) {
+      let pattern: i32 = itemAt(e.ast, armNode, index);
       let test: *i8 = holdsTest(e, type, code, e.an.types[pattern]);
       if (index == 0) {
         holds = test;
@@ -323,7 +298,7 @@ fn genUnionMatch(e: *Emitter, node: i32, type: Type, slot: *i8): void {
 
   for (arm in 0..armCount) {
     emitLabel(e, labels[arm]);
-    genArmBody(e, node, e.ast.nodes[node].items[arm], slot);
+    genArmBody(e, node, itemAt(e.ast, node, arm), slot);
     emitBranch(e, done);
   }
   emitLabel(e, done);
@@ -344,13 +319,13 @@ fn leaveLoop(e: *Emitter): void {
 // copied into the loop variable at the top of every pass, so assigning to
 // the variable in the body cannot change how many passes there are. Both
 // bounds are evaluated once, before the first.
-fn genFor(e: *Emitter, node: i32): void {
-  let start: i32 = e.ast.nodes[node].a;
+fn genFor(e: *Emitter, node: i32, loop: For): void {
+  let start: i32 = loop.start;
   let type: Type = typeOfNode(e, start);
   let typeName: *i8 = llvmTypeName(type);
 
   let first: *i8 = genExpr(e, start);
-  let last: *i8 = genExpr(e, e.ast.nodes[node].b);
+  let last: *i8 = genExpr(e, loop.end);
 
   let counter: *i8 = emitAlloca(e, typeName);
   let variable: *i8 = emitAlloca(e, typeName);
@@ -381,9 +356,9 @@ fn genFor(e: *Emitter, node: i32): void {
   enterLoop(e, stepLabel, doneLabel);
   emitLabel(e, bodyLabel);
   emitterEnterScope(e);
-  declareLocal(e, e.ast.nodes[node].text, variable, type);
+  declareLocal(e, loop.name, variable, type);
   emitStore(e, type, current, variable);
-  genStatement(e, e.ast.nodes[node].c);
+  genStatement(e, loop.body);
   emitterExitScope(e);
   emitBranch(e, stepLabel);
   leaveLoop(e);

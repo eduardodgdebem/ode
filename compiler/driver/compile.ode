@@ -3,6 +3,7 @@
 // executable -- or, asked to, stops at a phase and prints what it produced.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { readFile } from "std/fs";
 import { Builder } from "std/text";
 import { Analyzer, analyze } from "../check/analyzer";
@@ -19,7 +20,7 @@ import {
 import { loadProgram, buildExecutable } from "./pipeline";
 import { stemOf } from "../os/files";
 import { STDOUT, STDERR, writeText, writeBuilder } from "../os/output";
-import { NodeKind, Ast } from "../syntax/ast";
+import { NodeKind, Ast, Program } from "../syntax/ast";
 import { dumpTokens, dumpNode } from "../syntax/dump";
 import { tokenize } from "../syntax/lexer";
 
@@ -46,7 +47,7 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
   }
 
   let ast: *Ast = Ast.new();
-  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
   loadProgram(ast, root, options.input, source);
 
   // A tree with a hole in it says nothing trustworthy about types, so the

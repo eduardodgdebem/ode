@@ -26,6 +26,7 @@ import { checkExpr, checkArguments } from "./expressions";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED, internalError } from "../diagnostics/report";
 import { TypeKind, Type } from "../types/types";
+import { CallValue, FnTypeRef, Syntax, itemAt, itemCount } from "../syntax/ast";
 
 export struct Signature {
   // `(i32, *i8) => bool`, which is also the type's name.
@@ -102,19 +103,25 @@ export fn signatureIndex(an: *Analyzer, type: Type): i64 {
 
 // `(i32, i32) => i32`, written in a type position.
 export fn parseFunctionType(an: *Analyzer, node: i32): Type {
-  let count: i32 = an.ast.nodes[node].itemCount;
+  let count: i32 = itemCount(an.ast, node);
   let params: *Type = null as *Type;
   if (count > 0) {
     params = alloc<Type>(count as i64);
   }
 
   for (index in 0..count) {
-    params[index] = analyzerParseType(an, an.ast.nodes[node].items[index]);
+    params[index] = analyzerParseType(an, itemAt(an.ast, node, index));
   }
 
-  let result: Type = analyzerParseType(an, an.ast.nodes[node].a);
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  let result: Type = Type.make(TypeKind.None, 0);
+  let depth: i32 = 0;
+  if (syntax is FnTypeRef) {
+    result = analyzerParseType(an, syntax.result);
+    depth = syntax.depth;
+  }
 
-  return functionType(an, params, count, result, an.ast.nodes[node].extra);
+  return functionType(an, params, count, result, depth);
 }
 
 // A function's name used as a value: its type is its signature.
@@ -151,8 +158,8 @@ export fn checkCallThrough(an: *Analyzer, node: i32, name: *i8, callee: Type,
 }
 
 // `table[i](x)`: a call of whatever an expression produces.
-export fn checkCallValue(an: *Analyzer, node: i32): Type {
-  let callee: Type = checkExpr(an, an.ast.nodes[node].a);
+export fn checkCallValue(an: *Analyzer, node: i32, call: CallValue): Type {
+  let callee: Type = checkExpr(an, call.callee);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
@@ -163,6 +170,5 @@ export fn checkCallValue(an: *Analyzer, node: i32): Type {
   }
 
   an.callTargets[node] = CallTarget.Value;
-  return checkCallThrough(an, node, "function value", callee,
-                          an.ast.nodes[node].b);
+  return checkCallThrough(an, node, "function value", callee, call.args);
 }

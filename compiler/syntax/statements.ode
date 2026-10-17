@@ -7,7 +7,12 @@ import { memberName } from "../codegen/testing";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED, report } from "../diagnostics/report";
 import { line } from "../driver/options";
-import { NO_NODE, NodeKind, Binary } from "./ast";
+import { List } from "std/list";
+import {
+  NO_NODE, NodeKind, Syntax, Binary, VarDecl, Assign, ExprStmt, Block, If, For, While,
+  Break, Continue, Return, Params, Param, Function, TypeRef, Extern, StructDecl, FieldDecl,
+  Import, ImportName, Ident, EnumDecl, EnumMember, Match, Arm, TypeAlias,
+} from "./ast";
 import { parseExpr, binaryOpOf } from "./expressions";
 import {
   Parser, startsStatement, parseType, parseDeclaredType, parseTypeParams,
@@ -153,12 +158,8 @@ fn parseVarDecl(parser: *Parser): i32 {
   let expr: i32 = parseExpr(parser);
   parser.expect(TokenKind.Semicolon, ";");
 
-  let node: i32 = parser.ast.add(NodeKind.VarDecl, 0, 0);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = type;
-  parser.ast.nodes[node].b = expr;
-
-  return node;
+  return parser.ast.add(NodeKind.VarDecl, 0, 0,
+                        VarDecl { name: name.text, type: type, value: expr });
 }
 
 // Either `expr;`, `lvalue = expr;` or `lvalue op= expr;`. All start with an
@@ -173,11 +174,7 @@ fn parseExprStmt(parser: *Parser): i32 {
     let value: i32 = parseExpr(parser);
     parser.expect(TokenKind.Semicolon, ";");
 
-    let node: i32 = parser.ast.add(NodeKind.Assign, 0, 0);
-    parser.ast.nodes[node].a = expr;
-    parser.ast.nodes[node].b = value;
-
-    return node;
+    return parser.ast.add(NodeKind.Assign, 0, 0, Assign { target: expr, value: value });
   }
 
   let binary: TokenKind = compoundAssignOp(parser.kind());
@@ -195,28 +192,21 @@ fn parseExprStmt(parser: *Parser): i32 {
     let value: i32 = parseExpr(parser);
     parser.expect(TokenKind.Semicolon, ";");
 
-    let sum: i32 = parser.ast.add(NodeKind.Binary, opLine, opColumn);
-    parser.ast.nodes[sum].syntax = Binary { op: binaryOpOf(binary), left: target,
-                                            right: value };
-
-    let node: i32 = parser.ast.add(NodeKind.Assign, 0, 0);
-    parser.ast.nodes[node].a = expr;
-    parser.ast.nodes[node].b = sum;
-
-    return node;
+    let sum: i32 = parser.ast.add(NodeKind.Binary, opLine, opColumn,
+                                  Binary { op: binaryOpOf(binary), left: target,
+                                           right: value });
+    return parser.ast.add(NodeKind.Assign, 0, 0, Assign { target: expr, value: sum });
   }
 
   parser.expect(TokenKind.Semicolon, ";");
 
-  let node: i32 = parser.ast.add(NodeKind.ExprStmt, 0, 0);
-  parser.ast.nodes[node].a = expr;
-
-  return node;
+  return parser.ast.add(NodeKind.ExprStmt, 0, 0, ExprStmt { value: expr });
 }
 
 export fn parseBlock(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.Block, start.line, start.column);
+  let node: i32 = parser.ast.add(NodeKind.Block, start.line, start.column,
+                                 Block { items: List<i32>.new() });
   // With no `{` there is no block: what follows belongs to whatever comes
   // next, which recovery finds, rather than to a body that never opened.
   if (parser.kind() != TokenKind.LBrace) {
@@ -260,12 +250,8 @@ fn parseIfStmt(parser: *Parser): i32 {
     }
   }
 
-  let node: i32 = parser.ast.add(NodeKind.If, 0, 0);
-  parser.ast.nodes[node].a = condition;
-  parser.ast.nodes[node].b = thenBlock;
-  parser.ast.nodes[node].c = elseBlock;
-
-  return node;
+  return parser.ast.add(NodeKind.If, 0, 0,
+                        If { condition: condition, then: thenBlock, otherwise: elseBlock });
 }
 
 // ForStmt -> 'for' '(' IDENT 'in' Expr '..' Expr ')' Block
@@ -273,28 +259,27 @@ fn parseIfStmt(parser: *Parser): i32 {
 // `in` is matched by its text rather than as a keyword, like `from`.
 fn parseForStmt(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.For, start.line, start.column);
 
   parser.expect(TokenKind.For, "for");
   parser.expect(TokenKind.LParen, "(");
   let name: *Token = parser.expect(TokenKind.Ident, "loop variable");
-  parser.ast.setText(node, name);
 
   let word: *Token = parser.current();
   if (word.kind != TokenKind.Ident || !equals(word.text, "in")) {
     // Recovery skips the rest of the loop, body and all, from here.
     parser.fail("in");
-    return node;
+    return parser.errorNode();
   }
   parser.advance();
 
-  parser.ast.nodes[node].a = parseExpr(parser);
+  let first: i32 = parseExpr(parser);
   parser.expect(TokenKind.DotDot, "..");
-  parser.ast.nodes[node].b = parseExpr(parser);
+  let last: i32 = parseExpr(parser);
   parser.expect(TokenKind.RParen, ")");
-  parser.ast.nodes[node].c = parseBlock(parser);
+  let body: i32 = parseBlock(parser);
 
-  return node;
+  return parser.ast.add(NodeKind.For, start.line, start.column,
+                        For { name: name.text, start: first, end: last, body: body });
 }
 
 fn parseWhileStmt(parser: *Parser): i32 {
@@ -304,52 +289,48 @@ fn parseWhileStmt(parser: *Parser): i32 {
   parser.expect(TokenKind.RParen, ")");
   let body: i32 = parseBlock(parser);
 
-  let node: i32 = parser.ast.add(NodeKind.While, 0, 0);
-  parser.ast.nodes[node].a = condition;
-  parser.ast.nodes[node].b = body;
-
-  return node;
+  return parser.ast.add(NodeKind.While, 0, 0, While { condition: condition, body: body });
 }
 
 fn parseBreakStmt(parser: *Parser): i32 {
   parser.expect(TokenKind.Break, "break");
   parser.expect(TokenKind.Semicolon, ";");
 
-  return parser.ast.add(NodeKind.Break, 0, 0);
+  return parser.ast.add(NodeKind.Break, 0, 0, Break {});
 }
 
 fn parseContinueStmt(parser: *Parser): i32 {
   parser.expect(TokenKind.Continue, "continue");
   parser.expect(TokenKind.Semicolon, ";");
 
-  return parser.ast.add(NodeKind.Continue, 0, 0);
+  return parser.ast.add(NodeKind.Continue, 0, 0, Continue {});
 }
 
 fn parseReturnStmt(parser: *Parser): i32 {
   parser.expect(TokenKind.Return, "return");
 
-  let node: i32 = parser.ast.add(NodeKind.Return, 0, 0);
-
   // `return;` carries no value and is only valid in a void function.
   if (parser.kind() == TokenKind.Semicolon) {
     parser.advance();
-    return node;
+    return parser.ast.add(NodeKind.Return, 0, 0, Return { value: NO_NODE });
   }
 
-  parser.ast.nodes[node].a = parseExpr(parser);
+  let value: i32 = parseExpr(parser);
   parser.expect(TokenKind.Semicolon, ";");
 
-  return node;
+  return parser.ast.add(NodeKind.Return, 0, 0, Return { value: value });
 }
 
 fn parseParamList(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.Params, start.line, start.column);
+  let list: *List<i32> = List<i32>.new();
+  let variadic: bool = false;
   parser.expect(TokenKind.LParen, "(");
 
   if (parser.kind() == TokenKind.RParen) {
     parser.advance();
-    return node;
+    return parser.ast.add(NodeKind.Params, start.line, start.column,
+                          Params { list: list, variadic: false });
   }
 
   while (true) {
@@ -357,17 +338,16 @@ fn parseParamList(parser: *Parser): i32 {
     // arguments after the ones named.
     if (parser.kind() == TokenKind.Ellipsis) {
       parser.advance();
-      parser.ast.nodes[node].extra = 1;
+      variadic = true;
       break;
     }
 
     let name: *Token = parser.expect(TokenKind.Ident, "parameter name");
     parser.expect(TokenKind.Colon, ":");
 
-    let param: i32 = parser.ast.add(NodeKind.Param, name.line, name.column);
-    parser.ast.setText(param, name);
-    parser.ast.nodes[param].a = parseDeclaredType(parser);
-    parser.ast.addItem(node, param);
+    let type: i32 = parseDeclaredType(parser);
+    list.push(parser.ast.add(NodeKind.Param, name.line, name.column,
+                             Param { name: name.text, type: type }));
 
     if (parser.kind() != TokenKind.Comma) {
       break;
@@ -377,7 +357,8 @@ fn parseParamList(parser: *Parser): i32 {
 
   parser.expect(TokenKind.RParen, ")");
 
-  return node;
+  return parser.ast.add(NodeKind.Params, start.line, start.column,
+                        Params { list: list, variadic: variadic });
 }
 
 fn parseFuncDecl(parser: *Parser): i32 {
@@ -387,7 +368,7 @@ fn parseFuncDecl(parser: *Parser): i32 {
 
   parser.expect(TokenKind.Fn, "fn");
   let name: *Token = parser.expect(TokenKind.Ident, "identifier");
-  let typeParams: i32 = 0;
+  let typeParams: i32 = NO_NODE;
   if (parser.kind() == TokenKind.Lt) {
     typeParams = parseTypeParams(parser);
   }
@@ -396,14 +377,9 @@ fn parseFuncDecl(parser: *Parser): i32 {
   let returnType: i32 = parseDeclaredType(parser);
   let body: i32 = parseBlock(parser);
 
-  let node: i32 = parser.ast.add(NodeKind.Fn, line, column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].extra = typeParams;
-  parser.ast.nodes[node].a = returnType;
-  parser.ast.nodes[node].b = params;
-  parser.ast.nodes[node].c = body;
-
-  return node;
+  return parser.ast.add(NodeKind.Fn, line, column,
+                        Function { name: name.text, typeParams: typeParams,
+                                   returnType: returnType, params: params, body: body });
 }
 
 // `test` is not a keyword: it starts a test only when a string follows it,
@@ -426,20 +402,17 @@ fn parseTestDecl(parser: *Parser): i32 {
 
   parser.advance();
   let name: *Token = parser.expect(TokenKind.String, "test name");
-  let params: i32 = parser.ast.add(NodeKind.Params, line, column);
+  let params: i32 = parser.ast.add(NodeKind.Params, line, column,
+                                   Params { list: List<i32>.new(), variadic: false });
   let body: i32 = parseBlock(parser);
 
-  let returnType: i32 = parser.ast.add(NodeKind.Type, line, column);
-  parser.ast.nodes[returnType].text = "void";
-  parser.ast.nodes[returnType].textLength = 4;
+  let returnType: i32 = parser.ast.add(NodeKind.Type, line, column,
+                                       TypeRef { name: "void", depth: 0,
+                                                 args: List<i32>.new() });
 
-  let node: i32 = parser.ast.add(NodeKind.Test, line, column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = returnType;
-  parser.ast.nodes[node].b = params;
-  parser.ast.nodes[node].c = body;
-
-  return node;
+  return parser.ast.add(NodeKind.Test, line, column,
+                        Function { name: name.text, typeParams: NO_NODE,
+                                   returnType: returnType, params: params, body: body });
 }
 
 // ExternDecl -> 'extern' 'fn' IDENT '(' ParamList? ')' ':' Type ';'
@@ -456,12 +429,8 @@ fn parseExternDecl(parser: *Parser): i32 {
   let returnType: i32 = parseType(parser);
   parser.expect(TokenKind.Semicolon, ";");
 
-  let node: i32 = parser.ast.add(NodeKind.Extern, line, column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = returnType;
-  parser.ast.nodes[node].b = params;
-
-  return node;
+  return parser.ast.add(NodeKind.Extern, line, column,
+                        Extern { name: name.text, returnType: returnType, params: params });
 }
 
 // StructDecl -> 'struct' IDENT TypeParams? '{' (IDENT ':' Type ','? |
@@ -477,15 +446,15 @@ fn parseStructDecl(parser: *Parser): i32 {
 
   parser.expect(TokenKind.Struct, "struct");
   let name: *Token = parser.expect(TokenKind.Ident, "struct name");
-  let typeParams: i32 = 0;
+  let typeParams: i32 = NO_NODE;
   if (parser.kind() == TokenKind.Lt) {
     typeParams = parseTypeParams(parser);
   }
   parser.expect(TokenKind.LBrace, "{");
 
-  let node: i32 = parser.ast.add(NodeKind.Struct, line, column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].extra = typeParams;
+  let node: i32 = parser.ast.add(NodeKind.Struct, line, column,
+                                 StructDecl { name: name.text, typeParams: typeParams,
+                                              members: List<i32>.new() });
 
   while (parser.kind() != TokenKind.RBrace && parser.kind() != TokenKind.End) {
     if (parser.kind() == TokenKind.Fn) {
@@ -499,10 +468,9 @@ fn parseStructDecl(parser: *Parser): i32 {
     let fieldName: *Token = parser.expect(TokenKind.Ident, "field name");
     parser.expect(TokenKind.Colon, ":");
 
-    let field: i32 = parser.ast.add(NodeKind.Field, fieldName.line,
-                                    fieldName.column);
-    parser.ast.setText(field, fieldName);
-    parser.ast.nodes[field].a = parseDeclaredType(parser);
+    let type: i32 = parseDeclaredType(parser);
+    let field: i32 = parser.ast.add(NodeKind.Field, fieldName.line, fieldName.column,
+                                    FieldDecl { name: fieldName.text, type: type });
     parser.ast.addItem(node, field);
 
     if (parser.kind() == TokenKind.Comma) {
@@ -526,9 +494,10 @@ fn parseStructDecl(parser: *Parser): i32 {
 // for use as a name everywhere else.
 fn parseImportDecl(parser: *Parser): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.Import, start.line, start.column);
-  // Filled in by the driver once it has found the file.
-  parser.ast.nodes[node].extra = -1;
+  // The module is filled in by the driver once it has found the file.
+  let names: *List<i32> = List<i32>.new();
+  let node: i32 = parser.ast.add(NodeKind.Import, start.line, start.column,
+                                 Import { path: "", names: names, module: -1 });
 
   parser.expect(TokenKind.Import, "import");
   parser.expect(TokenKind.LBrace, "{");
@@ -539,19 +508,15 @@ fn parseImportDecl(parser: *Parser): i32 {
       break;
     }
 
-    let item: i32 = parser.ast.add(NodeKind.ImportName, name.line, name.column);
-    parser.ast.setText(item, name);
-
+    let aliasNode: i32 = NO_NODE;
     if (parser.kind() == TokenKind.As) {
       parser.advance();
       let alias: *Token = parser.expect(TokenKind.Ident, "alias");
-      let aliasNode: i32 = parser.ast.add(NodeKind.Ident, alias.line,
-                                          alias.column);
-      parser.ast.setText(aliasNode, alias);
-      parser.ast.nodes[item].a = aliasNode;
+      aliasNode = parser.ast.add(NodeKind.Ident, alias.line, alias.column,
+                                 Ident { name: alias.text });
     }
-
-    parser.ast.addItem(node, item);
+    names.push(parser.ast.add(NodeKind.ImportName, name.line, name.column,
+                              ImportName { name: name.text, alias: aliasNode }));
 
     if (parser.kind() != TokenKind.Comma) {
       break;
@@ -583,7 +548,7 @@ fn parseImportDecl(parser: *Parser): i32 {
   }
 
   let path: *Token = parser.expect(TokenKind.String, "module path");
-  parser.ast.setText(node, path);
+  parser.ast.nodes[node].syntax = Import { path: path.text, names: names, module: -1 };
   parser.expect(TokenKind.Semicolon, ";");
 
   return node;
@@ -642,7 +607,11 @@ fn parseErrorEnumDecl(parser: *Parser): i32 {
   let start: *Token = parser.current();
   parser.advance();
   let node: i32 = parseEnumDecl(parser);
-  parser.ast.nodes[node].extra = 1;
+  let syntax: Syntax = parser.ast.nodes[node].syntax;
+  if (syntax is EnumDecl) {
+    parser.ast.nodes[node].syntax = EnumDecl { name: syntax.name, members: syntax.members,
+                                               isError: true };
+  }
   parser.ast.nodes[node].line = start.line;
   parser.ast.nodes[node].column = start.column;
   return node;
@@ -657,8 +626,9 @@ fn parseEnumDecl(parser: *Parser): i32 {
   let name: *Token = parser.expect(TokenKind.Ident, "enum name");
   parser.expect(TokenKind.LBrace, "{");
 
-  let node: i32 = parser.ast.add(NodeKind.Enum, line, column);
-  parser.ast.setText(node, name);
+  let node: i32 = parser.ast.add(NodeKind.Enum, line, column,
+                                 EnumDecl { name: name.text, members: List<i32>.new(),
+                                            isError: false });
 
   while (parser.kind() != TokenKind.RBrace && parser.kind() != TokenKind.End) {
     let memberName: *Token = parser.expect(TokenKind.Ident, "enum member");
@@ -666,14 +636,15 @@ fn parseEnumDecl(parser: *Parser): i32 {
       break;
     }
 
-    let member: i32 = parser.ast.add(NodeKind.EnumMember, memberName.line,
-                                     memberName.column);
-    parser.ast.setText(member, memberName);
+    let value: i32 = NO_NODE;
     if (parser.kind() == TokenKind.Assign) {
       parser.advance();
-      parser.ast.nodes[member].a = parseExpr(parser);
+      value = parseExpr(parser);
     }
-    parser.ast.addItem(node, member);
+    parser.ast.addItem(node, parser.ast.add(NodeKind.EnumMember, memberName.line,
+                                            memberName.column,
+                                            EnumMember { name: memberName.text,
+                                                         value: value }));
 
     if (parser.kind() != TokenKind.Comma) {
       break;
@@ -701,33 +672,34 @@ fn parseMatchStmt(parser: *Parser): i32 {
 // commas, which a block arm may leave out.
 export fn parseMatch(parser: *Parser, expression: bool): i32 {
   let start: *Token = parser.current();
-  let node: i32 = parser.ast.add(NodeKind.Match, start.line, start.column);
-  if (expression) {
-    parser.ast.nodes[node].extra = 1;
-  }
+  let arms: *List<i32> = List<i32>.new();
 
   parser.expect(TokenKind.Match, "match");
   parser.expect(TokenKind.LParen, "(");
-  parser.ast.nodes[node].a = parseExpr(parser);
+  let subject: i32 = parseExpr(parser);
+  let node: i32 = parser.ast.add(NodeKind.Match, start.line, start.column,
+                                 Match { subject: subject, arms: arms,
+                                         isValue: expression });
   parser.expect(TokenKind.RParen, ")");
   parser.expect(TokenKind.LBrace, "{");
 
   while (parser.kind() != TokenKind.RBrace && parser.kind() != TokenKind.End) {
     let armStart: *Token = parser.current();
-    let arm: i32 = parser.ast.add(NodeKind.Arm, armStart.line, armStart.column);
+    let patterns: *List<i32> = List<i32>.new();
+    let isElse: bool = false;
 
     if (parser.kind() == TokenKind.Else) {
       parser.advance();
-      parser.ast.nodes[arm].extra = 1;
+      isElse = true;
     } else {
       parser.inPattern = true;
       while (true) {
         // A match on a union names types: `i64`, `*i8` and `Circle` alike.
         // A built-in type or a pointer can only be a type here.
         if (parser.kind() == TokenKind.Type || parser.kind() == TokenKind.Star) {
-          parser.ast.addItem(arm, parseType(parser));
+          patterns.push(parseType(parser));
         } else {
-          parser.ast.addItem(arm, parseExpr(parser));
+          patterns.push(parseExpr(parser));
         }
         if (parser.kind() != TokenKind.Comma) {
           break;
@@ -738,17 +710,16 @@ export fn parseMatch(parser: *Parser, expression: bool): i32 {
     }
 
     parser.expect(TokenKind.Arrow, "=>");
+    let body: i32 = NO_NODE;
     if (parser.kind() == TokenKind.LBrace) {
-      parser.ast.nodes[arm].a = parseBlock(parser);
+      body = parseBlock(parser);
     } else {
       let at: *Token = parser.current();
-      let value: i32 = parseExpr(parser);
+      body = parseExpr(parser);
       if (!expression) {
-        let statement: i32 = parser.ast.add(NodeKind.ExprStmt, at.line, at.column);
-        parser.ast.nodes[statement].a = value;
-        value = statement;
+        body = parser.ast.add(NodeKind.ExprStmt, at.line, at.column,
+                              ExprStmt { value: body });
       }
-      parser.ast.nodes[arm].a = value;
       if (parser.kind() != TokenKind.RBrace) {
         parser.expect(TokenKind.Comma, ",");
       }
@@ -756,7 +727,8 @@ export fn parseMatch(parser: *Parser, expression: bool): i32 {
     if (parser.kind() == TokenKind.Comma) {
       parser.advance();
     }
-    parser.ast.addItem(node, arm);
+    arms.push(parser.ast.add(NodeKind.Arm, armStart.line, armStart.column,
+                             Arm { patterns: patterns, body: body, isElse: isElse }));
 
     if (FAILED) {
       break;
@@ -800,8 +772,6 @@ fn parseTypeAliasDecl(parser: *Parser): i32 {
   let type: i32 = parseDeclaredType(parser);
   parser.expect(TokenKind.Semicolon, ";");
 
-  let node: i32 = parser.ast.add(NodeKind.TypeAlias, start.line, start.column);
-  parser.ast.setText(node, name);
-  parser.ast.nodes[node].a = type;
-  return node;
+  return parser.ast.add(NodeKind.TypeAlias, start.line, start.column,
+                        TypeAlias { name: name.text, type: type });
 }

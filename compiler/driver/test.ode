@@ -4,6 +4,7 @@
 // The exit status is the runner's: 0 when every test that ran passed.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { readFile } from "std/fs";
 import { Analyzer, analyze } from "../check/analyzer";
 import { TEST_MODE, RUNNER_MODULE, runnerSource } from "../check/testing";
@@ -28,7 +29,7 @@ import { STDERR, writeText } from "../os/output";
 import {
   TextList, StderrMode, runCommand, setEnvironment,
 } from "../os/process";
-import { NodeKind, Ast } from "../syntax/ast";
+import { NodeKind, Ast, Program } from "../syntax/ast";
 
 export fn testMain(argc: i32, argv: **i8): i32 {
   let options: TestRunOptions =
@@ -48,7 +49,7 @@ export fn testMain(argc: i32, argv: **i8): i32 {
   DIAGS = Diagnostics.new();
 
   let ast: *Ast = Ast.new();
-  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
 
   // A directory is tested whole: every file in it, at any depth, and what
   // they import.

@@ -39,16 +39,30 @@ import { FAILED } from "../diagnostics/report";
 import {
   NameSet, findTopLevel, importLocalName, rewriteNodeNames, SymbolList,
 } from "./modules";
-import { NO_NODE, NodeKind, syntaxChildren, withChildren } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Syntax, Function, StructDecl, TypeRef, Call, StructLit, MethodCall,
+  FieldAccess, Import, syntaxChildren, withChildren, nodeName, setNodeName, nodeItems,
+  typeDepth,
+} from "../syntax/ast";
 
 // How many rounds of new instances are made before giving up.
 let INSTANTIATION_LIMIT: i32 = 64;
+
+// The TypeParams of a struct or function, or NO_NODE for one that has none.
+fn typeParamsOf(an: *Analyzer, node: i32): i32 {
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  return match (syntax) {
+    Function => syntax.typeParams,
+    StructDecl => syntax.typeParams,
+    else => NO_NODE,
+  };
+}
 
 // A struct or function declared with type parameters.
 export fn isTemplate(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
   return (kind == NodeKind.Struct || kind == NodeKind.Fn) &&
-         an.ast.nodes[node].extra > 0;
+         typeParamsOf(an, node) != NO_NODE;
 }
 
 // A struct or function made from a generic. Its name holds a `<`, which no
@@ -56,23 +70,21 @@ export fn isTemplate(an: *Analyzer, node: i32): bool {
 export fn isInstance(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
   return (kind == NodeKind.Struct || kind == NodeKind.Fn) &&
-         !isTemplate(an, node) && contains(an.ast.nodes[node].text, "<");
+         !isTemplate(an, node) && contains(nodeName(an.ast, node), "<");
 }
 
 // The type parameters' names of the generic declared at `template`.
 fn templateParams(an: *Analyzer, template: i32): *NameSet {
   let names: *NameSet = NameSet.new();
-  let params: i32 = an.ast.nodes[template].extra;
-
-  for (index in 0..an.ast.nodes[params].itemCount) {
-    names.add(an.ast.nodes[an.ast.nodes[params].items[index]].text);
+  let params: *List<i32> = nodeItems(an.ast, typeParamsOf(an, template));
+  for (index in 0..params.count) {
+    names.add(nodeName(an.ast, params.at(index)));
   }
-
   return names;
 }
 
 fn templateParamCount(an: *Analyzer, template: i32): i32 {
-  return an.ast.nodes[an.ast.nodes[template].extra].itemCount;
+  return nodeItems(an.ast, typeParamsOf(an, template)).count as i32;
 }
 
 fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
@@ -81,12 +93,6 @@ fn markSubtree(an: *Analyzer, node: i32, marks: *i8): void {
   }
 
   marks[node] = 1;
-  markSubtree(an, an.ast.nodes[node].a, marks);
-  markSubtree(an, an.ast.nodes[node].b, marks);
-  markSubtree(an, an.ast.nodes[node].c, marks);
-  for (index in 0..an.ast.nodes[node].itemCount) {
-    markSubtree(an, an.ast.nodes[node].items[index], marks);
-  }
   let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
   for (index in 0..children.count) {
     markSubtree(an, children.at(index), marks);
@@ -100,10 +106,10 @@ export fn markTemplates(an: *Analyzer, program: i32): *i8 {
     marks[node] = 0;
   }
 
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
-    if (isTemplate(an, item)) {
-      markSubtree(an, item, marks);
+  let items: *List<i32> = nodeItems(an.ast, program);
+  for (index in 0..items.count) {
+    if (isTemplate(an, items.at(index))) {
+      markSubtree(an, items.at(index), marks);
     }
   }
 
@@ -117,35 +123,19 @@ fn cloneSubtree(an: *Analyzer, node: i32): i32 {
     return node;
   }
 
-  let copy: i32 = an.ast.add(an.ast.nodes[node].kind, an.ast.nodes[node].line,
-                             an.ast.nodes[node].column);
-  an.ast.nodes[copy].text = an.ast.nodes[node].text;
-  an.ast.nodes[copy].textLength = an.ast.nodes[node].textLength;
-  an.ast.nodes[copy].extra = an.ast.nodes[node].extra;
-  an.ast.nodes[copy].exported = an.ast.nodes[node].exported;
-  an.ast.nodes[copy].module = an.ast.nodes[node].module;
-
-  // Adding a node can move the arena, so each child is copied before it is
-  // stored, never while the place it goes is being worked out.
-  let a: i32 = cloneSubtree(an, an.ast.nodes[node].a);
-  an.ast.nodes[copy].a = a;
-  let b: i32 = cloneSubtree(an, an.ast.nodes[node].b);
-  an.ast.nodes[copy].b = b;
-  let c: i32 = cloneSubtree(an, an.ast.nodes[node].c);
-  an.ast.nodes[copy].c = c;
-
-  for (index in 0..an.ast.nodes[node].itemCount) {
-    let item: i32 = cloneSubtree(an, an.ast.nodes[node].items[index]);
-    an.ast.addItem(copy, item);
-  }
-
+  // Adding a node can move the arena, so the children are copied before the
+  // copy of this one is made.
   let children: *List<i32> = syntaxChildren(an.ast.nodes[node].syntax);
   let copies: *List<i32> = List<i32>.new();
   for (index in 0..children.count) {
     copies.push(cloneSubtree(an, children.at(index)));
   }
-  an.ast.nodes[copy].syntax = withChildren(an.ast.nodes[node].syntax, copies);
 
+  let copy: i32 = an.ast.add(an.ast.nodes[node].kind, an.ast.nodes[node].line,
+                             an.ast.nodes[node].column,
+                             withChildren(an.ast.nodes[node].syntax, copies));
+  an.ast.nodes[copy].exported = an.ast.nodes[node].exported;
+  an.ast.nodes[copy].module = an.ast.nodes[node].module;
   return copy;
 }
 
@@ -156,15 +146,16 @@ fn instanceKey(an: *Analyzer, base: *i8, typeNode: i32): *i8 {
   out.add(base);
   out.push('<');
 
-  for (index in 0..an.ast.nodes[typeNode].itemCount) {
-    let arg: i32 = an.ast.nodes[typeNode].items[index];
+  let args: *List<i32> = nodeItems(an.ast, typeNode);
+  for (index in 0..args.count) {
+    let arg: i32 = args.at(index);
     if (index > 0) {
       out.add(", ");
     }
-    for (star in 0..an.ast.nodes[arg].extra) {
+    for (star in 0..typeDepth(an.ast, arg)) {
       out.push('*');
     }
-    out.add(an.ast.nodes[arg].text);
+    out.add(nodeName(an.ast, arg));
   }
 
   out.push('>');
@@ -174,10 +165,10 @@ fn instanceKey(an: *Analyzer, base: *i8, typeNode: i32): *i8 {
 // Whether every argument of `typeNode` is a plain type already: an argument
 // that is itself an instance has to be made first.
 fn argumentsReady(an: *Analyzer, typeNode: i32): bool {
-  for (index in 0..an.ast.nodes[typeNode].itemCount) {
-    let arg: i32 = an.ast.nodes[typeNode].items[index];
-    if (an.ast.nodes[arg].kind != NodeKind.Type ||
-        an.ast.nodes[arg].itemCount > 0) {
+  let args: *List<i32> = nodeItems(an.ast, typeNode);
+  for (index in 0..args.count) {
+    let arg: i32 = args.at(index);
+    if (an.ast.nodes[arg].kind != NodeKind.Type || nodeItems(an.ast, arg).count > 0) {
       return false;
     }
   }
@@ -185,13 +176,21 @@ fn argumentsReady(an: *Analyzer, typeNode: i32): bool {
   return true;
 }
 
+// A type node that names `name` with no arguments, as an instance's type
+// does once it has been made.
+fn nameType(an: *Analyzer, node: i32, name: *i8): void {
+  an.ast.nodes[node].syntax = TypeRef { name: name, depth: typeDepth(an.ast, node),
+                                        args: List<i32>.new() };
+}
+
 // The program item that is the instance named `key`, or NO_NODE.
 fn findInstance(an: *Analyzer, program: i32, key: *i8): i32 {
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
+  let items: *List<i32> = nodeItems(an.ast, program);
+  for (index in 0..items.count) {
+    let item: i32 = items.at(index);
     let kind: NodeKind = an.ast.nodes[item].kind;
     if ((kind == NodeKind.Struct || kind == NodeKind.Fn) &&
-        !isTemplate(an, item) && equals(an.ast.nodes[item].text, key)) {
+        !isTemplate(an, item) && equals(nodeName(an.ast, item), key)) {
       return item;
     }
   }
@@ -201,8 +200,9 @@ fn findInstance(an: *Analyzer, program: i32, key: *i8): i32 {
 
 // The generic struct whose IR name is `name`, or NO_NODE.
 export fn structTemplateNamed(an: *Analyzer, program: i32, name: *i8): i32 {
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
+  let items: *List<i32> = nodeItems(an.ast, program);
+  for (index in 0..items.count) {
+    let item: i32 = items.at(index);
     if (an.ast.nodes[item].kind == NodeKind.Struct && isTemplate(an, item) &&
         equals(an.linkNames[item], name)) {
       return item;
@@ -224,19 +224,20 @@ export fn functionTemplateIn(an: *Analyzer, program: i32, module: i32,
     return NO_NODE;
   }
 
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
-    let target: i32 = an.ast.nodes[item].extra;
-    if (an.ast.nodes[item].kind == NodeKind.Import &&
-        an.ast.nodes[item].module == module && target >= 0) {
-      for (entry in 0..an.ast.nodes[item].itemCount) {
-        let importName: i32 = an.ast.nodes[item].items[entry];
-        if (equals(importLocalName(an, importName), name)) {
-          let declared: i32 = findTopLevel(an, program, target,
-                                           an.ast.nodes[importName].text,
-                                           false);
-          if (declared != NO_NODE && isTemplate(an, declared)) {
-            return declared;
+  let items: *List<i32> = nodeItems(an.ast, program);
+  for (index in 0..items.count) {
+    let item: i32 = items.at(index);
+    let syntax: Syntax = an.ast.nodes[item].syntax;
+    if (syntax is Import) {
+      if (an.ast.nodes[item].module == module && syntax.module >= 0) {
+        for (entry in 0..syntax.names.count) {
+          let importName: i32 = syntax.names.at(entry);
+          if (equals(importLocalName(an, importName), name)) {
+            let declared: i32 = findTopLevel(an, program, syntax.module,
+                                             nodeName(an.ast, importName), false);
+            if (declared != NO_NODE && isTemplate(an, declared)) {
+              return declared;
+            }
           }
         }
       }
@@ -255,13 +256,13 @@ fn genericFail(an: *Analyzer, node: i32, problem: Problem, facts: Facts): void {
 fn checkArgumentCount(an: *Analyzer, typeNode: i32, template: i32,
                       what: *i8): bool {
   let wanted: i32 = templateParamCount(an, template);
-  let given: i32 = an.ast.nodes[typeNode].itemCount;
+  let given: i32 = nodeItems(an.ast, typeNode).count as i32;
   if (wanted == given) {
     return true;
   }
 
   genericFail(an, typeNode, Problem.WrongTypeArgumentCount,
-              Facts.aboutTwo(an.ast.nodes[template].text, what)
+              Facts.aboutTwo(nodeName(an.ast, template), what)
                   .withCounts(wanted as i64, given as i64));
 
   return false;
@@ -271,6 +272,8 @@ fn checkArgumentCount(an: *Analyzer, typeNode: i32, template: i32,
 fn instantiate(an: *Analyzer, program: i32, template: i32, typeNode: i32,
                key: *i8): i32 {
   let params: *NameSet = templateParams(an, template);
+  let paramNames: *List<i32> = nodeItems(an.ast, typeParamsOf(an, template));
+  let args: *List<i32> = nodeItems(an.ast, typeNode);
   let first: i32 = an.ast.count;
   let instance: i32 = cloneSubtree(an, template);
   let last: i32 = an.ast.count;
@@ -282,36 +285,42 @@ fn instantiate(an: *Analyzer, program: i32, template: i32, typeNode: i32,
     rewriteNodeNames(an, program, node, params);
   }
 
-  let paramsNode: i32 = an.ast.nodes[template].extra;
   for (node in first..last) {
-    if (an.ast.nodes[node].kind == NodeKind.Type &&
-        an.ast.nodes[node].itemCount == 0) {
-      for (index in 0..an.ast.nodes[paramsNode].itemCount) {
-        let param: *i8 = an.ast.nodes[an.ast.nodes[paramsNode].items[index]].text;
-        if (equals(an.ast.nodes[node].text, param)) {
-          let arg: i32 = an.ast.nodes[typeNode].items[index];
-          an.ast.nodes[node].text = an.ast.nodes[arg].text;
-          an.ast.nodes[node].textLength = an.ast.nodes[arg].textLength;
-          an.ast.nodes[node].extra =
-              an.ast.nodes[node].extra + an.ast.nodes[arg].extra;
+    let syntax: Syntax = an.ast.nodes[node].syntax;
+    if (syntax is TypeRef) {
+      if (syntax.args.count == 0) {
+        for (index in 0..paramNames.count) {
+          if (equals(syntax.name, nodeName(an.ast, paramNames.at(index)))) {
+            let arg: i32 = args.at(index as i64);
+            an.ast.nodes[node].syntax =
+                TypeRef { name: nodeName(an.ast, arg),
+                          depth: syntax.depth + typeDepth(an.ast, arg),
+                          args: List<i32>.new() };
+          }
         }
       }
     }
   }
 
-  an.ast.nodes[instance].extra = 0;
-  an.ast.nodes[instance].text = key;
-  an.ast.nodes[instance].textLength = strlen(key);
+  // No longer generic, and named after its arguments.
+  let made: Syntax = an.ast.nodes[instance].syntax;
+  an.ast.nodes[instance].syntax = match (made) {
+    Function => Function { name: key, typeParams: NO_NODE, returnType: made.returnType,
+                           params: made.params, body: made.body },
+    StructDecl => StructDecl { name: key, typeParams: NO_NODE, members: made.members },
+    else => made,
+  };
   an.linkNames[instance] = key;
 
   // A method of an instance is named after the instance.
-  for (index in 0..an.ast.nodes[instance].itemCount) {
-    let member: i32 = an.ast.nodes[instance].items[index];
+  let members: *List<i32> = nodeItems(an.ast, instance);
+  for (index in 0..members.count) {
+    let member: i32 = members.at(index);
     if (an.ast.nodes[member].kind == NodeKind.Fn) {
       let name: *Builder = Builder.new();
       name.add(key);
       name.push('.');
-      name.add(an.ast.nodes[member].text);
+      name.add(nodeName(an.ast, member));
       an.linkNames[member] = name.take();
     }
   }
@@ -327,7 +336,7 @@ fn resolveTypeInstance(an: *Analyzer, program: i32, node: i32): bool {
     return false;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
+  let name: *i8 = nodeName(an.ast, node);
   let template: i32 = structTemplateNamed(an, program, name);
   if (template == NO_NODE) {
     if (structDeclOf(an, name) != NO_NODE) {
@@ -335,11 +344,11 @@ fn resolveTypeInstance(an: *Analyzer, program: i32, node: i32): bool {
     } else {
       genericFail(an, node, Problem.UnknownType, Facts.about(name));
     }
-    an.ast.nodes[node].itemCount = 0;
+    nameType(an, node, name);
     return true;
   }
   if (!checkArgumentCount(an, node, template, "struct")) {
-    an.ast.nodes[node].itemCount = 0;
+    nameType(an, node, name);
     return true;
   }
 
@@ -348,27 +357,24 @@ fn resolveTypeInstance(an: *Analyzer, program: i32, node: i32): bool {
     instantiate(an, program, template, node, key);
   }
 
-  an.ast.nodes[node].text = key;
-  an.ast.nodes[node].textLength = strlen(key);
-  an.ast.nodes[node].itemCount = 0;
+  nameType(an, node, key);
   return true;
 }
 
 // A call of a generic function, `max<i64>(a, b)`: makes the instance if it
 // is new, and has the call name it. Returns whether anything changed.
-fn resolveCallInstance(an: *Analyzer, program: i32, node: i32): bool {
-  let typeNode: i32 = an.ast.nodes[node].b;
+fn resolveCallInstance(an: *Analyzer, program: i32, node: i32, call: Call): bool {
+  let typeNode: i32 = call.typeArgs;
   if (!argumentsReady(an, typeNode)) {
     return false;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
   let template: i32 = functionTemplateIn(an, program, an.ast.nodes[node].module,
-                                         name);
-  an.ast.nodes[node].b = NO_NODE;
+                                         call.name);
+  an.ast.nodes[node].syntax = Call { name: call.name, args: call.args, typeArgs: NO_NODE };
 
   if (template == NO_NODE) {
-    genericFail(an, node, Problem.NotGenericFunction, Facts.about(name));
+    genericFail(an, node, Problem.NotGenericFunction, Facts.about(call.name));
     return true;
   }
   if (!checkArgumentCount(an, typeNode, template, "function")) {
@@ -380,25 +386,24 @@ fn resolveCallInstance(an: *Analyzer, program: i32, node: i32): bool {
     instantiate(an, program, template, typeNode, key);
   }
 
-  an.ast.nodes[node].text = key;
-  an.ast.nodes[node].textLength = strlen(key);
+  setNodeName(an.ast, node, key);
   return true;
 }
 
 // Reports a generic used as though it were not one: `List` with no
 // arguments, or `max(a, b)`.
 fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
-  let kind: NodeKind = an.ast.nodes[node].kind;
+  let syntax: Syntax = an.ast.nodes[node].syntax;
 
-  if (kind == NodeKind.Type && an.ast.nodes[node].itemCount == 0 &&
-      structTemplateNamed(an, program, an.ast.nodes[node].text) != NO_NODE) {
-    genericFail(an, node, Problem.GenericNeedsArguments,
-                Facts.about(an.ast.nodes[node].text));
+  if (syntax is TypeRef) {
+    if (an.ast.nodes[node].kind == NodeKind.Type && syntax.args.count == 0 &&
+        structTemplateNamed(an, program, syntax.name) != NO_NODE) {
+      genericFail(an, node, Problem.GenericNeedsArguments, Facts.about(syntax.name));
+    }
     return;
   }
 
-  if ((kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) &&
-      an.structRefs[node] != null &&
+  if ((syntax is MethodCall || syntax is FieldAccess) && an.structRefs[node] != null &&
       structTemplateNamed(an, program, an.structRefs[node]) != NO_NODE) {
     genericFail(an, node, Problem.GenericNeedsArguments,
                 Facts.about(an.structRefs[node]));
@@ -406,12 +411,25 @@ fn checkBareUse(an: *Analyzer, program: i32, node: i32): void {
     return;
   }
 
-  if (kind == NodeKind.Call && an.ast.nodes[node].b == NO_NODE &&
-      functionTemplateIn(an, program, an.ast.nodes[node].module,
-                         an.ast.nodes[node].text) != NO_NODE) {
-    genericFail(an, node, Problem.GenericFunctionNeedsArguments,
-                Facts.about(an.ast.nodes[node].text));
+  if (syntax is Call) {
+    if (syntax.typeArgs == NO_NODE &&
+        functionTemplateIn(an, program, an.ast.nodes[node].module, syntax.name) != NO_NODE) {
+      genericFail(an, node, Problem.GenericFunctionNeedsArguments,
+                  Facts.about(syntax.name));
+    }
   }
+}
+
+// The type a struct literal or a static call names its struct by, when it is
+// written as a type, `Pair<i32, bool> { ... }`, `List<i32>.new()`.
+fn writtenType(an: *Analyzer, node: i32): i32 {
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  return match (syntax) {
+    StructLit => syntax.type,
+    MethodCall => syntax.receiver,
+    FieldAccess => syntax.object,
+    else => NO_NODE,
+  };
 }
 
 // Makes every instance the program uses, and points every use at its
@@ -436,7 +454,7 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
     rounds = rounds + 1;
     if (rounds > INSTANTIATION_LIMIT) {
       analyzerFail(an, lastTemplate, Problem.InstancesNeverEnd,
-               Facts.about(an.ast.nodes[lastTemplate].text));
+               Facts.about(nodeName(an.ast, lastTemplate)));
       FAILED = false;
       an.instancesFailed = true;
       return;
@@ -450,36 +468,38 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
       }
 
       let kind: NodeKind = an.ast.nodes[node].kind;
-      if (kind == NodeKind.Type && an.ast.nodes[node].itemCount > 0) {
-        let template: i32 = structTemplateNamed(an, program,
-                                                an.ast.nodes[node].text);
+      let syntax: Syntax = an.ast.nodes[node].syntax;
+      if (kind == NodeKind.Type && nodeItems(an.ast, node).count > 0) {
+        let template: i32 = structTemplateNamed(an, program, nodeName(an.ast, node));
         if (resolveTypeInstance(an, program, node)) {
           changed = true;
           if (template != NO_NODE) {
             lastTemplate = template;
           }
         }
-      } else if (kind == NodeKind.Call && an.ast.nodes[node].b != NO_NODE) {
-        if (resolveCallInstance(an, program, node)) {
+      } else if (syntax is Call) {
+        if (syntax.typeArgs != NO_NODE && resolveCallInstance(an, program, node, syntax)) {
           changed = true;
         }
       }
 
       // A struct literal or a static call whose type has become an instance
       // now names it.
-      let typeNode: i32 = an.ast.nodes[node].a;
-      if (kind == NodeKind.StructLit && typeNode != NO_NODE &&
-          an.ast.nodes[typeNode].itemCount == 0) {
-        an.ast.nodes[node].text = an.ast.nodes[typeNode].text;
-        an.ast.nodes[node].textLength = an.ast.nodes[typeNode].textLength;
-        an.ast.nodes[node].a = NO_NODE;
-        changed = true;
+      let typeNode: i32 = writtenType(an, node);
+      let written: bool = typeNode != NO_NODE &&
+          an.ast.nodes[typeNode].kind == NodeKind.Type &&
+          nodeItems(an.ast, typeNode).count == 0;
+      let current: Syntax = an.ast.nodes[node].syntax;
+      if (current is StructLit) {
+        if (written) {
+          an.ast.nodes[node].syntax = StructLit { name: nodeName(an.ast, typeNode),
+                                                  type: NO_NODE, fields: current.fields };
+          changed = true;
+        }
       }
-      if ((kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) &&
-          typeNode != NO_NODE && an.ast.nodes[typeNode].kind == NodeKind.Type &&
-          an.ast.nodes[typeNode].itemCount == 0 &&
+      if (written && (kind == NodeKind.MethodCall || kind == NodeKind.FieldAccess) &&
           an.structRefs[node] == null) {
-        an.structRefs[node] = an.ast.nodes[typeNode].text;
+        an.structRefs[node] = nodeName(an.ast, typeNode);
         changed = true;
       }
 
@@ -493,16 +513,17 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
 // arguments were written; its name holds a `<`, which no other name can, so
 // it collides with nothing.
 export fn declareInstances(an: *Analyzer, program: i32, module: i32): void {
-  for (index in 0..an.ast.nodes[program].itemCount) {
-    let item: i32 = an.ast.nodes[program].items[index];
+  let items: *List<i32> = nodeItems(an.ast, program);
+  for (index in 0..items.count) {
+    let item: i32 = items.at(index);
     let home: i32 = an.ast.nodes[item].module;
     if (an.ast.nodes[item].kind != NodeKind.Fn || home == module ||
-        isTemplate(an, item) || !contains(an.ast.nodes[item].text, "<")) {
+        isTemplate(an, item) || !contains(nodeName(an.ast, item), "<")) {
       continue;
     }
 
     let symbols: SymbolList = an.moduleSymbols[home];
-    let found: i32 = symbols.find(an.ast.nodes[item].text);
+    let found: i32 = symbols.find(nodeName(an.ast, item));
     if (found >= 0) {
       an.symbols.push(symbols.items[found]);
     }

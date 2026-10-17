@@ -48,7 +48,7 @@ import {
   TextList, StderrMode, runCommand, runInChild, ran, environment,
   changeDirectory,
 } from "../os/process";
-import { NO_NODE, NodeKind, Ast } from "../syntax/ast";
+import { NO_NODE, NodeKind, Ast, ExprStmt, Program, Syntax, itemAt } from "../syntax/ast";
 import { parseExpr } from "../syntax/expressions";
 import { tokenize } from "../syntax/lexer";
 import { Parser, parseDeclaredType } from "../syntax/parser";
@@ -106,7 +106,10 @@ export fn typeOf(setup: *i8, expression: *i8): Type {
   // The probe is the one expression statement in main's body.
   for (node in 0..program.ast.count) {
     if (program.ast.nodes[node].kind == NodeKind.ExprStmt) {
-      return program.an.types[program.ast.nodes[node].a];
+      let statement: Syntax = program.ast.nodes[node].syntax;
+      if (statement is ExprStmt) {
+        return program.an.types[statement.value];
+      }
     }
   }
   return Type.make(TypeKind.None, 0);
@@ -134,7 +137,7 @@ export struct Parsed {
 
   // The `index`th item at the top of the file.
   fn item(self: Parsed, index: i32): i32 {
-    return self.ast.nodes[self.root].items[index];
+    return itemAt(self.ast, self.root, index);
   }
 
   fn kind(self: Parsed, node: i32): NodeKind {
@@ -341,7 +344,7 @@ fn load(path: *i8, source: *i8): Loaded {
   SOURCE_PATH = path;
 
   let ast: *Ast = Ast.new();
-  let root: i32 = ast.add(NodeKind.Program, 0, 0);
+  let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
   loadProgram(ast, root, path, source);
   return Loaded { ast: ast, an: Analyzer.new(ast), root: root };
 }

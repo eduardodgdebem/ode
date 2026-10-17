@@ -26,7 +26,7 @@ import { convertUnion } from "./errors";
 import { llvmTypeName } from "./layout";
 import { line } from "../driver/options";
 import { moduleDisplayPath, NameSet } from "../link/modules";
-import { NodeKind } from "../syntax/ast";
+import { NodeKind, callOf, itemAt, itemCount, nodeName } from "../syntax/ast";
 import { shown } from "../tool/build";
 import { TypeKind, Type } from "../types/types";
 
@@ -62,8 +62,8 @@ fn emitFailure(e: *Emitter, format: *i8, args: *Builder): void {
 // `assert(cond)` and `assert(cond, message)`. The message is only evaluated
 // when the condition fails.
 export fn genAssert(e: *Emitter, node: i32): *i8 {
-  let args: i32 = e.ast.nodes[node].a;
-  let condition: *i8 = genExpr(e, e.ast.nodes[args].items[0]);
+  let args: i32 = callOf(e.ast, node).args;
+  let condition: *i8 = genExpr(e, itemAt(e.ast, args, 0));
 
   let passed: *i8 = freshLabel(e);
   let failed: *i8 = freshLabel(e);
@@ -74,9 +74,9 @@ export fn genAssert(e: *Emitter, node: i32): *i8 {
   values.add(", ptr ");
   values.add(location(e, node));
 
-  if (e.ast.nodes[args].itemCount == 2) {
+  if (itemCount(e.ast, args) == 2) {
     values.add(", ptr ");
-    values.add(genExpr(e, e.ast.nodes[args].items[1]));
+    values.add(genExpr(e, itemAt(e.ast, args, 1)));
     emitFailure(e, "%s: assertion failed: %s\n", values);
   } else {
     emitFailure(e, "%s: assertion failed\n", values);
@@ -395,9 +395,9 @@ fn formatValue(e: *Emitter, value: *i8, type: Type, args: *Builder): *i8 {
 
 // `assertEq(actual, expected)`: a failure shows both values.
 export fn genAssertEq(e: *Emitter, node: i32): *i8 {
-  let args: i32 = e.ast.nodes[node].a;
-  let actualNode: i32 = e.ast.nodes[args].items[0];
-  let expectedNode: i32 = e.ast.nodes[args].items[1];
+  let args: i32 = callOf(e.ast, node).args;
+  let actualNode: i32 = itemAt(e.ast, args, 0);
+  let expectedNode: i32 = itemAt(e.ast, args, 1);
   let actualType: Type = resultTypeOf(e, actualNode);
   let expectedType: Type = resultTypeOf(e, expectedNode);
 
@@ -476,11 +476,11 @@ export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
 export fn emitTestMain(e: *Emitter, program: i32, tests: *Builder, names: *Builder,
                        count: i32): void {
   let runner: *i8 = null;
-  for (index in 0..e.ast.nodes[program].itemCount) {
-    let item: i32 = e.ast.nodes[program].items[index];
+  for (index in 0..itemCount(e.ast, program)) {
+    let item: i32 = itemAt(e.ast, program, index);
     if (e.ast.nodes[item].kind == NodeKind.Fn &&
         e.ast.nodes[item].module == RUNNER_MODULE &&
-        equals(e.ast.nodes[item].text, "runTests")) {
+        equals(nodeName(e.ast, item), "runTests")) {
       runner = e.an.linkNames[item];
     }
   }
@@ -522,7 +522,7 @@ export fn emitTestMain(e: *Emitter, program: i32, tests: *Builder, names: *Build
 
 // `nameOf(value)`.
 export fn genNameOf(e: *Emitter, node: i32): *i8 {
-  let argument: i32 = e.ast.nodes[e.ast.nodes[node].a].items[0];
+  let argument: i32 = itemAt(e.ast, callOf(e.ast, node).args, 0);
   return memberName(e, genExpr(e, argument), typeOfNode(e, argument));
 }
 
@@ -569,8 +569,8 @@ export fn emitEnumNames(e: *Emitter): void {
     // rejects; the first is the name it goes by.
     let seen: *List<i64> = List<i64>.new();
     let arms: *Builder = Builder.new();
-    for (member in 0..e.ast.nodes[declaration].itemCount) {
-      let node: i32 = e.ast.nodes[declaration].items[member];
+    for (member in 0..itemCount(e.ast, declaration)) {
+      let node: i32 = itemAt(e.ast, declaration, member);
       let value: i64 = e.an.values[node];
       let repeated: bool = false;
       for (other in 0..seen.count) {
@@ -588,8 +588,8 @@ export fn emitEnumNames(e: *Emitter): void {
         arms.add("m");
         arms.addInt(member as i64);
         arms.add(":\n  ret ptr ");
-        arms.add(internString(e, e.ast.nodes[node].text,
-                              strlen(e.ast.nodes[node].text)));
+        arms.add(internString(e, nodeName(e.ast, node),
+                              strlen(nodeName(e.ast, node))));
         arms.push('\n');
       }
     }
@@ -610,8 +610,8 @@ fn emitErrorNames(e: *Emitter): void {
   let names: *List<*i8> = e.an.errorEnums.names;
   for (index in 0..names.count) {
     let declaration: i32 = enumDeclOf(e.an, names.at(index));
-    for (member in 0..e.ast.nodes[declaration].itemCount) {
-      let node: i32 = e.ast.nodes[declaration].items[member];
+    for (member in 0..itemCount(e.ast, declaration)) {
+      let node: i32 = itemAt(e.ast, declaration, member);
       let code: i64 = e.an.values[node];
       e.body.add(" i32 ");
       e.body.addInt(code);
@@ -621,7 +621,7 @@ fn emitErrorNames(e: *Emitter): void {
       let text: *Builder = Builder.new();
       text.add(Type.ofEnum(names.at(index), 0).toText());
       text.push('.');
-      text.add(e.ast.nodes[node].text);
+      text.add(nodeName(e.ast, node));
       arms.add("e");
       arms.addInt(code);
       arms.add(":\n  ret ptr ");

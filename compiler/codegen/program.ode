@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { Builder, equals, fromInt } from "std/text";
-import { analyzerParseType } from "../check/analyzer";
+import { analyzerParseType, isVariadic } from "../check/analyzer";
 import { globalDeclOf } from "../check/constants";
 import { signatureIndex } from "../check/functions";
 import { TEST_MODE, runsTestsOf } from "../check/testing";
@@ -22,7 +22,10 @@ import { emitCheckSupport, emitTestMain, emitEnumNames } from "./testing";
 import { line } from "../driver/options";
 import { isTemplate } from "../link/generics";
 import { NameSet } from "../link/modules";
-import { NO_NODE, NodeKind, Syntax, Cast, Unary, Sizeof } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, BoolLit, Cast, Sizeof, Syntax, Unary, bodyOf, itemAt, itemCount,
+  nodeName, nodeTextLength, paramsOf, returnTypeOf, typeNodeOf, varDeclOf,
+} from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { Type } from "../types/types";
 
@@ -32,15 +35,15 @@ fn resultTypeOf(e: *Emitter, node: i32): Type {
   if (e.ast.nodes[node].kind == NodeKind.Lambda) {
     return e.an.signatures.at(signatureIndex(e.an, e.an.types[node])).result;
   }
-  return analyzerParseType(e.an, e.ast.nodes[node].a);
+  return analyzerParseType(e.an, returnTypeOf(e.ast, node));
 }
 
 // A parameter's type, the same way: checking recorded a lambda's.
 fn paramTypeOf(e: *Emitter, param: i32): Type {
-  if (e.ast.nodes[param].a == NO_NODE) {
+  if (typeNodeOf(e.ast, param) == NO_NODE) {
     return e.an.types[param];
   }
-  return analyzerParseType(e.an, e.ast.nodes[param].a);
+  return analyzerParseType(e.an, typeNodeOf(e.ast, param));
 }
 
 fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
@@ -53,10 +56,10 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
   out.add(llvmName('@', e.an.linkNames[node]));
   out.push('(');
 
-  let params: i32 = e.ast.nodes[node].b;
+  let params: i32 = paramsOf(e.ast, node);
   let count: i32 = 0;
   if (params != NO_NODE) {
-    count = e.ast.nodes[params].itemCount;
+    count = itemCount(e.ast, params);
   }
 
   for (index in 0..count) {
@@ -64,7 +67,7 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
       out.add(", ");
     }
 
-    let param: i32 = e.ast.nodes[params].items[index];
+    let param: i32 = itemAt(e.ast, params, index);
     out.add(llvmTypeName(paramTypeOf(e, param)));
 
     // A declaration names no parameters; a definition needs them to store.
@@ -74,7 +77,7 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
     }
   }
 
-  if (params != NO_NODE && e.ast.nodes[params].extra == 1) {
+  if (params != NO_NODE && isVariadic(e.an, node)) {
     if (count > 0) {
       out.add(", ");
     }
@@ -104,11 +107,11 @@ fn genFunction(e: *Emitter, node: i32): void {
 
   // Each parameter gets a slot of its own, so it can be assigned like any
   // other local.
-  let params: i32 = e.ast.nodes[node].b;
+  let params: i32 = paramsOf(e.ast, node);
   if (params != NO_NODE) {
     let index: i32 = 0;
-    while (index < e.ast.nodes[params].itemCount) {
-      let param: i32 = e.ast.nodes[params].items[index];
+    while (index < itemCount(e.ast, params)) {
+      let param: i32 = itemAt(e.ast, params, index);
       let type: Type = paramTypeOf(e, param);
 
       let slot: *i8 = emitAlloca(e, llvmTypeName(type));
@@ -118,12 +121,12 @@ fn genFunction(e: *Emitter, node: i32): void {
       incoming.addInt(index as i64);
       emitStore(e, type, incoming.data, slot);
 
-      declareLocal(e, e.ast.nodes[param].text, slot, type);
+      declareLocal(e, nodeName(e.ast, param), slot, type);
       index = index + 1;
     }
   }
 
-  genStatement(e, e.ast.nodes[node].c);
+  genStatement(e, bodyOf(e.ast, node));
 
   // Checking saw to it that a function returning a value returns on every
   // path, so what reaches here is the end of a void function -- or of a
@@ -164,12 +167,12 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   // Any other global made from an earlier one shares its initialiser.
   let source: i32 = globalDeclOf(e.an, node);
   if (source != NO_NODE) {
-    return genConstant(e, e.ast.nodes[source].b, type);
+    return genConstant(e, varDeclOf(e.ast, source).value, type);
   }
 
   if (kind == NodeKind.String) {
-    return internString(e, e.ast.nodes[node].text,
-                        e.ast.nodes[node].textLength);
+    return internString(e, nodeName(e.ast, node),
+                        nodeTextLength(e.ast, node));
   }
   if (kind == NodeKind.Null) {
     return "null";
@@ -203,8 +206,11 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
     else => {}
   }
   if (kind == NodeKind.Bool) {
-    if (equals(e.ast.nodes[node].text, "true")) {
-      return "true";
+    let literal: Syntax = e.ast.nodes[node].syntax;
+    if (literal is BoolLit) {
+      if (literal.value) {
+        return "true";
+      }
     }
     return "false";
   }
@@ -234,11 +240,11 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
 }
 
 fn genGlobal(e: *Emitter, node: i32): void {
-  let type: Type = analyzerParseType(e.an, e.ast.nodes[node].a);
+  let type: Type = analyzerParseType(e.an, varDeclOf(e.ast, node).type);
 
   // The string constant, if any, has to be emitted before the global that
   // points at it.
-  let value: *i8 = genConstant(e, e.ast.nodes[node].b, type);
+  let value: *i8 = genConstant(e, varDeclOf(e.ast, node).value, type);
 
   e.head.add(llvmName('@', e.an.linkNames[node]));
   e.head.add(" = global ");
@@ -249,7 +255,7 @@ fn genGlobal(e: *Emitter, node: i32): void {
 }
 
 export fn genProgram(e: *Emitter, program: i32): *i8 {
-  let count: i32 = e.ast.nodes[program].itemCount;
+  let count: i32 = itemCount(e.ast, program);
 
   // Named struct types come first, so a function signature can mention one.
   let index: i32 = 0;
@@ -273,7 +279,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   // Several files may declare one extern, and LLVM takes one declaration.
   let declared: *NameSet = NameSet.new();
   for (index in 0..count) {
-    let statement: i32 = e.ast.nodes[program].items[index];
+    let statement: i32 = itemAt(e.ast, program, index);
     if (e.ast.nodes[statement].kind == NodeKind.Extern &&
         !declared.has(e.an.linkNames[statement])) {
       declared.add(e.an.linkNames[statement]);
@@ -283,7 +289,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   }
 
   for (index in 0..count) {
-    let statement: i32 = e.ast.nodes[program].items[index];
+    let statement: i32 = itemAt(e.ast, program, index);
     if (e.ast.nodes[statement].kind == NodeKind.VarDecl) {
       genGlobal(e, statement);
     }
@@ -296,7 +302,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   let testCount: i32 = 0;
 
   for (index in 0..count) {
-    let statement: i32 = e.ast.nodes[program].items[index];
+    let statement: i32 = itemAt(e.ast, program, index);
     // A generic is compiled as its instances, which are items of their own.
     if (isTemplate(e.an, statement)) {
       continue;
@@ -317,8 +323,8 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
       tests.add("ptr ");
       tests.add(llvmName('@', e.an.linkNames[statement]));
       testNames.add("ptr ");
-      testNames.add(internString(e, e.ast.nodes[statement].text,
-                                 e.ast.nodes[statement].textLength));
+      testNames.add(internString(e, nodeName(e.ast, statement),
+                                 nodeTextLength(e.ast, statement)));
       testCount = testCount + 1;
     }
 
@@ -328,8 +334,8 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
 
     // A struct's methods are functions like any other once named.
     if (e.ast.nodes[statement].kind == NodeKind.Struct) {
-      for (member in 0..e.ast.nodes[statement].itemCount) {
-        let method: i32 = e.ast.nodes[statement].items[member];
+      for (member in 0..itemCount(e.ast, statement)) {
+        let method: i32 = itemAt(e.ast, statement, member);
         if (e.ast.nodes[method].kind == NodeKind.Fn) {
           genFunction(e, method);
         }

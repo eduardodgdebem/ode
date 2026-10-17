@@ -33,7 +33,11 @@ import {
   moduleDisplayPath, moduleCount, NameSet, linkModules, SymbolList,
   declareImports,
 } from "../link/modules";
-import { NO_NODE, NodeKind, Ast, Syntax, Binary, Cast, Index } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Ast, Binary, CallValue, Cast, FieldAccess, Index, MethodCall,
+  Params, Syntax, itemAt, itemCount, nodeName, paramsOf, returnTypeOf, typeDepth,
+  typeNodeOf,
+} from "../syntax/ast";
 import { LAYOUT_STRUCTS } from "../types/layout";
 import { SymbolKind, SymbolTable } from "../types/symbols";
 import { TypeKind, Type, typeKindFromName, StructTable } from "../types/types";
@@ -226,7 +230,12 @@ fn expressionStart(an: *Analyzer, node: i32): i32 {
   }
   if (kind == NodeKind.FieldAccess ||
       kind == NodeKind.MethodCall || kind == NodeKind.CallValue) {
-    let left: i32 = an.ast.nodes[node].a;
+    let left: i32 = match (syntax) {
+      FieldAccess => syntax.object,
+      MethodCall => syntax.receiver,
+      CallValue => syntax.callee,
+      else => NO_NODE,
+    };
     if (left != NO_NODE) {
       start = expressionStart(an, left);
     }
@@ -273,8 +282,8 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
     internalError(0, 0, "expected type annotation");
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
-  let depth: i32 = an.ast.nodes[node].extra;
+  let name: *i8 = nodeName(an.ast, node);
+  let depth: i32 = typeDepth(an.ast, node);
   let kind: TypeKind = typeKindFromName(name);
 
   // A built-in type lexes as its own token kind; anything else is a struct,
@@ -305,7 +314,7 @@ export fn registerAlias(an: *Analyzer, node: i32): void {
   if (an.ast.nodes[node].kind != NodeKind.TypeAlias) {
     return;
   }
-  let name: *i8 = an.ast.nodes[node].text;
+  let name: *i8 = nodeName(an.ast, node);
   if (an.enumNames.has(name) || aliasNamed(an, name) != NO_NODE) {
     analyzerFail(an, node, Problem.DuplicateAlias, Facts.about(name));
     return;
@@ -321,7 +330,7 @@ export fn checkAlias(an: *Analyzer, node: i32): void {
   let type: Type = resolveAlias(an, node);
   if (!FAILED) {
     analyzerValidateType(an, node, type,
-                         quoted("in type alias ", an.ast.nodes[node].text, ""));
+                         quoted("in type alias ", nodeName(an.ast, node), ""));
   }
 }
 
@@ -346,7 +355,7 @@ export fn throughAlias(an: *Analyzer, name: *i8): *i8 {
 
 fn aliasNamed(an: *Analyzer, name: *i8): i32 {
   for (index in 0..an.aliases.count) {
-    if (equals(an.ast.nodes[an.aliases.at(index)].text, name)) {
+    if (equals(nodeName(an.ast, an.aliases.at(index)), name)) {
       return an.aliases.at(index);
     }
   }
@@ -364,12 +373,12 @@ fn resolveAlias(an: *Analyzer, alias: i32): Type {
   if (an.isConstant[alias] == 3) {
     an.isConstant[alias] = 2;
     analyzerFail(an, alias, Problem.AliasCycle,
-                 Facts.about(an.ast.nodes[alias].text));
+                 Facts.about(nodeName(an.ast, alias)));
     return Type.make(TypeKind.None, 0);
   }
 
   an.isConstant[alias] = 3;
-  let type: Type = analyzerParseType(an, an.ast.nodes[alias].a);
+  let type: Type = analyzerParseType(an, typeNodeOf(an.ast, alias));
   if (an.isConstant[alias] == 3) {
     an.isConstant[alias] = 0;
   }
@@ -416,7 +425,7 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
     return null;
   }
 
-  let count: i32 = an.ast.nodes[params].itemCount;
+  let count: i32 = itemCount(an.ast, params);
   *countOut = count;
 
   if (count == 0) {
@@ -426,8 +435,8 @@ export fn analyzerParamTypes(an: *Analyzer, params: i32, countOut: *i32): *Type 
   let types: *Type = alloc<Type>(count as i64);
 
   for (index in 0..count) {
-    let param: i32 = an.ast.nodes[params].items[index];
-    types[index] = analyzerParseType(an, an.ast.nodes[param].a);
+    let param: i32 = itemAt(an.ast, params, index);
+    types[index] = analyzerParseType(an, typeNodeOf(an.ast, param));
   }
 
   return types;
@@ -442,7 +451,7 @@ fn registerStructName(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
+  let name: *i8 = nodeName(an.ast, node);
   if (an.structs.indexOf(name) >= 0 || an.enumNames.has(name) ||
       aliasNamed(an, name) != NO_NODE) {
     analyzerFail(an, node, Problem.DuplicateStruct, Facts.about(name));
@@ -456,13 +465,13 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
+  let name: *i8 = nodeName(an.ast, node);
   let structIndex: i32 = an.structs.indexOf(name);
 
   let index: i32 = 0;
-  while (index < an.ast.nodes[node].itemCount) {
-    let field: i32 = an.ast.nodes[node].items[index];
-    let fieldName: *i8 = an.ast.nodes[field].text;
+  while (index < itemCount(an.ast, node)) {
+    let field: i32 = itemAt(an.ast, node, index);
+    let fieldName: *i8 = nodeName(an.ast, field);
 
     // Methods are mixed in with the fields, and are registered after them.
     if (an.ast.nodes[field].kind != NodeKind.Field) {
@@ -475,7 +484,7 @@ fn registerStructFields(an: *Analyzer, node: i32): void {
                    Facts.aboutTwo(name, fieldName));
     }
 
-    let type: Type = analyzerParseType(an, an.ast.nodes[field].a);
+    let type: Type = analyzerParseType(an, typeNodeOf(an.ast, field));
 
     let context: *Builder = Builder.new();
     context.add("field '");
@@ -545,8 +554,8 @@ fn hoistGlobal(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
-  let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
+  let name: *i8 = nodeName(an.ast, node);
+  let type: Type = analyzerParseType(an, typeNodeOf(an.ast, node));
 
   analyzerValidateType(an, node, type, quoted("in declaration of ", name, ""));
   if (type.isVoid()) {
@@ -581,10 +590,10 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     return;
   }
 
-  let name: *i8 = an.ast.nodes[node].text;
-  let returnType: Type = analyzerParseType(an, an.ast.nodes[node].a);
+  let name: *i8 = nodeName(an.ast, node);
+  let returnType: Type = analyzerParseType(an, returnTypeOf(an.ast, node));
   let paramCount: i32 = 0;
-  let params: *Type = analyzerParamTypes(an, an.ast.nodes[node].b, &paramCount);
+  let params: *Type = analyzerParamTypes(an, paramsOf(an.ast, node), &paramCount);
 
   let what: *i8 = "return type of '";
   if (kind == NodeKind.Extern) {
@@ -639,13 +648,20 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
 
 // Whether the function or extern `node` ends its parameters with `...`.
 export fn isVariadic(an: *Analyzer, node: i32): bool {
-  let params: i32 = an.ast.nodes[node].b;
-  return params != NO_NODE && an.ast.nodes[params].extra == 1;
+  let params: i32 = paramsOf(an.ast, node);
+  if (params == NO_NODE) {
+    return false;
+  }
+  let list: Syntax = an.ast.nodes[params].syntax;
+  if (list is Params) {
+    return list.variadic;
+  }
+  return false;
 }
 
 // Whether the program item at `index` belongs to `module`.
 fn itemInModule(an: *Analyzer, program: i32, index: i32, module: i32): bool {
-  return an.ast.nodes[an.ast.nodes[program].items[index]].module == module;
+  return an.ast.nodes[itemAt(an.ast, program, index)].module == module;
 }
 
 export fn analyze(an: *Analyzer, program: i32): void {
@@ -657,14 +673,14 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
   // Linking may have added the instances of generics, so the program is
   // counted after it.
-  let count: i32 = an.ast.nodes[program].itemCount;
+  let count: i32 = itemCount(an.ast, program);
 
   // Enums first: a struct field, a global or a signature may have one as its
   // type, and parsing a type name needs to know whether it is one.
   let index: i32 = 0;
   for (index in 0..count) {
-    registerEnum(an, an.ast.nodes[program].items[index]);
-    registerAlias(an, an.ast.nodes[program].items[index]);
+    registerEnum(an, itemAt(an.ast, program, index));
+    registerAlias(an, itemAt(an.ast, program, index));
     FAILED = false;
   }
 
@@ -673,12 +689,12 @@ export fn analyze(an: *Analyzer, program: i32): void {
   // struct. Structs go into one table for every file: by now each reference
   // names the struct its own file can see.
   for (index in 0..count) {
-    registerStructName(an, an.ast.nodes[program].items[index]);
+    registerStructName(an, itemAt(an.ast, program, index));
     FAILED = false;
   }
 
   for (index in 0..count) {
-    registerStructFields(an, an.ast.nodes[program].items[index]);
+    registerStructFields(an, itemAt(an.ast, program, index));
     FAILED = false;
   }
 
@@ -686,12 +702,12 @@ export fn analyze(an: *Analyzer, program: i32): void {
   FAILED = false;
 
   for (index in 0..count) {
-    checkAlias(an, an.ast.nodes[program].items[index]);
+    checkAlias(an, itemAt(an.ast, program, index));
     FAILED = false;
   }
 
   for (index in 0..count) {
-    registerMethods(an, an.ast.nodes[program].items[index]);
+    registerMethods(an, itemAt(an.ast, program, index));
   }
 
   // Values are hoisted a file at a time, each into a scope of its own, so
@@ -705,14 +721,14 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
     for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {
-        hoistGlobal(an, an.ast.nodes[program].items[index]);
+        hoistGlobal(an, itemAt(an.ast, program, index));
         FAILED = false;
       }
     }
 
     for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {
-        hoistSignature(an, an.ast.nodes[program].items[index]);
+        hoistSignature(an, itemAt(an.ast, program, index));
         FAILED = false;
       }
     }
@@ -739,7 +755,7 @@ export fn analyze(an: *Analyzer, program: i32): void {
 
     for (index in 0..count) {
       if (itemInModule(an, program, index, module)) {
-        analyzeRecovering(an, an.ast.nodes[program].items[index]);
+        analyzeRecovering(an, itemAt(an.ast, program, index));
       }
     }
 

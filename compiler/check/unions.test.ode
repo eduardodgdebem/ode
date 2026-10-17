@@ -489,3 +489,41 @@ test "an early return under ! leaves the member it asked about" {
   assertEq(wrong.at(0).problem, Problem.NoSuchField);
   assertEq(wrong.at(0).line, 2);
 }
+
+test "&& narrows its right side, and an if's first branch, by both sides" {
+  let found: *List<Diagnostic> = shapes().run(`
+    let big: bool = shape is Circle && shape.radius > 10;
+    if (shape is Circle && shape.radius > 1) {
+      let circle: Circle = shape;
+    }
+    if (shape is Rect && either is i64) {
+      let width: i64 = shape.width + either;
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "|| narrows its right side where the left failed, and an if's second branch" {
+  let found: *List<Diagnostic> = shapes().returning("i64").run(`
+    let small: bool = shape is Rect || shape.radius < 2;
+    if (shape is Rect || either is *i8) {
+      return 0;
+    }
+    return shape.radius + either;
+  `);
+  assertEq(found.count, 0);
+}
+
+test "&& and || narrow only where they say something" {
+  let found: *List<Diagnostic> = shapes().run(`
+    if (shape is Circle || either is i64) {
+      let wrong: i64 = shape.radius;
+    }
+    let after: bool = shape is Circle || shape.radius > 0;
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.FieldOfNonStruct);
+  assertEq(found.at(0).line, 2);
+  assertEq(found.at(1).problem, Problem.NoSuchField);
+  assertEq(found.at(1).line, 4);
+}
