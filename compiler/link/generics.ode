@@ -460,8 +460,12 @@ export fn instantiateGenerics(an: *Analyzer, program: i32): void {
       return;
     }
 
+    // A round handles the nodes there were when it began. An instance's own
+    // nodes wait for the next: an instance that asks for a bigger one then
+    // costs a round each, and the limit stops it.
     let node: i32 = 0;
-    while (node < an.ast.count) {
+    let end: i32 = an.ast.count;
+    while (node < end) {
       if (node < marked && inTemplate[node] != 0) {
         node = node + 1;
         continue;

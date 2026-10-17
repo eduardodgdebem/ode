@@ -10,8 +10,8 @@ import { List } from "std/list";
 import { Problem } from "../diagnostics/problems";
 import { Diagnostic } from "../diagnostics/report";
 import {
-  NO_NODE, NodeKind, Binary, BinaryOp, Cast, Catch, FnTypeRef, Index, Is, Lambda,
-  Return, Sizeof, Syntax, Try, Unary, UnaryOp, armOf, binaryOf, fieldAccessOf,
+  NO_NODE, NodeKind, Assign, Binary, BinaryOp, Cast, Catch, FnTypeRef, Index, Is,
+  Lambda, Return, Sizeof, Syntax, Try, Unary, UnaryOp, armOf, binaryOf, fieldAccessOf,
   functionOf, isOf, itemAt, itemCount, lambdaOf, matchOf, nodeName, paramOf,
   syntaxChildren, typeDepth, typeNodeOf, unaryOf, varDeclOf,
 } from "./ast";
@@ -419,7 +419,12 @@ test "an operator's node says which operator, and holds its operands" {
   assertEq(binaryOf(tree.ast, less.right).op, BinaryOp.ShiftLeft);
 
   // `count += 1` is `count = count + 1`.
-  let sum: Binary = binaryOf(tree.ast, declaredValue(tree, 1));
+  let assignment: Syntax = tree.ast.nodes[statementOf(tree, 1)].syntax;
+  let assigned: i32 = NO_NODE;
+  if (assignment is Assign) {
+    assigned = assignment.value;
+  }
+  let sum: Binary = binaryOf(tree.ast, assigned);
   assertEq(sum.op, BinaryOp.Add);
   assertEq(nodeName(tree.ast, sum.left), "count");
 }
