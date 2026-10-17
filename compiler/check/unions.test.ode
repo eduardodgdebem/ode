@@ -452,3 +452,40 @@ test "assigning a narrowed variable forgets what was found too" {
   assertEq(found.at(0).problem, Problem.DeclarationMismatch);
   assertEq(found.at(0).line, 3);
 }
+
+test "is narrows through !, the branches swapping what they learn" {
+  let found: *List<Diagnostic> = shapes().run(`
+    if (!(shape is Circle)) {
+      let rect: Rect = shape;
+    } else {
+      let circle: Circle = shape;
+    }
+    if (!(checked is Bad)) {
+      let fine: Shape = checked;
+    }
+    if (!!(either is i64)) {
+      let number: i64 = either;
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "an early return under ! leaves the member it asked about" {
+  let found: *List<Diagnostic> = shapes().returning("i64").run(`
+    if (!(shape is Circle)) {
+      return 0;
+    }
+    return shape.radius;
+  `);
+  assertEq(found.count, 0);
+
+  let wrong: *List<Diagnostic> = shapes().returning("i64").run(`
+    if (!(shape is Circle)) {
+      return shape.radius;
+    }
+    return 0;
+  `);
+  assertEq(wrong.count, 1);
+  assertEq(wrong.at(0).problem, Problem.NoSuchField);
+  assertEq(wrong.at(0).line, 2);
+}

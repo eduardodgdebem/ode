@@ -10,7 +10,7 @@ import { List } from "std/list";
 import { Builder } from "std/text";
 import {
   NO_NODE, NodeKind, Ast, nodeKindName, nodeCarriesText, Syntax, Binary, Unary,
-  binaryOpText, unaryOpText, syntaxChildren,
+  Catch, binaryOpText, unaryOpText, syntaxChildren,
 } from "./ast";
 import { TokenKind, Token, TokenList, kindName } from "./token";
 import { TypeKind, Type } from "../types/types";
@@ -95,18 +95,16 @@ export fn dumpNode(ast: *Ast, types: *Type, index: i32, depth: i32,
     out.push('\'');
   }
   let syntax: Syntax = ast.nodes[index].syntax;
-  match (syntax) {
-    Binary => {
-      out.add(" '");
-      out.add(binaryOpText(syntax.op));
-      out.push('\'');
-    }
-    Unary => {
-      out.add(" '");
-      out.add(unaryOpText(syntax.op));
-      out.push('\'');
-    }
-    Unmoved => {}
+  let spelled: *i8 = match (syntax) {
+    Binary => binaryOpText(syntax.op),
+    Unary => unaryOpText(syntax.op),
+    Catch => syntax.name,
+    else => null,
+  };
+  if (spelled != null) {
+    out.add(" '");
+    out.add(spelled);
+    out.push('\'');
   }
 
   if (ast.nodes[index].exported) {

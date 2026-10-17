@@ -22,7 +22,7 @@ import { emitCheckSupport, emitTestMain, emitEnumNames } from "./testing";
 import { line } from "../driver/options";
 import { isTemplate } from "../link/generics";
 import { NameSet } from "../link/modules";
-import { NO_NODE, NodeKind, unaryOf } from "../syntax/ast";
+import { NO_NODE, NodeKind, Syntax, Cast, Unary, Sizeof } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
 import { Type } from "../types/types";
 
@@ -183,21 +183,24 @@ fn genConstant(e: *Emitter, node: i32, type: Type): *i8 {
   if (kind == NodeKind.FieldAccess) {
     return fromInt(e.an.values[node]);
   }
-  if (kind == NodeKind.Cast) {
-    return genConstant(e, e.ast.nodes[node].a, type);
-  }
-  // A constant global's initialiser was folded where it could be; what is
-  // left of a unary operator here is a minus in front of a constant.
-  if (kind == NodeKind.Unary) {
-    let inner: *i8 = genConstant(e, unaryOf(e.ast, node).operand, type);
-    let out: *Builder = Builder.new();
-    out.push('-');
-    out.add(inner);
-    return out.take();
-  }
-  if (kind == NodeKind.Sizeof) {
-    return fromInt(sizeOf(e.an.structs, analyzerParseType(e.an,
-                                                     e.ast.nodes[node].a)) as i64);
+  let syntax: Syntax = e.ast.nodes[node].syntax;
+  match (syntax) {
+    Cast => {
+      return genConstant(e, syntax.value, type);
+    }
+    // A constant global's initialiser was folded where it could be; what is
+    // left of a unary operator here is a minus in front of a constant.
+    Unary => {
+      let inner: *i8 = genConstant(e, syntax.operand, type);
+      let out: *Builder = Builder.new();
+      out.push('-');
+      out.add(inner);
+      return out.take();
+    }
+    Sizeof => {
+      return fromInt(sizeOf(e.an.structs, analyzerParseType(e.an, syntax.type)) as i64);
+    }
+    else => {}
   }
   if (kind == NodeKind.Bool) {
     if (equals(e.ast.nodes[node].text, "true")) {

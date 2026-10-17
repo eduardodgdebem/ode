@@ -161,7 +161,7 @@ convenience.
 An enum member is only a name for an integer. Data that is one of several
 shapes is a union of structs instead -- `type Shape = Circle | Rect` -- told
 apart with `is` or `match`. Both narrow a variable or a field path
-(`node.kind is Call`), but not an element (`list.at(0)`, `items[i]`) or a
+(`node.kind is Call`), through `!` as well, but not an element (`list.at(0)`, `items[i]`) or a
 call's result -- copy it into a variable first. A write through another
 pointer to the same field is not seen, so a narrowed field changed by a
 function it is passed to keeps its narrowing. And an arm names whole members:
@@ -244,9 +244,10 @@ of memory -- stops the program. A test cannot say that it expects to stop; such 
 
 - `catch (e)` takes a union of one error enum; with several, keep the value
   and tell them apart with `is`.
-- `is` narrows a local variable, in the branches of the `if` it is the
-  condition of, and after that `if` when its first branch always leaves; it
-  does not narrow a field, a global, or through `&&`.
+- `is` narrows in the branches of the `if` it is the condition of -- under
+  `!` too -- and after that `if` when its first branch always leaves; it
+  does not narrow through `&&` or `||`, so `if (x is A && x.size > 0)` reads
+  `x.size` from a union. Nest the `if`s instead.
 - An error carries no data: it says what went wrong, not with what. A union
   can return a struct alongside the errors -- `Config | ParseFailure |
   IoError` -- when the details matter.

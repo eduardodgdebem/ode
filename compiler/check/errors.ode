@@ -41,7 +41,9 @@ import { checkExpr, checkExprAs } from "./expressions";
 import { analyzeStatement } from "./statements";
 import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
-import { NO_NODE, NodeKind, Ast, Binary, syntaxChildren } from "../syntax/ast";
+import {
+  NO_NODE, NodeKind, Ast, Syntax, Binary, Unary, Try, Is, Catch, syntaxChildren, isOf,
+} from "../syntax/ast";
 import { SymbolKind, Symbol } from "../types/symbols";
 import { TypeKind, Type } from "../types/types";
 
@@ -381,8 +383,8 @@ export fn parseUnionType(an: *Analyzer, node: i32): Type {
 }
 
 // `try value`.
-export fn checkTry(an: *Analyzer, node: i32): Type {
-  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+export fn checkTry(an: *Analyzer, node: i32, attempt: Try): Type {
+  let type: Type = checkExpr(an, attempt.value);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
@@ -432,8 +434,8 @@ export fn checkCoalesce(an: *Analyzer, node: i32, coalesce: Binary): Type {
 }
 
 // `value catch (e) { ... }`.
-export fn checkCatch(an: *Analyzer, node: i32): Type {
-  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+export fn checkCatch(an: *Analyzer, node: i32, caught: Catch): Type {
+  let type: Type = checkExpr(an, caught.value);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
@@ -447,9 +449,9 @@ export fn checkCatch(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
-  let block: i32 = an.ast.nodes[node].b;
+  let block: i32 = caught.block;
   an.symbols.enterScope();
-  an.symbols.declare(an.ast.nodes[node].text, SymbolKind.Var,
+  an.symbols.declare(caught.name, SymbolKind.Var,
                      Type.ofEnum(errors.at(0), 0), null, 0,
                      an.ast.nodes[node].line, an.ast.nodes[node].column);
   analyzeStatement(an, block);
@@ -468,12 +470,12 @@ export fn checkCatch(an: *Analyzer, node: i32): Type {
 }
 
 // `value is SomeError`, `shape is Circle`: whether a union holds that member.
-export fn checkIs(an: *Analyzer, node: i32): Type {
-  let type: Type = checkExpr(an, an.ast.nodes[node].a);
+export fn checkIs(an: *Analyzer, node: i32, question: Is): Type {
+  let type: Type = checkExpr(an, question.value);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
-  let asked: Type = analyzerParseType(an, an.ast.nodes[node].b);
+  let asked: Type = analyzerParseType(an, question.type);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
@@ -599,15 +601,33 @@ fn breaksOut(an: *Analyzer, node: i32): bool {
 // a variable or a field of one, `holder.shape`, and is read there with the
 // narrower type; its storage is untouched.
 export fn narrowedLocal(an: *Analyzer, condition: i32): i32 {
-  if (an.ast.nodes[condition].kind != NodeKind.Is) {
+  let flipped: bool = false;
+  let question: i32 = questionIn(an, condition, &flipped);
+  if (question == NO_NODE) {
     return NO_NODE;
   }
-  let value: i32 = an.ast.nodes[condition].a;
+  let value: i32 = isOf(an.ast, question).value;
   if (pathOf(an, value) == null || an.types[value].kind == TypeKind.None ||
       !an.types[value].isUnion()) {
     return NO_NODE;
   }
   return value;
+}
+
+// The `is` a condition asks, under any number of `!` -- each of which swaps
+// what the two branches learn, recorded in `flipped` -- or NO_NODE.
+fn questionIn(an: *Analyzer, condition: i32, flipped: *bool): i32 {
+  let syntax: Syntax = an.ast.nodes[condition].syntax;
+  if (syntax is Is) {
+    return condition;
+  }
+  if (syntax is Unary) {
+    if (syntax.op == .Not) {
+      *flipped = !*flipped;
+      return questionIn(an, syntax.operand, flipped);
+    }
+  }
+  return NO_NODE;
 }
 
 // The name narrowing knows `node` by, when it can be narrowed: a variable's
@@ -698,10 +718,17 @@ export fn forget(an: *Analyzer, path: *i8): void {
 // where it did not.
 export fn narrowedTypes(an: *Analyzer, condition: i32, held: *Type,
                         notHeld: *Type): void {
-  let union: Type = an.types[an.ast.nodes[condition].a];
-  let asked: Type = analyzerParseType(an, an.ast.nodes[condition].b);
+  let flipped: bool = false;
+  let question: Is = isOf(an.ast, questionIn(an, condition, &flipped));
+  let union: Type = an.types[question.value];
+  let asked: Type = analyzerParseType(an, question.type);
   *held = asked;
   *notHeld = without(union, asked);
+  // `if (!(x is T))`: the first branch is where it is not.
+  if (flipped) {
+    *held = without(union, asked);
+    *notHeld = asked;
+  }
 }
 
 fn errorsOf(names: *i8, other: *i8): *List<*i8> {

@@ -70,11 +70,46 @@ export struct Unary {
   operand: i32,
 }
 
+// `value as type`.
+export struct Cast {
+  value: i32,
+  type: i32,
+}
+
+// `base[index]`.
+export struct Index {
+  base: i32,
+  index: i32,
+}
+
+// `sizeof(type)`.
+export struct Sizeof {
+  type: i32,
+}
+
+// `try value`.
+export struct Try {
+  value: i32,
+}
+
+// `value is type`.
+export struct Is {
+  value: i32,
+  type: i32,
+}
+
+// `value catch (name) block`.
+export struct Catch {
+  value: i32,
+  name: *i8,
+  block: i32,
+}
+
 // A kind not moved into syntax of its own yet: its parts are in the node's
 // `a`, `b`, `c`, `text` and `items`.
 export struct Unmoved {}
 
-export type Syntax = Binary | Unary | Unmoved;
+export type Syntax = Binary | Unary | Cast | Index | Sizeof | Try | Is | Catch | Unmoved;
 
 // The children a node's syntax holds, in order, for the walks that visit
 // every node without caring what each one is: cloning a generic, marking a
@@ -87,8 +122,24 @@ export fn syntaxChildren(syntax: Syntax): *List<i32> {
       children.push(syntax.left);
       children.push(syntax.right);
     }
-    Unary => {
-      children.push(syntax.operand);
+    Unary => children.push(syntax.operand),
+    Cast => {
+      children.push(syntax.value);
+      children.push(syntax.type);
+    }
+    Index => {
+      children.push(syntax.base);
+      children.push(syntax.index);
+    }
+    Sizeof => children.push(syntax.type),
+    Try => children.push(syntax.value),
+    Is => {
+      children.push(syntax.value);
+      children.push(syntax.type);
+    }
+    Catch => {
+      children.push(syntax.value);
+      children.push(syntax.block);
     }
     Unmoved => {}
   }
@@ -98,17 +149,17 @@ export fn syntaxChildren(syntax: Syntax): *List<i32> {
 // `syntax` with its children replaced by `children`, given in the order
 // syntaxChildren lists them.
 export fn withChildren(syntax: Syntax, children: *List<i32>): Syntax {
-  match (syntax) {
-    Binary => {
-      return Binary { op: syntax.op, left: children.at(0), right: children.at(1) };
-    }
-    Unary => {
-      return Unary { op: syntax.op, operand: children.at(0) };
-    }
-    Unmoved => {
-      return syntax;
-    }
-  }
+  return match (syntax) {
+    Binary => Binary { op: syntax.op, left: children.at(0), right: children.at(1) },
+    Unary => Unary { op: syntax.op, operand: children.at(0) },
+    Cast => Cast { value: children.at(0), type: children.at(1) },
+    Index => Index { base: children.at(0), index: children.at(1) },
+    Sizeof => Sizeof { type: children.at(0) },
+    Try => Try { value: children.at(0) },
+    Is => Is { value: children.at(0), type: children.at(1) },
+    Catch => Catch { value: children.at(0), name: syntax.name, block: children.at(1) },
+    Unmoved => syntax,
+  };
 }
 
 // A node's syntax as the kind it is known to be.
@@ -128,6 +179,33 @@ export fn unaryOf(ast: *Ast, node: i32): Unary {
   }
   assert(false, "not a unary operator");
   return Unary { op: UnaryOp.Plus, operand: NO_NODE };
+}
+
+export fn castOf(ast: *Ast, node: i32): Cast {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Cast) {
+    return syntax;
+  }
+  assert(false, "not a cast");
+  return Cast { value: NO_NODE, type: NO_NODE };
+}
+
+export fn isOf(ast: *Ast, node: i32): Is {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Is) {
+    return syntax;
+  }
+  assert(false, "not an is");
+  return Is { value: NO_NODE, type: NO_NODE };
+}
+
+export fn sizeofOf(ast: *Ast, node: i32): Sizeof {
+  let syntax: Syntax = ast.nodes[node].syntax;
+  if (syntax is Sizeof) {
+    return syntax;
+  }
+  assert(false, "not a sizeof");
+  return Sizeof { type: NO_NODE };
 }
 
 // The operand of `node` when it is a minus in front of something -- `-5`,

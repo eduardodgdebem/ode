@@ -492,6 +492,16 @@ fn measure(holder: *Holder): f64 {
 }
 ```
 
+`!` swaps what the two branches learn, so the early return reads the way it
+does in TypeScript:
+
+```rust
+if (!(shape is Circle)) {
+  return 0;
+}
+return shape.radius;      // here, a Circle
+```
+
 Assigning a narrowed variable or field -- or anything it is part of, such as
 the whole `holder` -- forgets what was found out about it, from there on: it
 may hold any member again until it is asked once more.

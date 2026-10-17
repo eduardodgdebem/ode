@@ -34,7 +34,8 @@ import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { functionTemplateIn } from "../link/generics";
 import {
-  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, negated, binaryOpText,
+  NO_NODE, NodeKind, Syntax, Binary, BinaryOp, Unary, UnaryOp, Cast, Index, Sizeof, Try,
+  Is, Catch, Unmoved, negated, binaryOpText,
 } from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
 import { TypeKind, Type, fitsIn, parseMagnitude } from "../types/types";
@@ -126,21 +127,13 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     return expected;
   }
 
-  match (kind) {
-    .Try => { return checkTry(an, node); }
-    .Catch => { return checkCatch(an, node); }
-    .Is => { return checkIs(an, node); }
-    .Lambda => { return checkLambda(an, node, expected); }
-    else => {}
+  if (!(an.ast.nodes[node].syntax is Unmoved)) {
+    return checkSyntax(an, node, expected);
   }
 
   match (kind) {
-    .Binary, .Unary => {
-      return checkOperator(an, node, expected);
-    }
-    .Cast => { return checkCast(an, node); }
+    .Lambda => { return checkLambda(an, node, expected); }
     .FieldAccess => { return checkFieldAccess(an, node); }
-    .Index => { return checkIndex(an, node); }
     .StructLit => { return checkStructLiteral(an, node); }
     .Call => { return checkCall(an, node); }
     .MethodCall => { return checkMethodCall(an, node); }
@@ -162,20 +155,6 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
     .Null => { return Type.make(TypeKind.Null, 0); }
     .Char => { return charType(expected); }
     else => {}
-  }
-
-  if (kind == NodeKind.Sizeof) {
-    let type: Type = analyzerParseType(an, an.ast.nodes[node].a);
-    analyzerValidateType(an, node, type, "in sizeof");
-    if (type.isVoid()) {
-      analyzerFail(an, node, Problem.SizeofVoid, Facts.none());
-    }
-    // A size is a constant, and like a literal it takes the integer type
-    // that is wanted of it.
-    if (expected.isInteger()) {
-      return expected;
-    }
-    return Type.make(TypeKind.U64, 0);
   }
 
   if (kind == NodeKind.Ident) {
@@ -218,24 +197,18 @@ fn charType(expected: Type): Type {
 // until its context gives it one.
 export fn isLiteralTree(an: *Analyzer, node: i32): bool {
   let kind: NodeKind = an.ast.nodes[node].kind;
-  if (kind == NodeKind.Number || kind == NodeKind.Sizeof ||
-      kind == NodeKind.Char || isShorthand(an, node)) {
+  if (kind == NodeKind.Number || kind == NodeKind.Char || isShorthand(an, node)) {
     return true;
   }
   let syntax: Syntax = an.ast.nodes[node].syntax;
-  match (syntax) {
-    Unary => {
-      return (syntax.op == UnaryOp.Negate || syntax.op == UnaryOp.Plus) &&
-             isLiteralTree(an, syntax.operand);
-    }
-    Binary => {
-      return isArithmetic(syntax.op) && isLiteralTree(an, syntax.left) &&
-             isLiteralTree(an, syntax.right);
-    }
-    Unmoved => {
-      return false;
-    }
-  }
+  return match (syntax) {
+    Unary => (syntax.op == .Negate || syntax.op == .Plus) &&
+             isLiteralTree(an, syntax.operand),
+    Binary => isArithmetic(syntax.op) && isLiteralTree(an, syntax.left) &&
+              isLiteralTree(an, syntax.right),
+    Sizeof => true,
+    else => false,
+  };
 }
 
 // The operators whose result has their operands' type.
@@ -384,20 +357,34 @@ fn checkVariadicArguments(an: *Analyzer, node: i32, name: *i8, args: i32,
   an.variadicAfter[node] = paramCount + 1;
 }
 
-fn checkOperator(an: *Analyzer, node: i32, expected: Type): Type {
+// An expression whose kind has syntax of its own, checked by what it is.
+fn checkSyntax(an: *Analyzer, node: i32, expected: Type): Type {
   let syntax: Syntax = an.ast.nodes[node].syntax;
-  match (syntax) {
-    Binary => {
-      return checkBinaryOp(an, node, syntax, expected);
-    }
-    Unary => {
-      return checkUnaryOp(an, node, syntax, expected);
-    }
-    Unmoved => {
-      analyzerFail(an, node, Problem.Internal, Facts.about("an operator without one"));
-      return Type.make(TypeKind.None, 0);
-    }
+  return match (syntax) {
+    Binary => checkBinaryOp(an, node, syntax, expected),
+    Unary => checkUnaryOp(an, node, syntax, expected),
+    Cast => checkCast(an, node, syntax),
+    Index => checkIndex(an, node, syntax),
+    Sizeof => checkSizeof(an, node, syntax, expected),
+    Try => checkTry(an, node, syntax),
+    Is => checkIs(an, node, syntax),
+    Catch => checkCatch(an, node, syntax),
+    Unmoved => Type.make(TypeKind.None, 0),
+  };
+}
+
+// `sizeof(T)`: a constant, which like a literal takes the integer type that
+// is wanted of it.
+fn checkSizeof(an: *Analyzer, node: i32, size: Sizeof, expected: Type): Type {
+  let type: Type = analyzerParseType(an, size.type);
+  analyzerValidateType(an, node, type, "in sizeof");
+  if (type.isVoid()) {
+    analyzerFail(an, node, Problem.SizeofVoid, Facts.none());
   }
+  if (expected.isInteger()) {
+    return expected;
+  }
+  return Type.make(TypeKind.U64, 0);
 }
 
 fn checkUnaryOp(an: *Analyzer, node: i32, unary: Unary, expected: Type): Type {
@@ -629,9 +616,9 @@ fn castRejection(an: *Analyzer, node: i32, from: Type, to: Type,
   analyzerFail(an, node, problem, Facts.aboutTypes(to, from));
 }
 
-fn checkCast(an: *Analyzer, node: i32): Type {
-  let to: Type = analyzerParseType(an, an.ast.nodes[node].b);
-  let from: Type = checkCastOperand(an, an.ast.nodes[node].a, to);
+fn checkCast(an: *Analyzer, node: i32, cast: Cast): Type {
+  let to: Type = analyzerParseType(an, cast.type);
+  let from: Type = checkCastOperand(an, cast.value, to);
 
   if (from.isVoid() || to.isVoid()) {
     castRejection(an, node, from, to, Problem.CastFromVoid);
@@ -819,9 +806,9 @@ fn checkFieldAccess(an: *Analyzer, node: i32): Type {
   return type;
 }
 
-fn checkIndex(an: *Analyzer, node: i32): Type {
-  let baseType: Type = checkExpr(an, an.ast.nodes[node].a);
-  let indexType: Type = checkExpr(an, an.ast.nodes[node].b);
+fn checkIndex(an: *Analyzer, node: i32, index: Index): Type {
+  let baseType: Type = checkExpr(an, index.base);
+  let indexType: Type = checkExpr(an, index.index);
 
   if (!baseType.isPointer()) {
     analyzerFail(an, node, Problem.IndexNonPointer, Facts.aboutType(baseType));
@@ -913,17 +900,16 @@ export fn isConstantExpr(an: *Analyzer, node: i32): bool {
   if (kind == NodeKind.Ident) {
     return an.functionRefs[node] != 0 || isReadyGlobal(an, node);
   }
-  if (kind == NodeKind.Char || kind == NodeKind.Sizeof) {
+  if (kind == NodeKind.Char) {
     return true;
   }
-  if (kind == NodeKind.Cast) {
-    return isConstantExpr(an, an.ast.nodes[node].a);
-  }
-  if (negated(an.ast, node) != NO_NODE) {
-    return isConstantExpr(an, negated(an.ast, node));
-  }
-
-  return false;
+  let syntax: Syntax = an.ast.nodes[node].syntax;
+  return match (syntax) {
+    Sizeof => true,
+    Cast => isConstantExpr(an, syntax.value),
+    Unary => syntax.op == .Negate && isConstantExpr(an, syntax.operand),
+    else => false,
+  };
 }
 
 // An integer literal, or one negated: `5`, `-5`, `- 5`.
