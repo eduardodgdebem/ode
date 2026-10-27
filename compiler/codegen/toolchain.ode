@@ -9,9 +9,11 @@
 // is asked, the way Apple's own tools find it. Passing it as `-isysroot`
 // matters, because a non-Apple clang ignores SDKROOT entirely.
 //
-// That SDK is macOS's, so it is used only when building for macOS. Building
-// for another target takes that target's sysroot from --sysroot, and from a
-// Mac links with lld, since Apple's linker writes only Mach-O.
+// That SDK is macOS's, so it is used only when building for macOS. A Linux
+// target links against the musl Ode bundles (libc.ode), or against the
+// sysroot --sysroot names; either way from a Mac it links with lld, since
+// Apple's linker writes only Mach-O, and against musl always, since a
+// Linux linker may know only its own machine.
 // ---------------------------------------------------------------------------
 
 import { exists } from "std/fs";
@@ -99,16 +101,22 @@ export fn ccCommand(): *TextList {
 // The same, for the run that links.
 export fn linkCommand(): *TextList {
   let command: *TextList = ccCommand();
-  if (!targetsDarwin() && isMacHost()) {
+  if (!targetsDarwin() && (isMacHost() || usesBundledLibc())) {
     command.add("-fuse-ld=lld");
   }
   return command;
 }
 
-// Whether linking is for a target that has none of its libraries here: one
-// that is not the default, and was given no sysroot.
+// Whether the program links against the musl Ode bundles: a musl target that
+// was given no sysroot of its own.
+export fn usesBundledLibc(): bool {
+  return TARGET != null && TARGET.isMusl() && sysroot() == null;
+}
+
+// Whether linking is for a target that has none of its libraries here: a
+// glibc one that was given no sysroot.
 export fn linksWithoutLibraries(): bool {
-  return !targetsDarwin() && sysroot() == null;
+  return !targetsDarwin() && sysroot() == null && !usesBundledLibc();
 }
 
 // What a program is linked against besides libc: -l, -L and -framework.

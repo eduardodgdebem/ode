@@ -7,8 +7,10 @@
 import { readFile, writeFile, removeFile } from "std/fs";
 import { before } from "../check/analyzer";
 import { parseTarget, TARGET } from "../codegen/target";
+import { LibcError, bundledLibc, muslLinkCommand } from "../codegen/libc";
 import {
-  ccCommand, linkCommand, chooseSysroot, linksWithoutLibraries, LinkInputs,
+  ccCommand, linkCommand, chooseSysroot, linksWithoutLibraries,
+  usesBundledLibc, LinkInputs,
 } from "../codegen/toolchain";
 import { Problem, Facts } from "../diagnostics/problems";
 import { BuildFlags } from "./options";
@@ -205,8 +207,21 @@ export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool,
   let objectPath: *i8 = buildObject(module, output, keepIntermediates);
 
   let link: *TextList = linkCommand();
-  link.add(objectPath).add("-o").add(output);
-  inputs.addTo(link);
+  if (usesBundledLibc()) {
+    let libc: *i8 = bundledLibc(*TARGET) catch (e) {
+      failAbout(match (e) {
+        .NoSources => Problem.LibcSourcesNotFound,
+        .NoArchiver => Problem.LibcNeedsArchiver,
+        .NoCache => Problem.LibcCacheUnusable,
+        .BuildFailed => Problem.LibcBuildFailed,
+      }, Facts.about(TARGET.triple()));
+      return;
+    };
+    muslLinkCommand(link, libc, objectPath, output, inputs);
+  } else {
+    link.add(objectPath).add("-o").add(output);
+    inputs.addTo(link);
+  }
   if (!ran(runCommand(link, null, null, StderrMode.Inherit))) {
     if (linksWithoutLibraries()) {
       failAbout(Problem.LinkingNeedsSysroot, Facts.about(TARGET.triple()));

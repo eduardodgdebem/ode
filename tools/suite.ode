@@ -399,6 +399,36 @@ fn checkBuildFile(suite: *Suite): bool {
          !exists(joinPath(project, "build/zero"));
 }
 
+// A Linux executable builds from anywhere, against the musl Ode bundles, and
+// on x86_64 Linux it runs.
+fn checkLinuxExecutable(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/linux/prog");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("x86_64-linux").add("-o").add(out);
+  command.add(exampleOne(suite));
+  if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
+    return false;
+  }
+
+  let binary: *Builder = readBytes(out) catch (e) {
+    return false;
+  };
+  if (binary.length < 4 || binary.data[0] != 127 || binary.data[1] != 'E' ||
+      binary.data[2] != 'L' || binary.data[3] != 'F') {
+    return false;
+  }
+  let host: *Builder = Builder.new();
+  runCommand(TextList.new().add("uname").add("-sm"), null, host,
+             StderrMode.Discard) ?? 1;
+  if (equals(host.data, "Linux x86_64\n")) {
+    return printsZero(out);
+  }
+  return true;
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -575,6 +605,9 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   }
   if (suite.selected("object-for-target")) {
     runCli(suite, "object-for-target", checkObjectForTarget(suite));
+  }
+  if (suite.selected("linux-executable")) {
+    runCli(suite, "linux-executable", checkLinuxExecutable(suite));
   }
   if (suite.selected("build-file")) {
     runCli(suite, "build-file", checkBuildFile(suite));

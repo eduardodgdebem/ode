@@ -113,7 +113,7 @@ so a build is a description, not a graph of closures as in Zig's
 ## Targets
 
 `--target` and an artifact's `.target` take `arch-os[-abi]`: `x86_64` or
-`aarch64` (also `arm64`), `macos` or `linux`, and `gnu` or `musl` on Linux.
-See the [README](../README.md#quick-start) for what building for another
-target needs: the object file always builds, and linking needs that target's
-C library.
+`aarch64` (also `arm64`), `macos` or `linux`, and on Linux `musl`, the
+default, or `gnu`. A Linux executable links statically against the musl Ode
+bundles, so `ode build --target aarch64-linux` works from a Mac with nothing
+else installed but LLVM's tools; see the [README](../README.md#quick-start).

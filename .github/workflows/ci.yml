@@ -17,6 +17,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Building for Linux links with lld and archives musl with llvm-ar.
+      - name: Install LLVM's linker and archiver
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update && sudo apt-get install -y lld llvm
+          else
+            brew install lld llvm
+          fi
+
+      # musl, built once per target from vendor/.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ode
+          key: ode-libc-${{ runner.os }}-${{ hashFiles('vendor/*.tar.gz') }}
+
       # From nothing but the checked-in seed and clang, as a fresh checkout
       # would.
       - name: Build from the seed

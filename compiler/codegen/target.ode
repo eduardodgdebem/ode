@@ -25,7 +25,9 @@ export enum Os {
   Linux,
 }
 
-// Which C library a Linux program is linked against. macOS has one.
+// Which C library a Linux program is linked against. macOS has one. Linux's
+// default is musl, which Ode bundles (codegen/libc.ode), so that a Linux
+// program builds from anywhere; glibc needs the target's own sysroot.
 export enum Abi {
   Default,
   Gnu,
@@ -57,12 +59,16 @@ export struct Target {
 
     out.add(match (self.arch) { .X86_64 => "x86_64", .Aarch64 => "aarch64" });
     out.add("-unknown-linux-");
-    out.add(match (self.abi) { .Musl => "musl", else => "gnu" });
+    out.add(match (self.abi) { .Gnu => "gnu", else => "musl" });
     return out.take();
   }
 
   fn isDarwin(self: Target): bool {
     return self.os == Os.Macos;
+  }
+
+  fn isMusl(self: Target): bool {
+    return self.os == Os.Linux && self.abi != Abi.Gnu;
   }
 }
 
@@ -134,7 +140,8 @@ fn tripleOf(text: *i8): *i8 {
 }
 
 test "a target is arch-os, with an ABI on Linux" {
-  assertEq(tripleOf("x86_64-linux"), "x86_64-unknown-linux-gnu");
+  assertEq(tripleOf("x86_64-linux"), "x86_64-unknown-linux-musl");
+  assertEq(tripleOf("x86_64-linux-gnu"), "x86_64-unknown-linux-gnu");
   assertEq(tripleOf("aarch64-linux-musl"), "aarch64-unknown-linux-musl");
   assertEq(tripleOf("aarch64-macos"), "arm64-apple-macosx");
   assertEq(tripleOf("arm64-macos"), "arm64-apple-macosx");

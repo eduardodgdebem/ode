@@ -52,18 +52,23 @@ file.ode` runs the `test` blocks written in a file and the files it imports.
 
 `-l <lib>`, `-L <dir>` and `-framework <name>` link a C library, for `ode`
 and `ode test` alike. `--target <arch-os[-abi]>` builds for another machine:
-`x86_64` or `aarch64`, `macos` or `linux`, and `gnu` or `musl` on Linux.
+`x86_64` or `aarch64`, `macos` or `linux`, and on Linux `musl`, the
+default, or `gnu`.
 
 ```bash
 ./build/ode -L vendor/lib -lraylib -framework Cocoa game.ode
-./build/ode --target x86_64-macos game.ode             # an Intel Mac binary, from any Mac
-./build/ode --target aarch64-linux --emit-object game.ode   # game.o, for linking elsewhere
-./build/ode --target aarch64-linux --sysroot /path/to/linux-sysroot game.ode
+./build/ode --target x86_64-macos game.ode       # an Intel Mac binary, from any Mac
+./build/ode --target aarch64-linux game.ode      # a static Linux binary, from anywhere
+./build/ode --target x86_64-linux-gnu --sysroot /path/to/sysroot game.ode   # against glibc
 ```
 
-Building for another target always gets as far as the object file. Linking
-needs that target's C library, which Ode does not ship: macOS's comes with
-its SDK, and Linux's from a `--sysroot`, linked with `lld` from a Mac.
+A Linux program links statically against musl, so it runs on any Linux of
+its architecture. Ode bundles musl's source in `vendor/` and builds it the
+first time a program is built for a target, in about twenty seconds, into
+`~/.cache/ode`; that needs LLVM's `llvm-ar` and `ld.lld` beside clang.
+glibc is not bundled: `-gnu` takes the target's own `--sysroot`.
+macOS's C library comes with its SDK, and `--emit-object` stops at the
+object file for any target.
 
 A project says all of that once, in Ode, in a `build.ode` that `ode build`
 runs, as Zig's `build.zig` does: see [Building a project](docs/build.md).
@@ -103,6 +108,7 @@ compiler/          the compiler, written in Ode; main.ode is its entry
   testkit/         the tools the compiler's own tests use
 std/               the standard library, imported as "std/..."
 tools/             the suite, the bootstrap and the seed: build/dev
+vendor/            musl and compiler-rt's builtins, for Linux targets
 bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite

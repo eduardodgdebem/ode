@@ -322,9 +322,11 @@ own: it depends on `clang` to turn IR into a binary.
 
 That is also what decides which targets are reachable. `--target` takes
 64-bit x86 and ARM on macOS and Linux, because layout assumes 8-byte
-pointers and the triples are spelled out for those two. Linking for one
-needs its C library, which Ode does not bundle as Zig does: without a
-`--sysroot`, a Linux target stops at `--emit-object`.
+pointers and the triples are spelled out for those two. Linux programs link
+against musl, which Ode bundles and builds on first use, as Zig does; glibc
+is not bundled, so a `-gnu` target needs its own `--sysroot`. Windows is
+not a target at all. And a program built for another target cannot be run
+or tested from `ode` itself: that needs the machine, or an emulator.
 
 ### 8.3 Intermediates pass through the filesystem
 
