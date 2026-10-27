@@ -16,7 +16,8 @@ import {
   Analyzer, analyzerFail, analyzerFailAtValue, quoted, analyzerParseType,
   analyzerValidateType, throughAlias,
 } from "./analyzer";
-import { isReadyGlobal } from "./constants";
+import { globalDeclOf, isReadyGlobal } from "./constants";
+import { TARGET_MODULE, targetConstant } from "../codegen/target";
 import { checkEnumMember, checkShorthand, isShorthand, checkMatchValue } from "./enums";
 import {
   valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
@@ -151,7 +152,33 @@ fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
   }
 
   an.linkNames[node] = an.symbols.items[symbol].linkName;
+  markTargetConstant(an, node);
   return an.symbols.items[symbol].type;
+}
+
+// The globals of std/target say what the program is built for, and are
+// constants: nothing may assign to them, and a match on one picks its arm
+// while compiling.
+fn isTargetConstant(an: *Analyzer, node: i32): bool {
+  return an.ast.nodes[node].kind == NodeKind.Ident && an.isConstant[node] != 0;
+}
+
+// Their values come from what the compiler wrote into the module, since a
+// body may be checked before the module's own globals are.
+fn markTargetConstant(an: *Analyzer, node: i32): void {
+  if (TARGET_MODULE < 0) {
+    return;
+  }
+  let decl: i32 = globalDeclOf(an, node);
+  if (decl == NO_NODE || an.ast.nodes[decl].module != TARGET_MODULE) {
+    return;
+  }
+  let value: i64 = targetConstant(nodeName(an.ast, decl)) ?? -1;
+  if (value < 0) {
+    return;
+  }
+  an.isConstant[node] = 1;
+  an.values[node] = value;
 }
 
 // A character is a byte's value, so it is a number of whatever integer type
@@ -203,7 +230,9 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
 
   // `Color.Red` reads like a field but is a constant, with nowhere to store
   // to; that is only known once it has been checked.
-  if (!FAILED && an.isConstant[target] != 0) {
+  if (!FAILED && isTargetConstant(an, target)) {
+    analyzerFail(an, at, Problem.TargetConstant, Facts.about(nodeName(an.ast, target)));
+  } else if (!FAILED && an.isConstant[target] != 0) {
     analyzerFail(an, at, Problem.NotAssignable, Facts.none());
   }
 
@@ -392,7 +421,10 @@ fn checkUnaryOp(an: *Analyzer, node: i32, unary: Unary, expected: Type): Type {
     }
 
     let addressed: Type = checkExpr(an, operand);
-    if (!FAILED && an.isConstant[operand] != 0) {
+    if (!FAILED && isTargetConstant(an, operand)) {
+      analyzerFail(an, node, Problem.TargetConstant,
+                   Facts.about(nodeName(an.ast, operand)));
+    } else if (!FAILED && an.isConstant[operand] != 0) {
       analyzerFail(an, node, Problem.AddressOfTemporary, Facts.none());
     }
     if (addressed.isVoid()) {

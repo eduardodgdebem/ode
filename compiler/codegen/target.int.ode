@@ -1,0 +1,99 @@
+// ---------------------------------------------------------------------------
+// Programs that ask what they are built for, through std/target: what each
+// target compiles, and what none of them allows.
+//
+// Each test runs in a process of its own, so setting TARGET here builds that
+// test's snippet for the target it names.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { contains } from "std/text";
+import { TARGET, parseTarget } from "./target";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { irOf, problemsIn } from "../testkit/testkit";
+
+let PICKS_BY_OS: *i8 = `
+  import { OS, Os } from "std/target";
+
+  extern fn onLinux(): i32;
+  extern fn onMacos(): i32;
+
+  fn main(): i32 {
+    return match (OS) {
+      .Linux => onLinux(),
+      .Macos => onMacos(),
+      .Freestanding => 0,
+    };
+  }
+`;
+
+fn buildFor(target: *i8): void {
+  TARGET = parseTarget(target) ?? null;
+  assert(TARGET != null, "not a target");
+}
+
+test "a match on the OS compiles the arm for Linux on Linux" {
+  buildFor("aarch64-linux");
+  let ir: *i8 = irOf(PICKS_BY_OS);
+  assert(contains(ir, "call i32 @onLinux()"));
+  assert(!contains(ir, "call i32 @onMacos()"));
+}
+
+test "a match on the OS compiles the arm for macOS on macOS" {
+  buildFor("x86_64-macos");
+  let ir: *i8 = irOf(PICKS_BY_OS);
+  assert(contains(ir, "call i32 @onMacos()"));
+  assert(!contains(ir, "call i32 @onLinux()"));
+}
+
+test "every arm is checked, whichever is compiled" {
+  buildFor("aarch64-linux");
+  let found: *List<Diagnostic> = problemsIn(`
+    import { OS, Os } from "std/target";
+
+    fn main(): i32 {
+      return match (OS) {
+        .Linux => 0,
+        .Macos => "not a number",
+        .Freestanding => 0,
+      };
+    }
+  `);
+  assert(found.count > 0);
+}
+
+test "what std/target says cannot be changed" {
+  let found: *List<Diagnostic> = problemsIn(`
+    import { OS, ARCH, Os, Arch } from "std/target";
+
+    fn main(): i32 {
+      OS = Os.Linux;
+      let arch: *Arch = &ARCH;
+      return 0;
+    }
+  `);
+  assertEq(found.count, 2);
+  assertEq(found.at(0).problem, Problem.TargetConstant);
+  assertEq(found.at(1).problem, Problem.TargetConstant);
+}
+
+let MIXES_SIZES: *i8 = `
+  fn main(): i32 {
+    let size: isize = 4;
+    let wide: i64 = size;
+    return 0;
+  }
+`;
+
+test "isize is i64 where pointers are 8 bytes" {
+  buildFor("x86_64-linux");
+  assertEq(problemsIn(MIXES_SIZES).count, 0);
+}
+
+test "isize is i32 on wasm32, so it does not pass for an i64" {
+  buildFor("wasm32");
+  let found: *List<Diagnostic> = problemsIn(MIXES_SIZES);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.DeclarationMismatch);
+}

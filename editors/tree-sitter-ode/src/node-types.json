@@ -3788,6 +3788,10 @@
     "named": false
   },
   {
+    "type": "isize",
+    "named": false
+  },
+  {
     "type": "let",
     "named": false
   },

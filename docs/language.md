@@ -89,8 +89,14 @@ while (i < length && text[i] != '\0') {
 ## Types
 
 Integers in every width and signedness — `i8`, `u8`, `i16`, `u16`, `i32`,
-`u32`, `i64`, `u64` (also spelled `usize`) — the floats `f32` and `f64`, plus
-`bool`, `void`, and pointers to any of them (`*i8`, `**i8`).
+`u32`, `i64`, `u64` — the floats `f32` and `f64`, plus `bool`, `void`, and
+pointers to any of them (`*i8`, `**i8`).
+
+`isize` and `usize` are as wide as a pointer on the target: `i64` and `u64`
+on every target but wasm32, where they are `i32` and `u32`. They are other
+names for those, not types of their own, so an `isize` passes for an `i64`
+on a 64-bit target and fails to on wasm32 -- which is what a cast at the
+boundary, `n as isize`, is for. C's `size_t` is one.
 
 A literal takes the type its context expects — the declared type, the
 parameter, the field, the return type, or the other operand — so it is
@@ -282,10 +288,14 @@ file. This is how an Ode program gets heap memory and I/O without either
 being built into the language.
 
 ```rust
-extern fn malloc(size: i64): *i8;
+extern fn malloc(size: isize): *i8;
 extern fn free(block: *i8): void;
 extern fn putchar(character: i32): i32;
 ```
+
+C's `size_t`, `ssize_t` and `long` are `isize`, which is what
+[`std/c`](std.md#stdc) declares them as; an `i64` there would be right on
+64-bit targets only.
 
 A C function that takes a variable number of arguments is declared with
 `...` after the parameters it names, and called with any number after them:
@@ -678,6 +688,43 @@ main.ode`) and the files it imports come along. Two files may each have a
 private declaration of the same name without colliding.
 [`examples/modules.ode`](../examples/modules.ode) and the files under
 `examples/modules/` show all of it.
+
+## What a program is built for
+
+`std/target` says what the program is being compiled for -- the
+`--target`, or the machine compiling it -- as enums, in constants:
+
+```rust
+import { OS, ARCH, Os, Arch } from "std/target";
+
+extern fn ioctl(fd: i32, request: u64, ...): i32;
+
+fn windowSizeRequest(): u64 {
+  return match (OS) {
+    .Linux => 21523,        // TIOCGWINSZ
+    .Macos => 1074295912,   // TIOCGWINSZ
+    .Freestanding => 0,
+  };
+}
+```
+
+| Constant | Type | Members |
+|---|---|---|
+| `OS` | `Os` | `Macos`, `Linux`, `Freestanding` (no OS: a wasm32 module) |
+| `ARCH` | `Arch` | `X86_64`, `Aarch64`, `Wasm32` |
+| `ABI` | `Abi` | `None`, `Gnu`, `Musl` -- which C library, on Linux |
+| `POINTER_BYTES` | `i32` | 8, or 4 on wasm32 |
+
+A `match` on one of them is decided while compiling: only the arm it picks
+is compiled into the program, so the others may call what exists only on
+their target -- an `extern` that only Linux's C library has links on macOS,
+because nothing calls it there. Every arm is still checked, on every target,
+so a program that builds for one has been type-checked for all. The match
+must handle every member, or say `else`, as any match on an enum must.
+
+They are constants: nothing may assign to them or take their address. Read
+anywhere else -- `if (ABI == Abi.Musl)` -- one is an ordinary value, and both
+branches are compiled.
 
 ## Tests
 

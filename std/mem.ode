@@ -20,7 +20,7 @@ fn outOfMemory(size: i64): void {
 // Room for `count` values of T, uninitialised.
 export fn alloc<T>(count: i64): *T {
   let size: i64 = sizeof(T) * count;
-  let block: *i8 = malloc(size);
+  let block: *i8 = malloc(size as isize);
   if (block == null && size > 0) {
     outOfMemory(size);
   }
@@ -29,7 +29,7 @@ export fn alloc<T>(count: i64): *T {
 
 // Room for `count` values of T, every byte zero.
 export fn allocZeroed<T>(count: i64): *T {
-  let block: *i8 = calloc(count, sizeof(T));
+  let block: *i8 = calloc(count as isize, sizeof(T));
   if (block == null && count > 0) {
     outOfMemory(sizeof(T) * count);
   }
@@ -40,7 +40,7 @@ export fn allocZeroed<T>(count: i64): *T {
 // fit are kept.
 export fn grow<T>(values: *T, count: i64): *T {
   let size: i64 = sizeof(T) * count;
-  let block: *i8 = realloc(values as *i8, size);
+  let block: *i8 = realloc(values as *i8, size as isize);
   if (block == null && size > 0) {
     outOfMemory(size);
   }
@@ -53,12 +53,12 @@ export fn release<T>(values: *T): void {
 
 // Copies `count` values from `from` to `to`, which must not overlap.
 export fn copy<T>(to: *T, from: *T, count: i64): void {
-  memcpy(to as *i8, from as *i8, sizeof(T) * count);
+  memcpy(to as *i8, from as *i8, (sizeof(T) * count) as isize);
 }
 
 // Copies `count` values from `from` to `to`, which may overlap.
 export fn move<T>(to: *T, from: *T, count: i64): void {
-  memmove(to as *i8, from as *i8, sizeof(T) * count);
+  memmove(to as *i8, from as *i8, (sizeof(T) * count) as isize);
 }
 
 struct Pair {

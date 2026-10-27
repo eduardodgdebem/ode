@@ -197,6 +197,10 @@ fn genArmBody(e: *Emitter, node: i32, arm: i32, slot: *i8): void {
 fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
   let subject: i32 = matchOf(e.ast, node).subject;
   let type: Type = typeOfNode(e, subject);
+  if (e.an.isConstant[subject] != 0) {
+    genChosenArm(e, node, e.an.values[subject], slot);
+    return;
+  }
   if (type.isUnion()) {
     genUnionMatch(e, node, type, slot);
     return;
@@ -253,6 +257,31 @@ fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
     emitBranch(e, done);
   }
 
+  emitLabel(e, done);
+}
+
+// A match on a constant -- `match (OS)`, on what std/target says the program
+// is built for -- compiles only the arm that value picks: the others were
+// checked, and are left out of the program, along with whatever they call.
+fn genChosenArm(e: *Emitter, node: i32, value: i64, slot: *i8): void {
+  let chosen: i32 = NO_NODE;
+  for (arm in 0..itemCount(e.ast, node)) {
+    let armNode: i32 = itemAt(e.ast, node, arm);
+    if (armOf(e.ast, armNode).isElse && chosen == NO_NODE) {
+      chosen = armNode;
+    }
+    for (pattern in 0..itemCount(e.ast, armNode)) {
+      if (e.an.values[itemAt(e.ast, armNode, pattern)] == value) {
+        chosen = armNode;
+        break;
+      }
+    }
+  }
+
+  let done: *i8 = freshLabel(e);
+  // Checking saw to it that some arm is taken.
+  genArmBody(e, node, chosen, slot);
+  emitBranch(e, done);
   emitLabel(e, done);
 }
 

@@ -110,10 +110,10 @@ cycles.
 - **Type** → `*`* (BaseType | IDENT TypeArgs? | FnType | `(` FnType `)`)
 - **FnType** → `(` (DeclaredType (`,` DeclaredType)*)? `)` `=>` DeclaredType
 - **BaseType** → IntType | FloatType | `bool` | `void`
-- **IntType** → `i8` | `u8` | `i16` | `u16` | `i32` | `u32` | `i64` | `u64` | `usize`
+- **IntType** → `i8` | `u8` | `i16` | `u16` | `i32` | `u32` | `i64` | `u64` | `isize` | `usize`
 - **FloatType** → `f32` | `f64`
 
-`usize` is a spelling of `u64`. A leading `*` makes a pointer, and pointers
+`isize` and `usize` are spellings of `i64` and `u64`, or of `i32` and `u32` on wasm32. A leading `*` makes a pointer, and pointers
 nest: `*i8` is a pointer to `i8`, `**i8` a pointer to that. An IDENT in type
 position names a struct.
 
