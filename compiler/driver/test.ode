@@ -23,13 +23,24 @@ import {
 } from "./pipeline";
 import { STD_DIRECTORY } from "../link/modules";
 import {
-  joinPath, removeTree, isDirectory, findSources, makeTempDirectory,
+  joinPath, parentDirectory, removeTree, isDirectory, findSources,
+  makeTempDirectory,
 } from "../os/files";
 import { STDERR, writeText } from "../os/output";
 import {
   TextList, StderrMode, runCommand, setEnvironment,
 } from "../os/process";
 import { NodeKind, Ast, Program } from "../syntax/ast";
+import { exists } from "std/fs";
+import { TARGET, targetsWasm, runsOnHost } from "../codegen/target";
+import { TEST_PANIC } from "../codegen/testing";
+import { Facts } from "../diagnostics/problems";
+import { failAbout } from "../diagnostics/report";
+import { executablePath } from "./library";
+import { line } from "./options";
+
+// Ode's runner for tests built for wasm32, beside the standard library.
+let WASM_TEST_RUNNER: *i8 = "runners/wasm-test.mjs";
 
 export fn testMain(argc: i32, argv: **i8): i32 {
   let options: TestRunOptions =
@@ -67,8 +78,11 @@ export fn testMain(argc: i32, argv: **i8): i32 {
     };
     loadProgram(ast, root, path, source);
   }
-  RUNNER_MODULE = loadModule(ast, root, "ode:testing", "ode:testing",
-                             runnerSource());
+  // On wasm32 the host runs the tests, not a main of the program's own.
+  if (!targetsWasm()) {
+    RUNNER_MODULE = loadModule(ast, root, "ode:testing", "ode:testing",
+                               runnerSource());
+  }
   SOURCE_PATH = path;
 
   if (hasErrors()) {
@@ -83,7 +97,13 @@ export fn testMain(argc: i32, argv: **i8): i32 {
     printDiagnostics();
     return 1;
   }
+  // A failed check tells the runner why, unless the program says itself.
+  if (targetsWasm() && an.panicHandler == null) {
+    an.panicHandler = TEST_PANIC;
+  }
 
+  // Found before building, so that a missing one is said at once.
+  let run: *TextList = testRunner(options);
   let module: *i8 = genProgram(Emitter.new(ast, an), root);
 
   let directory: *i8 = makeTempDirectory("ode-test") catch (e) {
@@ -91,9 +111,14 @@ export fn testMain(argc: i32, argv: **i8): i32 {
     return 1;
   };
   let program: *i8 = joinPath(directory, "tests");
+  if (targetsWasm()) {
+    program = joinPath(directory, "tests.wasm");
+    options.build.link.exports.push("ode_test_count");
+    options.build.link.exports.push("ode_test_name");
+    options.build.link.exports.push("ode_test_run");
+  }
   buildExecutable(module, program, false, options.build.link);
 
-  let run: *TextList = TextList.new();
   run.add(program);
   if (options.filter != null) {
     run.add(options.filter);
@@ -104,4 +129,39 @@ export fn testMain(argc: i32, argv: **i8): i32 {
 
   removeTree(directory);
   return status;
+}
+
+// What runs the test program: --runner, split into words; Node with Ode's
+// runner for a wasm32 module; nothing for a program this machine runs
+// itself. A program for another machine with no runner is not built at
+// all, since it could not be run.
+fn testRunner(options: TestRunOptions): *TextList {
+  let run: *TextList = TextList.new();
+  if (options.runner != null) {
+    let words: *List<*i8> = line(options.runner);
+    for (index in 0..words.count) {
+      run.add(words.at(index));
+    }
+    return run;
+  }
+
+  if (targetsWasm()) {
+    let node: *i8 = executablePath("node");
+    if (node == null) {
+      failAbout(Problem.NoTestRunner, Facts.about(TARGET.triple()));
+    }
+    let script: *i8 = null;
+    if (STD_DIRECTORY != null) {
+      script = joinPath(parentDirectory(STD_DIRECTORY), WASM_TEST_RUNNER);
+    }
+    if (script == null || !exists(script)) {
+      failAbout(Problem.WasmRunnerNotFound, Facts.about(WASM_TEST_RUNNER));
+    }
+    return run.add(node).add(script);
+  }
+
+  if (!runsOnHost()) {
+    failAbout(Problem.NoTestRunner, Facts.about(TARGET.triple()));
+  }
+  return run;
 }

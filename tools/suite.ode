@@ -544,6 +544,73 @@ fn checkReleaseFlag(suite: *Suite): bool {
   return compileQuietly(suite, command) && printsZero(out);
 }
 
+let TWO_TESTS: *i8 = `fn square(n: i32): i32 {
+  return n * n;
+}
+
+test "squares" {
+  assertEq(square(4), 16);
+}
+
+test "fails on purpose" {
+  assert(square(3) == 10, "three squared is not ten");
+}
+`;
+
+fn twoTests(suite: *Suite, name: *i8): *i8 {
+  let directory: *i8 = joinPath(suite.work, name);
+  makeDirectories(directory) catch (e) {
+    return null;
+  };
+  let source: *i8 = joinPath(directory, "two.ode");
+  writeFile(source, TWO_TESTS) catch (e) {
+    return null;
+  };
+  return source;
+}
+
+// Tests built for wasm32 run in Node, one instance each, and report as a
+// native run does -- the failing one with why, through the panic handler.
+fn checkWasmTests(suite: *Suite): bool {
+  let source: *i8 = twoTests(suite, "cli/wasm-tests");
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("test").add("--target").add("wasm32").add(source);
+  let output: *Builder = Builder.new();
+  let status: i32 = runCommand(command, null, output, StderrMode.Merge) ?? 0;
+  return status == 1 && contains(output.data, "test squares ... ok") &&
+         contains(output.data, "two.ode:10:3: assertion failed: three squared is not ten") &&
+         contains(output.data, "1 passed; 1 failed");
+}
+
+// --runner runs the test program through another: here `env`, which runs it
+// as it is.
+fn checkTestRunner(suite: *Suite): bool {
+  let source: *i8 = twoTests(suite, "cli/test-runner");
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("test").add("--runner").add("env").add(source).add("squares");
+  let output: *Builder = Builder.new();
+  let status: i32 = runCommand(command, null, output, StderrMode.Merge) ?? 1;
+  return status == 0 && contains(output.data, "1 passed; 0 failed; 1 filtered out");
+}
+
+// Tests for a machine this is not, with nothing to run them, are refused
+// before they are built.
+fn checkForeignTestsNeedRunner(suite: *Suite): bool {
+  let source: *i8 = twoTests(suite, "cli/foreign-tests");
+  let host: *Builder = Builder.new();
+  runCommand(TextList.new().add("uname").add("-s"), null, host,
+             StderrMode.Discard) ?? 1;
+  let foreign: *i8 = "aarch64-macos";
+  if (equals(host.data, "Darwin\n")) {
+    foreign = "x86_64-linux";
+  }
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("test").add("--target").add(foreign).add(source);
+  let output: *Builder = Builder.new();
+  let status: i32 = runCommand(command, null, output, StderrMode.Merge) ?? 0;
+  return status != 0 && contains(output.data, "cannot run here");
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -732,6 +799,15 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   }
   if (suite.selected("wasm-needs-nothing")) {
     runCli(suite, "wasm-needs-nothing", checkWasmNeedsNothing(suite));
+  }
+  if (suite.selected("wasm-tests")) {
+    runCli(suite, "wasm-tests", checkWasmTests(suite));
+  }
+  if (suite.selected("test-runner")) {
+    runCli(suite, "test-runner", checkTestRunner(suite));
+  }
+  if (suite.selected("foreign-tests-need-runner")) {
+    runCli(suite, "foreign-tests-need-runner", checkForeignTestsNeedRunner(suite));
   }
   if (suite.selected("build-file")) {
     runCli(suite, "build-file", checkBuildFile(suite));

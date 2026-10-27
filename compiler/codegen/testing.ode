@@ -536,6 +536,63 @@ export fn emitTestMain(e: *Emitter, program: i32, tests: *Builder, names: *Build
     }
   }
 
+  emitTestTables(e, tests, names, count);
+
+  e.body.add("define i32 @main(i32 %argc, ptr %argv) {\nentry:\n");
+  e.body.add("  %status = call i32 ");
+  e.body.add(llvmName('@', runner));
+  e.body.add("(i32 ");
+  e.body.addInt(count as i64);
+  e.body.add(", ptr @ode.test.names, ptr @ode.test.functions, ");
+  e.body.add("i32 %argc, ptr %argv)\n");
+  e.body.add("  ret i32 %status\n}\n\n");
+}
+
+// Under `ode test` on wasm32 there is no main to run the tests and no fork
+// to run each apart, so the module hands them to its host instead, which
+// runs one per instance (runners/wasm-test.mjs):
+//
+//   ode_test_count(): i32        how many tests there are
+//   ode_test_name(i: i32): *i8   the i-th's name, as text in memory
+//   ode_test_run(i: i32): void   runs it; it traps if it fails
+export fn emitWasmTestExports(e: *Emitter, tests: *Builder, names: *Builder,
+                              count: i32): void {
+  emitTestTables(e, tests, names, count);
+  let table: *Builder = Builder.new();
+  table.push('[');
+  table.addInt(count as i64);
+  table.add(" x ptr]");
+
+  e.body.add("define i32 @ode_test_count() {\nentry:\n  ret i32 ");
+  e.body.addInt(count as i64);
+  e.body.add("\n}\n\n");
+
+  e.body.add("define ptr @ode_test_name(i32 %index) {\nentry:\n");
+  e.body.add("  %slot = getelementptr ");
+  e.body.add(table.data);
+  e.body.add(", ptr @ode.test.names, i32 0, i32 %index\n");
+  e.body.add("  %name = load ptr, ptr %slot\n  ret ptr %name\n}\n\n");
+
+  e.body.add("define void @ode_test_run(i32 %index) {\nentry:\n");
+  e.body.add("  %slot = getelementptr ");
+  e.body.add(table.data);
+  e.body.add(", ptr @ode.test.functions, i32 0, i32 %index\n");
+  e.body.add("  %test = load ptr, ptr %slot\n  call void %test()\n");
+  e.body.add("  ret void\n}\n\n");
+
+  if (e.an.panicHandler != null && equals(e.an.panicHandler, TEST_PANIC)) {
+    e.head.add("declare void @");
+    e.head.add(TEST_PANIC);
+    e.head.add("(ptr, ptr)\n");
+  }
+}
+
+// What a failed check calls under `ode test` on wasm32 when the program has
+// no panic handler of its own: the runner's, so that it can say why.
+export let TEST_PANIC: *i8 = "ode_test_panic";
+
+// The names and the functions of the tests, in order, for the runner.
+fn emitTestTables(e: *Emitter, tests: *Builder, names: *Builder, count: i32): void {
   let table: *Builder = Builder.new();
   table.push('[');
   table.addInt(count as i64);
@@ -560,15 +617,6 @@ export fn emitTestMain(e: *Emitter, program: i32, tests: *Builder, names: *Build
     e.head.add(tests.data);
     e.head.add("]\n");
   }
-
-  e.body.add("define i32 @main(i32 %argc, ptr %argv) {\nentry:\n");
-  e.body.add("  %status = call i32 ");
-  e.body.add(llvmName('@', runner));
-  e.body.add("(i32 ");
-  e.body.addInt(count as i64);
-  e.body.add(", ptr @ode.test.names, ptr @ode.test.functions, ");
-  e.body.add("i32 %argc, ptr %argv)\n");
-  e.body.add("  ret i32 %status\n}\n\n");
 }
 
 // `nameOf(value)`.

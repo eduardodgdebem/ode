@@ -148,6 +148,16 @@ fn readTriple(triple: *i8, into: *Target): void {
   }
 }
 
+// Whether this machine runs what is built: no --target, or one of this
+// machine's arch and OS -- musl or glibc alike, a static program not caring.
+export fn runsOnHost(): bool {
+  if (TARGET == null) {
+    return true;
+  }
+  let host: Target = hostTarget();
+  return TARGET.arch == host.arch && TARGET.os == host.os;
+}
+
 // What the program is built for: the --target, or this machine.
 export fn effectiveTarget(): Target {
   if (TARGET != null) {

@@ -51,11 +51,14 @@ export struct Artifact {
   // `build/<name>.wasm` for a wasm module.
   output: *i8,
   // `arch-os[-abi]`, as `ode --target` takes it; null for this machine.
-  // Tests always run here, so theirs is never used.
   target: *i8,
   sysroot: *i8,
   // Optimised: `ode --release`.
   release: bool,
+  // For tests built for another machine: the command that runs them, given
+  // the test program -- `qemu-aarch64`, or a script that runs it in a
+  // container. wasm32's run in Node without one.
+  runner: *i8,
   libraries: *List<*i8>,
   paths: *List<*i8>,
   frameworks: *List<*i8>,
@@ -69,6 +72,7 @@ export struct Artifact {
     artifact.target = null;
     artifact.sysroot = null;
     artifact.release = false;
+    artifact.runner = null;
     artifact.libraries = List<*i8>.new();
     artifact.paths = List<*i8>.new();
     artifact.frameworks = List<*i8>.new();
@@ -221,6 +225,8 @@ export struct Build {
   // The tests in `root`, a file or a directory, for `ode build test`.
   fn tests(self: *Build, root: *i8): *Artifact {
     let artifact: *Artifact = Artifact.new(ArtifactKind.Tests, root, root);
+    artifact.target = self.target;
+    artifact.sysroot = self.sysroot;
     artifact.release = self.release;
     self.artifacts.push(artifact);
     return artifact;
@@ -282,9 +288,10 @@ export fn planOf(b: *Build): *i8 {
     addFact(out, "root", artifact.root);
     if (artifact.kind != ArtifactKind.Tests) {
       addFact(out, "output", artifact.outputPath());
-      addFact(out, "target", artifact.target);
-      addFact(out, "sysroot", artifact.sysroot);
     }
+    addFact(out, "target", artifact.target);
+    addFact(out, "sysroot", artifact.sysroot);
+    addFact(out, "runner", artifact.runner);
     if (artifact.release) {
       addFact(out, "release", "true");
     }
@@ -358,6 +365,7 @@ library raylib
 framework Cocoa
 tests src
 root src
+target x86_64-linux
 path vendor/lib
 library raylib
 framework Cocoa

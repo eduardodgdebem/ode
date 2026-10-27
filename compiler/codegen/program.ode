@@ -18,8 +18,10 @@ import {
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genStatement } from "./statements";
-import { TARGET } from "./target";
-import { emitCheckSupport, emitTestMain, emitEnumNames } from "./testing";
+import { TARGET, targetsWasm } from "./target";
+import {
+  emitCheckSupport, emitTestMain, emitWasmTestExports, emitEnumNames,
+} from "./testing";
 import { line } from "../driver/options";
 import { isTemplate } from "../link/generics";
 import { NameSet } from "../link/modules";
@@ -351,7 +353,9 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
     lambda = lambda + 1;
   }
 
-  if (TEST_MODE) {
+  if (TEST_MODE && targetsWasm()) {
+    emitWasmTestExports(e, tests, testNames, testCount);
+  } else if (TEST_MODE) {
     emitTestMain(e, program, tests, testNames, testCount);
   }
   emitCheckSupport(e, declared);
