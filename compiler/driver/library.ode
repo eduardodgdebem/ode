@@ -12,7 +12,7 @@ import { TextList, environment } from "../os/process";
 
 // The path this program was run as: argv[0] itself when it holds a `/`,
 // otherwise the first match on PATH, which is how a shell found it.
-fn executablePath(argv0: *i8): *i8 {
+export fn executablePath(argv0: *i8): *i8 {
   for (index in 0..strlen(argv0)) {
     if (argv0[index] == '/') {
       return absolutePath(argv0);

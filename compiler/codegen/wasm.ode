@@ -1,0 +1,49 @@
+// ---------------------------------------------------------------------------
+// WebAssembly: a program built for wasm32 is a module, not an executable.
+//
+// It has no C library and no entry point. What it offers the host is what
+// its entry file exports -- `export fn add(...)` is the module's `add` --
+// and its `main`, when it has one; what it needs from the host is its
+// externs, which become imports from the host's `env`. wasm-ld, LLVM's
+// linker for wasm, does the linking; the module exports its memory as well,
+// so that the host can read what a pointer points at.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Builder, equals } from "std/text";
+import { Analyzer } from "../check/analyzer";
+import { TextList } from "../os/process";
+import { NodeKind, Ast, itemAt, itemCount, nodeName } from "../syntax/ast";
+import { LinkInputs } from "./toolchain";
+
+// The functions the entry file exports, and its `main`, by the names they
+// have in the IR -- which, in the entry file, are the names they were given.
+export fn entryExports(ast: *Ast, an: *Analyzer, program: i32): *List<*i8> {
+  let names: *List<*i8> = List<*i8>.new();
+  for (index in 0..itemCount(ast, program)) {
+    let item: i32 = itemAt(ast, program, index);
+    if (ast.nodes[item].kind != NodeKind.Fn || ast.nodes[item].module != 0) {
+      continue;
+    }
+    if (ast.nodes[item].exported || equals(nodeName(ast, item), "main")) {
+      names.push(an.linkNames[item]);
+    }
+  }
+  return names;
+}
+
+// Links `object` into the module `output`, run by the C compiler's driver,
+// which hands it to wasm-ld.
+export fn wasmLinkCommand(command: *TextList, object: *i8, output: *i8,
+                          inputs: *LinkInputs): *TextList {
+  command.add("-nostdlib").add("-Wl,--no-entry").add("-Wl,--allow-undefined");
+  for (index in 0..inputs.exports.count) {
+    let flag: *Builder = Builder.new();
+    flag.add("-Wl,--export=");
+    flag.add(inputs.exports.at(index));
+    command.add(flag.take());
+  }
+  command.add(object).add("-o").add(output);
+  inputs.addTo(command);
+  return command;
+}

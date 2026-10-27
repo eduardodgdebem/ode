@@ -1,0 +1,385 @@
+// ---------------------------------------------------------------------------
+// Builds written in Ode: what a project's build.ode is written against.
+//
+//   import { Build, Artifact } from "std/build";
+//
+//   export fn build(b: *Build): void {
+//     let app: *Artifact = b.executable("app", "src/main.ode");
+//     app.libraryPath("vendor/lib").linkLibrary("raylib").linkFramework("Cocoa");
+//     b.tests("src").linkLike(app);
+//   }
+//
+// A step is what `ode build <step>` does. `build` builds every executable,
+// `test` runs every test, and a build file adds steps of its own, or adds to
+// those, by naming the commands they run:
+//
+//   let gen: *Artifact = b.tool("gen", "tools/gen.ode");
+//   b.step("tables", "regenerate the tables").run(gen).arg("--out").arg("src/tables.ode");
+//
+// `ode build` compiles build.ode with a runner that hands `build` a *Build,
+// then prints what it declared as a plan, a fact a line. The compiler reads
+// the plan back and carries it out: nothing here builds anything, so a build
+// file says what is wanted and `ode` decides how.
+//
+// Paths are relative to the directory build.ode is in.
+// ---------------------------------------------------------------------------
+
+import { alloc } from "std/mem";
+import { List } from "std/list";
+import { Builder, equals, startsWith, indexOf, slice, length } from "std/text";
+import { print } from "std/io";
+
+// What a plan begins with, so that a runner and a compiler that disagree on
+// its shape find out.
+export let PLAN_HEADER: *i8 = "ode build plan 1";
+
+export enum ArtifactKind {
+  Executable,
+  // An executable built only when a step runs it or names its output: a
+  // program the build uses, rather than one it makes.
+  Tool,
+  // A file or a directory of files whose tests `ode build test` runs.
+  Tests,
+}
+
+export struct Artifact {
+  kind: ArtifactKind,
+  name: *i8,
+  // The entry file; for tests, a file or a directory.
+  root: *i8,
+  // Where an executable goes: `build/<name>` unless set, and
+  // `build/<name>.wasm` for a wasm module.
+  output: *i8,
+  // `arch-os[-abi]`, as `ode --target` takes it; null for this machine.
+  // Tests always run here, so theirs is never used.
+  target: *i8,
+  sysroot: *i8,
+  libraries: *List<*i8>,
+  paths: *List<*i8>,
+  frameworks: *List<*i8>,
+
+  fn new(kind: ArtifactKind, name: *i8, root: *i8): *Artifact {
+    let artifact: *Artifact = alloc<Artifact>(1);
+    artifact.kind = kind;
+    artifact.name = name;
+    artifact.root = root;
+    artifact.output = null;
+    artifact.target = null;
+    artifact.sysroot = null;
+    artifact.libraries = List<*i8>.new();
+    artifact.paths = List<*i8>.new();
+    artifact.frameworks = List<*i8>.new();
+    return artifact;
+  }
+
+  // `-l`: links lib<name>, found in the library paths or the system's.
+  fn linkLibrary(self: *Artifact, name: *i8): *Artifact {
+    self.libraries.push(name);
+    return self;
+  }
+
+  // `-L`: a directory to look for libraries in.
+  fn libraryPath(self: *Artifact, directory: *i8): *Artifact {
+    self.paths.push(directory);
+    return self;
+  }
+
+  // `-framework`, on macOS.
+  fn linkFramework(self: *Artifact, name: *i8): *Artifact {
+    self.frameworks.push(name);
+    return self;
+  }
+
+  // Links whatever `other` links, as it is now: tests of the code that goes
+  // into an executable need its libraries too.
+  fn linkLike(self: *Artifact, other: *Artifact): *Artifact {
+    for (index in 0..other.paths.count) {
+      self.paths.push(other.paths.at(index));
+    }
+    for (index in 0..other.libraries.count) {
+      self.libraries.push(other.libraries.at(index));
+    }
+    for (index in 0..other.frameworks.count) {
+      self.frameworks.push(other.frameworks.at(index));
+    }
+    return self;
+  }
+
+  fn outputPath(self: *Artifact): *i8 {
+    if (self.output != null) {
+      return self.output;
+    }
+    let path: *Builder = Builder.new();
+    path.add("build/");
+    path.add(self.name);
+    if (self.target != null && startsWith(self.target, "wasm32")) {
+      path.add(".wasm");
+    }
+    return path.take();
+  }
+}
+
+// One program a step runs, in the directory build.ode is in.
+export struct Command {
+  program: *Artifact,
+  // Each argument is text, or the output of an artifact, which is then built
+  // before the command runs: the other is null.
+  texts: *List<*i8>,
+  outputs: *List<*Artifact>,
+
+  fn arg(self: *Command, text: *i8): *Command {
+    self.texts.push(text);
+    self.outputs.push(null);
+    return self;
+  }
+
+  // The path `artifact` is built to, building it first.
+  fn argOutput(self: *Command, artifact: *Artifact): *Command {
+    self.texts.push(null);
+    self.outputs.push(artifact);
+    return self;
+  }
+}
+
+export struct Step {
+  name: *i8,
+  description: *i8,
+  commands: *List<*Command>,
+
+  // Runs `program` when the step does, after what came before it, with the
+  // arguments given after `--` on the command line last.
+  fn run(self: *Step, program: *Artifact): *Command {
+    let command: *Command = alloc<Command>(1);
+    command.program = program;
+    command.texts = List<*i8>.new();
+    command.outputs = List<*Artifact>.new();
+    self.commands.push(command);
+    return command;
+  }
+}
+
+export struct Build {
+  // `ode build --target`: what executables are built for unless they say.
+  target: *i8,
+  sysroot: *i8,
+  artifacts: *List<*Artifact>,
+  steps: *List<*Step>,
+  // `-Dname=value` and `-Dname`, as given.
+  options: *List<*i8>,
+
+  fn new(): *Build {
+    let b: *Build = alloc<Build>(1);
+    b.target = null;
+    b.sysroot = null;
+    b.artifacts = List<*Artifact>.new();
+    b.steps = List<*Step>.new();
+    b.options = List<*i8>.new();
+    return b;
+  }
+
+  // A program built from `root` and what it imports.
+  fn executable(self: *Build, name: *i8, root: *i8): *Artifact {
+    let artifact: *Artifact = Artifact.new(ArtifactKind.Executable, name, root);
+    artifact.target = self.target;
+    artifact.sysroot = self.sysroot;
+    self.artifacts.push(artifact);
+    return artifact;
+  }
+
+  // An executable that is built only when a step needs it.
+  fn tool(self: *Build, name: *i8, root: *i8): *Artifact {
+    let artifact: *Artifact = self.executable(name, root);
+    artifact.kind = ArtifactKind.Tool;
+    return artifact;
+  }
+
+  // The step `ode build <name>` runs, made the first time it is asked for.
+  // `build` and `test` exist already, and what is added to them runs after
+  // what they do anyway.
+  fn step(self: *Build, name: *i8, description: *i8): *Step {
+    for (index in 0..self.steps.count) {
+      let step: *Step = self.steps.at(index);
+      if (equals(step.name, name)) {
+        return step;
+      }
+    }
+    let step: *Step = alloc<Step>(1);
+    step.name = name;
+    step.description = description;
+    step.commands = List<*Command>.new();
+    self.steps.push(step);
+    return step;
+  }
+
+  // The tests in `root`, a file or a directory, for `ode build test`.
+  fn tests(self: *Build, root: *i8): *Artifact {
+    let artifact: *Artifact = Artifact.new(ArtifactKind.Tests, root, root);
+    self.artifacts.push(artifact);
+    return artifact;
+  }
+
+  // The value of `-Dname=value`: "" for a bare `-Dname`, and null when it was
+  // not given.
+  fn option(self: *Build, name: *i8): *i8 {
+    for (index in 0..self.options.count) {
+      let given: *i8 = self.options.at(index);
+      let equal: i64 = indexOf(given, "=");
+      if (equal < 0 && equals(given, name)) {
+        return "";
+      }
+      if (equal == length(name) && startsWith(given, name)) {
+        return given + equal + 1;
+      }
+    }
+    return null;
+  }
+
+  // Whether `-Dname` or `-Dname=true` was given.
+  fn flag(self: *Build, name: *i8): bool {
+    let value: *i8 = self.option(name);
+    return value != null && (equals(value, "") || equals(value, "true"));
+  }
+}
+
+fn addFact(out: *Builder, key: *i8, value: *i8): void {
+  if (value == null) {
+    return;
+  }
+  out.add(key);
+  out.push(' ');
+  out.add(value);
+  out.push('\n');
+}
+
+fn addFacts(out: *Builder, key: *i8, values: *List<*i8>): void {
+  for (index in 0..values.count) {
+    addFact(out, key, values.at(index));
+  }
+}
+
+// The plan: the header, then each artifact as its kind and name followed by
+// what it is made of, each fact `key value` on a line of its own.
+export fn planOf(b: *Build): *i8 {
+  let out: *Builder = Builder.new();
+  out.add(PLAN_HEADER);
+  out.push('\n');
+  for (index in 0..b.artifacts.count) {
+    let artifact: *Artifact = b.artifacts.at(index);
+    let kind: *i8 = match (artifact.kind) {
+      .Executable => "executable",
+      .Tool => "tool",
+      .Tests => "tests",
+    };
+    addFact(out, kind, artifact.name);
+    addFact(out, "root", artifact.root);
+    if (artifact.kind != ArtifactKind.Tests) {
+      addFact(out, "output", artifact.outputPath());
+      addFact(out, "target", artifact.target);
+      addFact(out, "sysroot", artifact.sysroot);
+    }
+    addFacts(out, "path", artifact.paths);
+    addFacts(out, "library", artifact.libraries);
+    addFacts(out, "framework", artifact.frameworks);
+  }
+  // Steps come after every artifact, so that what they name is known.
+  for (index in 0..b.steps.count) {
+    let step: *Step = b.steps.at(index);
+    addFact(out, "step", step.name);
+    addFact(out, "description", step.description);
+    for (each in 0..step.commands.count) {
+      let command: *Command = step.commands.at(each);
+      addFact(out, "run", command.program.name);
+      for (argument in 0..command.texts.count) {
+        if (command.outputs.at(argument) != null) {
+          addFact(out, "output-of", command.outputs.at(argument).name);
+        } else {
+          addFact(out, "arg", command.texts.at(argument));
+        }
+      }
+    }
+  }
+  return out.take();
+}
+
+// What the runner `ode build` writes calls: reads `--target`, `--sysroot`
+// and `-D` from the command line, hands them to `build`, and prints the plan.
+export fn runBuild(argc: i32, argv: **i8, build: (*Build) => void): i32 {
+  let b: *Build = Build.new();
+  let index: i32 = 1;
+  while (index < argc) {
+    let argument: *i8 = argv[index];
+    if (equals(argument, "--target") && index + 1 < argc) {
+      index = index + 1;
+      b.target = argv[index];
+    } else if (equals(argument, "--sysroot") && index + 1 < argc) {
+      index = index + 1;
+      b.sysroot = argv[index];
+    } else if (startsWith(argument, "-D")) {
+      b.options.push(argument + 2);
+    }
+    index = index + 1;
+  }
+
+  build(b);
+  print(planOf(b));
+  return 0;
+}
+
+fn sample(b: *Build): void {
+  let app: *Artifact = b.executable("app", "src/main.ode");
+  app.libraryPath("vendor/lib").linkLibrary("raylib").linkFramework("Cocoa");
+  b.tests("src").linkLike(app);
+}
+
+test "a plan lists each artifact and what it links" {
+  let b: *Build = Build.new();
+  b.target = "x86_64-linux";
+  sample(b);
+  assertEq(planOf(b), `ode build plan 1
+executable app
+root src/main.ode
+output build/app
+target x86_64-linux
+path vendor/lib
+library raylib
+framework Cocoa
+tests src
+root src
+path vendor/lib
+library raylib
+framework Cocoa
+`);
+}
+
+test "a step lists the commands it runs and what they are handed" {
+  let b: *Build = Build.new();
+  let app: *Artifact = b.executable("app", "main.ode");
+  let gen: *Artifact = b.tool("gen", "gen.ode");
+  b.step("tables", "regenerate the tables").run(gen).arg("--for").argOutput(app);
+  assertEq(b.step("tables", "ignored").commands.count, 1);
+  assertEq(planOf(b), `ode build plan 1
+executable app
+root main.ode
+output build/app
+tool gen
+root gen.ode
+output build/gen
+step tables
+description regenerate the tables
+run gen
+arg --for
+output-of app
+`);
+}
+
+test "options are read from -D" {
+  let b: *Build = Build.new();
+  b.options.push("release");
+  b.options.push("prefix=/usr/local");
+  b.options.push("gui=false");
+  assertEq(b.option("prefix"), "/usr/local");
+  assertEq(b.option("pre"), null);
+  assert(b.flag("release"));
+  assert(!b.flag("gui"));
+  assert(!b.flag("missing"));
+}

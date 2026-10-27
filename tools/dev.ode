@@ -1,0 +1,79 @@
+// ---------------------------------------------------------------------------
+// `dev`: the compiler's own checks, as a program the repository's build.ode
+// runs from its steps.
+//
+//   dev suite <ode> [--filter <text>] [--update] [--ode <other>]
+//   dev bootstrap <ode>
+//   dev seed <ode>
+//
+// It runs in the repository's root, as every step does, and <ode> is the
+// compiler build.ode has just built. `--ode` tests another one instead.
+// ---------------------------------------------------------------------------
+
+import { equals } from "std/text";
+import { quoted } from "../compiler/check/analyzer";
+import { complain } from "../compiler/tool/build";
+import { joinPath, absolutePath } from "../compiler/os/files";
+import { STDERR, writeText } from "../compiler/os/output";
+import { currentDirectory, setEnvironment } from "../compiler/os/process";
+import { commandBootstrap, commandSeed } from "./bootstrap";
+import { TestOptions, commandTest } from "./suite";
+
+let DEV_USAGE: *i8 = `
+  usage: dev suite <ode> [--filter <text>] [--update] [--ode <other>]
+         dev bootstrap <ode>
+         dev seed <ode>
+`;
+
+fn usage(): i32 {
+  writeText(STDERR, DEV_USAGE);
+  return 2;
+}
+
+fn main(argc: i32, argv: **i8): i32 {
+  if (argc < 3) {
+    return usage();
+  }
+  let command: *i8 = argv[1];
+  let compiler: *i8 = absolutePath(argv[2]);
+  let options: TestOptions = TestOptions { filter: null, update: false };
+
+  let index: i32 = 3;
+  while (index < argc) {
+    let argument: *i8 = argv[index];
+    if (equals(argument, "--update")) {
+      options.update = true;
+    } else if ((equals(argument, "--filter") || equals(argument, "--ode")) &&
+               index + 1 < argc) {
+      index = index + 1;
+      if (equals(argument, "--filter")) {
+        options.filter = argv[index];
+      } else {
+        compiler = absolutePath(argv[index]);
+      }
+    } else {
+      return usage();
+    }
+    index = index + 1;
+  }
+  if (compiler == null) {
+    complain("no compiler there");
+    return 2;
+  }
+
+  // Whichever compiler is under test, it uses this repository's library.
+  let root: *i8 = currentDirectory();
+  setEnvironment("ODE_STD", joinPath(root, "std"));
+
+  if (equals(command, "suite")) {
+    return commandTest(root, compiler, options);
+  }
+  if (equals(command, "bootstrap")) {
+    return commandBootstrap(root, compiler);
+  }
+  if (equals(command, "seed")) {
+    return commandSeed(root, compiler);
+  }
+  complain(quoted("unknown command ", command, ""));
+  return usage();
+}

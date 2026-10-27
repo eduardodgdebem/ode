@@ -50,6 +50,63 @@ executable named after it. `-o <path>` puts the executable elsewhere, and the
 `--dump-ast` and `--dump-types` print what a phase produced. `ode test
 file.ode` runs the `test` blocks written in a file and the files it imports.
 
+`-l <lib>`, `-L <dir>` and `-framework <name>` link a C library, for `ode`
+and `ode test` alike. `--target <arch-os[-abi]>` builds for another machine:
+`x86_64` or `aarch64`, `macos` or `linux`, and on Linux `musl`, the
+default, or `gnu`; or `wasm32`, for WebAssembly.
+
+```bash
+./build/ode -L vendor/lib -lraylib -framework Cocoa game.ode
+./build/ode --target x86_64-macos game.ode       # an Intel Mac binary, from any Mac
+./build/ode --target aarch64-linux game.ode      # a static Linux binary, from anywhere
+./build/ode --target x86_64-linux-gnu --sysroot /path/to/sysroot game.ode   # against glibc
+```
+
+A Linux program links statically against musl, so it runs on any Linux of
+its architecture. Ode bundles musl's source in `vendor/` and builds it the
+first time a program is built for a target, in about twenty seconds, into
+`~/.cache/ode`; that needs LLVM's `llvm-ar` and `ld.lld` beside clang.
+glibc is not bundled: `-gnu` takes the target's own `--sysroot`.
+macOS's C library comes with its SDK, and `--emit-object` stops at the
+object file for any target.
+
+### WebAssembly
+
+`--target wasm32` builds a module, `<stem>.wasm`, with no C library and no
+entry point. What the entry file exports is what the module exports, and
+what it declares `extern` it imports from the host's `env`:
+
+```rust
+extern fn log(value: i32): void;
+
+export fn fib(n: i32): i32 {
+  if (n < 2) {
+    return n;
+  }
+  return fib(n - 1) + fib(n - 2);
+}
+
+export fn shout(n: i32): void {
+  log(n * 10);
+}
+```
+
+```js
+const { instance } = await WebAssembly.instantiate(bytes, {
+  env: { log: (v) => console.log(v) },
+});
+instance.exports.fib(20);   // 6765
+```
+
+Pointers are 4 bytes there, the module exports its memory as `memory`, and a
+failed `assert` traps. The standard library leans on C's, so a module that
+imports it needs its host to provide `malloc` and the rest. Building one
+takes a clang with the WebAssembly backend, which Apple's lacks, and
+`wasm-ld`, which comes with lld.
+
+A project says all of that once, in Ode, in a `build.ode` that `ode build`
+runs, as Zig's `build.zig` does: see [Building a project](docs/build.md).
+
 Errors are reported as `file:line:column: error: message`, and one run
 reports every error it can find:
 
@@ -64,6 +121,7 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 - [The language](docs/language.md) -- a tour, feature by feature
 - [Grammar](docs/grammar.md) -- the syntax, in EBNF
 - [The standard library](docs/std.md) -- `std/...`: memory, lists, text, I/O, files
+- [Building a project](docs/build.md) -- `build.ode`, `ode build`, targets and libraries
 - [Limitations](docs/limitations.md) -- what is missing, and what is left out on purpose
 - [Working on Ode](docs/development.md) -- building, testing, the bootstrap
 - [The compiler](docs/compiler.md) -- how it is put together
@@ -80,13 +138,16 @@ compiler/          the compiler, written in Ode; main.ode is its entry
   codegen/         the LLVM IR emitter, and the C toolchain that links it
   diagnostics/     problems, their words, and how they are printed
   os/              processes, files, output
-  tool/            `ode build`: building, testing, bootstrapping
+  tool/            `ode build`: carrying out a project's build.ode
   testkit/         the tools the compiler's own tests use
 std/               the standard library, imported as "std/..."
+tools/             the suite, the bootstrap and the seed: build/dev
+vendor/            musl and compiler-rt's builtins, for Linux targets
 bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite
 docs/              the documentation above
 editors/           tree-sitter grammar and Neovim support
+build.ode          how the compiler is built, as any Ode project is
 build.sh           turns the seed into a first compiler, then hands over
 ```

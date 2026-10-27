@@ -18,3 +18,15 @@ export fn writeText(fd: i32, text: *i8): void {
 export fn writeBuilder(fd: i32, text: *Builder): void {
   write(fd, text.data, text.length);
 }
+
+// The escape sequence that sets a terminal's colour: `code` is its SGR
+// parameter, "1;31" for bold red, "0" for none.
+export fn colour(code: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.push(27);
+  out.push('[');
+  out.add(code);
+  out.push('m');
+
+  return out.take();
+}

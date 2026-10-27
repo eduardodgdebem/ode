@@ -1,68 +1,345 @@
 // ---------------------------------------------------------------------------
-// `ode build`: builds, tests and bootstraps the compiler.
+// `ode build`: builds a project as its build.ode, written against std/build,
+// says to.
 //
-//   ode build [build]     build build/ode from compiler/main.ode
-//   ode build test        build, then run the regression suite
-//   ode build bootstrap   build, then rebuild twice and require a fixed point
-//   ode build seed        build, then refresh bootstrap/ode.ll from it
+//   ode build [build]        build every executable build.ode declares
+//   ode build test           run every test it declares
+//   ode build run [<name>]   build one executable and run it
+//   ode build <step>         run a step build.ode declares
+//   ode build plan           print what build.ode declared
 //
-// It is written for this repository and knows its layout; it finds the root
-// by walking up from the current directory to the one holding
-// compiler/main.ode. The compiler doing the building is this very binary, so
-// a fresh checkout needs only one compiler -- the seed, which build.sh turns
-// into one with clang -- to get started.
+// build.ode is compiled with a runner that calls its `build` and prints the
+// plan; the plan is read back here and carried out by running this compiler
+// on each artifact, with the flags `ode` itself takes. Every path in it is
+// relative to the directory build.ode is in, which is where those runs run.
 //
-// A build is skipped when nothing it depends on has changed: every file the
-// compiler is made of, found by following its imports, plus the C compiler
-// and SDK it links with. Those are hashed, and the hash is kept beside the
-// output in build/ode.stamp. Comparing contents rather than timestamps needs
-// no `stat`, whose layout differs per platform, and a whole build takes a
-// fraction of a second anyway, so finer-grained tracking would buy nothing.
+// An executable is built again only when something it depends on changed:
+// every file it is made of, found by following its imports, the flags it is
+// built with, and the C compiler and SDK it links with. Those are hashed,
+// and the hash is kept beside the output in <output>.stamp. Comparing
+// contents rather than timestamps needs no `stat`, whose layout differs per
+// platform, and a build takes a fraction of a second anyway, so finer
+// tracking would buy nothing.
+//
+// The compiler is itself a project like any other, so one of the things this
+// may build is the very binary doing the building.
 // ---------------------------------------------------------------------------
 
-import { List } from "std/list";
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
-import { readFile, exists } from "std/fs";
-import { Builder, equals, slice, fromInt } from "std/text";
+import { List } from "std/list";
+import {
+  Build, Artifact, ArtifactKind, Command, Step, PLAN_HEADER, planOf,
+} from "std/build";
+import { readFile, exists, writeFile } from "std/fs";
+import { Builder, equals, indexOf, slice } from "std/text";
 import { quoted } from "../check/analyzer";
 import { hexDigit } from "../codegen/emitter";
 import { ccProgram, sysroot, shareSysroot } from "../codegen/toolchain";
-import { SOURCE_PATH, Diagnostics, DIAGS, FAILED } from "../diagnostics/report";
+import { resetDiagnostics, SOURCE_PATH, FAILED } from "../diagnostics/report";
 import { loadProgram } from "../driver/pipeline";
-import { moduleCount, modulePath, STD_DIRECTORY } from "../link/modules";
 import {
-  joinPath, withSuffix, parentDirectory, isExecutable, absolutePath, readBytes,
-  writeBytes, sameBytes, makeDirectories, removeTree, moveFile,
+  moduleCount, modulePath, resetModules, STD_DIRECTORY,
+} from "../link/modules";
+import {
+  joinPath, withSuffix, parentDirectory, isExecutable, absolutePath,
+  readBytes, writeBytes, makeDirectories, makeTempDirectory, removeTree,
+  moveFile, splitLines,
 } from "../os/files";
 import { STDOUT, STDERR, writeText } from "../os/output";
 import {
-  TextList, StderrMode, runCommand, ran, environment, setEnvironment,
-  currentDirectory, command,
+  TextList, StderrMode, runCommand, ran, environment, currentDirectory,
+  setEnvironment,
 } from "../os/process";
 import { NodeKind, Ast, Program } from "../syntax/ast";
-import { TestOptions, commandTest } from "./testsuite";
+
+export let BUILD_FILE: *i8 = "build.ode";
 
 let BUILD_USAGE: *i8 = `
-  usage: ode build [build | test | bootstrap | seed] [--force] [--filter <text>] [--update] [--ode <compiler>]
+  usage: ode build [<step>] [options] [-- <arguments>]
 
-    build       build build/ode from compiler/main.ode (the default)
-    test        build, then run the regression suite
-    bootstrap   build, then rebuild twice and require a fixed point
-    seed        build, then refresh bootstrap/ode.ll
+    build          build every executable build.ode declares (the default)
+    test           run every test build.ode declares
+    run [<name>]   build an executable, the only one or the one named, and
+                   run it with the arguments after --
+    plan           print what build.ode declared
+    <step>         a step build.ode declares, given the arguments after --
 
-    --force           build even when nothing has changed
-    --filter <text>   test: run only the cases whose name contains <text>
-    --update          test: rewrite the expectations from what happens now
-    --ode <compiler>  test: test this compiler instead of building one
+    --target <arch-os[-abi]>   build for another machine
+    --sysroot <dir>            that machine's headers and libraries
+    -D<name>[=<value>]         an option build.ode reads with b.option(name)
+    --filter <text>            test: run only the tests whose name holds <text>,
+                               and hand it to the test step's commands
+    --force                    build even what is up to date
 `;
 
-export struct Workspace {
+struct Project {
+  // The directory build.ode is in.
   root: *i8,
   // This binary, which does the building.
   compiler: *i8,
-  entry: *i8,
-  output: *i8,
+  // What the runner is handed: --target, --sysroot and -D, as given.
+  forwarded: *TextList,
+  filter: *i8,
+  force: bool,
+  // What came after `--`, for `run` and for the commands of a step.
+  arguments: *TextList,
+  // The names of the artifacts this run has built, or found up to date.
+  built: *TextList,
+}
+
+// ---------------------------------------------------------------------------
+// Output.
+// ---------------------------------------------------------------------------
+
+export fn say(text: *i8): void {
+  writeText(STDOUT, text);
+  writeText(STDOUT, "\n");
+}
+
+export fn complain(text: *i8): void {
+  writeText(STDERR, "ode build: ");
+  writeText(STDERR, text);
+  writeText(STDERR, "\n");
+}
+
+// ---------------------------------------------------------------------------
+// Finding things.
+// ---------------------------------------------------------------------------
+
+// The nearest directory at or above the current one that holds a build.ode,
+// or null.
+export fn findProject(): *i8 {
+  let directory: *i8 = currentDirectory();
+  while (directory != null) {
+    if (exists(joinPath(directory, BUILD_FILE))) {
+      return directory;
+    }
+    if (equals(directory, "/")) {
+      return null;
+    }
+    directory = parentDirectory(directory);
+  }
+  return null;
+}
+
+// The absolute path of the program running now, from how it was invoked: a
+// path when argv[0] holds a `/`, and a search of PATH when it does not.
+fn findSelf(invokedAs: *i8): *i8 {
+  let index: i64 = 0;
+  while (invokedAs[index] != 0) {
+    if (invokedAs[index] == '/') {
+      return absolutePath(invokedAs);
+    }
+    index = index + 1;
+  }
+
+  let searchPath: *i8 = environment("PATH");
+  if (searchPath == null) {
+    return null;
+  }
+
+  let start: i64 = 0;
+  index = 0;
+  while (true) {
+    let character: i8 = searchPath[index];
+    if (character == ':' || character == 0) {
+      let directory: *i8 = slice(searchPath, start, index - start);
+      let candidate: *i8 = joinPath(directory, invokedAs);
+      if (strlen(directory) > 0 && isExecutable(candidate)) {
+        return absolutePath(candidate);
+      }
+      if (character == 0) {
+        return null;
+      }
+      start = index + 1;
+    }
+    index = index + 1;
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// The plan.
+// ---------------------------------------------------------------------------
+
+// What the runner is: build.ode's `build`, handed to std/build.
+fn runnerSource(project: *Project): *i8 {
+  let out: *Builder = Builder.new();
+  out.add("import { build } from \"");
+  out.add(joinPath(project.root, BUILD_FILE));
+  out.add("\";\nimport { runBuild } from \"std/build\";\n\n");
+  out.add("fn main(argc: i32, argv: **i8): i32 {\n");
+  out.add("  return runBuild(argc, argv, build);\n}\n");
+  return out.take();
+}
+
+// Compiles and runs build.ode, and returns the plan it printed; null when it
+// did not compile or did not run, which has been said.
+fn makePlan(project: *Project): *Builder {
+  let scratch: *i8 = makeTempDirectory("ode-build") catch (e) {
+    complain("cannot make a scratch directory");
+    return null;
+  };
+  let source: *i8 = joinPath(scratch, "runner.ode");
+  let runner: *i8 = joinPath(scratch, "runner");
+  writeFile(source, runnerSource(project)) catch (e) {
+    complain("cannot write the build runner");
+    removeTree(scratch);
+    return null;
+  };
+
+  let compile: *TextList = TextList.new().add(project.compiler);
+  compile.add("-o").add(runner).add(source);
+  if (!ran(runCommand(compile, null, null, StderrMode.Inherit))) {
+    complain(quoted("", BUILD_FILE, " did not compile"));
+    removeTree(scratch);
+    return null;
+  }
+
+  let run: *TextList = TextList.new().add(runner);
+  for (index in 0..project.forwarded.size()) {
+    run.add(project.forwarded.at(index));
+  }
+  let plan: *Builder = Builder.new();
+  let status: bool = ran(runCommand(run, project.root, plan, StderrMode.Inherit));
+  removeTree(scratch);
+  if (!status) {
+    complain(quoted("", BUILD_FILE, " failed"));
+    return null;
+  }
+  return plan;
+}
+
+fn artifactNamed(b: *Build, name: *i8): *Artifact {
+  for (index in 0..b.artifacts.count) {
+    if (equals(b.artifacts.at(index).name, name)) {
+      return b.artifacts.at(index);
+    }
+  }
+  return null;
+}
+
+// The build a plan describes, or null for one this compiler cannot read.
+export fn readPlan(plan: *Builder): *Build {
+  let lines: *TextList = splitLines(plan);
+  if (lines.size() == 0 || !equals(lines.at(0), PLAN_HEADER)) {
+    return null;
+  }
+
+  let b: *Build = Build.new();
+  let artifact: *Artifact = null;
+  let step: *Step = null;
+  let command: *Command = null;
+  for (index in 1..lines.size()) {
+    let line: *i8 = lines.at(index);
+    let space: i64 = indexOf(line, " ");
+    if (space < 0) {
+      return null;
+    }
+    let key: *i8 = slice(line, 0, space);
+    let value: *i8 = line + space + 1;
+
+    if (equals(key, "executable")) {
+      artifact = Artifact.new(ArtifactKind.Executable, value, null);
+      b.artifacts.push(artifact);
+    } else if (equals(key, "tool")) {
+      artifact = Artifact.new(ArtifactKind.Tool, value, null);
+      b.artifacts.push(artifact);
+    } else if (equals(key, "tests")) {
+      artifact = Artifact.new(ArtifactKind.Tests, value, null);
+      b.artifacts.push(artifact);
+    } else if (equals(key, "step")) {
+      artifact = null;
+      command = null;
+      step = b.step(value, null);
+    } else if (step != null) {
+      if (equals(key, "description")) {
+        step.description = value;
+      } else if (equals(key, "run")) {
+        let program: *Artifact = artifactNamed(b, value);
+        if (program == null) {
+          return null;
+        }
+        command = step.run(program);
+      } else if (command == null) {
+        return null;
+      } else if (equals(key, "arg")) {
+        command.arg(value);
+      } else if (equals(key, "output-of")) {
+        let named: *Artifact = artifactNamed(b, value);
+        if (named == null) {
+          return null;
+        }
+        command.argOutput(named);
+      } else {
+        return null;
+      }
+    } else if (artifact == null) {
+      return null;
+    } else if (equals(key, "root")) {
+      artifact.root = value;
+    } else if (equals(key, "output")) {
+      artifact.output = value;
+    } else if (equals(key, "target")) {
+      artifact.target = value;
+    } else if (equals(key, "sysroot")) {
+      artifact.sysroot = value;
+    } else if (equals(key, "path")) {
+      artifact.paths.push(value);
+    } else if (equals(key, "library")) {
+      artifact.libraries.push(value);
+    } else if (equals(key, "framework")) {
+      artifact.frameworks.push(value);
+    } else {
+      return null;
+    }
+  }
+  return b;
+}
+
+// ---------------------------------------------------------------------------
+// Command lines.
+// ---------------------------------------------------------------------------
+
+fn addLinking(command: *TextList, artifact: *Artifact): void {
+  for (index in 0..artifact.paths.count) {
+    command.add("-L").add(artifact.paths.at(index));
+  }
+  for (index in 0..artifact.libraries.count) {
+    command.add("-l").add(artifact.libraries.at(index));
+  }
+  for (index in 0..artifact.frameworks.count) {
+    command.add("-framework").add(artifact.frameworks.at(index));
+  }
+}
+
+// The command line that builds an executable to `output`, as run from the
+// project root.
+export fn compileCommand(compiler: *i8, artifact: *Artifact,
+                         output: *i8): *TextList {
+  let command: *TextList = TextList.new().add(compiler);
+  if (artifact.target != null) {
+    command.add("--target").add(artifact.target);
+  }
+  if (artifact.sysroot != null) {
+    command.add("--sysroot").add(artifact.sysroot);
+  }
+  addLinking(command, artifact);
+  command.add("-o").add(output).add(artifact.root);
+  return command;
+}
+
+// The command line that runs a test artifact's tests.
+export fn testCommand(compiler: *i8, artifact: *Artifact, filter: *i8): *TextList {
+  let command: *TextList = TextList.new().add(compiler).add("test");
+  addLinking(command, artifact);
+  command.add(artifact.root);
+  if (filter != null) {
+    command.add(filter);
+  }
+  return command;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,37 +382,33 @@ struct Hasher {
   }
 }
 
-// What a build of the compiler depends on, and how big it is, for the line
-// that reports it.
-struct Inputs {
-  hash: *i8,
-  lines: i32,
-  modules: i32,
-}
-
-// Loads the compiler's sources the way compiling them would, to learn which
-// files they are, and hashes them. A file that does not parse still hashes:
-// the build that follows is what reports the error.
-fn hashInputs(ws: *Workspace): Inputs {
+// What building `artifact` depends on, hashed. Its sources are loaded the
+// way compiling them would, to learn which files they are; a file that does
+// not parse still hashes, and the build that follows is what reports it.
+fn hashInputs(project: *Project, artifact: *Artifact): *i8 {
   let hasher: Hasher = Hasher.new();
   hasher.addText(ccProgram());
   let sdk: *i8 = sysroot();
   if (sdk != null) {
     hasher.addText(sdk);
   }
+  let command: *TextList = compileCommand("ode", artifact, artifact.output);
+  for (index in 0..command.size()) {
+    hasher.addText(command.at(index));
+  }
 
-  DIAGS = Diagnostics.new();
-  SOURCE_PATH = ws.entry;
-  let source: *i8 = readFile(ws.entry) catch (e) {
-    return Inputs { hash: "", lines: 0, modules: 0 };
+  let entry: *i8 = joinPath(project.root, artifact.root);
+  resetModules();
+  resetDiagnostics();
+  SOURCE_PATH = entry;
+  let source: *i8 = readFile(entry) catch (e) {
+    return "";
   };
-
   let ast: *Ast = Ast.new();
   let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
-  loadProgram(ast, root, ws.entry, source);
+  loadProgram(ast, root, entry, source);
   FAILED = false;
 
-  let lines: i32 = 0;
   for (module in 0..moduleCount()) {
     // A file that cannot be read is hashed by its path alone, so a build is
     // still attempted, and reports it properly.
@@ -143,284 +416,252 @@ fn hashInputs(ws: *Workspace): Inputs {
     hasher.addText(modulePath(module));
     if (bytes != null) {
       hasher.addBytes(bytes.data, bytes.length);
-
-      for (index in 0..bytes.length) {
-        if (bytes.data[index] == '\n') {
-          lines = lines + 1;
-        }
-      }
     }
   }
+  resetModules();
+  resetDiagnostics();
 
-  return Inputs { hash: hasher.hex(), lines: lines, modules: moduleCount() };
+  return hasher.hex();
 }
 
 // ---------------------------------------------------------------------------
-// Output.
+// Building.
 // ---------------------------------------------------------------------------
 
-fn say(text: *i8): void {
-  writeText(STDOUT, text);
-  writeText(STDOUT, "\n");
-}
-
-export fn complain(text: *i8): void {
-  writeText(STDERR, "ode build: ");
-  writeText(STDERR, text);
-  writeText(STDERR, "\n");
-}
-
-// `path` relative to the repository, which is how messages name things.
-export fn shown(ws: *Workspace, path: *i8): *i8 {
-  let length: i64 = strlen(ws.root);
-  if (strlen(path) > length && path[length] == '/' &&
-      equals(slice(path, 0, length), ws.root)) {
-    return path + (length + 1);
-  }
-
-  return path;
-}
-
-// ---------------------------------------------------------------------------
-// Finding things.
-// ---------------------------------------------------------------------------
-
-// The nearest directory at or above the current one that holds the compiler's
-// sources and seed, or null.
-fn findRoot(): *i8 {
-  let directory: *i8 = currentDirectory();
-
-  while (directory != null) {
-    if (exists(joinPath(directory, "compiler/main.ode")) &&
-        exists(joinPath(directory, "bootstrap/ode.ll"))) {
-      return directory;
+fn alreadyBuilt(project: *Project, artifact: *Artifact): bool {
+  for (index in 0..project.built.size()) {
+    if (equals(project.built.at(index), artifact.name)) {
+      return true;
     }
-    if (equals(directory, "/")) {
-      return null;
-    }
-    directory = parentDirectory(directory);
   }
-
-  return null;
+  return false;
 }
 
-// The absolute path of the program running now, from how it was invoked: a
-// path when argv[0] holds a `/`, and a search of PATH when it does not.
-fn findSelf(invokedAs: *i8): *i8 {
-  let index: i64 = 0;
-  while (invokedAs[index] != 0) {
-    if (invokedAs[index] == '/') {
-      return absolutePath(invokedAs);
-    }
-    index = index + 1;
+// Builds an executable unless it is up to date, at most once a run.
+fn buildOne(project: *Project, artifact: *Artifact): bool {
+  if (alreadyBuilt(project, artifact)) {
+    return true;
   }
-
-  let searchPath: *i8 = environment("PATH");
-  if (searchPath == null) {
-    return null;
-  }
-
-  let start: i64 = 0;
-  index = 0;
-  while (true) {
-    let character: i8 = searchPath[index];
-    if (character == ':' || character == 0) {
-      let directory: *i8 = slice(searchPath, start, index - start);
-      let candidate: *i8 = joinPath(directory, invokedAs);
-      if (strlen(directory) > 0 && isExecutable(candidate)) {
-        return absolutePath(candidate);
-      }
-      if (character == 0) {
-        return null;
-      }
-      start = index + 1;
-    }
-    index = index + 1;
-  }
-
-  return null;
-}
-
-// ---------------------------------------------------------------------------
-// Commands.
-// ---------------------------------------------------------------------------
-
-fn stampPath(ws: *Workspace): *i8 {
-  return withSuffix(ws.output, ".stamp");
-}
-
-export fn commandBuild(ws: *Workspace, force: bool): i32 {
-  makeDirectories(parentDirectory(ws.output)) catch (e) {
-    complain("cannot make the directory the compiler goes in");
-    return 1;
+  let output: *i8 = joinPath(project.root, artifact.output);
+  let stampPath: *i8 = withSuffix(output, ".stamp");
+  makeDirectories(parentDirectory(output)) catch (e) {
+    complain(quoted("cannot make the directory ", artifact.output, " goes in"));
+    return false;
   };
 
-  let inputs: Inputs = hashInputs(ws);
+  let hash: *i8 = hashInputs(project, artifact);
   // No stamp, or one that cannot be read, only means building again.
-  let stamp: *Builder = readBytes(stampPath(ws)) ?? null;
-
-  if (!force && exists(ws.output) && stamp != null &&
-      equals(stamp.data, inputs.hash)) {
+  let stamp: *Builder = readBytes(stampPath) ?? null;
+  if (!project.force && exists(output) && stamp != null &&
+      equals(stamp.data, hash)) {
+    project.built.add(artifact.name);
     let message: *Builder = Builder.new();
-    message.add(shown(ws, ws.output));
+    message.add(artifact.output);
     message.add(" is up to date");
-    say(message.data);
-    return 0;
+    say(message.take());
+    return true;
   }
 
   // A compiler cannot write over itself while it runs, so a build that would
   // land on the binary doing it goes to a temporary first.
-  let target: *i8 = ws.output;
+  let written: *i8 = output;
   let inPlace: bool = false;
-  let outputReal: *i8 = absolutePath(ws.output);
-  if (outputReal != null && equals(outputReal, ws.compiler)) {
+  let outputReal: *i8 = absolutePath(output);
+  if (outputReal != null && equals(outputReal, project.compiler)) {
     inPlace = true;
-    target = withSuffix(ws.output, ".new");
+    written = withSuffix(output, ".new");
   }
 
-  let command: *TextList = TextList.new().add(ws.compiler);
-  command.add("-o").add(target).add(ws.entry);
-  if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
-    complain("the compiler did not build");
-    return 1;
+  if (!ran(runCommand(compileCommand(project.compiler, artifact, written),
+                      project.root, null, StderrMode.Inherit))) {
+    complain(quoted("", artifact.name, " did not build"));
+    return false;
   }
-
   if (inPlace) {
-    moveFile(target, ws.output) catch (e) {
+    moveFile(written, output) catch (e) {
       complain("cannot put the new compiler in place of the old one");
-      return 1;
+      return false;
     };
   }
 
   // Without a stamp the next build only builds again; it is not wrong.
   let record: *Builder = Builder.new();
-  record.add(inputs.hash);
-  writeBytes(stampPath(ws), record) catch (e) {};
+  record.add(hash);
+  writeBytes(stampPath, record) catch (e) {};
+  project.built.add(artifact.name);
 
   let message: *Builder = Builder.new();
   message.add("built ");
-  message.add(shown(ws, ws.output));
-  message.add(" from ");
-  message.addInt(inputs.lines as i64);
-  message.add(" lines in ");
-  message.addInt(inputs.modules as i64);
-  message.add(" modules");
-  say(message.data);
-
-  return 0;
+  message.add(artifact.output);
+  say(message.take());
+  return true;
 }
 
-// The compiler compiles its own sources, the result compiles them again, and
-// the last two binaries must be byte-identical. A compiler that miscompiles
-// itself stops reproducing itself, which this catches even when every test
-// passes. The first generation need not match: it was built by whatever
-// compiler ran this, which may predate the sources.
-fn commandBootstrap(ws: *Workspace): i32 {
-  if (commandBuild(ws, false) != 0) {
-    return 1;
+// Runs one of a step's commands: builds the program and every artifact whose
+// output it is handed, then runs it in the project root. A command in the
+// `test` step is a test, so it is handed `--filter` too.
+fn runStepCommand(project: *Project, step: *Step, command: *Command): bool {
+  if (!buildOne(project, command.program)) {
+    return false;
   }
-
-  let work: *i8 = joinPath(ws.root, "build/bootstrap");
-  removeTree(work);
-
-  // Each generation is written to the same name in a directory of its own,
-  // so the output path the linker embeds cannot account for a difference.
-  let from: *i8 = ws.output;
-  let stage: i32 = 1;
-  while (stage <= 2) {
-    let message: *Builder = Builder.new();
-    message.add("stage ");
-    message.addInt(stage as i64);
-    message.add(": ode");
-    message.addInt(stage as i64);
-    message.add(" -> ode");
-    message.addInt((stage + 1) as i64);
-    say(message.data);
-
-    let directory: *i8 = joinPath(work, fromInt(stage as i64));
-    makeDirectories(directory) catch (e) {
-      complain("cannot make a directory for a bootstrap stage");
-      return 1;
-    };
-    let to: *i8 = joinPath(directory, "ode");
-
-    let command: *TextList = TextList.new().add(from);
-    command.add("-o").add(to).add(ws.entry);
-    if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
-      complain("a bootstrap stage did not build");
-      return 1;
+  let line: *TextList = TextList.new();
+  line.add(joinPath(project.root, command.program.output));
+  for (index in 0..command.texts.count) {
+    let artifact: *Artifact = command.outputs.at(index);
+    if (artifact == null) {
+      line.add(command.texts.at(index));
+    } else {
+      if (!buildOne(project, artifact)) {
+        return false;
+      }
+      line.add(artifact.output);
     }
-
-    from = to;
-    stage = stage + 1;
   }
-
-  let second: *Builder = readBytes(joinPath(work, "1/ode")) catch (e) {
-    complain("cannot read the second stage's compiler");
-    return 1;
-  };
-  let third: *Builder = readBytes(joinPath(work, "2/ode")) catch (e) {
-    complain("cannot read the third stage's compiler");
-    return 1;
-  };
-
-  say("");
-  if (sameBytes(second, third)) {
-    say("fixed point reached: ode2 and ode3 are byte-identical");
-    let size: *Builder = Builder.new();
-    size.add("  ");
-    size.addInt(second.length);
-    size.add(" bytes");
-    say(size.data);
-    return 0;
+  if (project.filter != null && equals(step.name, "test")) {
+    line.add("--filter").add(project.filter);
   }
-
-  let offset: i64 = 0;
-  while (offset < second.length && offset < third.length &&
-         second.data[offset] == third.data[offset]) {
-    offset = offset + 1;
+  for (index in 0..project.arguments.size()) {
+    line.add(project.arguments.at(index));
   }
-
-  let message: *Builder = Builder.new();
-  message.add("NOT a fixed point: ode2 and ode3 differ, first at byte ");
-  message.addInt(offset);
-  complain(message.data);
-
-  return 1;
+  return ran(runCommand(line, project.root, null, StderrMode.Inherit));
 }
 
-// The seed is what a machine with no Ode compiler starts from, so it has to
-// be able to compile the current sources. Run this whenever the compiler
-// starts using a language feature the committed seed predates.
-fn commandSeed(ws: *Workspace): i32 {
-  if (commandBuild(ws, false) != 0) {
+// Runs the commands build.ode gave the step named `name`, if any.
+fn runStepCommands(project: *Project, b: *Build, name: *i8): bool {
+  for (index in 0..b.steps.count) {
+    let step: *Step = b.steps.at(index);
+    if (!equals(step.name, name)) {
+      continue;
+    }
+    for (each in 0..step.commands.count) {
+      if (!runStepCommand(project, step, step.commands.at(each))) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+fn hasStep(b: *Build, name: *i8): bool {
+  for (index in 0..b.steps.count) {
+    if (equals(b.steps.at(index).name, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+fn stepBuild(project: *Project, b: *Build): i32 {
+  let built: i32 = 0;
+  for (index in 0..b.artifacts.count) {
+    let artifact: *Artifact = b.artifacts.at(index);
+    if (artifact.kind == ArtifactKind.Executable) {
+      if (!buildOne(project, artifact)) {
+        return 1;
+      }
+      built = built + 1;
+    }
+  }
+  if (built == 0 && !hasStep(b, "build")) {
+    complain(quoted("", BUILD_FILE, " declares no executable"));
     return 1;
   }
-
-  let ir: *Builder = Builder.new();
-  let command: *TextList = TextList.new().add(ws.output);
-  command.add("--emit-llvm").add(ws.entry);
-  if (!ran(runCommand(command, null, ir, StderrMode.Inherit))) {
-    complain("the compiler could not emit its own IR");
+  if (!runStepCommands(project, b, "build")) {
     return 1;
   }
-
-  let seed: *i8 = joinPath(ws.root, "bootstrap/ode.ll");
-  writeBytes(seed, ir) catch (e) {
-    complain("cannot write bootstrap/ode.ll");
-    return 1;
-  };
-
-  let message: *Builder = Builder.new();
-  message.add("wrote ");
-  message.add(shown(ws, seed));
-  message.add(" (");
-  message.addInt(ir.length);
-  message.add(" bytes)");
-  say(message.data);
-  say("commit it: a fresh checkout has nothing else to start from.");
-
   return 0;
+}
+
+fn stepTest(project: *Project, b: *Build): i32 {
+  let failed: i32 = 0;
+  let declared: i32 = 0;
+  for (index in 0..b.artifacts.count) {
+    let artifact: *Artifact = b.artifacts.at(index);
+    if (artifact.kind != ArtifactKind.Tests) {
+      continue;
+    }
+    declared = declared + 1;
+    let status: i32 = runCommand(testCommand(project.compiler, artifact,
+                                             project.filter),
+                                 project.root, null, StderrMode.Inherit) ?? 1;
+    if (status != 0) {
+      failed = failed + 1;
+    }
+  }
+  if (declared == 0 && !hasStep(b, "test")) {
+    complain(quoted("", BUILD_FILE, " declares no tests"));
+    return 1;
+  }
+  if (!runStepCommands(project, b, "test")) {
+    failed = failed + 1;
+  }
+  if (failed > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+fn stepRun(project: *Project, b: *Build, name: *i8): i32 {
+  let chosen: *Artifact = null;
+  let count: i32 = 0;
+  for (index in 0..b.artifacts.count) {
+    let artifact: *Artifact = b.artifacts.at(index);
+    if (artifact.kind == ArtifactKind.Tests) {
+      continue;
+    }
+    if (name != null && equals(artifact.name, name)) {
+      chosen = artifact;
+    }
+    if (artifact.kind == ArtifactKind.Executable) {
+      count = count + 1;
+      if (name == null) {
+        chosen = artifact;
+      }
+    }
+  }
+  if (name != null && chosen == null) {
+    complain(quoted("no executable named ", name, ""));
+    return 1;
+  }
+  if (name == null && count != 1) {
+    complain("more than one executable, or none: say which to run");
+    return 1;
+  }
+
+  if (!buildOne(project, chosen)) {
+    return 1;
+  }
+  let run: *TextList = TextList.new().add(joinPath(project.root, chosen.output));
+  for (index in 0..project.arguments.size()) {
+    run.add(project.arguments.at(index));
+  }
+  return runCommand(run, null, null, StderrMode.Inherit) ?? 1;
+}
+
+// The usage, and the steps this build.ode adds to it.
+fn listSteps(b: *Build): void {
+  writeText(STDOUT, BUILD_USAGE);
+  if (b == null || b.steps.count == 0) {
+    return;
+  }
+  let out: *Builder = Builder.new();
+  out.add("\n  steps in this build.ode:\n\n");
+  for (index in 0..b.steps.count) {
+    let step: *Step = b.steps.at(index);
+    out.add("    ");
+    out.add(step.name);
+    let pad: i64 = 15 - strlen(step.name);
+    while (pad > 0) {
+      out.push(' ');
+      pad = pad - 1;
+    }
+    if (step.description != null) {
+      out.add(step.description);
+    }
+    out.push('\n');
+  }
+  out.push('\n');
+  writeText(STDOUT, out.data);
 }
 
 fn buildUsage(): i32 {
@@ -429,92 +670,161 @@ fn buildUsage(): i32 {
 }
 
 export fn buildMain(argc: i32, argv: **i8): i32 {
-  let command: *i8 = null;
-  let force: bool = false;
-  let options: TestOptions = TestOptions {
-    filter: null,
-    update: false,
-    compiler: null,
-  };
+  let project: *Project = alloc<Project>(1);
+  project.forwarded = TextList.new();
+  project.filter = null;
+  project.force = false;
+  project.arguments = TextList.new();
+  project.built = TextList.new();
+  let step: *i8 = null;
+  let name: *i8 = null;
+  let help: bool = false;
 
   let index: i32 = 2;
   while (index < argc) {
     let argument: *i8 = argv[index];
-
-    if (equals(argument, "--force")) {
-      force = true;
-    } else if (equals(argument, "--update")) {
-      options.update = true;
-    } else if (equals(argument, "--filter") ||
-               equals(argument, "--ode")) {
+    if (equals(argument, "--")) {
+      for (rest in (index + 1)..argc) {
+        project.arguments.add(argv[rest]);
+      }
+      break;
+    } else if (equals(argument, "--target") || equals(argument, "--sysroot") ||
+               equals(argument, "--filter")) {
       if (index + 1 >= argc) {
         return buildUsage();
       }
       index = index + 1;
       if (equals(argument, "--filter")) {
-        options.filter = argv[index];
+        project.filter = argv[index];
       } else {
-        options.compiler = absolutePath(argv[index]);
-        if (options.compiler == null) {
-          complain(quoted("no compiler at ", argv[index], ""));
-          return 2;
-        }
+        project.forwarded.add(argument).add(argv[index]);
       }
+    } else if (argument[0] == '-' && argument[1] == 'D' && argument[2] != 0) {
+      project.forwarded.add(argument);
+    } else if (equals(argument, "--force")) {
+      project.force = true;
     } else if (equals(argument, "-h") || equals(argument, "--help")) {
-      writeText(STDOUT, BUILD_USAGE);
-      return 0;
-    } else if (argument[0] == '-' || command != null) {
+      help = true;
+    } else if (argument[0] == '-') {
       return buildUsage();
+    } else if (step == null) {
+      step = argument;
+    } else if (equals(step, "run") && name == null) {
+      name = argument;
     } else {
-      command = argument;
+      return buildUsage();
     }
-
     index = index + 1;
   }
-
-  if (command == null) {
-    command = "build";
+  if (step == null) {
+    step = "build";
   }
 
-  let root: *i8 = findRoot();
+  let root: *i8 = findProject();
   if (root == null) {
-    complain("not inside the Ode repository: no compiler/main.ode here or above");
+    if (help) {
+      writeText(STDOUT, BUILD_USAGE);
+      return 0;
+    }
+    complain(quoted("no ", BUILD_FILE, " here or in any directory above"));
     return 2;
   }
-
-  let compiler: *i8 = findSelf(argv[0]);
-  if (compiler == null) {
+  project.root = root;
+  project.compiler = findSelf(argv[0]);
+  if (project.compiler == null) {
     complain("cannot tell where this compiler is; run it by its path");
     return 2;
   }
 
-  let ws: *Workspace = alloc<Workspace>(1);
-  ws.root = root;
-  ws.compiler = compiler;
-  ws.entry = joinPath(root, "compiler/main.ode");
-  ws.output = joinPath(root, "build/ode");
-
-  // Everything below starts compiles of its own; they share one answer to
-  // which SDK to use rather than each asking for it -- and to which standard
-  // library to use, which is this repository's, wherever the compiler doing
-  // the compiling happens to live.
+  // The runner, and every compile after it, use this compiler's library, and
+  // share one answer to which SDK to use rather than each asking for it.
+  if (STD_DIRECTORY != null) {
+    setEnvironment("ODE_STD", STD_DIRECTORY);
+  }
   shareSysroot();
-  STD_DIRECTORY = joinPath(root, "std");
-  setEnvironment("ODE_STD", STD_DIRECTORY);
 
-  if (equals(command, "build")) {
-    return commandBuild(ws, force);
+  let plan: *Builder = makePlan(project);
+  if (plan == null) {
+    return 1;
   }
-  if (equals(command, "test")) {
-    return commandTest(ws, options);
+  if (equals(step, "plan") && !help) {
+    writeText(STDOUT, plan.data);
+    return 0;
   }
-  if (equals(command, "bootstrap")) {
-    return commandBootstrap(ws);
+  let b: *Build = readPlan(plan);
+  if (b == null) {
+    complain(quoted("the plan ", BUILD_FILE, " made is not one this compiler can read"));
+    return 1;
   }
-  if (equals(command, "seed")) {
-    return commandSeed(ws);
+  if (help) {
+    listSteps(b);
+    return 0;
   }
 
-  complain(quoted("unknown command ", command, ""));
-  return buildUsage();
+  if (equals(step, "build")) {
+    return stepBuild(project, b);
+  }
+  if (equals(step, "test")) {
+    return stepTest(project, b);
+  }
+  if (equals(step, "run")) {
+    return stepRun(project, b, name);
+  }
+  if (!hasStep(b, step)) {
+    complain(quoted("unknown step ", step, ""));
+    listSteps(b);
+    return 2;
+  }
+  if (!runStepCommands(project, b, step)) {
+    return 1;
+  }
+  return 0;
+}
+
+test "a plan reads back as the build that made it" {
+  let b: *Build = Build.new();
+  b.target = "aarch64-linux";
+  let app: *Artifact = b.executable("app", "src/main.ode");
+  app.libraryPath("vendor").linkLibrary("raylib").linkFramework("Cocoa");
+  b.tests("src").linkLike(app);
+  let gen: *Artifact = b.tool("gen", "gen.ode");
+  b.step("tables", "regenerate the tables").run(gen).arg("--for").argOutput(app);
+
+  let plan: *Builder = Builder.new();
+  plan.add(planOf(b));
+  let read: *Build = readPlan(plan);
+  assertEq(read.artifacts.count, 3);
+  assertEq(joined(compileCommand("ode", read.artifacts.at(0), "build/app")),
+           "ode --target aarch64-linux -L vendor -l raylib -framework Cocoa -o build/app src/main.ode");
+  assertEq(joined(testCommand("ode", read.artifacts.at(1), "gui")),
+           "ode test -L vendor -l raylib -framework Cocoa src gui");
+  assertEq(read.artifacts.at(2).kind, ArtifactKind.Tool);
+  assertEq(planOf(read), planOf(b));
+}
+
+test "a plan this compiler cannot read is refused" {
+  let plan: *Builder = Builder.new();
+  plan.add("ode build plan 99\nexecutable app\n");
+  assertEq(readPlan(plan), null);
+
+  plan = Builder.new();
+  plan.add(PLAN_HEADER);
+  plan.add("\nroot before any artifact\n");
+  assertEq(readPlan(plan), null);
+
+  plan = Builder.new();
+  plan.add(PLAN_HEADER);
+  plan.add("\nstep gen\nrun nothing-of-that-name\n");
+  assertEq(readPlan(plan), null);
+}
+
+fn joined(command: *TextList): *i8 {
+  let out: *Builder = Builder.new();
+  for (index in 0..command.size()) {
+    if (index > 0) {
+      out.push(' ');
+    }
+    out.add(command.at(index));
+  }
+  return out.take();
 }

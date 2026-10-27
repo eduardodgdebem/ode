@@ -39,6 +39,12 @@ export enum Problem {
   CannotWriteIr,
   AssemblingFailed,
   LinkingFailed,
+  LinkingNeedsSysroot,
+  LibcSourcesNotFound,
+  LibcNeedsArchiver,
+  LibcCacheUnusable,
+  LibcBuildFailed,
+  UnknownTarget,
   ModuleNotFound,
   ImportNotAPath,
   LibraryNotFound,
@@ -413,6 +419,29 @@ export fn describe(problem: Problem, facts: Facts): Description {
     .CannotWriteIr => { return says("cannot write the LLVM IR"); }
     .AssemblingFailed => { return says("assembling failed"); }
     .LinkingFailed => { return says("linking failed"); }
+    .LinkingNeedsSysroot => {
+      return saysMore(text2("linking failed: no C library for ", q(name)),
+                      "give its sysroot with --sysroot, build for musl, which Ode bundles, or stop at the object file with --emit-object");
+    }
+    .LibcSourcesNotFound => {
+      return saysMore(text2("cannot build musl for ", q(name)),
+                      "its sources go in vendor/, beside the standard library, and are not there");
+    }
+    .LibcNeedsArchiver => {
+      return saysMore(text3("building musl for ", q(name), " needs llvm-ar"),
+                      "install LLVM's tools, llvm-ar and ld.lld, or give a sysroot with --sysroot");
+    }
+    .LibcCacheUnusable => {
+      return saysMore(text2("nowhere to keep musl for ", q(name)),
+                      "set ODE_CACHE to a directory it can be built into");
+    }
+    .LibcBuildFailed => {
+      return says(text3("building musl for ", q(name), " failed"));
+    }
+    .UnknownTarget => {
+      return saysMore(text2("unknown target ", q(name)),
+                      "a target is arch-os or arch-os-abi: x86_64 or aarch64, macos or linux, and musl, the default, or gnu on linux");
+    }
     .ModuleNotFound => {
       return says(text2("cannot find module ", q(name)));
     }

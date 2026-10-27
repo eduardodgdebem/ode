@@ -6,11 +6,19 @@
 
 import { readFile, writeFile, removeFile } from "std/fs";
 import { before } from "../check/analyzer";
-import { ccCommand } from "../codegen/toolchain";
+import { parseTarget, TARGET } from "../codegen/target";
+import { LibcError, bundledLibc, muslLinkCommand } from "../codegen/libc";
+import { targetsWasm } from "../codegen/target";
+import { wasmLinkCommand } from "../codegen/wasm";
+import {
+  ccCommand, linkCommand, chooseSysroot, linksWithoutLibraries,
+  usesBundledLibc, LinkInputs,
+} from "../codegen/toolchain";
 import { Problem, Facts } from "../diagnostics/problems";
+import { BuildFlags } from "./options";
 import { registerSource } from "../diagnostics/render";
 import {
-  SOURCE_PATH, DIAGS, FAILED, report, hasErrors, fail,
+  SOURCE_PATH, DIAGS, FAILED, report, hasErrors, fail, failAbout,
 } from "../diagnostics/report";
 import {
   moduleAdd, moduleDisplayPath, moduleFind, modulePath, STD_DIRECTORY,
@@ -154,37 +162,78 @@ fn loadImports(ast: *Ast, root: i32): void {
   }
 }
 
-// Writes `module` beside `output` and turns it into the executable `output`.
-// Assembling and linking are two runs of the C compiler, which is what leaves
-// a `.o` beside the `.ll` -- the two things worth looking at when codegen
-// misbehaves.
-export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool): void {
-  let irPath: *i8 = withSuffix(output, ".ll");
+// Sets what this run builds for, before anything is emitted: the IR names
+// the target, and every run of the C compiler is told it.
+export fn chooseTarget(flags: BuildFlags): void {
+  if (flags.sysroot != null) {
+    chooseSysroot(flags.sysroot);
+  }
+  if (flags.target == null) {
+    return;
+  }
+  TARGET = parseTarget(flags.target) catch (e) {
+    failAbout(Problem.UnknownTarget, Facts.about(flags.target));
+    return;
+  };
+}
+
+// Writes `module` to `<base>.ll` and assembles it into `<base>.o`, which it
+// returns.
+export fn buildObject(module: *i8, base: *i8, keepIntermediates: bool): *i8 {
+  let irPath: *i8 = withSuffix(base, ".ll");
   writeFile(irPath, module) catch (e) {
     fail(Problem.CannotWriteIr);
   };
 
-  let objectPath: *i8 = withSuffix(output, ".o");
-
+  let objectPath: *i8 = withSuffix(base, ".o");
   let assemble: *TextList = ccCommand();
   assemble.add("-c").add(irPath).add("-o").add(objectPath);
   assemble.add("-Wno-override-module");
-
   if (!ran(runCommand(assemble, null, null, StderrMode.Inherit))) {
     fail(Problem.AssemblingFailed);
   }
 
-  let link: *TextList = ccCommand();
-  link.add(objectPath).add("-o").add(output);
+  if (!keepIntermediates) {
+    // Leaving it behind is untidy, not wrong.
+    removeFile(irPath) catch (e) {};
+  }
+  return objectPath;
+}
 
+// Turns `module` into the executable `output`, linked against `inputs`.
+// Assembling and linking are two runs of the C compiler, which is what
+// leaves a `.o` beside the `.ll` -- the two things worth looking at when
+// codegen misbehaves.
+export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool,
+                          inputs: *LinkInputs): void {
+  let objectPath: *i8 = buildObject(module, output, keepIntermediates);
+
+  let link: *TextList = linkCommand();
+  if (targetsWasm()) {
+    wasmLinkCommand(link, objectPath, output, inputs);
+  } else if (usesBundledLibc()) {
+    let libc: *i8 = bundledLibc(*TARGET) catch (e) {
+      failAbout(match (e) {
+        .NoSources => Problem.LibcSourcesNotFound,
+        .NoArchiver => Problem.LibcNeedsArchiver,
+        .NoCache => Problem.LibcCacheUnusable,
+        .BuildFailed => Problem.LibcBuildFailed,
+      }, Facts.about(TARGET.triple()));
+      return;
+    };
+    muslLinkCommand(link, libc, objectPath, output, inputs);
+  } else {
+    link.add(objectPath).add("-o").add(output);
+    inputs.addTo(link);
+  }
   if (!ran(runCommand(link, null, null, StderrMode.Inherit))) {
+    if (linksWithoutLibraries()) {
+      failAbout(Problem.LinkingNeedsSysroot, Facts.about(TARGET.triple()));
+    }
     fail(Problem.LinkingFailed);
   }
 
   if (!keepIntermediates) {
-    // Leaving them behind is untidy, not wrong.
-    // Leaving them behind is untidy, not wrong.
-    removeFile(irPath) catch (e) {};
     removeFile(objectPath) catch (e) {};
   }
 }

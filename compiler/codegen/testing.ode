@@ -24,10 +24,10 @@ import {
 } from "./expressions";
 import { convertUnion } from "./errors";
 import { llvmTypeName } from "./layout";
+import { targetsWasm } from "./target";
 import { line } from "../driver/options";
 import { moduleDisplayPath, NameSet } from "../link/modules";
 import { NodeKind, callOf, itemAt, itemCount, nodeName } from "../syntax/ast";
-import { shown } from "../tool/build";
 import { TypeKind, Type } from "../types/types";
 
 // `path:line:column` of `node`, as a string constant.
@@ -43,9 +43,16 @@ fn location(e: *Emitter, node: i32): *i8 {
 }
 
 // Writes `format` and the arguments in `args` (each `, type value`) to
-// stderr, and ends the process. The block is closed afterwards.
+// stderr, and ends the process. The block is closed afterwards. A wasm
+// module has neither, and traps: the host sees the failure as the call's.
 fn emitFailure(e: *Emitter, format: *i8, args: *Builder): void {
   e.usesChecks = true;
+  if (targetsWasm()) {
+    emitLine(e, "call void @llvm.trap()");
+    emitLine(e, "unreachable");
+    e.terminated = true;
+    return;
+  }
 
   let line: *Builder = Builder.new();
   line.add("call i32 (i32, ptr, ...) @dprintf(i32 2, ptr ");
@@ -431,6 +438,10 @@ export fn genAssertEq(e: *Emitter, node: i32): *i8 {
 export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
   if (!e.usesChecks) {
     return;
+  }
+
+  if (targetsWasm()) {
+    e.head.add("declare void @llvm.trap()\n");
   }
 
   if (!declared.has("dprintf")) {

@@ -1,7 +1,9 @@
 # Working on Ode
 
-Everything here runs through `ode build`, which is part of the compiler and
-written in Ode (`compiler/tool/`). It works from anywhere inside the
+Everything here runs through `ode build`, and the compiler is built the way
+any Ode project is: [`build.ode`](../build.ode) at the root says what to
+build and which steps there are, as described in
+[Building a project](build.md). It works from anywhere inside the
 repository.
 
 ## Building
@@ -16,19 +18,24 @@ The compiler is written in the language it compiles, so something has to
 compile it first. On a fresh checkout `build.sh` turns `bootstrap/ode.ll` -- a
 checked-in copy of the compiler's own output -- into a first compiler with
 clang, and that compiler builds the real one into `build/ode`. That one step
-is all the script does; after it, `./build.sh <command>` is the same as
-`./build/ode build <command>`:
+is all the script does; after it, `./build.sh <step>` is the same as
+`./build/ode build <step>`:
 
 ```bash
 ./build/ode build              # rebuild build/ode, if anything changed
 ./build/ode build test         # build, then run the regression suite
 ./build/ode build bootstrap    # build, then run the bootstrap to its fixed point
 ./build/ode build seed         # build, then refresh bootstrap/ode.ll
+./build/ode build --help       # the steps, and what each does
 ```
 
+`build/ode` rebuilds itself in place. The suite, the bootstrap and the seed
+are not part of the compiler: they are `tools/dev.ode`, a program of its own
+that `build.ode` builds into `build/dev` and its steps run.
+
 A build is skipped when nothing it depends on has changed: the compiler's
-sources, found by following its imports, and the C compiler and SDK it links
-with. `--force` builds anyway.
+sources, found by following its imports, the flags it is built with, and the
+C compiler and SDK it links with. `--force` builds anyway.
 
 ### The C compiler
 
@@ -102,8 +109,8 @@ shell metacharacters, no input, and a directory as input.
 ```bash
 ./build/ode build test                  # builds first, then tests what it built
 ./build/ode build test --filter math    # only the cases whose name matches
-./build/ode build test --ode <path>     # test some other compiler instead
-./build/ode build test --update         # re-record the .out files; read the diff
+./build/ode build test -- --ode <path>  # test some other compiler instead
+./build/ode build test -- --update      # re-record the .out files; read the diff
 ```
 
 The suite works in a temporary directory, so the repository stays clean, and

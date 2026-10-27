@@ -1,0 +1,114 @@
+// ---------------------------------------------------------------------------
+// The bootstrap and the seed, which `ode build bootstrap` and `ode build
+// seed` run in this repository (see build.ode).
+// ---------------------------------------------------------------------------
+
+import { Builder, fromInt } from "std/text";
+import { complain, say } from "../compiler/tool/build";
+import {
+  joinPath, readBytes, writeBytes, sameBytes, makeDirectories, removeTree,
+} from "../compiler/os/files";
+import { TextList, StderrMode, runCommand, ran } from "../compiler/os/process";
+
+// The compiler compiles its own sources, the result compiles them again, and
+// the last two binaries must be byte-identical. A compiler that miscompiles
+// itself stops reproducing itself, which this catches even when every test
+// passes. The first generation need not match: it was built by whatever
+// compiler built `compiler`, which may predate the sources.
+export fn commandBootstrap(root: *i8, compiler: *i8): i32 {
+  let entry: *i8 = joinPath(root, "compiler/main.ode");
+  let work: *i8 = joinPath(root, "build/bootstrap");
+  removeTree(work);
+
+  // Each generation is written to the same name in a directory of its own,
+  // so the output path the linker embeds cannot account for a difference.
+  let from: *i8 = compiler;
+  let stage: i32 = 1;
+  while (stage <= 2) {
+    let message: *Builder = Builder.new();
+    message.add("stage ");
+    message.addInt(stage as i64);
+    message.add(": ode");
+    message.addInt(stage as i64);
+    message.add(" -> ode");
+    message.addInt((stage + 1) as i64);
+    say(message.data);
+
+    let directory: *i8 = joinPath(work, fromInt(stage as i64));
+    makeDirectories(directory) catch (e) {
+      complain("cannot make a directory for a bootstrap stage");
+      return 1;
+    };
+    let to: *i8 = joinPath(directory, "ode");
+
+    let command: *TextList = TextList.new().add(from);
+    command.add("-o").add(to).add(entry);
+    if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
+      complain("a bootstrap stage did not build");
+      return 1;
+    }
+
+    from = to;
+    stage = stage + 1;
+  }
+
+  let second: *Builder = readBytes(joinPath(work, "1/ode")) catch (e) {
+    complain("cannot read the second stage's compiler");
+    return 1;
+  };
+  let third: *Builder = readBytes(joinPath(work, "2/ode")) catch (e) {
+    complain("cannot read the third stage's compiler");
+    return 1;
+  };
+
+  say("");
+  if (sameBytes(second, third)) {
+    say("fixed point reached: ode2 and ode3 are byte-identical");
+    let size: *Builder = Builder.new();
+    size.add("  ");
+    size.addInt(second.length);
+    size.add(" bytes");
+    say(size.data);
+    return 0;
+  }
+
+  let offset: i64 = 0;
+  while (offset < second.length && offset < third.length &&
+         second.data[offset] == third.data[offset]) {
+    offset = offset + 1;
+  }
+
+  let message: *Builder = Builder.new();
+  message.add("NOT a fixed point: ode2 and ode3 differ, first at byte ");
+  message.addInt(offset);
+  complain(message.data);
+
+  return 1;
+}
+
+// The seed is what a machine with no Ode compiler starts from, so it has to
+// be able to compile the current sources. Run this whenever the compiler
+// starts using a language feature the committed seed predates.
+export fn commandSeed(root: *i8, compiler: *i8): i32 {
+  let ir: *Builder = Builder.new();
+  let command: *TextList = TextList.new().add(compiler);
+  command.add("--emit-llvm").add(joinPath(root, "compiler/main.ode"));
+  if (!ran(runCommand(command, null, ir, StderrMode.Inherit))) {
+    complain("the compiler could not emit its own IR");
+    return 1;
+  }
+
+  writeBytes(joinPath(root, "bootstrap/ode.ll"), ir) catch (e) {
+    complain("cannot write bootstrap/ode.ll");
+    return 1;
+  };
+
+  let message: *Builder = Builder.new();
+  message.add("wrote bootstrap/ode.ll (");
+  message.addInt(ir.length);
+  message.add(" bytes)");
+  say(message.data);
+  say("commit it: a fresh checkout has nothing else to start from.");
+
+  return 0;
+}

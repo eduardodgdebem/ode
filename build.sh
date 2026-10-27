@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Gets a machine with no Ode compiler to its first one, then hands over.
 #
-#   ./build.sh [build | test | bootstrap | seed] [options]
+#   ./build.sh [build | test | bootstrap | seed] [options]   (./build.sh --help)
 #
-# Building, testing and bootstrapping are `ode build`, written in Ode in
-# compiler/tool/. This script is the one step that cannot be: turning the
-# checked-in seed, bootstrap/ode.ll, into a working compiler with clang.
-# Once build/ode exists it does nothing but run `build/ode build "$@"`.
+# Building, testing and bootstrapping are `ode build`, which does what
+# build.ode says, as for any Ode project. This script is the one step that
+# cannot be: turning the checked-in seed, bootstrap/ode.ll, into a working
+# compiler with clang. Once build/ode exists it does nothing but run
+# `build/ode build "$@"`.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

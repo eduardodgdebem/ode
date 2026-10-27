@@ -9,6 +9,8 @@ import { Builder } from "std/text";
 import { Analyzer, analyze } from "../check/analyzer";
 import { Emitter } from "../codegen/emitter";
 import { genProgram } from "../codegen/program";
+import { targetsWasm } from "../codegen/target";
+import { entryExports } from "../codegen/wasm";
 import { Problem } from "../diagnostics/problems";
 import { printDiagnostics } from "../diagnostics/render";
 import {
@@ -17,8 +19,10 @@ import {
 import {
   USAGE, CompileOptions, parseCompileOptions, argumentsFrom,
 } from "./options";
-import { loadProgram, buildExecutable } from "./pipeline";
-import { stemOf } from "../os/files";
+import {
+  loadProgram, buildExecutable, buildObject, chooseTarget,
+} from "./pipeline";
+import { stemOf, withSuffix } from "../os/files";
 import { STDOUT, STDERR, writeText, writeBuilder } from "../os/output";
 import { NodeKind, Ast, Program } from "../syntax/ast";
 import { dumpTokens, dumpNode } from "../syntax/dump";
@@ -33,6 +37,7 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
 
   SOURCE_PATH = options.input;
   DIAGS = Diagnostics.new();
+  chooseTarget(options.build);
 
   let source: *i8 = readFile(options.input) catch (e) {
     fail(Problem.CannotOpenInput);
@@ -65,6 +70,8 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
   }
 
   let an: *Analyzer = Analyzer.new(ast);
+  // A wasm module is a library for its host, which need not have a main.
+  an.requireMain = !targetsWasm();
   analyze(an, root);
   if (hasErrors()) {
     printDiagnostics();
@@ -86,9 +93,19 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
   // The intermediates hang off the executable rather than the input, so that
   // -o keeps a whole build in one directory.
   let output: *i8 = options.output;
-  if (output == null) {
+  if (output == null && targetsWasm()) {
+    output = withSuffix(stemOf(options.input), ".wasm");
+  } else if (output == null) {
     output = stemOf(options.input);
   }
-  buildExecutable(module, output, options.keepIntermediates);
+  if (targetsWasm()) {
+    options.build.link.exports = entryExports(ast, an, root);
+  }
+  if (options.emitObject) {
+    buildObject(module, output, options.keepIntermediates);
+    return 0;
+  }
+  buildExecutable(module, output, options.keepIntermediates,
+                  options.build.link);
   return 0;
 }

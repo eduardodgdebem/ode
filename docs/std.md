@@ -153,3 +153,11 @@ let source: *i8 = readFile("config.txt") catch (e) {
 };
 let port: i64 = parseInt(field(source, "port")) ?? 8080;
 ```
+
+## `std/build`
+
+What a project's `build.ode` is written against: `Build`, with
+`executable`, `tool`, `tests`, `step`, `option` and `flag`; `Artifact`, with
+`linkLibrary`, `libraryPath`, `linkFramework` and `linkLike`; and `Step`,
+whose `run` gives a `Command` taking `arg` and `argOutput`. It describes a
+build and does not run one; see [Building a project](build.md).

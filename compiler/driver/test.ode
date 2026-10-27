@@ -19,7 +19,7 @@ import {
   USAGE, TestRunOptions, parseTestOptions, argumentsFrom,
 } from "./options";
 import {
-  loadModule, loadProgram, loadFiles, buildExecutable,
+  loadModule, loadProgram, loadFiles, buildExecutable, chooseTarget,
 } from "./pipeline";
 import { STD_DIRECTORY } from "../link/modules";
 import {
@@ -47,6 +47,7 @@ export fn testMain(argc: i32, argv: **i8): i32 {
   }
   SOURCE_PATH = path;
   DIAGS = Diagnostics.new();
+  chooseTarget(options.build);
 
   let ast: *Ast = Ast.new();
   let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
@@ -90,7 +91,7 @@ export fn testMain(argc: i32, argv: **i8): i32 {
     return 1;
   };
   let program: *i8 = joinPath(directory, "tests");
-  buildExecutable(module, program, false);
+  buildExecutable(module, program, false, options.build.link);
 
   let run: *TextList = TextList.new();
   run.add(program);

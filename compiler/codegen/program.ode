@@ -18,6 +18,7 @@ import {
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genStatement } from "./statements";
+import { TARGET } from "./target";
 import { emitCheckSupport, emitTestMain, emitEnumNames } from "./testing";
 import { line } from "../driver/options";
 import { isTemplate } from "../link/generics";
@@ -357,6 +358,13 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   emitEnumNames(e);
 
   let module: *Builder = Builder.new();
+  // The default target is left to the C compiler, so that the IR builds
+  // wherever it is taken.
+  if (TARGET != null) {
+    module.add("target triple = \"");
+    module.add(TARGET.triple());
+    module.add("\"\n\n");
+  }
   module.addBytes(e.head.data, e.head.length);
   module.push('\n');
   module.addBytes(e.body.data, e.body.length);

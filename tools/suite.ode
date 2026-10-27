@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// `ode build test`: everything that needs the compiler as a program.
+// The regression suite: everything that needs the compiler as a program,
+// which `ode build test` runs in this repository (see build.ode).
 //
 // Most of what the compiler does is tested in-process, by the tests written
 // beside it in compiler/**/*.test.ode; this runs them, and the standard
@@ -22,30 +23,29 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
-import { exists } from "std/fs";
+import { exists, writeFile } from "std/fs";
 import { Builder, equals, slice, endsWith, contains } from "std/text";
-import { fail } from "../diagnostics/report";
-import { line } from "../driver/options";
+import { fail } from "../compiler/diagnostics/report";
+import { line } from "../compiler/driver/options";
 import {
   joinPath, withSuffix, parentDirectory, isExecutable, readBytes, writeBytes,
   sameBytes, makeDirectories, removeTree, listDirectory, splitLines,
   makeTempDirectory,
-} from "../os/files";
-import { STDOUT, writeBuilder } from "../os/output";
+} from "../compiler/os/files";
+import { STDOUT, writeBuilder, colour } from "../compiler/os/output";
 import {
   TextList, StderrMode, runCommand, ran, setEnvironment, isTerminal, command,
-} from "../os/process";
-import { Workspace, complain, commandBuild } from "./build";
+} from "../compiler/os/process";
+import { complain } from "../compiler/tool/build";
 
 export struct TestOptions {
   filter: *i8,
   update: bool,
-  // The compiler to test, or null to build one and test that.
-  compiler: *i8,
 }
 
 struct Suite {
-  ws: *Workspace,
+  // The repository: where the examples and cases are.
+  root: *i8,
   compiler: *i8,
   work: *i8,
   filter: *i8,
@@ -160,16 +160,6 @@ struct Suite {
     runCommand(diff, null, output, StderrMode.Merge) ?? 0;
     writeIndented(output);
   }
-}
-
-export fn colour(code: *i8): *i8 {
-  let out: *Builder = Builder.new();
-  out.push(27);
-  out.push('[');
-  out.add(code);
-  out.push('m');
-
-  return out.take();
 }
 
 fn addPadded(out: *Builder, text: *i8, width: i32): void {
@@ -291,7 +281,7 @@ fn printsZero(path: *i8): bool {
 
 // A program that prints "0", which is what the driver checks build.
 fn exampleOne(suite: *Suite): *i8 {
-  return joinPath(suite.ws.root, "tests/cli/prints_zero.ode");
+  return joinPath(suite.root, "tests/cli/prints_zero.ode");
 }
 
 fn checkOutputFlag(suite: *Suite): bool {
@@ -346,6 +336,142 @@ fn checkHostileOutputPath(suite: *Suite): bool {
          printsZero(out);
 }
 
+// -l reaches the linker: a library that exists links, and one that does not
+// fails the build.
+fn checkLinkFlag(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/linked");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+
+  let linked: *TextList = TextList.new().add(suite.compiler);
+  linked.add("-lm").add("-o").add(out).add(exampleOne(suite));
+  let missing: *TextList = TextList.new().add(suite.compiler);
+  missing.add("-lode_no_such_library").add("-o").add(out).add(exampleOne(suite));
+
+  return compileQuietly(suite, linked) && printsZero(out) &&
+         !compileQuietly(suite, missing);
+}
+
+// Building for another machine works as far as the object file, which needs
+// nothing of that machine's but clang's backend for it.
+fn checkObjectForTarget(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/target/prog");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("aarch64-linux").add("--emit-object");
+  command.add("-o").add(out).add(exampleOne(suite));
+  let unknown: *TextList = TextList.new().add(suite.compiler);
+  unknown.add("--target").add("x86_64-windows").add("--emit-object");
+  unknown.add("-o").add(out).add(exampleOne(suite));
+
+  return compileQuietly(suite, command) && exists(withSuffix(out, ".o")) &&
+         !exists(out) && !exists(withSuffix(out, ".ll")) &&
+         !compileQuietly(suite, unknown);
+}
+
+// `ode build` in a directory with a build.ode builds what it declares,
+// reading the options it is given, into build/ beside it.
+fn checkBuildFile(suite: *Suite): bool {
+  let project: *i8 = joinPath(suite.work, "cli/project");
+  makeDirectories(project) catch (e) {
+    return false;
+  };
+  let source: *Builder = Builder.new();
+  source.add("import { Build } from \"std/build\";\n\n");
+  source.add("export fn build(b: *Build): void {\n");
+  source.add("  b.executable(b.option(\"name\") ?? \"zero\", \"");
+  source.add(exampleOne(suite));
+  source.add("\");\n}\n");
+  writeFile(joinPath(project, "build.ode"), source.take()) catch (e) {
+    return false;
+  };
+
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("build").add("-Dname=renamed");
+  if (!ran(runCommand(command, project, Builder.new(), StderrMode.Merge))) {
+    return false;
+  }
+  return printsZero(joinPath(project, "build/renamed")) &&
+         !exists(joinPath(project, "build/zero"));
+}
+
+// A Linux executable builds from anywhere, against the musl Ode bundles, and
+// on x86_64 Linux it runs.
+fn checkLinuxExecutable(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/linux/prog");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("x86_64-linux").add("-o").add(out);
+  command.add(exampleOne(suite));
+  if (!ran(runCommand(command, null, null, StderrMode.Inherit))) {
+    return false;
+  }
+
+  let binary: *Builder = readBytes(out) catch (e) {
+    return false;
+  };
+  if (binary.length < 4 || binary.data[0] != 127 || binary.data[1] != 'E' ||
+      binary.data[2] != 'L' || binary.data[3] != 'F') {
+    return false;
+  }
+  let host: *Builder = Builder.new();
+  runCommand(TextList.new().add("uname").add("-sm"), null, host,
+             StderrMode.Discard) ?? 1;
+  if (equals(host.data, "Linux x86_64\n")) {
+    return printsZero(out);
+  }
+  return true;
+}
+
+// A wasm module builds with no C library and no entry point, exporting
+// what the entry file exports.
+fn checkWasmModule(suite: *Suite): bool {
+  let directory: *i8 = joinPath(suite.work, "cli/wasm");
+  makeDirectories(directory) catch (e) {
+    return false;
+  };
+  let source: *i8 = joinPath(directory, "add.ode");
+  writeFile(source, "export fn add(a: i32, b: i32): i32 {\n  return a + b;\n}\n")
+      catch (e) {
+    return false;
+  };
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("wasm32").add(source);
+  if (!ran(runCommand(command, directory, null, StderrMode.Inherit))) {
+    return false;
+  }
+
+  let module: *Builder = readBytes(joinPath(directory, "add.wasm")) catch (e) {
+    return false;
+  };
+  // `\0asm`, and somewhere after it the export's name.
+  return module.length > 8 && module.data[0] == 0 && module.data[1] == 'a' &&
+         module.data[2] == 's' && module.data[3] == 'm' &&
+         holdsBytes(module, "add");
+}
+
+fn holdsBytes(data: *Builder, text: *i8): bool {
+  let count: i64 = strlen(text);
+  let start: i64 = 0;
+  while (start + count <= data.length) {
+    let index: i64 = 0;
+    while (index < count && data.data[start + index] == text[index]) {
+      index = index + 1;
+    }
+    if (index == count) {
+      return true;
+    }
+    start = start + 1;
+  }
+  return false;
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -357,7 +483,7 @@ fn runCompilerTests(suite: *Suite): void {
 
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "compiler"));
+  run.add(joinPath(suite.root, "compiler"));
   if (ran(runCommand(run, suite.work, output, StderrMode.Merge))) {
     suite.pass("tests", "compiler");
     return;
@@ -387,7 +513,7 @@ fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
 fn checkDirectoryInput(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let compile: *TextList = TextList.new().add(suite.compiler);
-  compile.add(joinPath(suite.ws.root, "compiler"));
+  compile.add(joinPath(suite.root, "compiler"));
   if ((runCommand(compile, suite.work, output, StderrMode.Merge) ?? -1) != 1 ||
       !contains(output.data, "cannot open input file")) {
     return false;
@@ -424,7 +550,7 @@ fn checkTestWithoutInput(suite: *Suite): bool {
 fn checkTestFilterMatchingNothing(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "tests/runner/math.ode")).add("no test is named this");
+  run.add(joinPath(suite.root, "tests/runner/math.ode")).add("no test is named this");
   return ran(runCommand(run, suite.work, output, StderrMode.Merge)) &&
          contains(output.data, "0 passed; 0 failed; 5 filtered out");
 }
@@ -441,18 +567,11 @@ fn runCli(suite: *Suite, name: *i8, passed: bool): void {
 // The command.
 // ---------------------------------------------------------------------------
 
-export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
-  let compiler: *i8 = options.compiler;
-  if (compiler == null) {
-    if (commandBuild(ws, false) != 0) {
-      return 1;
-    }
-    compiler = ws.output;
-  }
-
+// Tests `compiler`, an `ode` binary, against the repository in `root`.
+export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   // The compiler under test may live anywhere, where it would not find the
   // repository's standard library on its own.
-  setEnvironment("ODE_STD", joinPath(ws.root, "std"));
+  setEnvironment("ODE_STD", joinPath(root, "std"));
 
   let work: *i8 = makeTempDirectory("ode-tests") catch (e) {
     complain("cannot create a temporary directory");
@@ -460,7 +579,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   };
 
   let suite: *Suite = alloc<Suite>(1);
-  suite.ws = ws;
+  suite.root = root;
   suite.compiler = compiler;
   suite.work = work;
   suite.filter = options.filter;
@@ -482,8 +601,8 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     suite.off = colour("0");
   }
 
-  let examples: *i8 = joinPath(ws.root, "examples");
-  let expectedExamples: *i8 = joinPath(ws.root, "tests/examples");
+  let examples: *i8 = joinPath(root, "examples");
+  let expectedExamples: *i8 = joinPath(root, "tests/examples");
   makeDirectories(expectedExamples) catch (e) {
     complain("cannot make tests/examples");
     return 1;
@@ -498,7 +617,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     }
   }
 
-  let units: *i8 = joinPath(ws.root, "tests/runner");
+  let units: *i8 = joinPath(root, "tests/runner");
   names = listDirectory(units);
   for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
@@ -512,7 +631,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
 
   if (suite.selected("std")) {
-    runLibraryTests(suite, joinPath(ws.root, "std"), "std");
+    runLibraryTests(suite, joinPath(root, "std"), "std");
   }
 
   if (suite.selected("output-flag")) {
@@ -523,6 +642,21 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
   if (suite.selected("hostile-output-path")) {
     runCli(suite, "hostile-output-path", checkHostileOutputPath(suite));
+  }
+  if (suite.selected("link-flag")) {
+    runCli(suite, "link-flag", checkLinkFlag(suite));
+  }
+  if (suite.selected("object-for-target")) {
+    runCli(suite, "object-for-target", checkObjectForTarget(suite));
+  }
+  if (suite.selected("linux-executable")) {
+    runCli(suite, "linux-executable", checkLinuxExecutable(suite));
+  }
+  if (suite.selected("wasm-module")) {
+    runCli(suite, "wasm-module", checkWasmModule(suite));
+  }
+  if (suite.selected("build-file")) {
+    runCli(suite, "build-file", checkBuildFile(suite));
   }
   if (suite.selected("no-input-file")) {
     runCli(suite, "no-input-file", checkNoInputFile(suite));
