@@ -472,6 +472,17 @@ fn holdsBytes(data: *Builder, text: *i8): bool {
   return false;
 }
 
+// --release builds the same program, optimised.
+fn checkReleaseFlag(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/release/prog");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--release").add("-o").add(out).add(exampleOne(suite));
+  return compileQuietly(suite, command) && printsZero(out);
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -654,6 +665,9 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   }
   if (suite.selected("wasm-module")) {
     runCli(suite, "wasm-module", checkWasmModule(suite));
+  }
+  if (suite.selected("release-flag")) {
+    runCli(suite, "release-flag", checkReleaseFlag(suite));
   }
   if (suite.selected("build-file")) {
     runCli(suite, "build-file", checkBuildFile(suite));

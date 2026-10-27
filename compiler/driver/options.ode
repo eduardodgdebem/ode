@@ -9,8 +9,8 @@ import { dumpTokens } from "../syntax/dump";
 
 export let USAGE: *i8 = `
   usage: ode [-o <path>] [--keep-intermediates] [--emit-llvm | --emit-object] [--dump-tokens | --dump-ast | --dump-types]
-             [--target <arch-os[-abi]>] [--sysroot <dir>] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode>
-         ode test [-l <lib>] [-L <dir>] [-framework <name>] <input.ode | directory> [filter]
+             [--release] [--target <arch-os[-abi]>] [--sysroot <dir>] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode>
+         ode test [--release] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode | directory> [filter]
                                                      runs the tests in a program, or in every file under a directory
          ode build [step] [options]   builds what build.ode declares, or this compiler in its repository (ode build --help)
 `;
@@ -34,9 +34,13 @@ export struct BuildFlags {
   // for none.
   sysroot: *i8,
   link: *LinkInputs,
+  // Optimise: clang's -O2 rather than none.
+  release: bool,
 
   fn new(): BuildFlags {
-    return BuildFlags { target: null, sysroot: null, link: LinkInputs.new() };
+    return BuildFlags {
+      target: null, sysroot: null, link: LinkInputs.new(), release: false,
+    };
   }
 }
 
@@ -77,7 +81,9 @@ fn flagValue(arguments: *List<*i8>, index: *i64, flag: *i8): *i8 | UsageError {
 fn parseBuildFlag(arguments: *List<*i8>, index: *i64,
                   flags: *BuildFlags): bool | UsageError {
   let argument: *i8 = arguments.at(*index);
-  if (equals(argument, "--target")) {
+  if (equals(argument, "--release")) {
+    flags.release = true;
+  } else if (equals(argument, "--target")) {
     flags.target = try flagValue(arguments, index, argument);
   } else if (equals(argument, "--sysroot")) {
     flags.sysroot = try flagValue(arguments, index, argument);
@@ -243,6 +249,8 @@ test "a compile takes what to build for and what to link" {
   assertEq(options.build.link.libraries.at(1), "m");
   assertEq(options.build.link.paths.at(0), "vendor/lib");
   assertEq(options.build.link.frameworks.at(0), "Cocoa");
+  assert(!options.build.release);
+  assert((parseCompileOptions(line("--release main.ode")) ?? options).build.release);
   assertEq(parseCompileOptions(line("main.ode -framework")), UsageError.MissingValue);
   assertEq(parseCompileOptions(line("main.ode --target")), UsageError.MissingValue);
 }

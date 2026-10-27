@@ -26,6 +26,9 @@ import {
 import { isSpace } from "../syntax/lexer";
 import { TARGET, targetsDarwin, targetsWasm } from "./target";
 
+// Whether this run optimises what it assembles: --release.
+export let RELEASE: bool = false;
+
 let SYSROOT_PROBED: bool = false;
 let SYSROOT: *i8 = null;
 

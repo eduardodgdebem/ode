@@ -15,7 +15,7 @@ import {
 import { wasmLinkCommand } from "../codegen/wasm";
 import {
   ccCommand, linkCommand, chooseSysroot, linksWithoutLibraries,
-  usesBundledLibc, LinkInputs,
+  usesBundledLibc, LinkInputs, RELEASE,
 } from "../codegen/toolchain";
 import { Problem, Facts } from "../diagnostics/problems";
 import { BuildFlags } from "./options";
@@ -183,9 +183,11 @@ fn loadImports(ast: *Ast, root: i32): void {
   }
 }
 
-// Sets what this run builds for, before anything is emitted: the IR names
+// Sets what this run builds for, and whether it optimises, before anything
+// is emitted: the IR names
 // the target, and every run of the C compiler is told it.
 export fn chooseTarget(flags: BuildFlags): void {
+  RELEASE = flags.release;
   if (flags.sysroot != null) {
     chooseSysroot(flags.sysroot);
   }
@@ -210,6 +212,9 @@ export fn buildObject(module: *i8, base: *i8, keepIntermediates: bool): *i8 {
   let assemble: *TextList = ccCommand();
   assemble.add("-c").add(irPath).add("-o").add(objectPath);
   assemble.add("-Wno-override-module");
+  if (RELEASE) {
+    assemble.add("-O2");
+  }
   if (!ran(runCommand(assemble, null, null, StderrMode.Inherit))) {
     fail(Problem.AssemblingFailed);
   }

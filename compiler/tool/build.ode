@@ -67,6 +67,7 @@ let BUILD_USAGE: *i8 = `
 
     --target <arch-os[-abi]>   build for another machine
     --sysroot <dir>            that machine's headers and libraries
+    --release                  optimise what is built, unless build.ode says otherwise
     -D<name>[=<value>]         an option build.ode reads with b.option(name)
     --filter <text>            test: run only the tests whose name holds <text>,
                                and hand it to the test step's commands
@@ -292,6 +293,8 @@ export fn readPlan(plan: *Builder): *Build {
       artifact.libraries.push(value);
     } else if (equals(key, "framework")) {
       artifact.frameworks.push(value);
+    } else if (equals(key, "release")) {
+      artifact.release = equals(value, "true");
     } else {
       return null;
     }
@@ -320,6 +323,9 @@ fn addLinking(command: *TextList, artifact: *Artifact): void {
 export fn compileCommand(compiler: *i8, artifact: *Artifact,
                          output: *i8): *TextList {
   let command: *TextList = TextList.new().add(compiler);
+  if (artifact.release) {
+    command.add("--release");
+  }
   if (artifact.target != null) {
     command.add("--target").add(artifact.target);
   }
@@ -334,6 +340,9 @@ export fn compileCommand(compiler: *i8, artifact: *Artifact,
 // The command line that runs a test artifact's tests.
 export fn testCommand(compiler: *i8, artifact: *Artifact, filter: *i8): *TextList {
   let command: *TextList = TextList.new().add(compiler).add("test");
+  if (artifact.release) {
+    command.add("--release");
+  }
   addLinking(command, artifact);
   command.add(artifact.root);
   if (filter != null) {
@@ -703,6 +712,8 @@ export fn buildMain(argc: i32, argv: **i8): i32 {
       project.forwarded.add(argument);
     } else if (equals(argument, "--force")) {
       project.force = true;
+    } else if (equals(argument, "--release")) {
+      project.forwarded.add(argument);
     } else if (equals(argument, "-h") || equals(argument, "--help")) {
       help = true;
     } else if (argument[0] == '-') {
