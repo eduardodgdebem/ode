@@ -339,8 +339,19 @@ let node: *Node = malloc(sizeof(Node)) as *Node;
 node.value = 1;
 ```
 
-Structs pass and return by value between Ode functions, but not across
-`extern` — that would need target-specific C ABI lowering.
+Structs pass and return by value between Ode functions, and to and from C
+through `extern`, as C passes them on the target -- so a C API built on
+small structs, a `Color` or a `Vector2`, is declared as it is:
+
+```rust
+struct Color { r: u8, g: u8, b: u8, a: u8 }
+struct Vector2 { x: f32, y: f32 }
+
+extern fn DrawCircleV(center: Vector2, radius: f32, color: Color): void;
+extern fn GetMousePosition(): Vector2;
+```
+
+A struct holding a union cannot cross, and neither can one through `...`.
 
 ## Methods
 

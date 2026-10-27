@@ -19,7 +19,7 @@ import { Analyzer } from "../check/analyzer";
 import { TEST_MODE } from "../check/testing";
 import { SOURCE_PATH, internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
-import { moduleDisplayPath } from "../link/modules";
+import { NameSet, moduleDisplayPath } from "../link/modules";
 import { Ast, nodeName } from "../syntax/ast";
 import { TypeKind, Type } from "../types/types";
 
@@ -53,6 +53,9 @@ export struct Emitter {
   usesChecks: bool,
   // Whether wasm32's memory intrinsics have been declared.
   declaredWasmMemory: bool,
+  // The IR names of the program's externs, whose struct arguments and
+  // results are passed as C passes them (abi.ode).
+  externs: *NameSet,
   // Whether a check printed a union, which needs @ode.errorName.
   usesErrorNames: bool,
   // The return type of the function being written, which `try` returns an
@@ -86,6 +89,7 @@ export struct Emitter {
     e.terminated = false;
     e.usesChecks = false;
     e.declaredWasmMemory = false;
+    e.externs = NameSet.new();
     e.usesErrorNames = false;
     e.returnType = Type.make(TypeKind.Void, 0);
     e.namedEnums = List<*i8>.new();

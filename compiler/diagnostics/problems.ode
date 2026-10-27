@@ -503,12 +503,12 @@ export fn describe(problem: Problem, facts: Facts): Description {
       return says(text3("extern ", q(name), " has a void parameter"));
     }
     .ExternReturnsStruct => {
-      return saysMore(text3("extern ", q(name), " returns a struct by value"),
-                      "return a pointer instead");
+      return saysMore(text3("extern ", q(name), " returns a struct C cannot take by value"),
+                      "a struct crosses extern unless it holds a union or the extern is variadic; return a pointer instead");
     }
     .ExternTakesStruct => {
-      return saysMore(text3("extern ", q(name), " takes a struct by value"),
-                      "take a pointer instead");
+      return saysMore(text3("extern ", q(name), " takes a struct C cannot take by value"),
+                      "a struct crosses extern unless it holds a union or the extern is variadic; take a pointer instead");
     }
     .VariadicFunction => {
       return saysMore(text3("function ", q(name), " takes '...'"),

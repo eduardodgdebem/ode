@@ -1,0 +1,82 @@
+// ---------------------------------------------------------------------------
+// Structs across `extern`, declared as clang declares them for each target:
+// every expected line here is what clang wrote for the same C declaration,
+// so a change in how one is lowered shows up as a line that no longer
+// matches. Running the calls against C on each target is the suite's.
+// ---------------------------------------------------------------------------
+
+import { contains } from "std/text";
+import { TARGET, parseTarget } from "./target";
+import { irOf } from "../testkit/testkit";
+
+let SHAPES: *i8 = `
+  struct Color { r: u8, g: u8, b: u8, a: u8 }
+  struct Vec2 { x: f32, y: f32 }
+  struct Rect { x: f32, y: f32, w: f32, h: f32 }
+  struct Mixed { a: i32, b: f32 }
+  struct I3 { a: i32, b: i32, c: i32 }
+  struct LD { a: i64, b: f64 }
+  struct Big { a: i64, b: i64, c: i64 }
+  struct Vec3 { x: f32, y: f32, z: f32 }
+  struct One { one: i32 }
+
+  extern fn take_Color(c: Color): Color;
+  extern fn take_Vec2(v: Vec2): Vec2;
+  extern fn take_Rect(r: Rect): Rect;
+  extern fn take_Mixed(m: Mixed): Mixed;
+  extern fn take_I3(i: I3): I3;
+  extern fn take_LD(l: LD): LD;
+  extern fn take_Big(b: Big): Big;
+  extern fn take_Vec3(v: Vec3): Vec3;
+  extern fn take_One(o: One): One;
+
+  fn main(): i32 {
+    return 0;
+  }
+`;
+
+fn declarationsFor(target: *i8): *i8 {
+  TARGET = parseTarget(target) ?? null;
+  assert(TARGET != null, "not a target");
+  return irOf(SHAPES);
+}
+
+test "arm64 passes structs as clang does on macOS" {
+  let ir: *i8 = declarationsFor("aarch64-macos");
+  assert(contains(ir, "declare i32 @take_Color(i64)"));
+  assert(contains(ir, "declare %Vec2 @take_Vec2([2 x float])"));
+  assert(contains(ir, "declare %Rect @take_Rect([4 x float])"));
+  assert(contains(ir, "declare i64 @take_Mixed(i64)"));
+  assert(contains(ir, "declare [2 x i64] @take_I3([2 x i64])"));
+  assert(contains(ir, "declare [2 x i64] @take_LD([2 x i64])"));
+  assert(contains(ir, "declare void @take_Big(ptr sret(%Big) align 8, ptr)"));
+  assert(contains(ir, "declare %Vec3 @take_Vec3([3 x float])"));
+  assert(contains(ir, "declare i32 @take_One(i64)"));
+}
+
+test "arm64 Linux marks a float aggregate's stack alignment" {
+  let ir: *i8 = declarationsFor("aarch64-linux");
+  assert(contains(ir, "declare %Vec2 @take_Vec2([2 x float] alignstack(8))"));
+  assert(contains(ir, "declare i64 @take_Mixed(i64)"));
+}
+
+test "x86-64 passes structs as clang does, an 8-byte part at a time" {
+  let ir: *i8 = declarationsFor("x86_64-linux");
+  assert(contains(ir, "declare i32 @take_Color(i32)"));
+  assert(contains(ir, "declare <2 x float> @take_Vec2(<2 x float>)"));
+  assert(contains(ir, "declare { <2 x float>, <2 x float> } @take_Rect(<2 x float>, <2 x float>)"));
+  assert(contains(ir, "declare i64 @take_Mixed(i64)"));
+  assert(contains(ir, "declare { i64, i32 } @take_I3(i64, i32)"));
+  assert(contains(ir, "declare { i64, double } @take_LD(i64, double)"));
+  assert(contains(ir, "declare void @take_Big(ptr sret(%Big) align 8, ptr byval(%Big) align 8)"));
+  assert(contains(ir, "declare { <2 x float>, float } @take_Vec3(<2 x float>, float)"));
+  assert(contains(ir, "declare i32 @take_One(i32)"));
+}
+
+test "wasm32 passes a struct by address unless it is one scalar" {
+  let ir: *i8 = declarationsFor("wasm32");
+  assert(contains(ir, "declare void @take_Color(ptr sret(%Color) align 1, ptr byval(%Color) align 1)"));
+  assert(contains(ir, "declare void @take_Vec2(ptr sret(%Vec2) align 4, ptr byval(%Vec2) align 4)"));
+  assert(contains(ir, "declare void @take_Big(ptr sret(%Big) align 8, ptr byval(%Big) align 8)"));
+  assert(contains(ir, "declare i32 @take_One(i32)"));
+}

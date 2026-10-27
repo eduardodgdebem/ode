@@ -32,7 +32,7 @@ export fn payloadWords(type: Type): i32 {
   return widest;
 }
 
-fn alignOf(structs: *StructTable, type: Type): i32 {
+export fn alignOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return pointerBytes();
   }

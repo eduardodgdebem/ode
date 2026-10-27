@@ -1,0 +1,98 @@
+// Calls tests/abi/shapes.c with every shape of struct, by value, both ways,
+// and counts what came back wrong. Built for a target and linked against
+// shapes.c built for the same one, it prints "0 failed" -- or, on wasm32,
+// its run() returns 0.
+
+import { printf } from "std/c";
+import { OS, Os } from "std/target";
+
+struct Color { r: u8, g: u8, b: u8, a: u8 }
+struct Vec2 { x: f32, y: f32 }
+struct Rect { x: f32, y: f32, w: f32, h: f32 }
+struct D2 { x: f64, y: f64 }
+struct Mixed { a: i32, b: f32 }
+struct I3 { a: i32, b: i32, c: i32 }
+struct LD { a: i64, b: f64 }
+struct Big { a: i64, b: i64, c: i64 }
+struct Vec3 { x: f32, y: f32, z: f32 }
+struct One { one: i32 }
+struct OneD { d: f64 }
+
+extern fn give_Color(): Color;
+extern fn take_Color(c: Color): Color;
+extern fn give_Vec2(): Vec2;
+extern fn take_Vec2(v: Vec2): Vec2;
+extern fn give_Rect(): Rect;
+extern fn take_Rect(r: Rect): Rect;
+extern fn give_D2(): D2;
+extern fn take_D2(d: D2): D2;
+extern fn give_Mixed(): Mixed;
+extern fn take_Mixed(m: Mixed): Mixed;
+extern fn give_I3(): I3;
+extern fn take_I3(i: I3): I3;
+extern fn give_LD(): LD;
+extern fn take_LD(l: LD): LD;
+extern fn give_Big(): Big;
+extern fn take_Big(b: Big): Big;
+extern fn give_Vec3(): Vec3;
+extern fn take_Vec3(v: Vec3): Vec3;
+extern fn give_One(): One;
+extern fn take_One(o: One): One;
+extern fn give_OneD(): OneD;
+extern fn take_OneD(o: OneD): OneD;
+extern fn mix(a: i32, v: Vec2, d: f64, r: Rect, b: Big, c: Color, v3: Vec3, l: LD): f64;
+
+let FAILED: i32 = 0;
+
+fn check(ok: bool, what: *i8): void {
+  if (!ok) {
+    FAILED = FAILED + 1;
+    match (OS) {
+      .Freestanding => {}
+      else => {
+        printf("FAILED: %s\n", what);
+      }
+    }
+  }
+}
+
+export fn run(): i32 {
+  let c: Color = take_Color(give_Color());
+  check(c.r == 2 && c.g == 3 && c.b == 4 && c.a == 5, "Color");
+  let v: Vec2 = take_Vec2(give_Vec2());
+  check(v.x == 3.0 && v.y == 5.0, "Vec2");
+  let r: Rect = take_Rect(give_Rect());
+  check(r.x == 3.0 && r.y == 4.0 && r.w == 1.0 && r.h == 2.0, "Rect");
+  let d: D2 = take_D2(give_D2());
+  check(d.x == 0.5 && d.y == 0.25, "D2");
+  let m: Mixed = take_Mixed(give_Mixed());
+  check(m.a == 14 && m.b == 1.0, "Mixed");
+  let i: I3 = take_I3(give_I3());
+  check(i.a == 30 && i.b == 20 && i.c == 10, "I3");
+  let l: LD = take_LD(give_LD());
+  check(l.a == -15 && l.b == 3.75, "LD");
+  let b: Big = take_Big(give_Big());
+  check(b.a == 300 && b.b == 100 && b.c == 200, "Big");
+  let v3: Vec3 = take_Vec3(give_Vec3());
+  check(v3.x == 3.0 && v3.y == 2.0 && v3.z == 1.0, "Vec3");
+  let o: One = take_One(give_One());
+  check(o.one == 43, "One");
+  let od: OneD = take_OneD(give_OneD());
+  check(od.d == 10.0, "OneD");
+  // 1 + 4 + 0.75 + 10 + 600 + 10 + 6 + (-5 + 1.25) = 628.0
+  let sum: f64 = mix(1, give_Vec2(), 0.75, give_Rect(), give_Big(), give_Color(),
+                     give_Vec3(), give_LD());
+  check(sum == 628.0, "mix");
+  return FAILED;
+}
+
+fn main(): i32 {
+  let failed: i32 = run();
+  match (OS) {
+    .Freestanding => {}
+    else => {
+      printf("%d failed\n", failed);
+    }
+  }
+  return failed;
+}
