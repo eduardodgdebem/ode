@@ -808,7 +808,7 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .PatternNotLiteral => {
       return saysMore("pattern is not a literal",
-                      "a match on an integer takes number and character literals");
+                      "a match takes numbers and characters, true and false, or strings, as its value is");
     }
     .PatternType => {
       return saysMore("pattern does not have the type of the value matched",
@@ -816,7 +816,7 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .CannotMatch => {
       return saysMore(text2("cannot match on ", typeText(facts.got)),
-                      "match works on enums, integers and characters");
+                      "match works on enums, integers, characters, bools and text");
     }
     .ArmAfterElse => {
       return says("an arm after 'else' can never be reached");

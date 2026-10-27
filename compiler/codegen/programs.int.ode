@@ -1887,3 +1887,28 @@ test "a union of values compares with ==, by member and value" {
     }
   `), "1 0 0 1 0\n");
 }
+
+test "a match on a bool, and on text by what it says" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+    import { copy } from "std/text";
+
+    fn command(text: *i8): i32 {
+      return match (text) {
+        "w", "write" => 1,
+        "q" => 2,
+        else => 0,
+      };
+    }
+
+    fn main(): i32 {
+      let said: *i8 = match (2 > 1) {
+        true => "yes",
+        false => "no",
+      };
+      printf("%s %d %d %d %d\n", said, command(copy("write")), command("q"),
+             command("wq"), command(""));
+      return 0;
+    }
+  `), "yes 1 2 0 0\n");
+}

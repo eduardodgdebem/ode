@@ -473,6 +473,26 @@ let kind: *i8 = match (c) {
 };
 ```
 
+A `bool` is matched like an enum of two: `true` and `false` both handled, or
+an `else`. And text is matched by what it says, against string literals --
+compared a byte at a time, so a copy matches as well as the literal does --
+always with an `else`:
+
+```rust
+let label: *i8 = match (done) {
+  true => "done",
+  false => "to do",
+};
+
+fn command(text: *i8): Command {
+  return match (text) {
+    "w", "write" => .Write,
+    "q", "quit" => .Quit,
+    else => .Unknown,
+  };
+}
+```
+
 A member named alone is found among a union's error enums too, when exactly
 one has it: `return .Empty;` in a function returning `i64 | ParseError`.
 

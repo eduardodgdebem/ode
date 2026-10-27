@@ -506,9 +506,6 @@ export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
   if (!declared.has("exit")) {
     e.head.add("declare void @exit(i32)\n");
   }
-  if (!declared.has("strcmp")) {
-    e.head.add("declare i32 @strcmp(ptr, ptr)\n");
-  }
   if (!declared.has("snprintf")) {
     e.head.add("declare i32 @snprintf(ptr, i64, ptr, ...)\n");
   }
@@ -517,7 +514,8 @@ export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
   }
 
   // Equal when both are the same pointer, or neither is null and their
-  // text matches.
+  // bytes are the same up to and with the NUL -- compared here, a byte at a
+  // time, so that it needs no C library: a wasm module has none.
   e.body.add("define private i1 @ode.textEquals(ptr %a, ptr %b) {\n");
   e.body.add("entry:\n");
   e.body.add("  %same = icmp eq ptr %a, %b\n");
@@ -526,11 +524,21 @@ export fn emitCheckSupport(e: *Emitter, declared: *NameSet): void {
   e.body.add("  %aNull = icmp eq ptr %a, null\n");
   e.body.add("  %bNull = icmp eq ptr %b, null\n");
   e.body.add("  %either = or i1 %aNull, %bNull\n");
-  e.body.add("  br i1 %either, label %no, label %compare\n");
-  e.body.add("compare:\n");
-  e.body.add("  %order = call i32 @strcmp(ptr %a, ptr %b)\n");
-  e.body.add("  %equal = icmp eq i32 %order, 0\n");
-  e.body.add("  ret i1 %equal\n");
+  e.body.add("  br i1 %either, label %no, label %loop\n");
+  e.body.add("loop:\n");
+  e.body.add("  %at = phi i64 [ 0, %check ], [ %next, %step ]\n");
+  e.body.add("  %pa = getelementptr i8, ptr %a, i64 %at\n");
+  e.body.add("  %pb = getelementptr i8, ptr %b, i64 %at\n");
+  e.body.add("  %ca = load i8, ptr %pa\n");
+  e.body.add("  %cb = load i8, ptr %pb\n");
+  e.body.add("  %differ = icmp ne i8 %ca, %cb\n");
+  e.body.add("  br i1 %differ, label %no, label %more\n");
+  e.body.add("more:\n");
+  e.body.add("  %end = icmp eq i8 %ca, 0\n");
+  e.body.add("  br i1 %end, label %yes, label %step\n");
+  e.body.add("step:\n");
+  e.body.add("  %next = add i64 %at, 1\n");
+  e.body.add("  br label %loop\n");
   e.body.add("yes:\n");
   e.body.add("  ret i1 true\n");
   e.body.add("no:\n");
