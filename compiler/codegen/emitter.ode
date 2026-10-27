@@ -51,6 +51,8 @@ export struct Emitter {
   // Whether a check -- `assert`, `assertEq` -- was emitted, which needs the
   // declarations emitCheckSupport adds.
   usesChecks: bool,
+  // Whether wasm32's memory intrinsics have been declared.
+  declaredWasmMemory: bool,
   // Whether a check printed a union, which needs @ode.errorName.
   usesErrorNames: bool,
   // The return type of the function being written, which `try` returns an
@@ -83,6 +85,7 @@ export struct Emitter {
     e.nextString = 0;
     e.terminated = false;
     e.usesChecks = false;
+    e.declaredWasmMemory = false;
     e.usesErrorNames = false;
     e.returnType = Type.make(TypeKind.Void, 0);
     e.namedEnums = List<*i8>.new();

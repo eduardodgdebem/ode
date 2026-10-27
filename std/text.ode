@@ -11,33 +11,33 @@
 // them change their arguments.
 // ---------------------------------------------------------------------------
 
-import { strlen, strnlen, strcmp, strncmp, strstr, memcpy } from "./c";
+import { copyBytes, compareText, findText, textLength, textLengthUpTo } from "./heap";
 import { alloc, grow, release } from "./mem";
 
 export fn length(text: *i8): i64 {
-  return strlen(text) as i64;
+  return textLength(text);
 }
 
 export fn equals(a: *i8, b: *i8): bool {
-  return strcmp(a, b) == 0;
+  return compareText(a, b, -1) == 0;
 }
 
 export fn startsWith(text: *i8, prefix: *i8): bool {
-  return strncmp(text, prefix, strlen(prefix)) == 0;
+  return compareText(text, prefix, textLength(prefix)) == 0;
 }
 
 export fn endsWith(text: *i8, suffix: *i8): bool {
-  let textLength: i64 = strlen(text) as i64;
-  let suffixLength: i64 = strlen(suffix) as i64;
-  if (suffixLength > textLength) {
+  let textBytes: i64 = textLength(text);
+  let suffixBytes: i64 = textLength(suffix);
+  if (suffixBytes > textBytes) {
     return false;
   }
-  return strcmp(text + textLength - suffixLength, suffix) == 0;
+  return compareText(text + textBytes - suffixBytes, suffix, -1) == 0;
 }
 
 // Where `part` first starts in `text`, or -1.
 export fn indexOf(text: *i8, part: *i8): i64 {
-  let found: *i8 = strstr(text, part);
+  let found: *i8 = findText(text, part);
   if (found == null) {
     return -1;
   }
@@ -45,7 +45,7 @@ export fn indexOf(text: *i8, part: *i8): i64 {
 }
 
 export fn contains(text: *i8, part: *i8): bool {
-  return strstr(text, part) != null;
+  return findText(text, part) != null;
 }
 
 // The `count` bytes of `text` from `start`, as a string of their own. It
@@ -54,16 +54,16 @@ export fn contains(text: *i8, part: *i8): bool {
 // more than the slice.
 export fn slice(text: *i8, start: i64, count: i64): *i8 {
   assert(start >= 0 && count >= 0 &&
-         strnlen(text + start, count as isize) as i64 == count,
+         textLengthUpTo(text + start, count) == count,
          "slice out of range");
   let out: *i8 = alloc<i8>(count + 1);
-  memcpy(out, text + start, count as isize);
+  copyBytes(out, text + start, count);
   out[count] = '\0';
   return out;
 }
 
 export fn copy(text: *i8): *i8 {
-  return slice(text, 0, strlen(text) as i64);
+  return slice(text, 0, textLength(text));
 }
 
 export fn fromInt(value: i64): *i8 {
@@ -150,13 +150,13 @@ export struct Builder {
 
   fn addBytes(self: *Builder, bytes: *i8, count: i64): void {
     self.reserve(count);
-    memcpy(self.data + self.length, bytes, count as isize);
+    copyBytes(self.data + self.length, bytes, count);
     self.length = self.length + count;
     self.data[self.length] = '\0';
   }
 
   fn add(self: *Builder, text: *i8): void {
-    self.addBytes(text, strlen(text) as i64);
+    self.addBytes(text, textLength(text));
   }
 
   fn push(self: *Builder, byte: i8): void {

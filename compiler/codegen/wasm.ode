@@ -10,10 +10,14 @@
 // ---------------------------------------------------------------------------
 
 import { List } from "std/list";
+import { CallTarget } from "../check/functions";
+import { Emitter } from "./emitter";
+import { emitAssign, genExpr } from "./expressions";
+import { targetsWasm } from "./target";
 import { Builder, equals } from "std/text";
 import { Analyzer } from "../check/analyzer";
 import { TextList } from "../os/process";
-import { NodeKind, Ast, itemAt, itemCount, nodeName } from "../syntax/ast";
+import { NodeKind, Ast, callOf, itemAt, itemCount, nodeName } from "../syntax/ast";
 import { LinkInputs } from "./toolchain";
 
 // The functions the entry file exports, and its `main`, by the names they
@@ -46,4 +50,35 @@ export fn wasmLinkCommand(command: *TextList, object: *i8, output: *i8,
   command.add(object).add("-o").add(output);
   inputs.addTo(command);
   return command;
+}
+
+// `wasmMemorySize()` and `wasmMemoryGrow(pages)`: LLVM's intrinsics on
+// wasm32, for memory 0; elsewhere no memory, which cannot grow.
+export fn genWasmBuiltin(e: *Emitter, node: i32): *i8 {
+  let growing: bool = e.an.callTargets[node] == CallTarget.WasmMemoryGrow;
+  let pages: *i8 = null;
+  if (growing) {
+    pages = genExpr(e, itemAt(e.ast, callOf(e.ast, node).args, 0));
+  }
+  if (!targetsWasm()) {
+    if (growing) {
+      return "-1";
+    }
+    return "0";
+  }
+
+  if (!e.declaredWasmMemory) {
+    e.declaredWasmMemory = true;
+    e.head.add("declare i32 @llvm.wasm.memory.size.i32(i32 immarg)\n");
+    e.head.add("declare i32 @llvm.wasm.memory.grow.i32(i32 immarg, i32)\n");
+  }
+  let call: *Builder = Builder.new();
+  if (growing) {
+    call.add("call i32 @llvm.wasm.memory.grow.i32(i32 0, i32 ");
+    call.add(pages);
+    call.push(')');
+  } else {
+    call.add("call i32 @llvm.wasm.memory.size.i32(i32 0)");
+  }
+  return emitAssign(e, call.take());
 }

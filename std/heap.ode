@@ -1,0 +1,277 @@
+// ---------------------------------------------------------------------------
+// Memory and bytes, on every target: the C library's where there is one,
+// and Ode's own on wasm32, which has none.
+//
+//   let block: *i8 = heapAlloc(64);
+//   block = heapResize(block, 128);
+//   heapFree(block);
+//
+// std/mem and std/text are built on these rather than on std/c, which is
+// what lets them work in a wasm module that its host gives nothing.
+//
+// The wasm32 heap starts where the module's memory ends, and grows it with
+// wasmMemoryGrow as it needs to. A block is a power of two, from 16 bytes
+// up, with its size class in an 8-byte header before what the caller gets;
+// a freed block goes on a list for its class and is handed out again before
+// the heap grows. That wastes up to half of a block, never returns memory to
+// the host, and is not safe across threads -- a wasm32 module has one.
+// ---------------------------------------------------------------------------
+
+import {
+  malloc, realloc, free, memmove, memset, strlen, strnlen, strcmp, strncmp, strstr,
+} from "./c";
+import { ARCH, Arch } from "std/target";
+
+let PAGE_BYTES: i64 = 65536;
+let HEADER_BYTES: i64 = 8;
+let SMALLEST_CLASS: i64 = 4;
+let CLASSES: i64 = 32;
+
+// The wasm32 heap: where the next block is cut from, where the memory ends,
+// and a free list per size class -- each freed block holding the next.
+let NEXT: *i8 = null;
+let END: *i8 = null;
+let FREE: **i8 = null;
+
+// `bytes` from the end of the heap, growing the memory if need be; null when
+// it cannot grow.
+fn cut(bytes: i64): *i8 {
+  if (NEXT == null) {
+    NEXT = (wasmMemorySize() as i64 * PAGE_BYTES) as isize as *i8;
+    END = NEXT;
+  }
+  let room: i64 = END - NEXT;
+  if (room < bytes) {
+    let pages: i64 = (bytes - room + PAGE_BYTES - 1) / PAGE_BYTES;
+    if (wasmMemoryGrow(pages as i32) < 0) {
+      return null;
+    }
+    END = END + pages * PAGE_BYTES;
+  }
+  let block: *i8 = NEXT;
+  NEXT = NEXT + bytes;
+  return block;
+}
+
+// The smallest class whose blocks hold `size` bytes and the header.
+fn classFor(size: i64): i64 {
+  let class: i64 = SMALLEST_CLASS;
+  while (((1 as i64) << class) < size + HEADER_BYTES) {
+    class = class + 1;
+  }
+  return class;
+}
+
+fn classOf(block: *i8): i64 {
+  return *((block - HEADER_BYTES) as *i64);
+}
+
+fn wasmAlloc(size: i64): *i8 {
+  if (FREE == null) {
+    FREE = cut(CLASSES * sizeof(*i8)) as **i8;
+    if (FREE == null) {
+      return null;
+    }
+    for (class in 0..CLASSES) {
+      FREE[class] = null;
+    }
+  }
+  let class: i64 = classFor(size);
+  let block: *i8 = FREE[class];
+  if (block != null) {
+    FREE[class] = *(block as **i8);
+  } else {
+    let start: *i8 = cut((1 as i64) << class);
+    if (start == null) {
+      return null;
+    }
+    block = start + HEADER_BYTES;
+  }
+  *((block - HEADER_BYTES) as *i64) = class;
+  return block;
+}
+
+fn wasmFree(block: *i8): void {
+  if (block == null) {
+    return;
+  }
+  let class: i64 = classOf(block);
+  *(block as **i8) = FREE[class];
+  FREE[class] = block;
+}
+
+fn wasmResize(block: *i8, size: i64): *i8 {
+  if (block == null) {
+    return wasmAlloc(size);
+  }
+  let room: i64 = ((1 as i64) << classOf(block)) - HEADER_BYTES;
+  if (size <= room) {
+    return block;
+  }
+  let moved: *i8 = wasmAlloc(size);
+  if (moved == null) {
+    return null;
+  }
+  copyBytes(moved, block, room);
+  wasmFree(block);
+  return moved;
+}
+
+// `size` bytes, uninitialised; null when there is no more memory.
+export fn heapAlloc(size: i64): *i8 {
+  return match (ARCH) {
+    .Wasm32 => wasmAlloc(size),
+    else => malloc(size as isize),
+  };
+}
+
+// `block`, moved if need be to `size` bytes, keeping what fits; null when
+// there is no more memory, with `block` left as it was.
+export fn heapResize(block: *i8, size: i64): *i8 {
+  return match (ARCH) {
+    .Wasm32 => wasmResize(block, size),
+    else => realloc(block, size as isize),
+  };
+}
+
+export fn heapFree(block: *i8): void {
+  match (ARCH) {
+    .Wasm32 => wasmFree(block),
+    else => free(block),
+  }
+}
+
+// Copies `count` bytes from `from` to `to`, which may overlap.
+export fn copyBytes(to: *i8, from: *i8, count: i64): void {
+  match (ARCH) {
+    .Wasm32 => {
+      if (to - from < 0) {
+        for (index in 0..count) {
+          to[index] = from[index];
+        }
+      } else {
+        let index: i64 = count - 1;
+        while (index >= 0) {
+          to[index] = from[index];
+          index = index - 1;
+        }
+      }
+    }
+    else => {
+      memmove(to, from, count as isize);
+    }
+  }
+}
+
+export fn fillBytes(to: *i8, value: i8, count: i64): void {
+  match (ARCH) {
+    .Wasm32 => {
+      for (index in 0..count) {
+        to[index] = value;
+      }
+    }
+    else => {
+      memset(to, value as i32, count as isize);
+    }
+  }
+}
+
+// How many bytes come before the text's NUL.
+export fn textLength(text: *i8): i64 {
+  return match (ARCH) {
+    .Wasm32 => textLengthUpTo(text, -1),
+    else => strlen(text) as i64,
+  };
+}
+
+// The same, looking at no more than `limit` bytes; a negative limit is none.
+export fn textLengthUpTo(text: *i8, limit: i64): i64 {
+  return match (ARCH) {
+    .Wasm32 => {
+      let count: i64 = 0;
+      while (count != limit && text[count] != '\0') {
+        count = count + 1;
+      }
+      return count;
+    }
+    else => {
+      if (limit < 0) {
+        return strlen(text) as i64;
+      }
+      return strnlen(text, limit as isize) as i64;
+    }
+  };
+}
+
+// Below zero when `a` sorts before `b`, above when after, zero when they are
+// the same text -- comparing bytes as unsigned, as C does -- looking at no
+// more than `limit` bytes; a negative limit is none.
+export fn compareText(a: *i8, b: *i8, limit: i64): i32 {
+  return match (ARCH) {
+    .Wasm32 => {
+      let index: i64 = 0;
+      while (index != limit) {
+        let left: i32 = (a[index] as i32) & 255;
+        let right: i32 = (b[index] as i32) & 255;
+        if (left != right || left == 0) {
+          return left - right;
+        }
+        index = index + 1;
+      }
+      return 0;
+    }
+    else => {
+      if (limit < 0) {
+        return strcmp(a, b);
+      }
+      return strncmp(a, b, limit as isize);
+    }
+  };
+}
+
+// Where `part` first starts in `text`, or null.
+export fn findText(text: *i8, part: *i8): *i8 {
+  return match (ARCH) {
+    .Wasm32 => {
+      let length: i64 = textLength(part);
+      let start: *i8 = text;
+      while (true) {
+        if (compareText(start, part, length) == 0) {
+          return start;
+        }
+        if (start[0] == '\0') {
+          return null;
+        }
+        start = start + 1;
+      }
+      return null;
+    }
+    else => strstr(text, part),
+  };
+}
+
+test "the heap hands out, resizes and frees" {
+  let block: *i8 = heapAlloc(10);
+  fillBytes(block, 'a', 10);
+  block = heapResize(block, 1000);
+  assertEq(block[9], 'a');
+  heapFree(block);
+}
+
+test "bytes and text, compared and found" {
+  assertEq(textLength("hello"), 5);
+  assertEq(textLengthUpTo("hello", 3), 3);
+  assert(compareText("abc", "abd", -1) < 0);
+  assertEq(compareText("abcx", "abcy", 3), 0);
+  assert(compareText("\xff", "a", -1) > 0);
+  let text: *i8 = "haystack";
+  assertEq(findText(text, "st") - text, 3);
+  assertEq(findText("haystack", "needle"), null);
+
+  let buffer: *i8 = heapAlloc(8);
+  copyBytes(buffer, "abcdefg", 8);
+  copyBytes(buffer + 1, buffer, 6);
+  assertEq(buffer[1], 'a');
+  assertEq(buffer[6], 'f');
+  heapFree(buffer);
+}

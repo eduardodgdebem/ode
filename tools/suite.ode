@@ -456,6 +456,67 @@ fn checkWasmModule(suite: *Suite): bool {
          holdsBytes(module, "add");
 }
 
+// A wasm module that uses the standard library needs nothing from its host:
+// std's memory and text are Ode's own on wasm32.
+fn checkWasmNeedsNothing(suite: *Suite): bool {
+  let directory: *i8 = joinPath(suite.work, "cli/wasm-std");
+  makeDirectories(directory) catch (e) {
+    return false;
+  };
+  let source: *i8 = joinPath(directory, "words.ode");
+  writeFile(source, `import { List } from "std/list";
+import { Builder, indexOf } from "std/text";
+
+export fn words(n: i32): i64 {
+  let list: *List<*i8> = List<*i8>.new();
+  let out: *Builder = Builder.new();
+  for (i in 0..n) {
+    out.add("word");
+    out.addInt(i as i64);
+    list.push(out.take());
+  }
+  return indexOf(list.at(list.count - 1), "9");
+}
+`) catch (e) {
+    return false;
+  };
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("wasm32").add(source);
+  if (!ran(runCommand(command, directory, null, StderrMode.Inherit))) {
+    return false;
+  }
+  let module: *Builder = readBytes(joinPath(directory, "words.wasm")) catch (e) {
+    return false;
+  };
+  return module.length > 8 && !hasSection(module, 2);
+}
+
+// Whether a wasm module has a section of kind `id`: 2 is its imports. Each
+// section after the 8-byte header is its id, then its size as LEB128.
+fn hasSection(module: *Builder, id: i32): bool {
+  let at: i64 = 8;
+  while (at < module.length) {
+    let kind: i32 = (module.data[at] as i32) & 255;
+    at = at + 1;
+    let size: i64 = 0;
+    let shift: i64 = 0;
+    while (true) {
+      let byte: i64 = (module.data[at] as i64) & 255;
+      at = at + 1;
+      size = size | ((byte & 127) << shift);
+      shift = shift + 7;
+      if (byte < 128) {
+        break;
+      }
+    }
+    if (kind == id) {
+      return true;
+    }
+    at = at + size;
+  }
+  return false;
+}
+
 fn holdsBytes(data: *Builder, text: *i8): bool {
   let count: i64 = strlen(text);
   let start: i64 = 0;
@@ -668,6 +729,9 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   }
   if (suite.selected("release-flag")) {
     runCli(suite, "release-flag", checkReleaseFlag(suite));
+  }
+  if (suite.selected("wasm-needs-nothing")) {
+    runCli(suite, "wasm-needs-nothing", checkWasmNeedsNothing(suite));
   }
   if (suite.selected("build-file")) {
     runCli(suite, "build-file", checkBuildFile(suite));

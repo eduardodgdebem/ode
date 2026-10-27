@@ -97,3 +97,39 @@ test "isize is i32 on wasm32, so it does not pass for an i64" {
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.DeclarationMismatch);
 }
+
+let GROWS: *i8 = `
+  export fn grow(pages: i32): i32 {
+    return wasmMemoryGrow(pages) + wasmMemorySize();
+  }
+
+  fn main(): i32 {
+    return 0;
+  }
+`;
+
+test "wasm32's memory builtins are LLVM's intrinsics there" {
+  buildFor("wasm32");
+  let ir: *i8 = irOf(GROWS);
+  assert(contains(ir, "call i32 @llvm.wasm.memory.grow.i32(i32 0, i32 %"));
+  assert(contains(ir, "call i32 @llvm.wasm.memory.size.i32(i32 0)"));
+}
+
+test "elsewhere there is no memory to grow" {
+  buildFor("aarch64-linux");
+  assert(!contains(irOf(GROWS), "llvm.wasm"));
+}
+
+test "wasmMemoryGrow takes a page count" {
+  let found: *List<Diagnostic> = problemsIn(`
+    fn main(): i32 {
+      wasmMemoryGrow();
+      wasmMemoryGrow("pages");
+      return wasmMemorySize(1);
+    }
+  `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.WrongArgumentCount);
+  assertEq(found.at(1).problem, Problem.WrongArgumentType);
+  assertEq(found.at(2).problem, Problem.WrongArgumentCount);
+}

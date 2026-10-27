@@ -726,6 +726,12 @@ They are constants: nothing may assign to them or take their address. Read
 anywhere else -- `if (ABI == Abi.Musl)` -- one is an ordinary value, and both
 branches are compiled.
 
+Two builtins reach wasm32's memory, for an allocator to be built on, as
+`std/heap`'s is: `wasmMemorySize()`, its size in 64 KiB pages, and
+`wasmMemoryGrow(pages)`, which adds pages and returns how many there were,
+or -1. On any other target there is no such memory, so the size is 0 and
+growing fails -- they belong in an arm of `match (ARCH)` that wasm32 picks.
+
 ## Tests
 
 Tests live in the file they test, as in Zig and Rust. A `test` block at the

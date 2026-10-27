@@ -10,17 +10,27 @@
 // it worth the check at every call.
 // ---------------------------------------------------------------------------
 
-import { malloc, calloc, realloc, free, memcpy, memmove, dprintf, abort } from "./c";
+import { dprintf, abort } from "./c";
+import { heapAlloc, heapResize, heapFree, copyBytes, fillBytes } from "./heap";
+import { ARCH, Arch } from "std/target";
 
 fn outOfMemory(size: i64): void {
-  dprintf(2, "out of memory allocating %lld bytes\n", size);
-  abort();
+  match (ARCH) {
+    // No stderr to say it on: a trap, which the host sees.
+    .Wasm32 => {
+      assert(false, "out of memory");
+    }
+    else => {
+      dprintf(2, "out of memory allocating %lld bytes\n", size);
+      abort();
+    }
+  }
 }
 
 // Room for `count` values of T, uninitialised.
 export fn alloc<T>(count: i64): *T {
   let size: i64 = sizeof(T) * count;
-  let block: *i8 = malloc(size as isize);
+  let block: *i8 = heapAlloc(size);
   if (block == null && size > 0) {
     outOfMemory(size);
   }
@@ -29,10 +39,12 @@ export fn alloc<T>(count: i64): *T {
 
 // Room for `count` values of T, every byte zero.
 export fn allocZeroed<T>(count: i64): *T {
-  let block: *i8 = calloc(count as isize, sizeof(T));
-  if (block == null && count > 0) {
-    outOfMemory(sizeof(T) * count);
+  let size: i64 = sizeof(T) * count;
+  let block: *i8 = heapAlloc(size);
+  if (block == null && size > 0) {
+    outOfMemory(size);
   }
+  fillBytes(block, 0, size);
   return block as *T;
 }
 
@@ -40,7 +52,7 @@ export fn allocZeroed<T>(count: i64): *T {
 // fit are kept.
 export fn grow<T>(values: *T, count: i64): *T {
   let size: i64 = sizeof(T) * count;
-  let block: *i8 = realloc(values as *i8, size as isize);
+  let block: *i8 = heapResize(values as *i8, size);
   if (block == null && size > 0) {
     outOfMemory(size);
   }
@@ -48,17 +60,17 @@ export fn grow<T>(values: *T, count: i64): *T {
 }
 
 export fn release<T>(values: *T): void {
-  free(values as *i8);
+  heapFree(values as *i8);
 }
 
 // Copies `count` values from `from` to `to`, which must not overlap.
 export fn copy<T>(to: *T, from: *T, count: i64): void {
-  memcpy(to as *i8, from as *i8, (sizeof(T) * count) as isize);
+  copyBytes(to as *i8, from as *i8, sizeof(T) * count);
 }
 
 // Copies `count` values from `from` to `to`, which may overlap.
 export fn move<T>(to: *T, from: *T, count: i64): void {
-  memmove(to as *i8, from as *i8, (sizeof(T) * count) as isize);
+  copyBytes(to as *i8, from as *i8, sizeof(T) * count);
 }
 
 struct Pair {
