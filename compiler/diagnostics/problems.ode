@@ -82,6 +82,7 @@ export enum Problem {
   AssignmentMismatch,
   NotAssignable,
   TargetConstant,
+  PanicSignature,
   ConditionNotBool,
   ForBoundsNotIntegers,
   ForBoundsDiffer,
@@ -552,6 +553,10 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .AssignmentMismatch => {
       return saysMore("type mismatch in assignment", expectedButGot(facts));
+    }
+    .PanicSignature => {
+      return saysMore("a panic handler on wasm32 is 'extern fn panic(where: *i8, message: *i8): void'",
+                      "a failed check calls it with where it failed and its message, which may be null, before it traps");
     }
     .TargetConstant => {
       return says(text3("cannot change ", q(name),
