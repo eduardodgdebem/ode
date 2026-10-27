@@ -133,3 +133,65 @@ test "wasmMemoryGrow takes a page count" {
   assertEq(found.at(1).problem, Problem.WrongArgumentType);
   assertEq(found.at(2).problem, Problem.WrongArgumentCount);
 }
+
+let CHECKS: *i8 = `
+  extern fn panic(where: *i8, message: *i8): void;
+
+  export fn checked(n: i32): i32 {
+    assert(n > 0, "n must be positive");
+    return n;
+  }
+
+  fn main(): i32 {
+    return 0;
+  }
+`;
+
+test "a failed check on wasm32 tells the panic handler, then traps" {
+  buildFor("wasm32");
+  let ir: *i8 = irOf(CHECKS);
+  assert(contains(ir, "call void @panic(ptr "));
+  // Where it failed, ahead of what failed; the snippet is dedented first.
+  assert(contains(ir, "test.ode:4:3: assertion failed"));
+  assert(contains(ir, "call void @llvm.trap()"));
+}
+
+test "without a panic handler, a failed check on wasm32 only traps" {
+  buildFor("wasm32");
+  let ir: *i8 = irOf(`
+    export fn checked(n: i32): i32 {
+      assert(n > 0);
+      return n;
+    }
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assert(!contains(ir, "@panic"));
+  assert(contains(ir, "call void @llvm.trap()"));
+}
+
+test "a panic handler on wasm32 takes where and the message" {
+  buildFor("wasm32");
+  let found: *List<Diagnostic> = problemsIn(`
+    extern fn panic(message: *i8): void;
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 1);
+  assertEq(found.at(0).problem, Problem.PanicSignature);
+}
+
+test "elsewhere an extern named panic is any extern" {
+  buildFor("aarch64-linux");
+  assertEq(problemsIn(`
+    extern fn panic(code: i32): i32;
+
+    fn main(): i32 {
+      return 0;
+    }
+  `).count, 0);
+}
