@@ -1004,6 +1004,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "defer_statement"
+        },
+        {
+          "type": "SYMBOL",
           "name": "return_statement"
         },
         {
@@ -1414,6 +1418,23 @@
         {
           "type": "STRING",
           "value": ";"
+        }
+      ]
+    },
+    "defer_statement": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "defer"
+        },
+        {
+          "type": "FIELD",
+          "name": "body",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_statement"
+          }
         }
       ]
     },
@@ -2520,7 +2541,7 @@
     },
     "number_literal": {
       "type": "PATTERN",
-      "value": "[0-9]+(\\.[0-9]+)?"
+      "value": "0x[0-9a-fA-F]+|0o[0-7]+|0b[01]+|[0-9]+(\\.[0-9]+)?"
     },
     "boolean_literal": {
       "type": "CHOICE",

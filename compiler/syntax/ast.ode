@@ -103,6 +103,11 @@ export struct For {
 
 export struct Break {}
 
+// `defer statement;`: the statement, run as the block it is in is left.
+export struct Defer {
+  body: i32,
+}
+
 export struct Continue {}
 
 export struct Return {
@@ -370,7 +375,7 @@ export struct TypeArgs {
 export struct ErrorNode {}
 
 export type Syntax = Program | Block | VarDecl | Assign | If | While | For | Break |
-    Continue | Return | ExprStmt | Function | Extern | StructDecl | FieldDecl |
+    Continue | Defer | Return | ExprStmt | Function | Extern | StructDecl | FieldDecl |
     Params | Param | EnumDecl | EnumMember | Import | ImportName | TypeAlias |
     Match | Arm | Call | CallValue | MethodCall | FieldAccess | StructLit |
     FieldInit | Args | Lambda | Binary | Unary | Cast | Index | Sizeof | Try |
@@ -412,6 +417,7 @@ export fn syntaxChildren(syntax: Syntax): *List<i32> {
     While => listOf(syntax.condition, syntax.body),
     For => joined(listOf(syntax.start, syntax.end), single(syntax.body)),
     Return => single(syntax.value),
+    Defer => single(syntax.body),
     ExprStmt => single(syntax.value),
     Function => joined(listOf(syntax.typeParams, syntax.returnType),
                        listOf(syntax.params, syntax.body)),
@@ -474,6 +480,7 @@ export fn withChildren(syntax: Syntax, children: *List<i32>): Syntax {
     For => For { name: syntax.name, start: children.at(0), end: children.at(1),
                  body: children.at(2) },
     Return => Return { value: children.at(0) },
+    Defer => Defer { body: children.at(0) },
     ExprStmt => ExprStmt { value: children.at(0) },
     Function => Function { name: syntax.name, typeParams: children.at(0),
                            returnType: children.at(1), params: children.at(2),
@@ -902,6 +909,7 @@ export enum NodeKind {
   While,
   Break,
   Continue,
+  Defer,
   Fn,
   Extern,
   Struct,
@@ -1027,6 +1035,7 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     .While => "while",
     .Break => "break",
     .Continue => "continue",
+    .Defer => "defer",
     .Fn => "fn",
     .Extern => "extern",
     .Struct => "struct",

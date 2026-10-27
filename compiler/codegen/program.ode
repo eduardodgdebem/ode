@@ -13,7 +13,7 @@ import { globalDeclOf } from "../check/constants";
 import { signatureIndex } from "../check/functions";
 import { TEST_MODE, runsTestsOf } from "../check/testing";
 import {
-  Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
+  Deferred, Emitter, emitAlloca, emitLine, emitterEnterScope, emitterExitScope,
   declareLocal, llvmName, internString, lambdaValue,
 } from "./emitter";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
@@ -170,6 +170,8 @@ fn genFunction(e: *Emitter, node: i32): void {
   e.nextTemp = 0;
   e.nextLabel = 0;
   e.terminated = false;
+  e.defers = List<Deferred>.new();
+  e.loopDefers = List<i64>.new();
 
   emitSignature(e, e.body, node, "define");
   e.body.add(" {\nentry:\n");

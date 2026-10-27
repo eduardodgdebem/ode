@@ -226,6 +226,7 @@ module.exports = grammar({
       $.match_statement,
       $.break_statement,
       $.continue_statement,
+      $.defer_statement,
       $.return_statement,
       $.expression_statement,
       $.block,
@@ -297,6 +298,7 @@ module.exports = grammar({
 
     break_statement: _ => seq('break', ';'),
     continue_statement: _ => seq('continue', ';'),
+    defer_statement: $ => seq('defer', field('body', $._statement)),
 
     return_statement: $ => seq('return', optional($._expression), ';'),
 
@@ -453,7 +455,7 @@ module.exports = grammar({
     _type_identifier: $ => alias($.identifier, $.type_identifier),
     _field_identifier: $ => alias($.identifier, $.field_identifier),
 
-    number_literal: _ => /[0-9]+(\.[0-9]+)?/,
+    number_literal: _ => /0x[0-9a-fA-F]+|0o[0-7]+|0b[01]+|[0-9]+(\.[0-9]+)?/,
 
     boolean_literal: _ => choice('true', 'false'),
 

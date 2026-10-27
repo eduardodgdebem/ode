@@ -110,6 +110,32 @@ struct Lexer {
       self.advance();
     }
 
+    // `0x1f`, `0o755` and `0b1010`. What follows the prefix runs on through
+    // letters and digits alike, so that a digit its base does not have is
+    // reported with the whole of the literal.
+    if (self.peek() == '0' && baseOf(self.peekNext()) != 0) {
+      let base: i32 = baseOf(self.peekNext());
+      self.advance();
+      self.advance();
+      let digits: i64 = 0;
+      let valid: bool = true;
+      while (!self.atEnd() && isAlphaNumeric(self.peek())) {
+        if (digitValue(self.peek()) >= base) {
+          valid = false;
+        }
+        digits = digits + 1;
+        self.advance();
+      }
+      let count: i64 = self.pos - start;
+      let text: *i8 = slice(self.source, start, count);
+      if (!valid || digits == 0) {
+        report(Problem.BadDigit, line, column, Facts.about(text));
+        FAILED = false;
+      }
+      list.add(TokenKind.Number, text, count, line, column);
+      return;
+    }
+
     // Digits and dots both run on, so `1.` and `1.2.3` lex as one number here
     // and are rejected later, with a message about the whole of it. The
     // exception is `..`, which ends the number: `0..n` is a range.
@@ -343,6 +369,30 @@ fn isAlpha(character: i8): bool {
   return character == '_';
 }
 
+// 16, 8 or 2 for the letter after a `0` that says a literal is hex, octal or
+// binary; 0 for any other.
+export fn baseOf(letter: i8): i32 {
+  if (letter == 'x') { return 16; }
+  if (letter == 'o') { return 8; }
+  if (letter == 'b') { return 2; }
+  return 0;
+}
+
+// What a digit is worth, in any base up to 16: 0-9, then a-f or A-F. 99 for
+// anything else, which no base has.
+export fn digitValue(character: i8): i32 {
+  if (isDigit(character)) {
+    return (character - '0') as i32;
+  }
+  if (character >= 'a' && character <= 'f') {
+    return (character - 'a') as i32 + 10;
+  }
+  if (character >= 'A' && character <= 'F') {
+    return (character - 'A') as i32 + 10;
+  }
+  return 99;
+}
+
 fn isAlphaNumeric(character: i8): bool {
   return isAlpha(character) || isDigit(character);
 }
@@ -365,6 +415,7 @@ fn keywordKind(text: *i8): TokenKind {
   if (equals(text, "catch")) { return TokenKind.Catch; }
   if (equals(text, "while")) { return TokenKind.While; }
   if (equals(text, "break")) { return TokenKind.Break; }
+  if (equals(text, "defer")) { return TokenKind.Defer; }
   if (equals(text, "continue")) { return TokenKind.Continue; }
   if (equals(text, "as")) { return TokenKind.As; }
   if (equals(text, "import")) { return TokenKind.Import; }

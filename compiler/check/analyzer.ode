@@ -99,6 +99,8 @@ export struct Analyzer {
   instancesFailed: bool,
   program: i32,
   loopDepth: i32,
+  // How many `defer`s the statement being checked is inside.
+  deferDepth: i32,
   inFunction: bool,
   // Whether the program must have a `main`: it must, unless it is being
   // tested, or is only a fragment a test checks.
@@ -134,6 +136,7 @@ export struct Analyzer {
     an.moduleSymbols =
         alloc<SymbolList>(moduleCount() as i64);
     an.loopDepth = 0;
+    an.deferDepth = 0;
     an.inFunction = false;
     an.requireMain = true;
     an.panicHandler = null;

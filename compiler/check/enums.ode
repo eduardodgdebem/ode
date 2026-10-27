@@ -37,7 +37,7 @@ import {
   NO_NODE, NodeKind, EnumDecl, EnumMember, FieldAccess, Syntax, armOf, itemAt,
   itemCount, matchOf, negated, nodeName, nodeTextLength,
 } from "../syntax/ast";
-import { TypeKind, Type } from "../types/types";
+import { TypeKind, Type, parseMagnitude } from "../types/types";
 
 // The declaration of the enum whose IR name is `name`.
 export fn enumDeclOf(an: *Analyzer, name: *i8): i32 {
@@ -79,16 +79,16 @@ fn integerLiteralValue(an: *Analyzer, node: i32, ok: *bool): i64 {
     index = 1;
   }
 
-  let value: i64 = 0;
-  while (index < nodeTextLength(an.ast, node)) {
-    let digit: i8 = text[index];
-    if (digit < '0' || digit > '9') {
+  // A float is no pattern; any integer, in any base, is.
+  let length: i64 = nodeTextLength(an.ast, node);
+  for (at in index..length) {
+    if (text[at] == '.') {
       *ok = false;
       return 0;
     }
-    value = value * 10 + (digit - '0') as i64;
-    index = index + 1;
   }
+  let overflowed: bool = false;
+  let value: i64 = parseMagnitude(text, index, length, &overflowed) as i64;
 
   if (negative) {
     return 0 - value;

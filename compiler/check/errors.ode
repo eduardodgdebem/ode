@@ -386,6 +386,9 @@ export fn parseUnionType(an: *Analyzer, node: i32): Type {
 
 // `try value`.
 export fn checkTry(an: *Analyzer, node: i32, attempt: Try): Type {
+  if (an.deferDepth > 0) {
+    analyzerFail(an, node, Problem.DeferLeaves, Facts.about("try"));
+  }
   let type: Type = checkExpr(an, attempt.value);
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
