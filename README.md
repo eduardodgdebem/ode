@@ -100,8 +100,19 @@ const { instance } = await WebAssembly.instantiate(bytes, {
 instance.exports.fib(20);   // 6765
 ```
 
-Pointers are 4 bytes there, the module exports its memory as `memory`, and a
-failed `assert` traps. `std/mem`, `std/list` and `std/text` work there with
+Pointers are 4 bytes there, and the module exports its memory as `memory`.
+A failed check traps; a program that declares a panic handler is told why
+first, with where it failed and the message, both text in that memory:
+
+```rust
+extern fn panic(where: *i8, message: *i8): void;   // message may be null
+```
+
+```js
+env: { panic: (where, message) => console.error(text(where), text(message)) }
+```
+
+`std/mem`, `std/list` and `std/text` work there with
 nothing from the host: on wasm32 their memory and their bytes are Ode's own
 ([`std/heap`](docs/std.md#stdheap)), grown with the builtins
 `wasmMemorySize()` and `wasmMemoryGrow(pages)`. Building one takes a clang

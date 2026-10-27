@@ -387,8 +387,11 @@ to run:
 - **What crosses to the host is numbers.** A string is an address in the
   exported `memory`, read out by the host; an `i64` reaches JavaScript as a
   `BigInt`; structs cannot cross at all (6.3).
-- **A failed check traps** rather than saying why: an `assert`'s message is
-  not seen, and the host gets a `RuntimeError` from the call.
+- **A failed check says little.** It traps, and the host gets a
+  `RuntimeError` from the call. A program that declares `extern fn
+  panic(where: *i8, message: *i8): void` is handed where it failed and an
+  `assert`'s message first; an `assertEq`'s two values are not shown, as
+  there is nothing on wasm32 to format them with.
 - **It needs a clang with the WebAssembly backend**, which Apple's does not
   have: on macOS, Homebrew's LLVM, with `wasm-ld` from its lld.
 
