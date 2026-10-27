@@ -29,7 +29,7 @@ import {
   If, Match, Return, StructDecl, Syntax, TypeAlias, VarDecl, While, armOf, itemAt,
   itemCount, matchOf,
 } from "../syntax/ast";
-import { Type } from "../types/types";
+import { TypeKind, Type } from "../types/types";
 
 export fn genStatement(e: *Emitter, node: i32): void {
   let syntax: Syntax = e.ast.nodes[node].syntax;
@@ -168,6 +168,13 @@ fn switchConstant(value: i64, bits: i32): *i8 {
   if (bits >= 64) {
     return fromInt(value);
   }
+  // A bool, which has no width of its own to wrap in.
+  if (bits == 0) {
+    if (value != 0) {
+      return "true";
+    }
+    return "false";
+  }
 
   let span: i64 = 1 << bits as i64;
   let wrapped: i64 = value % span;
@@ -221,6 +228,10 @@ fn genMatchInto(e: *Emitter, node: i32, slot: *i8): void {
   }
   if (type.isUnion()) {
     genUnionMatch(e, node, type, slot);
+    return;
+  }
+  if (type.kind == TypeKind.I8 && type.pointerDepth == 1) {
+    genTextMatch(e, node, slot);
     return;
   }
   let typeName: *i8 = llvmTypeName(type);
@@ -301,6 +312,60 @@ fn genChosenArm(e: *Emitter, node: i32, value: i64, slot: *i8): void {
   genArmBody(e, node, chosen, slot);
   emitBranch(e, done);
   emitLabel(e, done);
+}
+
+// A match on text: each arm in turn asks whether the text says one of its
+// strings, and the first that does runs; checking saw to it that one is
+// `else`.
+fn genTextMatch(e: *Emitter, node: i32, slot: *i8): void {
+  let subject: *i8 = genExpr(e, matchOf(e.ast, node).subject);
+  e.usesChecks = true;
+
+  let done: *i8 = freshLabel(e);
+  let armCount: i32 = itemCount(e.ast, node);
+  let labels: **i8 = alloc<*i8>(armCount as i64);
+  for (arm in 0..armCount) {
+    labels[arm] = freshLabel(e);
+  }
+
+  for (arm in 0..armCount) {
+    let armNode: i32 = itemAt(e.ast, node, arm);
+    if (armOf(e.ast, armNode).isElse) {
+      emitBranch(e, labels[arm]);
+      e.terminated = true;
+      break;
+    }
+    let holds: *i8 = "false";
+    for (index in 0..itemCount(e.ast, armNode)) {
+      let pattern: *i8 = genExpr(e, itemAt(e.ast, armNode, index));
+      let test: *i8 = emitAssign(e, textEqualsCall(subject, pattern));
+      if (index == 0) {
+        holds = test;
+      } else {
+        holds = instruction(e, "or i1 ", holds, test);
+      }
+    }
+    let next: *i8 = freshLabel(e);
+    emitCondBranch(e, holds, labels[arm], next);
+    emitLabel(e, next);
+  }
+
+  for (arm in 0..armCount) {
+    emitLabel(e, labels[arm]);
+    genArmBody(e, node, itemAt(e.ast, node, arm), slot);
+    emitBranch(e, done);
+  }
+  emitLabel(e, done);
+}
+
+fn textEqualsCall(a: *i8, b: *i8): *i8 {
+  let call: *Builder = Builder.new();
+  call.add("call i1 @ode.textEquals(ptr ");
+  call.add(a);
+  call.add(", ptr ");
+  call.add(b);
+  call.push(')');
+  return call.take();
 }
 
 // A match on a union: each arm in turn asks whether the code is one of the

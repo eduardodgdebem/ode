@@ -381,3 +381,55 @@ test "an expression arm in a statement still handles its errors" {
   assertEq(found.at(0).problem, Problem.UnhandledError);
   assertEq(found.at(0).line, 2);
 }
+
+test "a match on a bool handles true and false, or says else" {
+  let scope: *Scope = Scope.new().local("flag", "bool").returning("i32");
+  assertEq(scope.run(`
+    return match (flag) {
+      true => 1,
+      false => 0,
+    };
+  `).count, 0);
+  let missing: *List<Diagnostic> = scope.run(`
+    return match (flag) {
+      true => 1,
+    };
+  `);
+  assertEq(missing.at(0).problem, Problem.UnhandledMember);
+  assertEq(missing.at(0).facts.other, "false");
+  assertEq(scope.run(`
+    return match (flag) {
+      1 => 1,
+      else => 0,
+    };
+  `).at(0).problem, Problem.PatternNotLiteral);
+}
+
+test "a match on text takes strings, once each, and needs else" {
+  let scope: *Scope = Scope.new().local("text", "*i8").returning("i32");
+  assertEq(scope.run(`
+    return match (text) {
+      "w", "write" => 1,
+      "q" => 2,
+      else => 0,
+    };
+  `).count, 0);
+  assertEq(scope.run(`
+    return match (text) {
+      "w" => 1,
+    };
+  `).at(0).problem, Problem.MatchNeedsElse);
+  assertEq(scope.run(`
+    return match (text) {
+      "w" => 1,
+      "w" => 2,
+      else => 0,
+    };
+  `).at(0).problem, Problem.DuplicatePattern);
+  assertEq(scope.run(`
+    return match (text) {
+      'w' => 1,
+      else => 0,
+    };
+  `).at(0).problem, Problem.PatternNotLiteral);
+}

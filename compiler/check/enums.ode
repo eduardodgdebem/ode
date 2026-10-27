@@ -35,7 +35,7 @@ import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import {
   NO_NODE, NodeKind, EnumDecl, EnumMember, FieldAccess, Syntax, armOf, itemAt,
-  itemCount, matchOf, negated, nodeName, nodeTextLength,
+  itemCount, matchOf, negated, nodeName, nodeTextLength, BoolLit,
 } from "../syntax/ast";
 import { TypeKind, Type, parseMagnitude } from "../types/types";
 
@@ -312,6 +312,30 @@ fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
     analyzerFail(an, pattern, Problem.PatternNotLiteral, Facts.none());
     return;
   }
+  // `true` and `false`, which are 1 and 0 as a switch sees them.
+  if (subject.isBool()) {
+    let syntax: Syntax = an.ast.nodes[pattern].syntax;
+    if (!(syntax is BoolLit)) {
+      analyzerFail(an, pattern, Problem.PatternNotLiteral, Facts.none());
+      return;
+    }
+    checkExpr(an, pattern);
+    an.isConstant[pattern] = 1;
+    an.values[pattern] = 0;
+    if (syntax.value) {
+      an.values[pattern] = 1;
+    }
+    return;
+  }
+  // Text, compared by what it says rather than by value; see textPatternTaken.
+  if (isText(subject)) {
+    if (kind != NodeKind.String) {
+      analyzerFail(an, pattern, Problem.PatternNotLiteral, Facts.none());
+      return;
+    }
+    checkExpr(an, pattern);
+    return;
+  }
   if (subject.isEnum()) {
     let type: Type = checkExprAs(an, pattern, subject);
     if (FAILED) {
@@ -365,6 +389,28 @@ fn unhandledMember(an: *Analyzer, node: i32, declaration: i32): i32 {
   return NO_NODE;
 }
 
+fn isText(type: Type): bool {
+  return type.kind == TypeKind.I8 && type.pointerDepth == 1;
+}
+
+// Whether a string pattern before `pattern` in the match says the same text.
+fn textPatternTaken(an: *Analyzer, node: i32, pattern: i32): bool {
+  let text: *i8 = nodeName(an.ast, pattern);
+  for (arm in 0..itemCount(an.ast, node)) {
+    let armNode: i32 = itemAt(an.ast, node, arm);
+    for (index in 0..itemCount(an.ast, armNode)) {
+      let other: i32 = itemAt(an.ast, armNode, index);
+      if (other == pattern) {
+        return false;
+      }
+      if (equals(nodeName(an.ast, other), text)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 fn matchHandles(an: *Analyzer, node: i32, value: i64): bool {
   for (arm in 0..itemCount(an.ast, node)) {
     let armNode: i32 = itemAt(an.ast, node, arm);
@@ -396,7 +442,8 @@ fn analyzeMatchWith(an: *Analyzer, node: i32, expected: Type): void {
     return;
   }
 
-  if (!subject.isEnum() && !subject.isInteger()) {
+  let text: bool = isText(subject);
+  if (!subject.isEnum() && !subject.isInteger() && !subject.isBool() && !text) {
     analyzerFail(an, node, Problem.CannotMatch, Facts.aboutType(subject));
     return;
   }
@@ -421,6 +468,13 @@ fn analyzeMatchWith(an: *Analyzer, node: i32, expected: Type): void {
       if (FAILED) {
         return;
       }
+      if (text) {
+        if (textPatternTaken(an, node, patternNode)) {
+          analyzerFail(an, patternNode, Problem.DuplicatePattern, Facts.none());
+          return;
+        }
+        continue;
+      }
 
       // Checked before this pattern is recorded, so it does not find itself.
       let value: i64 = an.values[patternNode];
@@ -441,6 +495,16 @@ fn analyzeMatchWith(an: *Analyzer, node: i32, expected: Type): void {
   }
 
   if (hasElse) {
+    return;
+  }
+
+  // A bool is an enum of two.
+  if (subject.isBool()) {
+    if (!matchHandles(an, node, 1)) {
+      analyzerFail(an, node, Problem.UnhandledMember, Facts.aboutTwo("bool", "true"));
+    } else if (!matchHandles(an, node, 0)) {
+      analyzerFail(an, node, Problem.UnhandledMember, Facts.aboutTwo("bool", "false"));
+    }
     return;
   }
 

@@ -60,7 +60,7 @@ cycles.
 - **MatchStmt** → Match
 - **Match** → `match` `(` Expr `)` `{` (MatchArm `,`?)* `}`
 - **MatchArm** → (Pattern (`,` Pattern)* | `else`) `=>` (Block | Expr) — an Expr arm is followed by `,` unless it is the last
-- **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR | Type — a Type only in a match on a union, where a bare IDENT names a type too
+- **Pattern** → IDENT `.` IDENT | `-`? NUMBER | CHAR | BOOLEAN | STRING | Type — a BOOLEAN only in a match on a `bool`, a STRING only in one on `*i8`, compared by text, and a Type only in a match on a union, where a bare IDENT names a type too
 - **TryExpr** → `try` Unary
 - **CatchExpr** → Coalesce `catch` `(` IDENT `)` Block — the lowest precedence; the block must leave
 - **Coalesce** → LogicOr (`??` LogicOr)* — below `||`
