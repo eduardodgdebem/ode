@@ -29,13 +29,13 @@ export let TEST_MODE: bool = false;
 
 // Whether the call `node` is the built-in `name` rather than a function the
 // program declared.
-fn isBuiltin(an: *Analyzer, node: i32, name: *i8): bool {
+export fn isBuiltin(an: *Analyzer, node: i32, name: *i8): bool {
   return an.ast.nodes[node].kind == NodeKind.Call &&
          equals(nodeName(an.ast, node), name) &&
          an.symbols.find(name) < 0;
 }
 
-fn argumentCount(an: *Analyzer, args: i32): i32 {
+export fn argumentCount(an: *Analyzer, args: i32): i32 {
   if (args == NO_NODE) {
     return 0;
   }

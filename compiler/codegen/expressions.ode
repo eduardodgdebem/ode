@@ -26,6 +26,7 @@ import {
 import { llvmTypeName, zeroValue } from "./layout";
 import { genMatchValue } from "./statements";
 import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
+import { genWasmBuiltin } from "./wasm";
 import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
 import {
@@ -544,6 +545,10 @@ fn genCall(e: *Emitter, node: i32, call: Call): *i8 {
   }
   if (e.an.callTargets[node] == CallTarget.NameOf) {
     return genNameOf(e, node);
+  }
+  if (e.an.callTargets[node] == CallTarget.WasmMemorySize ||
+      e.an.callTargets[node] == CallTarget.WasmMemoryGrow) {
+    return genWasmBuiltin(e, node);
   }
 
   // A variable holding a function is loaded, and the call goes through it.

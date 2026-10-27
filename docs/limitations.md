@@ -362,9 +362,11 @@ to clang to guess at.
   And `isize` is a name for `i64` on 64-bit targets rather than a type of
   its own, so mixing the two is caught only by building for wasm32.
 - **The compiler itself cannot branch on the OS.** `bootstrap/ode.ll` is one
-  file for every 64-bit machine, so the compiler's own sources must not
-  `match (OS)`: the seed would bake in the OS it was written on. They ask at
-  run time instead, as the toolchain does with `xcrun`.
+  file for every 64-bit machine, so the compiler's own sources, and the parts
+  of std they use, must not `match (OS)`: the seed would bake in the OS it
+  was written on. They ask at run time instead, as the toolchain does with
+  `xcrun`. Telling wasm32 from the rest, as `std/heap` does, is safe, since
+  the seed is never wasm32.
 
 ### 8.4 WebAssembly
 
@@ -372,10 +374,14 @@ to clang to guess at.
 to run:
 
 - **No C library and no WASI.** A module reaches the world only through the
-  imports its host provides, one per `extern`. The standard library is built
-  on C's, so a module that imports it needs the host to provide `malloc`,
-  `realloc` and whatever else it calls, with C's wasm32 signatures: sizes
-  are 32 bits there, as `std/c` declares them.
+  imports its host provides, one per `extern`. `std/mem`, `std/list` and
+  `std/text` need nothing from it, being Ode's own on wasm32; `std/io`,
+  `std/fs` and `std/c` are C's, and a module that uses them needs the host
+  to provide those functions, with C's wasm32 signatures.
+- **The wasm32 heap is simple.** Blocks are powers of two, so up to half of
+  one is unused; freed blocks are reused but memory is never handed back to
+  the host; and nothing is safe across threads, which a module does not
+  have.
 - **No entry point.** A `main` is exported like any other function, but
   nothing calls it.
 - **What crosses to the host is numbers.** A string is an address in the

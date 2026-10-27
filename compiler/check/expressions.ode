@@ -17,7 +17,7 @@ import {
   analyzerValidateType, throughAlias,
 } from "./analyzer";
 import { globalDeclOf, isReadyGlobal } from "./constants";
-import { TARGET_MODULE, targetConstant } from "../codegen/target";
+import { TARGET_MODULE, pointerBytes, targetConstant } from "../codegen/target";
 import { checkEnumMember, checkShorthand, isShorthand, checkMatchValue } from "./enums";
 import {
   valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
@@ -27,6 +27,7 @@ import {
   CallTarget, checkFunctionRef, checkCallThrough, checkCallValue,
 } from "./functions";
 import { checkLambda, isCaptured } from "./lambdas";
+import { checkWasmBuiltin, isWasmBuiltin } from "./wasm";
 import { checkMethodCall } from "./methods";
 import {
   isAssert, checkAssert, isAssertEq, checkAssertEq, isNameOf, checkNameOf,
@@ -251,6 +252,9 @@ fn checkCall(an: *Analyzer, node: i32, call: Call): Type {
   }
   if (symbol < 0 && isNameOf(an, node)) {
     return checkNameOf(an, node);
+  }
+  if (symbol < 0 && isWasmBuiltin(an, node)) {
+    return checkWasmBuiltin(an, node);
   }
   if (symbol < 0) {
     // A generic called without arguments was reported as that already.
@@ -689,15 +693,16 @@ fn checkCast(an: *Analyzer, node: i32, cast: Cast): Type {
   if (from.isInteger() && to.isBool()) { return to; }
   if (from.isPointer() && to.isPointer()) { return to; }
 
-  // Pointers only convert to and from a pointer-sized integer.
+  // Pointers only convert to and from a pointer-sized integer: 64 bits, or
+  // 32 on wasm32.
   if (from.isPointer() && to.isInteger()) {
-    if (to.bitWidth() != 64) {
+    if (to.bitWidth() != pointerBytes() * 8) {
       castRejection(an, node, from, to, Problem.PointerToNarrowInteger);
     }
     return to;
   }
   if (from.isInteger() && to.isPointer()) {
-    if (from.bitWidth() != 64) {
+    if (from.bitWidth() != pointerBytes() * 8) {
       castRejection(an, node, from, to, Problem.NarrowIntegerToPointer);
     }
     return to;
@@ -724,7 +729,21 @@ fn checkCastOperand(an: *Analyzer, node: i32, target: Type): Type {
     return checkExpr(an, node);
   }
 
-  let type: Type = checkNumberLiteral(an, node, target);
+  // A literal made a pointer -- an address, `65536 as *i8` -- is a
+  // pointer-sized integer first.
+  let wanted: Type = target;
+  if (target.isPointer()) {
+    wanted = Type.make(TypeKind.I64, 0);
+    if (pointerBytes() == 4) {
+      wanted = Type.make(TypeKind.I32, 0);
+    }
+  }
+  let type: Type = checkNumberLiteral(an, node, wanted);
+  // A literal that fits i32 stays one under a cast (checkNumberLiteral), but
+  // an address is never narrowed first, so it is widened to the pointer's.
+  if (target.isPointer() && type.isInteger()) {
+    type = wanted;
+  }
   an.types[node] = type;
 
   return type;

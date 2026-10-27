@@ -1,0 +1,53 @@
+// ---------------------------------------------------------------------------
+// wasm32's memory, as two builtins:
+//
+//   wasmMemorySize(): i32           how many 64 KiB pages the memory has
+//   wasmMemoryGrow(pages: i32): i32 adds `pages`, and returns how many there
+//                                   were before, or -1 when it cannot
+//
+// They are what an allocator on wasm32 is built on (std/heap.ode), the way
+// malloc is built on sbrk. Elsewhere there is no such memory: the size is 0
+// and growing it fails, so a call is checked on every target, and is only
+// any use in an arm of `match (ARCH)` that wasm32 picks.
+// ---------------------------------------------------------------------------
+
+import { Analyzer, analyzerFail } from "./analyzer";
+import { checkExprAs } from "./expressions";
+import { CallTarget } from "./functions";
+import { argumentCount, isBuiltin } from "./testing";
+import { Problem, Facts } from "../diagnostics/problems";
+import { FAILED } from "../diagnostics/report";
+import { callOf, itemAt } from "../syntax/ast";
+import { TypeKind, Type } from "../types/types";
+
+export fn isWasmBuiltin(an: *Analyzer, node: i32): bool {
+  return isBuiltin(an, node, "wasmMemorySize") ||
+         isBuiltin(an, node, "wasmMemoryGrow");
+}
+
+export fn checkWasmBuiltin(an: *Analyzer, node: i32): Type {
+  let i32Type: Type = Type.make(TypeKind.I32, 0);
+  let args: i32 = callOf(an.ast, node).args;
+  let given: i32 = argumentCount(an, args);
+  if (isBuiltin(an, node, "wasmMemorySize")) {
+    an.callTargets[node] = CallTarget.WasmMemorySize;
+    if (given != 0) {
+      analyzerFail(an, node, Problem.WrongArgumentCount,
+                   Facts.about("wasmMemorySize").withCounts(0, given as i64));
+    }
+    return i32Type;
+  }
+
+  an.callTargets[node] = CallTarget.WasmMemoryGrow;
+  if (given != 1) {
+    analyzerFail(an, node, Problem.WrongArgumentCount,
+                 Facts.about("wasmMemoryGrow").withCounts(1, given as i64));
+    return i32Type;
+  }
+  let type: Type = checkExprAs(an, itemAt(an.ast, args, 0), i32Type);
+  if (!FAILED && !i32Type.accepts(type)) {
+    analyzerFail(an, node, Problem.WrongArgumentType,
+                 Facts.about("wasmMemoryGrow").withTypes(i32Type, type).withCounts(1, 0));
+  }
+  return i32Type;
+}

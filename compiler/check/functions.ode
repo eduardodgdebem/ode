@@ -50,6 +50,10 @@ export enum CallTarget {
   AssertEq,
   // `nameOf(Color.Red)`: the member's name.
   NameOf,
+  // `wasmMemorySize()` and `wasmMemoryGrow(pages)`: wasm32's memory, in
+  // pages of 64 KiB. See check/wasm.ode.
+  WasmMemorySize,
+  WasmMemoryGrow,
 }
 
 fn signatureText(params: *Type, count: i32, result: Type): *i8 {

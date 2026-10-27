@@ -101,10 +101,12 @@ instance.exports.fib(20);   // 6765
 ```
 
 Pointers are 4 bytes there, the module exports its memory as `memory`, and a
-failed `assert` traps. The standard library leans on C's, so a module that
-imports it needs its host to provide `malloc` and the rest. Building one
-takes a clang with the WebAssembly backend, which Apple's lacks, and
-`wasm-ld`, which comes with lld.
+failed `assert` traps. `std/mem`, `std/list` and `std/text` work there with
+nothing from the host: on wasm32 their memory and their bytes are Ode's own
+([`std/heap`](docs/std.md#stdheap)), grown with the builtins
+`wasmMemorySize()` and `wasmMemoryGrow(pages)`. Building one takes a clang
+with the WebAssembly backend, which Apple's lacks, and `wasm-ld`, which comes
+with lld.
 
 A project says all of that once, in Ode, in a `build.ode` that `ode build`
 runs, as Zig's `build.zig` does: see [Building a project](docs/build.md).

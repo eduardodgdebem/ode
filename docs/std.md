@@ -154,6 +154,17 @@ let source: *i8 = readFile("config.txt") catch (e) {
 let port: i64 = parseInt(field(source, "port")) ?? 8080;
 ```
 
+## `std/heap`
+
+Memory and bytes on every target, which `std/mem` and `std/text` are built
+on: `heapAlloc`, `heapResize` and `heapFree`; `copyBytes` and `fillBytes`;
+`textLength`, `textLengthUpTo`, `compareText` and `findText`. Elsewhere they
+are the C library's `malloc`, `memmove`, `strcmp` and the rest. On wasm32,
+which has no C library, they are written in Ode: a heap of power-of-two
+blocks with a free list per size, cut from the end of the module's memory
+and grown with `wasmMemoryGrow`. That is what lets a wasm module use lists
+and text with nothing from its host.
+
 ## `std/target`
 
 What the program is being built for, as constants a `match` picks its arm

@@ -712,11 +712,11 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .PointerToNarrowInteger => {
       return saysMore(castOf(facts),
-                      "pointers only convert to a 64-bit integer (i64, u64, usize)");
+                      "pointers only convert to a pointer-sized integer (isize, usize)");
     }
     .NarrowIntegerToPointer => {
       return saysMore(castOf(facts),
-                      "only a 64-bit integer (i64, u64, usize) converts to a pointer");
+                      "only a pointer-sized integer (isize, usize) converts to a pointer");
     }
     .InvalidCast => { return saysMore(castOf(facts), "no such conversion"); }
     .NumberOutOfRange => {
