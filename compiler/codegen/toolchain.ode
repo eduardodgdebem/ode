@@ -8,14 +8,21 @@
 // and nothing links. SDKROOT says which SDK when it is set; otherwise xcrun
 // is asked, the way Apple's own tools find it. Passing it as `-isysroot`
 // matters, because a non-Apple clang ignores SDKROOT entirely.
+//
+// That SDK is macOS's, so it is used only when building for macOS. Building
+// for another target takes that target's sysroot from --sysroot, and from a
+// Mac links with lld, since Apple's linker writes only Mach-O.
 // ---------------------------------------------------------------------------
 
 import { exists } from "std/fs";
+import { alloc } from "std/mem";
+import { List } from "std/list";
 import { Builder } from "std/text";
 import {
   TextList, StderrMode, runCommand, ran, environment, setEnvironment, command,
 } from "../os/process";
 import { isSpace } from "../syntax/lexer";
+import { TARGET, targetsDarwin } from "./target";
 
 let SYSROOT_PROBED: bool = false;
 let SYSROOT: *i8 = null;
@@ -29,16 +36,25 @@ export fn ccProgram(): *i8 {
   return chosen;
 }
 
-// The SDK to build against, or null on a platform that has none. Asked for
-// once per run.
+// What --sysroot named, in place of the SDK that would be looked for.
+export fn chooseSysroot(path: *i8): void {
+  SYSROOT_PROBED = true;
+  SYSROOT = path;
+}
+
+// The SDK or sysroot to build against, or null when there is none to give.
+// Asked for once per run.
 export fn sysroot(): *i8 {
   if (SYSROOT_PROBED) {
     return SYSROOT;
   }
   SYSROOT_PROBED = true;
+  if (!targetsDarwin()) {
+    return null;
+  }
   SYSROOT = environment("SDKROOT");
 
-  if (SYSROOT == null && exists("/usr/bin/xcrun")) {
+  if (SYSROOT == null && isMacHost()) {
     let output: *Builder = Builder.new();
     let command: *TextList = TextList.new().add("xcrun").add("--show-sdk-path");
     if (ran(runCommand(command, null, output, StderrMode.Discard))) {
@@ -57,17 +73,70 @@ export fn sysroot(): *i8 {
   return SYSROOT;
 }
 
+fn isMacHost(): bool {
+  return exists("/usr/bin/xcrun");
+}
+
 // The start of a command line that runs the C compiler: the compiler itself,
-// and the SDK when there is one. The caller adds the rest.
+// the target when one was chosen, and the SDK or sysroot when there is one.
+// The caller adds the rest.
 export fn ccCommand(): *TextList {
   let command: *TextList = TextList.new().add(ccProgram());
 
-  let sdk: *i8 = sysroot();
-  if (sdk != null) {
-    command.add("-isysroot").add(sdk);
+  if (TARGET != null) {
+    command.add("-target").add(TARGET.triple());
   }
 
+  let root: *i8 = sysroot();
+  if (root != null && targetsDarwin()) {
+    command.add("-isysroot").add(root);
+  } else if (root != null) {
+    command.add("--sysroot").add(root);
+  }
   return command;
+}
+
+// The same, for the run that links.
+export fn linkCommand(): *TextList {
+  let command: *TextList = ccCommand();
+  if (!targetsDarwin() && isMacHost()) {
+    command.add("-fuse-ld=lld");
+  }
+  return command;
+}
+
+// Whether linking is for a target that has none of its libraries here: one
+// that is not the default, and was given no sysroot.
+export fn linksWithoutLibraries(): bool {
+  return !targetsDarwin() && sysroot() == null;
+}
+
+// What a program is linked against besides libc: -l, -L and -framework.
+export struct LinkInputs {
+  libraries: *List<*i8>,
+  paths: *List<*i8>,
+  frameworks: *List<*i8>,
+
+  fn new(): *LinkInputs {
+    let inputs: *LinkInputs = alloc<LinkInputs>(1);
+    inputs.libraries = List<*i8>.new();
+    inputs.paths = List<*i8>.new();
+    inputs.frameworks = List<*i8>.new();
+    return inputs;
+  }
+
+  // Paths first, so that a library is looked for in them.
+  fn addTo(self: *LinkInputs, command: *TextList): void {
+    for (index in 0..self.paths.count) {
+      command.add("-L").add(self.paths.at(index));
+    }
+    for (index in 0..self.libraries.count) {
+      command.add("-l").add(self.libraries.at(index));
+    }
+    for (index in 0..self.frameworks.count) {
+      command.add("-framework").add(self.frameworks.at(index));
+    }
+  }
 }
 
 // For a run that starts many compiles, such as the test suite: the SDK is

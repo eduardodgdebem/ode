@@ -30,6 +30,7 @@ import { checkExpr } from "../check/expressions";
 import { analyzeRecovering } from "../check/statements";
 import { Emitter } from "../codegen/emitter";
 import { genProgram } from "../codegen/program";
+import { LinkInputs } from "../codegen/toolchain";
 import { Problem } from "../diagnostics/problems";
 import { formatDiagnostics } from "../diagnostics/render";
 import {
@@ -442,5 +443,5 @@ fn buildJob(): void {
 
   let module: *i8 = genProgram(Emitter.new(program.ast, program.an),
                                program.root);
-  buildExecutable(module, "program", false);
+  buildExecutable(module, "program", false, LinkInputs.new());
 }

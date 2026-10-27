@@ -17,7 +17,9 @@ import {
 import {
   USAGE, CompileOptions, parseCompileOptions, argumentsFrom,
 } from "./options";
-import { loadProgram, buildExecutable } from "./pipeline";
+import {
+  loadProgram, buildExecutable, buildObject, chooseTarget,
+} from "./pipeline";
 import { stemOf } from "../os/files";
 import { STDOUT, STDERR, writeText, writeBuilder } from "../os/output";
 import { NodeKind, Ast, Program } from "../syntax/ast";
@@ -33,6 +35,7 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
 
   SOURCE_PATH = options.input;
   DIAGS = Diagnostics.new();
+  chooseTarget(options.build);
 
   let source: *i8 = readFile(options.input) catch (e) {
     fail(Problem.CannotOpenInput);
@@ -89,6 +92,11 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
   if (output == null) {
     output = stemOf(options.input);
   }
-  buildExecutable(module, output, options.keepIntermediates);
+  if (options.emitObject) {
+    buildObject(module, output, options.keepIntermediates);
+    return 0;
+  }
+  buildExecutable(module, output, options.keepIntermediates,
+                  options.build.link);
   return 0;
 }

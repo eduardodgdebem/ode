@@ -103,6 +103,11 @@ fn failAt(problem: Problem, line: i32, column: i32, facts: Facts): void {
   exit(1);
 }
 
+// The same, about something: a name, a path.
+export fn failAbout(problem: Problem, facts: Facts): void {
+  failAt(problem, 0, 0, facts);
+}
+
 export fn fail(problem: Problem): void {
   failAt(problem, 0, 0, Facts.none());
 }

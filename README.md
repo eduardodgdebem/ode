@@ -50,6 +50,21 @@ executable named after it. `-o <path>` puts the executable elsewhere, and the
 `--dump-ast` and `--dump-types` print what a phase produced. `ode test
 file.ode` runs the `test` blocks written in a file and the files it imports.
 
+`-l <lib>`, `-L <dir>` and `-framework <name>` link a C library, for `ode`
+and `ode test` alike. `--target <arch-os[-abi]>` builds for another machine:
+`x86_64` or `aarch64`, `macos` or `linux`, and `gnu` or `musl` on Linux.
+
+```bash
+./build/ode -L vendor/lib -lraylib -framework Cocoa game.ode
+./build/ode --target x86_64-macos game.ode             # an Intel Mac binary, from any Mac
+./build/ode --target aarch64-linux --emit-object game.ode   # game.o, for linking elsewhere
+./build/ode --target aarch64-linux --sysroot /path/to/linux-sysroot game.ode
+```
+
+Building for another target always gets as far as the object file. Linking
+needs that target's C library, which Ode does not ship: macOS's comes with
+its SDK, and Linux's from a `--sysroot`, linked with `lld` from a Mac.
+
 Errors are reported as `file:line:column: error: message`, and one run
 reports every error it can find:
 

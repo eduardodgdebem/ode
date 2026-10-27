@@ -1,0 +1,151 @@
+// ---------------------------------------------------------------------------
+// Targets: the machine and the OS a program is built for.
+//
+// Without --target a program is built for whatever the C compiler builds
+// for by default, and the IR names no triple -- which is what lets
+// bootstrap/ode.ll seed a compiler on macOS and Linux alike. With one, the IR
+// names its triple and the C compiler is told the same with --target.
+//
+// The IR carries no data layout: the compiler works sizes out itself
+// (types/layout.ode), and clang fills in the layout that goes with the
+// triple. Every target is 64-bit, because that layout takes a pointer to be
+// 8 bytes.
+// ---------------------------------------------------------------------------
+
+import { alloc } from "std/mem";
+import { Builder, equals, indexOf, slice } from "std/text";
+
+export enum Arch {
+  X86_64,
+  Aarch64,
+}
+
+export enum Os {
+  Macos,
+  Linux,
+}
+
+// Which C library a Linux program is linked against. macOS has one.
+export enum Abi {
+  Default,
+  Gnu,
+  Musl,
+}
+
+export error enum TargetError {
+  UnknownArch,
+  UnknownOs,
+  UnknownAbi,
+  // An ABI on an OS that has only one, or more parts than arch-os-abi.
+  TooManyParts,
+}
+
+export struct Target {
+  arch: Arch,
+  os: Os,
+  abi: Abi,
+
+  // The LLVM triple, as clang's --target and the IR's `target triple` take
+  // it.
+  fn triple(self: Target): *i8 {
+    let out: *Builder = Builder.new();
+    if (self.os == Os.Macos) {
+      out.add(match (self.arch) { .X86_64 => "x86_64", .Aarch64 => "arm64" });
+      out.add("-apple-macosx");
+      return out.take();
+    }
+
+    out.add(match (self.arch) { .X86_64 => "x86_64", .Aarch64 => "aarch64" });
+    out.add("-unknown-linux-");
+    out.add(match (self.abi) { .Musl => "musl", else => "gnu" });
+    return out.take();
+  }
+
+  fn isDarwin(self: Target): bool {
+    return self.os == Os.Macos;
+  }
+}
+
+// What the program is being built for; null for the C compiler's default.
+export let TARGET: *Target = null;
+
+// Whether the SDK that xcrun knows suits what is being built: it does for
+// macOS, and for the default target only when that is macOS, which a Mac
+// has xcrun to say.
+export fn targetsDarwin(): bool {
+  return TARGET == null || TARGET.isDarwin();
+}
+
+// `arch-os` or `arch-os-abi`, the way Zig spells them: `x86_64-linux`,
+// `aarch64-macos`, `x86_64-linux-musl`. `arm64` is taken for `aarch64`.
+export fn parseTarget(text: *i8): *Target | TargetError {
+  let target: *Target = alloc<Target>(1);
+  target.abi = Abi.Default;
+
+  let archEnd: i64 = indexOf(text, "-");
+  if (archEnd < 0) {
+    return TargetError.UnknownOs;
+  }
+  let arch: *i8 = slice(text, 0, archEnd);
+  if (equals(arch, "x86_64")) {
+    target.arch = Arch.X86_64;
+  } else if (equals(arch, "aarch64") || equals(arch, "arm64")) {
+    target.arch = Arch.Aarch64;
+  } else {
+    return TargetError.UnknownArch;
+  }
+
+  let rest: *i8 = text + archEnd + 1;
+  let osEnd: i64 = indexOf(rest, "-");
+  let os: *i8 = rest;
+  if (osEnd >= 0) {
+    os = slice(rest, 0, osEnd);
+  }
+  if (equals(os, "macos")) {
+    target.os = Os.Macos;
+  } else if (equals(os, "linux")) {
+    target.os = Os.Linux;
+  } else {
+    return TargetError.UnknownOs;
+  }
+
+  if (osEnd < 0) {
+    return target;
+  }
+  let abi: *i8 = rest + osEnd + 1;
+  if (target.os != Os.Linux || indexOf(abi, "-") >= 0) {
+    return TargetError.TooManyParts;
+  }
+  if (equals(abi, "gnu")) {
+    target.abi = Abi.Gnu;
+  } else if (equals(abi, "musl")) {
+    target.abi = Abi.Musl;
+  } else {
+    return TargetError.UnknownAbi;
+  }
+  return target;
+}
+
+fn tripleOf(text: *i8): *i8 {
+  let target: *Target = parseTarget(text) catch (e) {
+    return nameOf(e);
+  };
+  return target.triple();
+}
+
+test "a target is arch-os, with an ABI on Linux" {
+  assertEq(tripleOf("x86_64-linux"), "x86_64-unknown-linux-gnu");
+  assertEq(tripleOf("aarch64-linux-musl"), "aarch64-unknown-linux-musl");
+  assertEq(tripleOf("aarch64-macos"), "arm64-apple-macosx");
+  assertEq(tripleOf("arm64-macos"), "arm64-apple-macosx");
+  assertEq(tripleOf("x86_64-macos"), "x86_64-apple-macosx");
+}
+
+test "a target that is not one says which part is wrong" {
+  assertEq(parseTarget("riscv64-linux"), TargetError.UnknownArch);
+  assertEq(parseTarget("x86_64-windows"), TargetError.UnknownOs);
+  assertEq(parseTarget("x86_64"), TargetError.UnknownOs);
+  assertEq(parseTarget("x86_64-linux-android"), TargetError.UnknownAbi);
+  assertEq(parseTarget("aarch64-macos-gnu"), TargetError.TooManyParts);
+  assertEq(parseTarget("x86_64-linux-gnu-extra"), TargetError.TooManyParts);
+}

@@ -346,6 +346,43 @@ fn checkHostileOutputPath(suite: *Suite): bool {
          printsZero(out);
 }
 
+// -l reaches the linker: a library that exists links, and one that does not
+// fails the build.
+fn checkLinkFlag(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/linked");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+
+  let linked: *TextList = TextList.new().add(suite.compiler);
+  linked.add("-lm").add("-o").add(out).add(exampleOne(suite));
+  let missing: *TextList = TextList.new().add(suite.compiler);
+  missing.add("-lode_no_such_library").add("-o").add(out).add(exampleOne(suite));
+
+  return compileQuietly(suite, linked) && printsZero(out) &&
+         !compileQuietly(suite, missing);
+}
+
+// Building for another machine works as far as the object file, which needs
+// nothing of that machine's but clang's backend for it.
+fn checkObjectForTarget(suite: *Suite): bool {
+  let out: *i8 = joinPath(suite.work, "cli/target/prog");
+  makeDirectories(parentDirectory(out)) catch (e) {
+    return false;
+  };
+
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("aarch64-linux").add("--emit-object");
+  command.add("-o").add(out).add(exampleOne(suite));
+  let unknown: *TextList = TextList.new().add(suite.compiler);
+  unknown.add("--target").add("x86_64-windows").add("--emit-object");
+  unknown.add("-o").add(out).add(exampleOne(suite));
+
+  return compileQuietly(suite, command) && exists(withSuffix(out, ".o")) &&
+         !exists(out) && !exists(withSuffix(out, ".ll")) &&
+         !compileQuietly(suite, unknown);
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -523,6 +560,12 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
   if (suite.selected("hostile-output-path")) {
     runCli(suite, "hostile-output-path", checkHostileOutputPath(suite));
+  }
+  if (suite.selected("link-flag")) {
+    runCli(suite, "link-flag", checkLinkFlag(suite));
+  }
+  if (suite.selected("object-for-target")) {
+    runCli(suite, "object-for-target", checkObjectForTarget(suite));
   }
   if (suite.selected("no-input-file")) {
     runCli(suite, "no-input-file", checkNoInputFile(suite));

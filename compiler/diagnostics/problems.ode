@@ -39,6 +39,8 @@ export enum Problem {
   CannotWriteIr,
   AssemblingFailed,
   LinkingFailed,
+  LinkingNeedsSysroot,
+  UnknownTarget,
   ModuleNotFound,
   ImportNotAPath,
   LibraryNotFound,
@@ -413,6 +415,14 @@ export fn describe(problem: Problem, facts: Facts): Description {
     .CannotWriteIr => { return says("cannot write the LLVM IR"); }
     .AssemblingFailed => { return says("assembling failed"); }
     .LinkingFailed => { return says("linking failed"); }
+    .LinkingNeedsSysroot => {
+      return saysMore(text2("linking failed: no C library for ", q(name)),
+                      "give its sysroot with --sysroot, or stop at the object file with --emit-object");
+    }
+    .UnknownTarget => {
+      return saysMore(text2("unknown target ", q(name)),
+                      "a target is arch-os or arch-os-abi: x86_64 or aarch64, macos or linux, and gnu or musl on linux");
+    }
     .ModuleNotFound => {
       return says(text2("cannot find module ", q(name)));
     }

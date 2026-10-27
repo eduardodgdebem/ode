@@ -3,12 +3,15 @@
 // ---------------------------------------------------------------------------
 
 import { List } from "std/list";
-import { equals, slice } from "std/text";
+import { equals, slice, startsWith } from "std/text";
+import { LinkInputs } from "../codegen/toolchain";
 import { dumpTokens } from "../syntax/dump";
 
 export let USAGE: *i8 = `
-  usage: ode [-o <path>] [--keep-intermediates] [--emit-llvm] [--dump-tokens | --dump-ast | --dump-types] <input.ode>
-         ode test <input.ode | directory> [filter]   runs the tests in a program, or in every file under a directory
+  usage: ode [-o <path>] [--keep-intermediates] [--emit-llvm | --emit-object] [--dump-tokens | --dump-ast | --dump-types]
+             [--target <arch-os[-abi]>] [--sysroot <dir>] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode>
+         ode test [-l <lib>] [-L <dir>] [-framework <name>] <input.ode | directory> [filter]
+                                                     runs the tests in a program, or in every file under a directory
          ode build [build | test | bootstrap | seed] [options]   (ode build --help)
 `;
 
@@ -23,6 +26,20 @@ export error enum UsageError {
   TooManyInputs,
 }
 
+// How a program is built and linked, which `ode` and `ode test` share.
+export struct BuildFlags {
+  // `arch-os[-abi]`, as given; null for the C compiler's default.
+  target: *i8,
+  // The target's headers and libraries; null for the SDK xcrun knows, or
+  // for none.
+  sysroot: *i8,
+  link: *LinkInputs,
+
+  fn new(): BuildFlags {
+    return BuildFlags { target: null, sysroot: null, link: LinkInputs.new() };
+  }
+}
+
 // What `ode <input.ode>` was asked to do.
 export struct CompileOptions {
   input: *i8,
@@ -33,20 +50,63 @@ export struct CompileOptions {
   dumpAst: bool,
   dumpTypes: bool,
   emitLlvm: bool,
+  // Stop at the object file: what building for a target with no sysroot to
+  // link against can still give.
+  emitObject: bool,
   keepIntermediates: bool,
+  build: BuildFlags,
+}
+
+// The value of the flag at `*index`, written after it (`-L dir`) or, for a
+// one-letter flag, joined to it (`-Ldir`). Leaves `*index` on the last
+// argument it used.
+fn flagValue(arguments: *List<*i8>, index: *i64, flag: *i8): *i8 | UsageError {
+  let argument: *i8 = arguments.at(*index);
+  if (!equals(argument, flag)) {
+    return argument + 2;
+  }
+  *index = *index + 1;
+  if (*index >= arguments.count) {
+    return UsageError.MissingValue;
+  }
+  return arguments.at(*index);
+}
+
+// Takes the flag at `*index` into `flags` if it is one of theirs, and says
+// whether it was.
+fn parseBuildFlag(arguments: *List<*i8>, index: *i64,
+                  flags: *BuildFlags): bool | UsageError {
+  let argument: *i8 = arguments.at(*index);
+  if (equals(argument, "--target")) {
+    flags.target = try flagValue(arguments, index, argument);
+  } else if (equals(argument, "--sysroot")) {
+    flags.sysroot = try flagValue(arguments, index, argument);
+  } else if (equals(argument, "-framework")) {
+    flags.link.frameworks.push(try flagValue(arguments, index, argument));
+  } else if (startsWith(argument, "-l")) {
+    flags.link.libraries.push(try flagValue(arguments, index, "-l"));
+  } else if (startsWith(argument, "-L")) {
+    flags.link.paths.push(try flagValue(arguments, index, "-L"));
+  } else {
+    return false;
+  }
+  return true;
 }
 
 // `arguments` are the command line after the program's name.
 export fn parseCompileOptions(arguments: *List<*i8>): CompileOptions | UsageError {
   let options: CompileOptions = CompileOptions {
     input: null, output: null, dumpTokens: false, dumpAst: false,
-    dumpTypes: false, emitLlvm: false, keepIntermediates: false,
+    dumpTypes: false, emitLlvm: false, emitObject: false,
+    keepIntermediates: false, build: BuildFlags.new(),
   };
 
   let index: i64 = 0;
   while (index < arguments.count) {
     let argument: *i8 = arguments.at(index);
-    if (equals(argument, "--dump-tokens")) {
+    if (try parseBuildFlag(arguments, &index, &options.build)) {
+      // Taken.
+    } else if (equals(argument, "--dump-tokens")) {
       options.dumpTokens = true;
     } else if (equals(argument, "--dump-ast")) {
       options.dumpAst = true;
@@ -54,6 +114,8 @@ export fn parseCompileOptions(arguments: *List<*i8>): CompileOptions | UsageErro
       options.dumpTypes = true;
     } else if (equals(argument, "--emit-llvm")) {
       options.emitLlvm = true;
+    } else if (equals(argument, "--emit-object")) {
+      options.emitObject = true;
     } else if (equals(argument, "--keep-intermediates")) {
       options.keepIntermediates = true;
     } else if (equals(argument, "-o")) {
@@ -84,27 +146,39 @@ export struct TestRunOptions {
   input: *i8,
   // Only tests whose name holds this run; null for all of them.
   filter: *i8,
+  // What the tests link against. Never a target: they run here.
+  build: BuildFlags,
 }
 
 // `arguments` are the command line after `ode test`.
 export fn parseTestOptions(arguments: *List<*i8>): TestRunOptions | UsageError {
-  if (arguments.count == 0) {
-    return UsageError.NoInput;
-  }
-  if (arguments.count > 2) {
-    return UsageError.TooManyInputs;
-  }
-  for (index in 0..arguments.count) {
-    if (arguments.at(index)[0] == '-') {
+  let options: TestRunOptions = TestRunOptions {
+    input: null, filter: null, build: BuildFlags.new(),
+  };
+
+  let index: i64 = 0;
+  while (index < arguments.count) {
+    let argument: *i8 = arguments.at(index);
+    if (try parseBuildFlag(arguments, &index, &options.build)) {
+      if (options.build.target != null) {
+        return UsageError.UnknownFlag;
+      }
+    } else if (argument[0] == '-') {
       return UsageError.UnknownFlag;
+    } else if (options.input == null) {
+      options.input = argument;
+    } else if (options.filter == null) {
+      options.filter = argument;
+    } else {
+      return UsageError.TooManyInputs;
     }
+    index = index + 1;
   }
 
-  let filter: *i8 = null;
-  if (arguments.count == 2) {
-    filter = arguments.at(1);
+  if (options.input == null) {
+    return UsageError.NoInput;
   }
-  return TestRunOptions { input: arguments.at(0), filter: filter };
+  return options;
 }
 
 // argv from `first` on, as a list.
@@ -155,6 +229,24 @@ test "a compile rejects what it cannot make sense of" {
   assertEq(parseCompileOptions(line("a.ode b.ode")), UsageError.TooManyInputs);
 }
 
+test "a compile takes what to build for and what to link" {
+  let options: CompileOptions = parseCompileOptions(line(
+      "--target x86_64-linux-musl -lraylib -L vendor/lib -framework Cocoa -l m main.ode"))
+      catch (e) {
+        assert(false, "a valid command line was rejected");
+        return;
+      };
+  assertEq(options.input, "main.ode");
+  assertEq(options.build.target, "x86_64-linux-musl");
+  assertEq(options.build.link.libraries.count, 2);
+  assertEq(options.build.link.libraries.at(0), "raylib");
+  assertEq(options.build.link.libraries.at(1), "m");
+  assertEq(options.build.link.paths.at(0), "vendor/lib");
+  assertEq(options.build.link.frameworks.at(0), "Cocoa");
+  assertEq(parseCompileOptions(line("main.ode -framework")), UsageError.MissingValue);
+  assertEq(parseCompileOptions(line("main.ode --target")), UsageError.MissingValue);
+}
+
 test "a test run takes an input and, maybe, a filter" {
   let options: TestRunOptions = parseTestOptions(line("compiler lexer")) catch (e) {
     assert(false, "a valid command line was rejected");
@@ -169,4 +261,15 @@ test "a test run rejects what it cannot make sense of" {
   assertEq(parseTestOptions(line("")), UsageError.NoInput);
   assertEq(parseTestOptions(line("a b c")), UsageError.TooManyInputs);
   assertEq(parseTestOptions(line("--all")), UsageError.UnknownFlag);
+  assertEq(parseTestOptions(line("--target x86_64-linux a.ode")), UsageError.UnknownFlag);
+}
+
+test "a test run links what it is told to" {
+  let options: TestRunOptions = parseTestOptions(line("-lraylib src gui")) catch (e) {
+    assert(false, "a valid command line was rejected");
+    return;
+  };
+  assertEq(options.input, "src");
+  assertEq(options.filter, "gui");
+  assertEq(options.build.link.libraries.at(0), "raylib");
 }

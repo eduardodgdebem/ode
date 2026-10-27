@@ -320,10 +320,17 @@ path holding a space or a metacharacter needs no quoting and cannot be
 re-split or executed. What is left is that the compiler has no backend of its
 own: it depends on `clang` to turn IR into a binary.
 
+That is also what decides which targets are reachable. `--target` takes
+64-bit x86 and ARM on macOS and Linux, because layout assumes 8-byte
+pointers and the triples are spelled out for those two. Linking for one
+needs its C library, which Ode does not bundle as Zig does: without a
+`--sysroot`, a Linux target stops at `--emit-object`.
+
 ### 8.3 Intermediates pass through the filesystem
 
 `ode file.ode` leaves only the executable, `<stem>`, or `<path>` with `-o`;
 `--keep-intermediates` keeps the `<path>.ll` and `<path>.o` it was built from
 beside it. Either way the two are written to disk on the way, because clang
 is handed files, so a build always touches the filesystem beyond its output.
-`--emit-llvm` prints the IR without building anything.
+`--emit-llvm` prints the IR without building anything, and `--emit-object`
+stops at `<path>.o`.
