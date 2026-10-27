@@ -285,11 +285,14 @@ and no integer overflow detection. `example6` relies on the last of these —
 Every string literal creates its own private global, so the same text written
 twice is stored twice. Irrelevant at current scale.
 
-### 7.3 No optimisation control
+### 7.3 Two optimisation levels
 
-clang assembles the IR with no `-O`, so every program is built unoptimised,
-and there is no flag to ask for more: no `-O`, no release mode in
-`build.ode`, no LLVM pass pipeline.
+A build is unoptimised, or with `--release` -- on `ode`, `ode test` and `ode
+build`, and as an artifact's `.release` -- optimised by clang at `-O2`.
+There is nothing between or beyond: no `-O1`, `-O3` or size-first `-Os`, no
+LTO across what a program links, and no LLVM pass pipeline of its own. And
+since Ode has no runtime checks to begin with (7.1), a release build gives
+up none: it is the same program, faster.
 
 ### 7.4 Only `//` comments
 

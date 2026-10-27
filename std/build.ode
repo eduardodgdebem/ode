@@ -54,6 +54,8 @@ export struct Artifact {
   // Tests always run here, so theirs is never used.
   target: *i8,
   sysroot: *i8,
+  // Optimised: `ode --release`.
+  release: bool,
   libraries: *List<*i8>,
   paths: *List<*i8>,
   frameworks: *List<*i8>,
@@ -66,6 +68,7 @@ export struct Artifact {
     artifact.output = null;
     artifact.target = null;
     artifact.sysroot = null;
+    artifact.release = false;
     artifact.libraries = List<*i8>.new();
     artifact.paths = List<*i8>.new();
     artifact.frameworks = List<*i8>.new();
@@ -162,6 +165,8 @@ export struct Build {
   // `ode build --target`: what executables are built for unless they say.
   target: *i8,
   sysroot: *i8,
+  // `ode build --release`: whether artifacts are optimised unless they say.
+  release: bool,
   artifacts: *List<*Artifact>,
   steps: *List<*Step>,
   // `-Dname=value` and `-Dname`, as given.
@@ -171,6 +176,7 @@ export struct Build {
     let b: *Build = alloc<Build>(1);
     b.target = null;
     b.sysroot = null;
+    b.release = false;
     b.artifacts = List<*Artifact>.new();
     b.steps = List<*Step>.new();
     b.options = List<*i8>.new();
@@ -182,6 +188,7 @@ export struct Build {
     let artifact: *Artifact = Artifact.new(ArtifactKind.Executable, name, root);
     artifact.target = self.target;
     artifact.sysroot = self.sysroot;
+    artifact.release = self.release;
     self.artifacts.push(artifact);
     return artifact;
   }
@@ -214,6 +221,7 @@ export struct Build {
   // The tests in `root`, a file or a directory, for `ode build test`.
   fn tests(self: *Build, root: *i8): *Artifact {
     let artifact: *Artifact = Artifact.new(ArtifactKind.Tests, root, root);
+    artifact.release = self.release;
     self.artifacts.push(artifact);
     return artifact;
   }
@@ -277,6 +285,9 @@ export fn planOf(b: *Build): *i8 {
       addFact(out, "target", artifact.target);
       addFact(out, "sysroot", artifact.sysroot);
     }
+    if (artifact.release) {
+      addFact(out, "release", "true");
+    }
     addFacts(out, "path", artifact.paths);
     addFacts(out, "library", artifact.libraries);
     addFacts(out, "framework", artifact.frameworks);
@@ -301,8 +312,8 @@ export fn planOf(b: *Build): *i8 {
   return out.take();
 }
 
-// What the runner `ode build` writes calls: reads `--target`, `--sysroot`
-// and `-D` from the command line, hands them to `build`, and prints the plan.
+// What the runner `ode build` writes calls: reads `--target`, `--sysroot`,
+// `--release` and `-D` from the command line, hands them to `build`, and prints the plan.
 export fn runBuild(argc: i32, argv: **i8, build: (*Build) => void): i32 {
   let b: *Build = Build.new();
   let index: i32 = 1;
@@ -311,6 +322,8 @@ export fn runBuild(argc: i32, argv: **i8, build: (*Build) => void): i32 {
     if (equals(argument, "--target") && index + 1 < argc) {
       index = index + 1;
       b.target = argv[index];
+    } else if (equals(argument, "--release")) {
+      b.release = true;
     } else if (equals(argument, "--sysroot") && index + 1 < argc) {
       index = index + 1;
       b.sysroot = argv[index];
@@ -369,6 +382,26 @@ description regenerate the tables
 run gen
 arg --for
 output-of app
+`);
+}
+
+test "release is what an artifact starts with, and is in the plan" {
+  let b: *Build = Build.new();
+  b.release = true;
+  b.executable("app", "main.ode");
+  b.tests("src");
+  b.executable("debug", "main.ode").release = false;
+  assertEq(planOf(b), `ode build plan 1
+executable app
+root main.ode
+output build/app
+release true
+tests src
+root src
+release true
+executable debug
+root main.ode
+output build/debug
 `);
 }
 

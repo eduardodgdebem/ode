@@ -29,6 +29,7 @@ ode build test --filter ui   # only the tests whose name holds "ui"
 ode build run -- --level 2   # build the only executable and run it
 ode build run game           # the one named, when there are several
 ode build -Dintel            # options build.ode reads with b.flag / b.option
+ode build --release          # optimised: every artifact, unless build.ode says otherwise
 ode build --target aarch64-linux --sysroot ~/sysroots/arm64-linux
 ode build plan               # print what build.ode declared
 ode build --help             # the steps, with those build.ode adds
@@ -46,6 +47,7 @@ is run from.
 | `b.option(name)` | the value of `-Dname=value`, `""` for a bare `-Dname`, `null` when not given |
 | `b.flag(name)` | whether `-Dname` or `-Dname=true` was given |
 | `b.target`, `b.sysroot` | `--target` and `--sysroot`, which every executable starts with |
+| `b.release` | `--release`, which every artifact starts with |
 
 | On `Artifact` | Does |
 |---|---|
@@ -55,6 +57,7 @@ is run from.
 | `.linkLike(other)` | links everything `other` links so far |
 | `.output` | where an executable goes |
 | `.target`, `.sysroot` | what it is built for: `arch-os[-abi]`, as `ode --target` takes it |
+| `.release` | whether it is optimised, as `ode --release` is |
 
 Each method returns the artifact, so calls chain. A test artifact's target is
 never used, because tests run on the machine running them.
