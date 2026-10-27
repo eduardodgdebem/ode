@@ -226,6 +226,7 @@ export enum Problem {
   LambdaParameterCount,
   LambdaMissingReturn,
   UnionCompared,
+  UnionStructCompared,
   IsNotFallible,
   IsNeverTrue,
 
@@ -992,6 +993,10 @@ export fn describe(problem: Problem, facts: Facts): Description {
     .UnhandledError => {
       return saysMore(text2("an error from this is ignored: ", typeText(facts.got)),
                       "pass it on with try, give a fallback with ??, or handle it with catch");
+    }
+    .UnionStructCompared => {
+      return saysMore(text2("cannot compare ", typeText(facts.got)),
+                      "it may hold a struct, and structs have no ==; ask which it holds with is or match");
     }
     .UnionCompared => {
       return saysMore(text2("a value that may be an error cannot be compared: ",
