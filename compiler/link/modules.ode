@@ -27,6 +27,7 @@ import { memcpy, strlen, strncmp } from "std/c";
 import { alloc } from "std/mem";
 import { List } from "std/list";
 import { Builder, equals, slice, endsWith } from "std/text";
+import { TARGET_MODULE } from "../codegen/target";
 import { Analyzer, before } from "../check/analyzer";
 import { Problem, Facts } from "../diagnostics/problems";
 import { SOURCE_PATH, FAILED, report } from "../diagnostics/report";
@@ -93,6 +94,7 @@ export fn moduleDisplayPath(module: i32): *i8 {
 // scratch in the same process -- which is what the tests do.
 export fn resetModules(): void {
   MODULES = null;
+  TARGET_MODULE = -1;
 }
 
 // How many files the program is made of so far.

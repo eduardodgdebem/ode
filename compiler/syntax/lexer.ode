@@ -388,6 +388,7 @@ fn keywordKind(text: *i8): TokenKind {
   if (equals(text, "u32")) { return TokenKind.Type; }
   if (equals(text, "i64")) { return TokenKind.Type; }
   if (equals(text, "u64")) { return TokenKind.Type; }
+  if (equals(text, "isize")) { return TokenKind.Type; }
   if (equals(text, "usize")) { return TokenKind.Type; }
   if (equals(text, "f32")) { return TokenKind.Type; }
   if (equals(text, "f64")) { return TokenKind.Type; }

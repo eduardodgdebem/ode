@@ -13,10 +13,17 @@
 // wasm32 is freestanding: a module with no C library and no entry point,
 // whose exports are the entry file's exported functions and whose imports
 // are its externs (codegen/wasm.ode).
+//
+// A program asks what it is built for by importing `std/target`, a module
+// this file writes for each build: the target as enums, in constants that a
+// `match` picks its arm from at compile time.
 // ---------------------------------------------------------------------------
 
 import { alloc } from "std/mem";
-import { Builder, equals, indexOf, slice } from "std/text";
+import { Builder, contains, equals, indexOf, slice, startsWith } from "std/text";
+import { exists } from "std/fs";
+import { TextList, StderrMode, runCommand, ran } from "../os/process";
+import { ccProgram } from "./toolchain";
 
 export enum Arch {
   X86_64,
@@ -86,6 +93,155 @@ export struct Target {
 
 // What the program is being built for; null for the C compiler's default.
 export let TARGET: *Target = null;
+
+// The module `std/target` was loaded as, or -1 when nothing imports it.
+// Its globals are constants.
+export let TARGET_MODULE: i32 = -1;
+
+export let TARGET_IMPORT: *i8 = "std/target";
+
+let HOST: *Target = null;
+
+// The machine the C compiler builds for by default, from its -dumpmachine:
+// `arm64-apple-darwin24.0.0`, `x86_64-pc-linux-gnu`, `aarch64-linux-musl`.
+// Asked once a run.
+export fn hostTarget(): Target {
+  if (HOST != null) {
+    return *HOST;
+  }
+  HOST = alloc<Target>(1);
+  HOST.arch = Arch.X86_64;
+  HOST.os = Os.Linux;
+  HOST.abi = Abi.Gnu;
+  if (exists("/usr/bin/xcrun")) {
+    HOST.os = Os.Macos;
+    HOST.abi = Abi.Default;
+  }
+
+  let output: *Builder = Builder.new();
+  let command: *TextList = TextList.new().add(ccProgram()).add("-dumpmachine");
+  if (ran(runCommand(command, null, output, StderrMode.Discard))) {
+    readTriple(output.data, HOST);
+  }
+  return *HOST;
+}
+
+// Fills in what `triple` says of the arch, the OS and the C library, and
+// leaves what it does not say as it was.
+fn readTriple(triple: *i8, into: *Target): void {
+  if (startsWith(triple, "x86_64") || startsWith(triple, "amd64")) {
+    into.arch = Arch.X86_64;
+  } else if (startsWith(triple, "aarch64") || startsWith(triple, "arm64")) {
+    into.arch = Arch.Aarch64;
+  } else if (startsWith(triple, "wasm32")) {
+    into.arch = Arch.Wasm32;
+  }
+  if (contains(triple, "darwin") || contains(triple, "macos")) {
+    into.os = Os.Macos;
+    into.abi = Abi.Default;
+  } else if (contains(triple, "linux")) {
+    into.os = Os.Linux;
+    into.abi = Abi.Gnu;
+    if (contains(triple, "musl")) {
+      into.abi = Abi.Musl;
+    }
+  }
+}
+
+// What the program is built for: the --target, or this machine.
+export fn effectiveTarget(): Target {
+  if (TARGET != null) {
+    return *TARGET;
+  }
+  return hostTarget();
+}
+
+export error enum TargetConstantError {
+  NotOne,
+}
+
+// The value of the std/target constant `name`: an enum member's, counted in
+// the order targetModuleSource declares them, or the number.
+export fn targetConstant(name: *i8): i64 | TargetConstantError {
+  let target: Target = effectiveTarget();
+  if (equals(name, "OS")) {
+    return match (target.os) { .Macos => 0, .Linux => 1, .Freestanding => 2 };
+  }
+  if (equals(name, "ARCH")) {
+    return match (target.arch) { .X86_64 => 0, .Aarch64 => 1, .Wasm32 => 2 };
+  }
+  if (equals(name, "ABI")) {
+    if (target.isMusl()) {
+      return 2;
+    }
+    if (target.os == Os.Linux) {
+      return 1;
+    }
+    return 0;
+  }
+  if (equals(name, "POINTER_BYTES")) {
+    return pointerBytes() as i64;
+  }
+  return TargetConstantError.NotOne;
+}
+
+// The source of `std/target`, for what this build is for.
+export fn targetModuleSource(): *i8 {
+  let target: Target = effectiveTarget();
+  let out: *Builder = Builder.new();
+  out.add(`// What this program is being built for, written by the compiler for each
+// build: ode --target chooses it, and without one it is this machine.
+// Each is a constant, so a match on one compiles only the arm it picks --
+// though every arm is still checked, on every target.
+
+// The operating system. Freestanding is none: a wasm32 module.
+export enum Os {
+  Macos,
+  Linux,
+  Freestanding,
+}
+
+export enum Arch {
+  X86_64,
+  Aarch64,
+  Wasm32,
+}
+
+// Which C library a program links against: musl or glibc on Linux, and
+// none to choose between elsewhere.
+export enum Abi {
+  None,
+  Gnu,
+  Musl,
+}
+
+`);
+  out.add("export let OS: Os = Os.");
+  out.add(match (target.os) {
+    .Macos => "Macos",
+    .Linux => "Linux",
+    .Freestanding => "Freestanding",
+  });
+  out.add(";\nexport let ARCH: Arch = Arch.");
+  out.add(match (target.arch) {
+    .X86_64 => "X86_64",
+    .Aarch64 => "Aarch64",
+    .Wasm32 => "Wasm32",
+  });
+  out.add(";\nexport let ABI: Abi = Abi.");
+  let abi: *i8 = "None";
+  if (target.isMusl()) {
+    abi = "Musl";
+  } else if (target.os == Os.Linux) {
+    abi = "Gnu";
+  }
+  out.add(abi);
+  out.add(";\n\n// How many bytes a pointer takes, and so an isize or a usize.\n");
+  out.add("export let POINTER_BYTES: i32 = ");
+  out.addInt(pointerBytes() as i64);
+  out.add(";\n");
+  return out.take();
+}
 
 // Whether the program is a wasm module rather than an executable.
 export fn targetsWasm(): bool {
@@ -186,6 +342,18 @@ test "a target is arch-os, with an ABI on Linux" {
   assertEq(tripleOf("x86_64-macos"), "x86_64-apple-macosx");
   assertEq(tripleOf("wasm32"), "wasm32-unknown-unknown");
   assertEq(tripleOf("wasm32-freestanding"), "wasm32-unknown-unknown");
+}
+
+test "the host is read from what the C compiler says it builds for" {
+  let target: Target = Target { arch: Arch.X86_64, os: Os.Linux, abi: Abi.Gnu };
+  readTriple("arm64-apple-darwin24.0.0", &target);
+  assertEq(target.arch, Arch.Aarch64);
+  assertEq(target.os, Os.Macos);
+  readTriple("x86_64-pc-linux-gnu", &target);
+  assertEq(target.arch, Arch.X86_64);
+  assertEq(target.abi, Abi.Gnu);
+  readTriple("aarch64-alpine-linux-musl", &target);
+  assert(target.isMusl());
 }
 
 test "a target that is not one says which part is wrong" {

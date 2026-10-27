@@ -5,10 +5,13 @@
 // ---------------------------------------------------------------------------
 
 import { readFile, writeFile, removeFile } from "std/fs";
+import { equals } from "std/text";
 import { before } from "../check/analyzer";
 import { parseTarget, TARGET } from "../codegen/target";
 import { LibcError, bundledLibc, muslLinkCommand } from "../codegen/libc";
-import { targetsWasm } from "../codegen/target";
+import {
+  targetsWasm, targetModuleSource, TARGET_IMPORT, TARGET_MODULE,
+} from "../codegen/target";
 import { wasmLinkCommand } from "../codegen/wasm";
 import {
   ccCommand, linkCommand, chooseSysroot, linksWithoutLibraries,
@@ -24,7 +27,7 @@ import {
   moduleAdd, moduleDisplayPath, moduleFind, modulePath, STD_DIRECTORY,
   isPathImport, isStdImport, resolveImportPath,
 } from "../link/modules";
-import { withSuffix, realpath } from "../os/files";
+import { joinPath, withSuffix, realpath } from "../os/files";
 import { TextList, StderrMode, runCommand, ran } from "../os/process";
 import {
   NodeKind, Ast, importModule, itemAt, itemCount, nodeName, setImportModule,
@@ -55,10 +58,28 @@ export fn loadModule(ast: *Ast, program: i32, path: *i8, real: *i8,
   return module;
 }
 
+// `std/target`, which is written for the build rather than read from a file,
+// and loaded the first time any file asks.
+fn loadTargetModule(ast: *Ast, program: i32, item: i32): void {
+  if (TARGET_MODULE < 0) {
+    let path: *i8 = "std/target.ode";
+    if (STD_DIRECTORY != null) {
+      path = joinPath(STD_DIRECTORY, "target.ode");
+    }
+    TARGET_MODULE = loadModule(ast, program, path, "ode:target",
+                               targetModuleSource());
+  }
+  setImportModule(ast, item, TARGET_MODULE);
+}
+
 // Finds the file an import names, loading it the first time any file asks.
 fn loadImport(ast: *Ast, program: i32, item: i32): void {
   let importer: *i8 = modulePath(ast.nodes[item].module);
   let spec: *i8 = nodeName(ast, item);
+  if (equals(spec, TARGET_IMPORT)) {
+    loadTargetModule(ast, program, item);
+    return;
+  }
   let path: *i8 = resolveImportPath(importer, spec);
   let real: *i8 = null;
   if (path != null) {

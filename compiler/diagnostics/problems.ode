@@ -81,6 +81,7 @@ export enum Problem {
   DeclarationMismatch,
   AssignmentMismatch,
   NotAssignable,
+  TargetConstant,
   ConditionNotBool,
   ForBoundsNotIntegers,
   ForBoundsDiffer,
@@ -551,6 +552,10 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .AssignmentMismatch => {
       return saysMore("type mismatch in assignment", expectedButGot(facts));
+    }
+    .TargetConstant => {
+      return says(text3("cannot change ", q(name),
+                        ": it says what the program is built for, which is fixed when it is compiled"));
     }
     .NotAssignable => {
       return says("left-hand side of assignment is not assignable");

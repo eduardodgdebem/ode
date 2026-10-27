@@ -52,7 +52,7 @@ twice, so a side effect in the target — `a[next()] += 1` — runs twice.
 | Tagged unions (enums with data) | Deliberate — see 6.2 |
 
 The numeric set itself is complete: `i8`/`u8`, `i16`/`u16`, `i32`/`u32` and
-`i64`/`u64` (spelled `usize` too), plus `f32` and `f64`.
+`i64`/`u64`, plus `f32` and `f64`, and `isize`/`usize`, as wide as a pointer.
 
 
 ## 4. Type system
@@ -352,10 +352,16 @@ to clang to guess at.
   executable fails to start it. Running one needs that machine, or an
   emulator run by hand -- there is no runner setting yet, as Zig's `-fqemu`
   or Go's exec wrappers are.
-- **No target-conditional code.** A program cannot ask which target it is
-  being built for, so the platform guesses that Linux and macOS disagree on
-  -- `termios`'s size, `ioctl` numbers, `mode_t`'s width -- are written for
-  one and wrong on the other.
+- **Only code differs per target, not declarations.** A `match` on
+  `std/target` picks code while compiling, but a struct, a global or an
+  `extern` cannot be declared differently per target, so a C struct whose
+  layout differs -- `termios`, `stat` -- is still written for one target.
+  And `isize` is a name for `i64` on 64-bit targets rather than a type of
+  its own, so mixing the two is caught only by building for wasm32.
+- **The compiler itself cannot branch on the OS.** `bootstrap/ode.ll` is one
+  file for every 64-bit machine, so the compiler's own sources must not
+  `match (OS)`: the seed would bake in the OS it was written on. They ask at
+  run time instead, as the toolchain does with `xcrun`.
 
 ### 8.4 WebAssembly
 
@@ -365,9 +371,8 @@ to run:
 - **No C library and no WASI.** A module reaches the world only through the
   imports its host provides, one per `extern`. The standard library is built
   on C's, so a module that imports it needs the host to provide `malloc`,
-  `free` and whatever else it calls -- and `std/c` declares `size_t` as
-  `i64`, which is C's on the 64-bit targets but not on wasm32, whose is
-  32 bits.
+  `realloc` and whatever else it calls, with C's wasm32 signatures: sizes
+  are 32 bits there, as `std/c` declares them.
 - **No entry point.** A `main` is exported like any other function, but
   nothing calls it.
 - **What crosses to the host is numbers.** A string is an address in the

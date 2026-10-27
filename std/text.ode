@@ -15,7 +15,7 @@ import { strlen, strnlen, strcmp, strncmp, strstr, memcpy } from "./c";
 import { alloc, grow, release } from "./mem";
 
 export fn length(text: *i8): i64 {
-  return strlen(text);
+  return strlen(text) as i64;
 }
 
 export fn equals(a: *i8, b: *i8): bool {
@@ -27,8 +27,8 @@ export fn startsWith(text: *i8, prefix: *i8): bool {
 }
 
 export fn endsWith(text: *i8, suffix: *i8): bool {
-  let textLength: i64 = strlen(text);
-  let suffixLength: i64 = strlen(suffix);
+  let textLength: i64 = strlen(text) as i64;
+  let suffixLength: i64 = strlen(suffix) as i64;
   if (suffixLength > textLength) {
     return false;
   }
@@ -53,16 +53,17 @@ export fn contains(text: *i8, part: *i8): bool {
 // by looking at them alone, so slicing a little out of a long text costs no
 // more than the slice.
 export fn slice(text: *i8, start: i64, count: i64): *i8 {
-  assert(start >= 0 && count >= 0 && strnlen(text + start, count) == count,
+  assert(start >= 0 && count >= 0 &&
+         strnlen(text + start, count as isize) as i64 == count,
          "slice out of range");
   let out: *i8 = alloc<i8>(count + 1);
-  memcpy(out, text + start, count);
+  memcpy(out, text + start, count as isize);
   out[count] = '\0';
   return out;
 }
 
 export fn copy(text: *i8): *i8 {
-  return slice(text, 0, strlen(text));
+  return slice(text, 0, strlen(text) as i64);
 }
 
 export fn fromInt(value: i64): *i8 {
@@ -149,13 +150,13 @@ export struct Builder {
 
   fn addBytes(self: *Builder, bytes: *i8, count: i64): void {
     self.reserve(count);
-    memcpy(self.data + self.length, bytes, count);
+    memcpy(self.data + self.length, bytes, count as isize);
     self.length = self.length + count;
     self.data[self.length] = '\0';
   }
 
   fn add(self: *Builder, text: *i8): void {
-    self.addBytes(text, strlen(text));
+    self.addBytes(text, strlen(text) as i64);
   }
 
   fn push(self: *Builder, byte: i8): void {

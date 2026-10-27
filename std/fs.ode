@@ -36,10 +36,10 @@ export fn readFile(path: *i8): *i8 | FileError {
 
   let out: *Builder = Builder.new();
   let chunk: *i8 = alloc<i8>(4096);
-  let count: i64 = fread(chunk, 1, 4096, stream);
+  let count: i64 = fread(chunk, 1, 4096, stream) as i64;
   while (count > 0) {
     out.addBytes(chunk, count);
-    count = fread(chunk, 1, 4096, stream);
+    count = fread(chunk, 1, 4096, stream) as i64;
   }
 
   release<i8>(chunk);
@@ -67,8 +67,8 @@ fn put(path: *i8, text: *i8, mode: *i8): void | FileError {
   if (stream == null) {
     return FileError.CannotWrite;
   }
-  let length: i64 = strlen(text);
-  let written: i64 = fwrite(text, 1, length, stream);
+  let length: isize = strlen(text);
+  let written: isize = fwrite(text, 1, length, stream);
   if (fclose(stream) != 0 || written != length) {
     return FileError.CannotWrite;
   }

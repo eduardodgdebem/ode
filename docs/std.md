@@ -21,7 +21,7 @@ program's own `ode test` runs its tests, not the library's.
 ## `std/c`
 
 The C library's functions, declared once, with C's types spelled in Ode: a
-`char *` is `*i8`, a `size_t` is `i64`, a `FILE *` is `*i8`.
+`char *` is `*i8`, a `size_t` is `isize`, a `FILE *` is `*i8`.
 
 | Group | Functions |
 |---|---|
@@ -153,6 +153,13 @@ let source: *i8 = readFile("config.txt") catch (e) {
 };
 let port: i64 = parseInt(field(source, "port")) ?? 8080;
 ```
+
+## `std/target`
+
+What the program is being built for, as constants a `match` picks its arm
+from while compiling: `OS`, `ARCH`, `ABI` and `POINTER_BYTES`. The compiler
+writes this module for each build rather than reading it from a file; see
+[What a program is built for](language.md#what-a-program-is-built-for).
 
 ## `std/build`
 

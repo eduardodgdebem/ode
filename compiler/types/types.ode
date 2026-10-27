@@ -11,6 +11,7 @@
 import { alloc, grow } from "std/mem";
 import { Builder, equals, indexOf } from "std/text";
 import { unionAccepts } from "../check/errors";
+import { pointerBytes } from "../codegen/target";
 
 export enum TypeKind {
   // Not a type: what an expression the analyzer could not type is given.
@@ -246,9 +247,18 @@ export struct Type {
   }
 }
 
-// Returns TY_NONE when the name is not a built-in type keyword. `usize` is a
-// second spelling of u64.
+// Returns TY_NONE when the name is not a built-in type keyword. `isize` and
+// `usize` are as wide as a pointer on the target: other names for i64 and
+// u64, and on wasm32 for i32 and u32. C's `size_t` is one of them.
 export fn typeKindFromName(name: *i8): TypeKind {
+  if (equals(name, "isize")) {
+    if (pointerBytes() == 4) { return TypeKind.I32; }
+    return TypeKind.I64;
+  }
+  if (equals(name, "usize")) {
+    if (pointerBytes() == 4) { return TypeKind.U32; }
+    return TypeKind.U64;
+  }
   if (equals(name, "i8")) { return TypeKind.I8; }
   if (equals(name, "u8")) { return TypeKind.U8; }
   if (equals(name, "i16")) { return TypeKind.I16; }
@@ -257,7 +267,6 @@ export fn typeKindFromName(name: *i8): TypeKind {
   if (equals(name, "u32")) { return TypeKind.U32; }
   if (equals(name, "i64")) { return TypeKind.I64; }
   if (equals(name, "u64")) { return TypeKind.U64; }
-  if (equals(name, "usize")) { return TypeKind.U64; }
   if (equals(name, "f32")) { return TypeKind.F32; }
   if (equals(name, "f64")) { return TypeKind.F64; }
   if (equals(name, "bool")) { return TypeKind.Bool; }
