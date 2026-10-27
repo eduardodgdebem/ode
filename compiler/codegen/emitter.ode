@@ -23,11 +23,18 @@ import { NameSet, moduleDisplayPath } from "../link/modules";
 import { Ast, nodeName } from "../syntax/ast";
 import { TypeKind, Type } from "../types/types";
 
-struct Local {
+export struct Local {
   name: *i8,
   // The alloca holding it, as a register name.
   reg: *i8,
   type: Type,
+}
+
+// A `defer`ed statement, and how many locals were in scope where it was
+// written: it is emitted where its block is left, seeing only those.
+export struct Deferred {
+  body: i32,
+  locals: i64,
 }
 
 export struct Emitter {
@@ -75,6 +82,10 @@ export struct Emitter {
   // `continue` goes to the condition, `break` to the block after the loop.
   loopContinue: *List<*i8>,
   loopBreak: *List<*i8>,
+  // What the open blocks have deferred, outermost first, and how many there
+  // were when each open loop was entered -- what break and continue run.
+  defers: *List<Deferred>,
+  loopDefers: *List<i64>,
 
   fn new(ast: *Ast, an: *Analyzer): *Emitter {
     let e: *Emitter = alloc<Emitter>(1);
@@ -99,6 +110,8 @@ export struct Emitter {
     e.scopeStarts = List<i64>.new();
     e.loopContinue = List<*i8>.new();
     e.loopBreak = List<*i8>.new();
+    e.defers = List<Deferred>.new();
+    e.loopDefers = List<i64>.new();
 
     return e;
   }

@@ -11,6 +11,7 @@
 import { alloc, grow } from "std/mem";
 import { Builder, equals, indexOf } from "std/text";
 import { unionAccepts } from "../check/errors";
+import { baseOf, digitValue } from "../syntax/lexer";
 import { pointerBytes } from "../codegen/target";
 
 export enum TypeKind {
@@ -323,17 +324,23 @@ export fn parseMagnitude(text: *i8, start: i64, length: i64,
                          overflowed: *bool): u64 {
   let value: u64 = 0;
   let index: i64 = start;
+  let base: u64 = 10;
   *overflowed = false;
+  // The lexer saw to it that every digit after a prefix is one of its base's.
+  if (length - start > 2 && text[start] == '0' && baseOf(text[start + 1]) != 0) {
+    base = baseOf(text[start + 1]) as u64;
+    index = start + 2;
+  }
 
   while (index < length) {
-    let digit: u64 = (text[index] as i64 - '0') as u64;
+    let digit: u64 = digitValue(text[index]) as u64;
 
-    if (value > (MAX_U64 - digit) / 10) {
+    if (value > (MAX_U64 - digit) / base) {
       *overflowed = true;
       return 0;
     }
 
-    value = value * 10 + digit;
+    value = value * base + digit;
     index = index + 1;
   }
 
@@ -444,6 +451,13 @@ test "parseMagnitude reports overflow" {
            MAX_U64);
   assert(!overflowed);
   parseMagnitude("18446744073709551616", 0, 20, &overflowed);
+  assert(overflowed);
+  assertEq(parseMagnitude("0x1a1B26", 0, 8, &overflowed), 1710886);
+  assertEq(parseMagnitude("0o755", 0, 5, &overflowed), 493);
+  assertEq(parseMagnitude("-0b1010", 1, 7, &overflowed), 10);
+  assertEq(parseMagnitude("0xffffffffffffffff", 0, 18, &overflowed), 18446744073709551615);
+  assert(!overflowed);
+  parseMagnitude("0x10000000000000000", 0, 19, &overflowed);
   assert(overflowed);
 }
 

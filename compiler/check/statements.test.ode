@@ -769,3 +769,40 @@ test "a generic is asked once, whatever its instances" {
   assertMissingReturn(found, 0, "pick", 1, 1);
   assertMissingReturn(found, 1, "get", 10, 3);
 }
+
+test "a deferred statement cannot leave its block" {
+  let found: *List<Diagnostic> = Scope.new()
+      .returning("i32")
+      .run(`
+        for (i in 0..3) {
+          defer {
+            break;
+          }
+          defer continue;
+        }
+        defer return 1;
+        return 0;
+      `);
+  assertEq(found.count, 3);
+  assertEq(found.at(0).problem, Problem.DeferLeaves);
+  assertEq(found.at(0).facts.name, "break");
+  assertEq(found.at(1).facts.name, "continue");
+  assertEq(found.at(2).facts.name, "return");
+}
+
+test "a loop inside a deferred statement is its own" {
+  let found: *List<Diagnostic> = Scope.new()
+      .returning("i32")
+      .run(`
+        defer {
+          for (i in 0..3) {
+            if (i == 1) {
+              continue;
+            }
+            break;
+          }
+        }
+        return 0;
+      `);
+  assertEq(found.count, 0);
+}

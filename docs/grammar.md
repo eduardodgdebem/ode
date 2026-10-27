@@ -4,7 +4,7 @@
 
 - **Program** → TopLevel*
 - **TopLevel** → ImportDecl | ExportDecl | FuncDecl | ExternDecl | StructDecl | EnumDecl | ErrorEnumDecl | TypeAliasDecl | TestDecl | Statement
-- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | ReturnStmt | ExprStmt | Block
+- **Statement** → VarDecl | Assign | IfStmt | WhileStmt | ForStmt | MatchStmt | BreakStmt | ContinueStmt | DeferStmt | ReturnStmt | ExprStmt | Block
 
 A **VarDecl** written directly at program level declares a global.
 
@@ -44,6 +44,7 @@ cycles.
 - **ForStmt** → `for` `(` IDENT `in` Expr `..` Expr `)` Block
 - **BreakStmt** → `break` `;`
 - **ContinueStmt** → `continue` `;`
+- **DeferStmt** → `defer` Statement — run as the enclosing block is left; it may not `return`, `try`, or `break` or `continue` out of itself
 - **FuncDecl** → `fn` IDENT TypeParams? `(` ParamList? `)` `:` Type Block
 - **TypeParams** → `<` IDENT (`,` IDENT)* `>`
 - **TypeArgs** → `<` Type (`,` Type)* `>`
@@ -129,7 +130,7 @@ error.
 ## Lexical Elements
 
 - **IDENT** → [a-zA-Z_][a-zA-Z0-9_]*
-- **NUMBER** → [0-9]+
+- **NUMBER** → [0-9]+ | `0x` [0-9a-fA-F]+ | `0o` [0-7]+ | `0b` [01]+
 - **BOOLEAN** → `true` | `false`
 - **STRING** → `"` Char* `"` | RawString
 - **CHAR** → `'` Char `'`
@@ -154,6 +155,10 @@ the return type, or the type of the other operand of a binary operator. An
 integer literal must fit that type, and may stand for a float; a decimal one
 only for a float. With no context it is `i32`, or `f32` when it contains a
 `.`. `sizeof` is typed the same way, and is `u64` by default.
+
+A hex, octal or binary NUMBER is the same integer written another way:
+`0xff` is 255 wherever 255 may be, and an `i8` holds neither. A digit its base
+does not have -- `0b2`, `0o8`, `0xg` -- or no digit at all is a lexing error.
 
 Under a cast a literal is read as itself: it stays `i32` when `i32` can hold
 it, so `300 as i8` still means "truncate an in-range `i32`" and yields 44, and

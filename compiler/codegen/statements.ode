@@ -7,13 +7,14 @@
 // code still forms valid IR.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { alloc } from "std/mem";
 import { Builder, fromInt } from "std/text";
 import { before, analyzerParseType } from "../check/analyzer";
 import {
-  Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
-  emitCondBranch, emitterEnterScope, emitterExitScope, declareLocal,
-  codegenFault,
+  Deferred, Emitter, Local, freshLabel, emitAlloca, emitLine, emitLabel,
+  emitBranch, emitCondBranch, emitterEnterScope, emitterExitScope,
+  declareLocal, codegenFault,
 } from "./emitter";
 import { compare, holdsTest, unionCode } from "./errors";
 import { instruction } from "./testing";
@@ -24,7 +25,7 @@ import {
 import { llvmTypeName } from "./layout";
 import { line } from "../driver/options";
 import {
-  NO_NODE, NodeKind, Assign, Block, Break, Continue, EnumDecl, ExprStmt, Extern, For,
+  NO_NODE, NodeKind, Assign, Block, Break, Continue, Defer, EnumDecl, ExprStmt, Extern, For,
   If, Match, Return, StructDecl, Syntax, TypeAlias, VarDecl, While, armOf, itemAt,
   itemCount, matchOf,
 } from "../syntax/ast";
@@ -39,10 +40,20 @@ export fn genStatement(e: *Emitter, node: i32): void {
     Match => genMatch(e, node),
     Block => {
       emitterEnterScope(e);
+      let deferred: i64 = e.defers.count;
       for (index in 0..syntax.items.count) {
         genStatement(e, syntax.items.at(index));
       }
+      // What the block put off runs as it ends -- unless a return, break or
+      // continue left it already, and ran it then.
+      if (!e.terminated) {
+        runDefers(e, deferred);
+      }
+      e.defers.truncate(deferred);
       emitterExitScope(e);
+    }
+    Defer => {
+      e.defers.push(Deferred { body: syntax.body, locals: e.locals.count });
     }
     VarDecl => {
       let type: Type = analyzerParseType(e.an, syntax.type);
@@ -65,11 +76,13 @@ export fn genStatement(e: *Emitter, node: i32): void {
     While => genWhile(e, syntax),
     For => genFor(e, node, syntax),
     Break => {
+      runDefers(e, e.loopDefers.last());
       emitBranch(e, e.loopBreak.last());
       // Anything written after this needs a block of its own to live in.
       emitLabel(e, freshLabel(e));
     }
     Continue => {
+      runDefers(e, e.loopDefers.last());
       emitBranch(e, e.loopContinue.last());
       emitLabel(e, freshLabel(e));
     }
@@ -77,18 +90,23 @@ export fn genStatement(e: *Emitter, node: i32): void {
   }
 }
 
+// What is returned is worked out first, and then everything deferred runs,
+// innermost first, before the function returns it.
 fn genReturn(e: *Emitter, statement: Return): void {
   if (statement.value == NO_NODE && e.returnType.isUnion()) {
+    runDefers(e, 0);
     let line: *Builder = Builder.new();
     line.add("ret ");
     line.add(llvmTypeName(e.returnType));
     line.add(" zeroinitializer");
     emitLine(e, line.data);
   } else if (statement.value == NO_NODE) {
+    runDefers(e, 0);
     emitLine(e, "ret void");
   } else {
     let type: Type = resultTypeOf(e, statement.value);
     let value: *i8 = genExpr(e, statement.value);
+    runDefers(e, 0);
 
     let line: *Builder = Builder.new();
     line.add("ret ");
@@ -337,11 +355,35 @@ fn genUnionMatch(e: *Emitter, node: i32, type: Type, slot: *i8): void {
 fn enterLoop(e: *Emitter, continueLabel: *i8, breakLabel: *i8): void {
   e.loopContinue.push(continueLabel);
   e.loopBreak.push(breakLabel);
+  e.loopDefers.push(e.defers.count);
 }
 
 fn leaveLoop(e: *Emitter): void {
   e.loopContinue.pop();
   e.loopBreak.pop();
+  e.loopDefers.pop();
+}
+
+// Emits what was deferred since the `from`-th, last first. Each is emitted
+// seeing only the locals that were in scope where it was written, so a name
+// declared later, or in a block it is left from, cannot stand in for the
+// one it meant.
+export fn runDefers(e: *Emitter, from: i64): void {
+  let index: i64 = e.defers.count - 1;
+  while (index >= from) {
+    let deferred: Deferred = e.defers.at(index);
+    let hidden: *List<Local> = List<Local>.new();
+    for (local in deferred.locals..e.locals.count) {
+      hidden.push(e.locals.at(local));
+    }
+    e.locals.truncate(deferred.locals);
+    genStatement(e, deferred.body);
+    e.locals.truncate(deferred.locals);
+    for (local in 0..hidden.count) {
+      e.locals.push(hidden.at(local));
+    }
+    index = index - 1;
+  }
 }
 
 // `for (i in start..end)`. The count lives in a slot of its own and is

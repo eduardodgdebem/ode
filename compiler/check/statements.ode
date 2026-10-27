@@ -29,7 +29,7 @@ import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED } from "../diagnostics/report";
 import { isTemplate, isInstance } from "../link/generics";
 import {
-  NO_NODE, NodeKind, Assign, Block, Break, Continue, EnumDecl, ExprStmt, Extern, For,
+  NO_NODE, NodeKind, Assign, Block, Break, Continue, Defer, EnumDecl, ExprStmt, Extern, For,
   Function, If, Import, Match, Return, StructDecl, Syntax, TypeAlias, VarDecl, While,
   functionOf, itemAt, itemCount, nodeName, paramOf, typeDepth,
 } from "../syntax/ast";
@@ -88,14 +88,29 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
     Return => analyzeReturn(an, node, syntax),
     ExprStmt => analyzeExpressionStatement(an, node, syntax),
     Break => {
-      if (an.loopDepth == 0) {
+      if (an.loopDepth == 0 && an.deferDepth > 0) {
+        analyzerFail(an, node, Problem.DeferLeaves, Facts.about("break"));
+      } else if (an.loopDepth == 0) {
         analyzerFail(an, node, Problem.BreakOutsideLoop, Facts.none());
       }
     }
     Continue => {
-      if (an.loopDepth == 0) {
+      if (an.loopDepth == 0 && an.deferDepth > 0) {
+        analyzerFail(an, node, Problem.DeferLeaves, Facts.about("continue"));
+      } else if (an.loopDepth == 0) {
         analyzerFail(an, node, Problem.ContinueOutsideLoop, Facts.none());
       }
+    }
+    // Checked where it is written, with what is in scope there. A loop it is
+    // in is no loop of its own: it runs as the block is left, so it cannot
+    // break out of anything but a loop inside it.
+    Defer => {
+      let loops: i32 = an.loopDepth;
+      an.loopDepth = 0;
+      an.deferDepth = an.deferDepth + 1;
+      analyzeRecovering(an, syntax.body);
+      an.deferDepth = an.deferDepth - 1;
+      an.loopDepth = loops;
     }
     // A struct's fields were handled by the two registration passes; what is
     // left is the bodies of its methods.
@@ -324,6 +339,9 @@ fn analyzeFor(an: *Analyzer, node: i32, loop: For): void {
 fn analyzeReturn(an: *Analyzer, node: i32, statement: Return): void {
   if (!an.inFunction) {
     analyzerFail(an, node, Problem.ReturnOutsideFunction, Facts.none());
+  }
+  if (an.deferDepth > 0) {
+    analyzerFail(an, node, Problem.DeferLeaves, Facts.about("return"));
   }
 
   if (statement.value == NO_NODE) {

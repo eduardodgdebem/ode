@@ -91,6 +91,8 @@
 
 "return" @keyword.return
 
+"defer" @keyword
+
 "sizeof" @function.builtin
 
 ["try" "catch"] @keyword.exception

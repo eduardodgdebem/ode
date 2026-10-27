@@ -88,3 +88,32 @@ test "a file that lexes cleanly but parses badly reports the parser's problem" {
   assertEq(found.at(0).problem, Problem.UnexpectedToken);
   assertEq(found.at(0).facts.other, "}");
 }
+
+test "hex, octal and binary literals lex as numbers" {
+  let found: *List<Diagnostic> = problemsIn(`
+    let A: i32 = 0x1F;
+    let B: i32 = 0o17;
+    let C: i32 = 0b101;
+    let D: i32 = 0xfF;
+
+    fn main(): i32 {
+      return 0;
+    }
+  `);
+  assertEq(found.count, 0);
+}
+
+test "a digit a literal's base does not have" {
+  let found: *List<Diagnostic> = problemsIn(`
+    let A: i32 = 0xZ1;
+    let B: i32 = 0b2;
+    let C: i32 = 0o8;
+    let D: i32 = 0x;
+  `);
+  assertEq(found.count, 4);
+  assertEq(found.at(0).problem, Problem.BadDigit);
+  assertEq(found.at(0).facts.name, "0xZ1");
+  assertEq(found.at(1).facts.name, "0b2");
+  assertEq(found.at(2).facts.name, "0o8");
+  assertEq(found.at(3).facts.name, "0x");
+}

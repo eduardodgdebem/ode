@@ -15,6 +15,7 @@ import { TypeKind, Type } from "../types/types";
 export enum Problem {
   // The lexer.
   UnexpectedCharacter,
+  BadDigit,
   UnterminatedString,
   StringCrossesLine,
   StringInterpolation,
@@ -71,6 +72,7 @@ export enum Problem {
 
   // Statements.
   BreakOutsideLoop,
+  DeferLeaves,
   ContinueOutsideLoop,
   ReturnOutsideFunction,
   ReturnWithoutValue,
@@ -384,6 +386,10 @@ export fn describe(problem: Problem, facts: Facts): Description {
 
   match (problem) {
     .UnexpectedCharacter => { return says("unexpected character"); }
+    .BadDigit => {
+      return saysMore(text2("not a number: ", q(name)),
+                      "0x is followed by hex digits, 0o by octal ones and 0b by binary ones");
+    }
     .UnterminatedString => { return says("unterminated string literal"); }
     .StringCrossesLine => {
       return says("string literal may not cross a newline");
@@ -527,6 +533,10 @@ export fn describe(problem: Problem, facts: Facts): Description {
                       text2(q(other), " is declared after it"));
     }
 
+    .DeferLeaves => {
+      return saysMore(text2("a deferred statement cannot ", name),
+                      "it runs as its block is left, which it cannot leave again");
+    }
     .BreakOutsideLoop => { return says("break used outside of a loop"); }
     .ContinueOutsideLoop => {
       return says("continue used outside of a loop");

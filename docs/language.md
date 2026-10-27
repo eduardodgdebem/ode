@@ -86,6 +86,32 @@ while (i < length && text[i] != '\0') {
 }
 ```
 
+`defer` puts a statement off until the block it is in is left -- by its end,
+`return`, `break`, `continue`, or an error passed on with `try` -- so what is
+acquired is released beside where it was acquired, on every way out:
+
+```rust
+fn firstByte(path: *i8): i32 | FileError {
+  let stream: *i8 = fopen(path, "rb");
+  if (stream == null) {
+    return FileError.CannotRead;
+  }
+  defer fclose(stream);
+
+  let byte: i32 = fgetc(stream);
+  if (byte < 0) {
+    return FileError.CannotRead;
+  }
+  return byte;
+}
+```
+
+Deferred statements run last first. A `return`'s value is worked out before
+they run, so `defer count += 1; return count;` returns the count as it was.
+A deferred statement sees what was in scope where it was written, and may
+not itself leave: no `return`, no `try`, and no `break` or `continue` but
+within a loop of its own.
+
 ## Types
 
 Integers in every width and signedness — `i8`, `u8`, `i16`, `u16`, `i32`,
@@ -110,6 +136,10 @@ let next: i64 = size * 2 + 1;
 let ratio: f64 = 3;
 let byte: u8 = 300;          // error: number is out of range for 'u8'
 ```
+
+Integers can be written in hex, octal or binary too, which is what masks
+and flags are usually written in: `0x1a1b26`, `0o755`, `0b1010`. They are the
+same numbers, and take their type the same way.
 
 Characters and `sizeof` work the same way: `'0' + digit` is in the digit's
 type, and `malloc(sizeof(Node) * 4)` passes the `i64` malloc wants. With

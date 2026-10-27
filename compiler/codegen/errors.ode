@@ -25,7 +25,7 @@ import {
   typeOfNode, emitAssign, emitLoad, emitStore, genExpr,
 } from "./expressions";
 import { llvmTypeName } from "./layout";
-import { genStatement } from "./statements";
+import { genStatement, runDefers } from "./statements";
 import { line } from "../driver/options";
 import { Binary, Try, Is, Catch } from "../syntax/ast";
 import { payloadWords } from "../types/layout";
@@ -262,6 +262,7 @@ export fn genTry(e: *Emitter, attempt: Try): *i8 {
   line.add(code);
   line.add(", 0");
   let returned: *i8 = emitAssign(e, line.data);
+  runDefers(e, 0);
   let ret: *Builder = Builder.new();
   ret.add("ret ");
   ret.add(llvmTypeName(e.returnType));
