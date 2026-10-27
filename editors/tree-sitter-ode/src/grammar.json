@@ -943,6 +943,10 @@
         },
         {
           "type": "STRING",
+          "value": "isize"
+        },
+        {
+          "type": "STRING",
           "value": "usize"
         },
         {
