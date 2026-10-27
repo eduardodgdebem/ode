@@ -12,7 +12,7 @@ export let USAGE: *i8 = `
              [--target <arch-os[-abi]>] [--sysroot <dir>] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode>
          ode test [-l <lib>] [-L <dir>] [-framework <name>] <input.ode | directory> [filter]
                                                      runs the tests in a program, or in every file under a directory
-         ode build [build | test | bootstrap | seed] [options]   (ode build --help)
+         ode build [step] [options]   builds what build.ode declares, or this compiler in its repository (ode build --help)
 `;
 
 export error enum UsageError {

@@ -1,0 +1,266 @@
+// ---------------------------------------------------------------------------
+// Builds written in Ode: what a project's build.ode is written against.
+//
+//   import { Build, Artifact } from "std/build";
+//
+//   export fn build(b: *Build): void {
+//     let app: *Artifact = b.executable("app", "src/main.ode");
+//     app.libraryPath("vendor/lib").linkLibrary("raylib").linkFramework("Cocoa");
+//     b.tests("src").linkLike(app);
+//   }
+//
+// `ode build` compiles build.ode with a runner that hands `build` a *Build,
+// then prints what it declared as a plan, a fact a line. The compiler reads
+// the plan back and carries it out: nothing here builds anything, so a build
+// file says what is wanted and `ode` decides how.
+//
+// Paths are relative to the directory build.ode is in.
+// ---------------------------------------------------------------------------
+
+import { alloc } from "std/mem";
+import { List } from "std/list";
+import { Builder, equals, startsWith, indexOf, slice, length } from "std/text";
+import { print } from "std/io";
+
+// What a plan begins with, so that a runner and a compiler that disagree on
+// its shape find out.
+export let PLAN_HEADER: *i8 = "ode build plan 1";
+
+export enum ArtifactKind {
+  Executable,
+  // A file or a directory of files whose tests `ode build test` runs.
+  Tests,
+}
+
+export struct Artifact {
+  kind: ArtifactKind,
+  name: *i8,
+  // The entry file; for tests, a file or a directory.
+  root: *i8,
+  // Where an executable goes: `build/<name>` unless set.
+  output: *i8,
+  // `arch-os[-abi]`, as `ode --target` takes it; null for this machine.
+  // Tests always run here, so theirs is never used.
+  target: *i8,
+  sysroot: *i8,
+  libraries: *List<*i8>,
+  paths: *List<*i8>,
+  frameworks: *List<*i8>,
+
+  fn new(kind: ArtifactKind, name: *i8, root: *i8): *Artifact {
+    let artifact: *Artifact = alloc<Artifact>(1);
+    artifact.kind = kind;
+    artifact.name = name;
+    artifact.root = root;
+    artifact.output = null;
+    artifact.target = null;
+    artifact.sysroot = null;
+    artifact.libraries = List<*i8>.new();
+    artifact.paths = List<*i8>.new();
+    artifact.frameworks = List<*i8>.new();
+    return artifact;
+  }
+
+  // `-l`: links lib<name>, found in the library paths or the system's.
+  fn linkLibrary(self: *Artifact, name: *i8): *Artifact {
+    self.libraries.push(name);
+    return self;
+  }
+
+  // `-L`: a directory to look for libraries in.
+  fn libraryPath(self: *Artifact, directory: *i8): *Artifact {
+    self.paths.push(directory);
+    return self;
+  }
+
+  // `-framework`, on macOS.
+  fn linkFramework(self: *Artifact, name: *i8): *Artifact {
+    self.frameworks.push(name);
+    return self;
+  }
+
+  // Links whatever `other` links, as it is now: tests of the code that goes
+  // into an executable need its libraries too.
+  fn linkLike(self: *Artifact, other: *Artifact): *Artifact {
+    for (index in 0..other.paths.count) {
+      self.paths.push(other.paths.at(index));
+    }
+    for (index in 0..other.libraries.count) {
+      self.libraries.push(other.libraries.at(index));
+    }
+    for (index in 0..other.frameworks.count) {
+      self.frameworks.push(other.frameworks.at(index));
+    }
+    return self;
+  }
+
+  fn outputPath(self: *Artifact): *i8 {
+    if (self.output != null) {
+      return self.output;
+    }
+    let path: *Builder = Builder.new();
+    path.add("build/");
+    path.add(self.name);
+    return path.take();
+  }
+}
+
+export struct Build {
+  // `ode build --target`: what executables are built for unless they say.
+  target: *i8,
+  sysroot: *i8,
+  artifacts: *List<*Artifact>,
+  // `-Dname=value` and `-Dname`, as given.
+  options: *List<*i8>,
+
+  fn new(): *Build {
+    let b: *Build = alloc<Build>(1);
+    b.target = null;
+    b.sysroot = null;
+    b.artifacts = List<*Artifact>.new();
+    b.options = List<*i8>.new();
+    return b;
+  }
+
+  // A program built from `root` and what it imports.
+  fn executable(self: *Build, name: *i8, root: *i8): *Artifact {
+    let artifact: *Artifact = Artifact.new(ArtifactKind.Executable, name, root);
+    artifact.target = self.target;
+    artifact.sysroot = self.sysroot;
+    self.artifacts.push(artifact);
+    return artifact;
+  }
+
+  // The tests in `root`, a file or a directory, for `ode build test`.
+  fn tests(self: *Build, root: *i8): *Artifact {
+    let artifact: *Artifact = Artifact.new(ArtifactKind.Tests, root, root);
+    self.artifacts.push(artifact);
+    return artifact;
+  }
+
+  // The value of `-Dname=value`: "" for a bare `-Dname`, and null when it was
+  // not given.
+  fn option(self: *Build, name: *i8): *i8 {
+    for (index in 0..self.options.count) {
+      let given: *i8 = self.options.at(index);
+      let equal: i64 = indexOf(given, "=");
+      if (equal < 0 && equals(given, name)) {
+        return "";
+      }
+      if (equal == length(name) && startsWith(given, name)) {
+        return given + equal + 1;
+      }
+    }
+    return null;
+  }
+
+  // Whether `-Dname` or `-Dname=true` was given.
+  fn flag(self: *Build, name: *i8): bool {
+    let value: *i8 = self.option(name);
+    return value != null && (equals(value, "") || equals(value, "true"));
+  }
+}
+
+fn addFact(out: *Builder, key: *i8, value: *i8): void {
+  if (value == null) {
+    return;
+  }
+  out.add(key);
+  out.push(' ');
+  out.add(value);
+  out.push('\n');
+}
+
+fn addFacts(out: *Builder, key: *i8, values: *List<*i8>): void {
+  for (index in 0..values.count) {
+    addFact(out, key, values.at(index));
+  }
+}
+
+// The plan: the header, then each artifact as its kind and name followed by
+// what it is made of, each fact `key value` on a line of its own.
+export fn planOf(b: *Build): *i8 {
+  let out: *Builder = Builder.new();
+  out.add(PLAN_HEADER);
+  out.push('\n');
+  for (index in 0..b.artifacts.count) {
+    let artifact: *Artifact = b.artifacts.at(index);
+    let kind: *i8 = match (artifact.kind) {
+      .Executable => "executable",
+      .Tests => "tests",
+    };
+    addFact(out, kind, artifact.name);
+    addFact(out, "root", artifact.root);
+    if (artifact.kind == ArtifactKind.Executable) {
+      addFact(out, "output", artifact.outputPath());
+      addFact(out, "target", artifact.target);
+      addFact(out, "sysroot", artifact.sysroot);
+    }
+    addFacts(out, "path", artifact.paths);
+    addFacts(out, "library", artifact.libraries);
+    addFacts(out, "framework", artifact.frameworks);
+  }
+  return out.take();
+}
+
+// What the runner `ode build` writes calls: reads `--target`, `--sysroot`
+// and `-D` from the command line, hands them to `build`, and prints the plan.
+export fn runBuild(argc: i32, argv: **i8, build: (*Build) => void): i32 {
+  let b: *Build = Build.new();
+  let index: i32 = 1;
+  while (index < argc) {
+    let argument: *i8 = argv[index];
+    if (equals(argument, "--target") && index + 1 < argc) {
+      index = index + 1;
+      b.target = argv[index];
+    } else if (equals(argument, "--sysroot") && index + 1 < argc) {
+      index = index + 1;
+      b.sysroot = argv[index];
+    } else if (startsWith(argument, "-D")) {
+      b.options.push(argument + 2);
+    }
+    index = index + 1;
+  }
+
+  build(b);
+  print(planOf(b));
+  return 0;
+}
+
+fn sample(b: *Build): void {
+  let app: *Artifact = b.executable("app", "src/main.ode");
+  app.libraryPath("vendor/lib").linkLibrary("raylib").linkFramework("Cocoa");
+  b.tests("src").linkLike(app);
+}
+
+test "a plan lists each artifact and what it links" {
+  let b: *Build = Build.new();
+  b.target = "x86_64-linux";
+  sample(b);
+  assertEq(planOf(b), `ode build plan 1
+executable app
+root src/main.ode
+output build/app
+target x86_64-linux
+path vendor/lib
+library raylib
+framework Cocoa
+tests src
+root src
+path vendor/lib
+library raylib
+framework Cocoa
+`);
+}
+
+test "options are read from -D" {
+  let b: *Build = Build.new();
+  b.options.push("release");
+  b.options.push("prefix=/usr/local");
+  b.options.push("gui=false");
+  assertEq(b.option("prefix"), "/usr/local");
+  assertEq(b.option("pre"), null);
+  assert(b.flag("release"));
+  assert(!b.flag("gui"));
+  assert(!b.flag("missing"));
+}

@@ -41,6 +41,7 @@ import {
   currentDirectory, command,
 } from "../os/process";
 import { NodeKind, Ast, Program } from "../syntax/ast";
+import { findProject, projectMain } from "./project";
 import { TestOptions, commandTest } from "./testsuite";
 
 let BUILD_USAGE: *i8 = `
@@ -159,7 +160,7 @@ fn hashInputs(ws: *Workspace): Inputs {
 // Output.
 // ---------------------------------------------------------------------------
 
-fn say(text: *i8): void {
+export fn say(text: *i8): void {
   writeText(STDOUT, text);
   writeText(STDOUT, "\n");
 }
@@ -429,6 +430,20 @@ fn buildUsage(): i32 {
 }
 
 export fn buildMain(argc: i32, argv: **i8): i32 {
+  // A build.ode is the project's own word on how it builds, unless it is
+  // above the compiler's repository rather than in it.
+  let project: *i8 = findProject();
+  let repository: *i8 = findRoot();
+  if (project != null &&
+      (repository == null || strlen(project) >= strlen(repository))) {
+    let self: *i8 = findSelf(argv[0]);
+    if (self == null) {
+      complain("cannot tell where this compiler is; run it by its path");
+      return 2;
+    }
+    return projectMain(argc, argv, project, self);
+  }
+
   let command: *i8 = null;
   let force: bool = false;
   let options: TestOptions = TestOptions {

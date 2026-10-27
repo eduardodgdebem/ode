@@ -22,7 +22,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
-import { exists } from "std/fs";
+import { exists, writeFile } from "std/fs";
 import { Builder, equals, slice, endsWith, contains } from "std/text";
 import { fail } from "../diagnostics/report";
 import { line } from "../driver/options";
@@ -383,6 +383,32 @@ fn checkObjectForTarget(suite: *Suite): bool {
          !compileQuietly(suite, unknown);
 }
 
+// `ode build` in a directory with a build.ode builds what it declares,
+// reading the options it is given, into build/ beside it.
+fn checkBuildFile(suite: *Suite): bool {
+  let project: *i8 = joinPath(suite.work, "cli/project");
+  makeDirectories(project) catch (e) {
+    return false;
+  };
+  let source: *Builder = Builder.new();
+  source.add("import { Build } from \"std/build\";\n\n");
+  source.add("export fn build(b: *Build): void {\n");
+  source.add("  b.executable(b.option(\"name\") ?? \"zero\", \"");
+  source.add(exampleOne(suite));
+  source.add("\");\n}\n");
+  writeFile(joinPath(project, "build.ode"), source.take()) catch (e) {
+    return false;
+  };
+
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("build").add("-Dname=renamed");
+  if (!ran(runCommand(command, project, Builder.new(), StderrMode.Merge))) {
+    return false;
+  }
+  return printsZero(joinPath(project, "build/renamed")) &&
+         !exists(joinPath(project, "build/zero"));
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -566,6 +592,9 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
   if (suite.selected("object-for-target")) {
     runCli(suite, "object-for-target", checkObjectForTarget(suite));
+  }
+  if (suite.selected("build-file")) {
+    runCli(suite, "build-file", checkBuildFile(suite));
   }
   if (suite.selected("no-input-file")) {
     runCli(suite, "no-input-file", checkNoInputFile(suite));

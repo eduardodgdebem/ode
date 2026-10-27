@@ -65,6 +65,9 @@ Building for another target always gets as far as the object file. Linking
 needs that target's C library, which Ode does not ship: macOS's comes with
 its SDK, and Linux's from a `--sysroot`, linked with `lld` from a Mac.
 
+A project says all of that once, in Ode, in a `build.ode` that `ode build`
+runs, as Zig's `build.zig` does: see [Building a project](docs/build.md).
+
 Errors are reported as `file:line:column: error: message`, and one run
 reports every error it can find:
 
@@ -79,6 +82,7 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 - [The language](docs/language.md) -- a tour, feature by feature
 - [Grammar](docs/grammar.md) -- the syntax, in EBNF
 - [The standard library](docs/std.md) -- `std/...`: memory, lists, text, I/O, files
+- [Building a project](docs/build.md) -- `build.ode`, `ode build`, targets and libraries
 - [Limitations](docs/limitations.md) -- what is missing, and what is left out on purpose
 - [Working on Ode](docs/development.md) -- building, testing, the bootstrap
 - [The compiler](docs/compiler.md) -- how it is put together
