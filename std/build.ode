@@ -47,7 +47,8 @@ export struct Artifact {
   name: *i8,
   // The entry file; for tests, a file or a directory.
   root: *i8,
-  // Where an executable goes: `build/<name>` unless set.
+  // Where an executable goes: `build/<name>` unless set, and
+  // `build/<name>.wasm` for a wasm module.
   output: *i8,
   // `arch-os[-abi]`, as `ode --target` takes it; null for this machine.
   // Tests always run here, so theirs is never used.
@@ -111,6 +112,9 @@ export struct Artifact {
     let path: *Builder = Builder.new();
     path.add("build/");
     path.add(self.name);
+    if (self.target != null && startsWith(self.target, "wasm32")) {
+      path.add(".wasm");
+    }
     return path.take();
   }
 }

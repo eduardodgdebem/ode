@@ -24,7 +24,7 @@ import {
   TextList, StderrMode, runCommand, ran, environment, setEnvironment, command,
 } from "../os/process";
 import { isSpace } from "../syntax/lexer";
-import { TARGET, targetsDarwin } from "./target";
+import { TARGET, targetsDarwin, targetsWasm } from "./target";
 
 let SYSROOT_PROBED: bool = false;
 let SYSROOT: *i8 = null;
@@ -101,7 +101,7 @@ export fn ccCommand(): *TextList {
 // The same, for the run that links.
 export fn linkCommand(): *TextList {
   let command: *TextList = ccCommand();
-  if (!targetsDarwin() && (isMacHost() || usesBundledLibc())) {
+  if (!targetsDarwin() && !targetsWasm() && (isMacHost() || usesBundledLibc())) {
     command.add("-fuse-ld=lld");
   }
   return command;
@@ -116,7 +116,8 @@ export fn usesBundledLibc(): bool {
 // Whether linking is for a target that has none of its libraries here: a
 // glibc one that was given no sysroot.
 export fn linksWithoutLibraries(): bool {
-  return !targetsDarwin() && sysroot() == null && !usesBundledLibc();
+  return !targetsDarwin() && sysroot() == null && !usesBundledLibc() &&
+         !targetsWasm();
 }
 
 // What a program is linked against besides libc: -l, -L and -framework.
@@ -124,12 +125,15 @@ export struct LinkInputs {
   libraries: *List<*i8>,
   paths: *List<*i8>,
   frameworks: *List<*i8>,
+  // What a wasm module exports, by IR name.
+  exports: *List<*i8>,
 
   fn new(): *LinkInputs {
     let inputs: *LinkInputs = alloc<LinkInputs>(1);
     inputs.libraries = List<*i8>.new();
     inputs.paths = List<*i8>.new();
     inputs.frameworks = List<*i8>.new();
+    inputs.exports = List<*i8>.new();
     return inputs;
   }
 

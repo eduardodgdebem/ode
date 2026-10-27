@@ -10,6 +10,7 @@
 
 import { List } from "std/list";
 import { valueOf, valuesOf, holdsSeveral } from "../check/errors";
+import { pointerBytes } from "../codegen/target";
 import { TypeKind, Type, StructTable } from "./types";
 
 // The program's structs, for laying out a union that may hold several types
@@ -33,7 +34,7 @@ export fn payloadWords(type: Type): i32 {
 
 fn alignOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
-    return 8;
+    return pointerBytes();
   }
   // A union is laid out as { i32 code, value }, or { i32 tag, [n x i64] }
   // when it may hold several types.
@@ -84,7 +85,7 @@ fn alignUp(value: i32, alignment: i32): i32 {
 
 export fn sizeOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
-    return 8;
+    return pointerBytes();
   }
   if (holdsSeveral(type)) {
     return 8 + payloadWords(type) * 8;

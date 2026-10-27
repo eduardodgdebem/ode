@@ -8,8 +8,11 @@
 //
 // The IR carries no data layout: the compiler works sizes out itself
 // (types/layout.ode), and clang fills in the layout that goes with the
-// triple. Every target is 64-bit, because that layout takes a pointer to be
-// 8 bytes.
+// triple. A pointer is 8 bytes everywhere but wasm32, where it is 4.
+//
+// wasm32 is freestanding: a module with no C library and no entry point,
+// whose exports are the entry file's exported functions and whose imports
+// are its externs (codegen/wasm.ode).
 // ---------------------------------------------------------------------------
 
 import { alloc } from "std/mem";
@@ -18,11 +21,14 @@ import { Builder, equals, indexOf, slice } from "std/text";
 export enum Arch {
   X86_64,
   Aarch64,
+  Wasm32,
 }
 
 export enum Os {
   Macos,
   Linux,
+  // No OS at all: what the host hands the program is all it has.
+  Freestanding,
 }
 
 // Which C library a Linux program is linked against. macOS has one. Linux's
@@ -40,6 +46,9 @@ export error enum TargetError {
   UnknownAbi,
   // An ABI on an OS that has only one, or more parts than arch-os-abi.
   TooManyParts,
+  // An arch and an OS that do not go together: wasm32 is only freestanding,
+  // and only wasm32 is.
+  NoSuchPair,
 }
 
 export struct Target {
@@ -50,14 +59,17 @@ export struct Target {
   // The LLVM triple, as clang's --target and the IR's `target triple` take
   // it.
   fn triple(self: Target): *i8 {
+    if (self.arch == Arch.Wasm32) {
+      return "wasm32-unknown-unknown";
+    }
     let out: *Builder = Builder.new();
     if (self.os == Os.Macos) {
-      out.add(match (self.arch) { .X86_64 => "x86_64", .Aarch64 => "arm64" });
+      out.add(match (self.arch) { .X86_64 => "x86_64", else => "arm64" });
       out.add("-apple-macosx");
       return out.take();
     }
 
-    out.add(match (self.arch) { .X86_64 => "x86_64", .Aarch64 => "aarch64" });
+    out.add(match (self.arch) { .X86_64 => "x86_64", else => "aarch64" });
     out.add("-unknown-linux-");
     out.add(match (self.abi) { .Gnu => "gnu", else => "musl" });
     return out.take();
@@ -75,6 +87,19 @@ export struct Target {
 // What the program is being built for; null for the C compiler's default.
 export let TARGET: *Target = null;
 
+// Whether the program is a wasm module rather than an executable.
+export fn targetsWasm(): bool {
+  return TARGET != null && TARGET.arch == Arch.Wasm32;
+}
+
+// How many bytes a pointer, or a function value, takes.
+export fn pointerBytes(): i32 {
+  if (targetsWasm()) {
+    return 4;
+  }
+  return 8;
+}
+
 // Whether the SDK that xcrun knows suits what is being built: it does for
 // macOS, and for the default target only when that is macOS, which a Mac
 // has xcrun to say.
@@ -83,10 +108,16 @@ export fn targetsDarwin(): bool {
 }
 
 // `arch-os` or `arch-os-abi`, the way Zig spells them: `x86_64-linux`,
-// `aarch64-macos`, `x86_64-linux-musl`. `arm64` is taken for `aarch64`.
+// `aarch64-macos`, `x86_64-linux-musl`, `wasm32-freestanding`. `arm64` is
+// taken for `aarch64`, and `wasm32` alone for `wasm32-freestanding`.
 export fn parseTarget(text: *i8): *Target | TargetError {
   let target: *Target = alloc<Target>(1);
   target.abi = Abi.Default;
+  if (equals(text, "wasm32")) {
+    target.arch = Arch.Wasm32;
+    target.os = Os.Freestanding;
+    return target;
+  }
 
   let archEnd: i64 = indexOf(text, "-");
   if (archEnd < 0) {
@@ -97,6 +128,8 @@ export fn parseTarget(text: *i8): *Target | TargetError {
     target.arch = Arch.X86_64;
   } else if (equals(arch, "aarch64") || equals(arch, "arm64")) {
     target.arch = Arch.Aarch64;
+  } else if (equals(arch, "wasm32")) {
+    target.arch = Arch.Wasm32;
   } else {
     return TargetError.UnknownArch;
   }
@@ -111,8 +144,13 @@ export fn parseTarget(text: *i8): *Target | TargetError {
     target.os = Os.Macos;
   } else if (equals(os, "linux")) {
     target.os = Os.Linux;
+  } else if (equals(os, "freestanding")) {
+    target.os = Os.Freestanding;
   } else {
     return TargetError.UnknownOs;
+  }
+  if ((target.arch == Arch.Wasm32) != (target.os == Os.Freestanding)) {
+    return TargetError.NoSuchPair;
   }
 
   if (osEnd < 0) {
@@ -146,6 +184,8 @@ test "a target is arch-os, with an ABI on Linux" {
   assertEq(tripleOf("aarch64-macos"), "arm64-apple-macosx");
   assertEq(tripleOf("arm64-macos"), "arm64-apple-macosx");
   assertEq(tripleOf("x86_64-macos"), "x86_64-apple-macosx");
+  assertEq(tripleOf("wasm32"), "wasm32-unknown-unknown");
+  assertEq(tripleOf("wasm32-freestanding"), "wasm32-unknown-unknown");
 }
 
 test "a target that is not one says which part is wrong" {
@@ -155,4 +195,6 @@ test "a target that is not one says which part is wrong" {
   assertEq(parseTarget("x86_64-linux-android"), TargetError.UnknownAbi);
   assertEq(parseTarget("aarch64-macos-gnu"), TargetError.TooManyParts);
   assertEq(parseTarget("x86_64-linux-gnu-extra"), TargetError.TooManyParts);
+  assertEq(parseTarget("wasm32-linux"), TargetError.NoSuchPair);
+  assertEq(parseTarget("x86_64-freestanding"), TargetError.NoSuchPair);
 }

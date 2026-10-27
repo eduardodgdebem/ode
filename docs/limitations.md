@@ -321,8 +321,11 @@ re-split or executed. What is left is that the compiler has no backend of its
 own: it depends on `clang` to turn IR into a binary.
 
 That is also what decides which targets are reachable. `--target` takes
-64-bit x86 and ARM on macOS and Linux, because layout assumes 8-byte
-pointers and the triples are spelled out for those two. Linux programs link
+64-bit x86 and ARM on macOS and Linux, and freestanding wasm32, the one
+target whose pointers are 4 bytes; each is spelled out, with its pointer
+size, in `compiler/codegen/target.ode`. wasm32 has no C library, and so no
+WASI: a module talks to the world only through what its host passes in as
+imports. Linux programs link
 against musl, which Ode bundles and builds on first use, as Zig does; glibc
 is not bundled, so a `-gnu` target needs its own `--sysroot`. Windows is
 not a target at all. And a program built for another target cannot be run

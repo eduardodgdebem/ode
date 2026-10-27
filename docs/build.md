@@ -114,6 +114,7 @@ so a build is a description, not a graph of closures as in Zig's
 
 `--target` and an artifact's `.target` take `arch-os[-abi]`: `x86_64` or
 `aarch64` (also `arm64`), `macos` or `linux`, and on Linux `musl`, the
-default, or `gnu`. A Linux executable links statically against the musl Ode
-bundles, so `ode build --target aarch64-linux` works from a Mac with nothing
+default, or `gnu`; or `wasm32`, which builds a module, `build/<name>.wasm`,
+as the [README](../README.md#webassembly) describes. A Linux executable links
+statically against the musl Ode bundles, so `ode build --target aarch64-linux` works from a Mac with nothing
 else installed but LLVM's tools; see the [README](../README.md#quick-start).

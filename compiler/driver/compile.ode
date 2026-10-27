@@ -9,6 +9,8 @@ import { Builder } from "std/text";
 import { Analyzer, analyze } from "../check/analyzer";
 import { Emitter } from "../codegen/emitter";
 import { genProgram } from "../codegen/program";
+import { targetsWasm } from "../codegen/target";
+import { entryExports } from "../codegen/wasm";
 import { Problem } from "../diagnostics/problems";
 import { printDiagnostics } from "../diagnostics/render";
 import {
@@ -20,7 +22,7 @@ import {
 import {
   loadProgram, buildExecutable, buildObject, chooseTarget,
 } from "./pipeline";
-import { stemOf } from "../os/files";
+import { stemOf, withSuffix } from "../os/files";
 import { STDOUT, STDERR, writeText, writeBuilder } from "../os/output";
 import { NodeKind, Ast, Program } from "../syntax/ast";
 import { dumpTokens, dumpNode } from "../syntax/dump";
@@ -68,6 +70,8 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
   }
 
   let an: *Analyzer = Analyzer.new(ast);
+  // A wasm module is a library for its host, which need not have a main.
+  an.requireMain = !targetsWasm();
   analyze(an, root);
   if (hasErrors()) {
     printDiagnostics();
@@ -89,8 +93,13 @@ export fn compileMain(argc: i32, argv: **i8): i32 {
   // The intermediates hang off the executable rather than the input, so that
   // -o keeps a whole build in one directory.
   let output: *i8 = options.output;
-  if (output == null) {
+  if (output == null && targetsWasm()) {
+    output = withSuffix(stemOf(options.input), ".wasm");
+  } else if (output == null) {
     output = stemOf(options.input);
+  }
+  if (targetsWasm()) {
+    options.build.link.exports = entryExports(ast, an, root);
   }
   if (options.emitObject) {
     buildObject(module, output, options.keepIntermediates);

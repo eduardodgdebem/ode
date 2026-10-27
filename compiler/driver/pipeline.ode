@@ -8,6 +8,8 @@ import { readFile, writeFile, removeFile } from "std/fs";
 import { before } from "../check/analyzer";
 import { parseTarget, TARGET } from "../codegen/target";
 import { LibcError, bundledLibc, muslLinkCommand } from "../codegen/libc";
+import { targetsWasm } from "../codegen/target";
+import { wasmLinkCommand } from "../codegen/wasm";
 import {
   ccCommand, linkCommand, chooseSysroot, linksWithoutLibraries,
   usesBundledLibc, LinkInputs,
@@ -207,7 +209,9 @@ export fn buildExecutable(module: *i8, output: *i8, keepIntermediates: bool,
   let objectPath: *i8 = buildObject(module, output, keepIntermediates);
 
   let link: *TextList = linkCommand();
-  if (usesBundledLibc()) {
+  if (targetsWasm()) {
+    wasmLinkCommand(link, objectPath, output, inputs);
+  } else if (usesBundledLibc()) {
     let libc: *i8 = bundledLibc(*TARGET) catch (e) {
       failAbout(match (e) {
         .NoSources => Problem.LibcSourcesNotFound,

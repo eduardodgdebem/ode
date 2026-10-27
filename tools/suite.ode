@@ -429,6 +429,49 @@ fn checkLinuxExecutable(suite: *Suite): bool {
   return true;
 }
 
+// A wasm module builds with no C library and no entry point, exporting
+// what the entry file exports.
+fn checkWasmModule(suite: *Suite): bool {
+  let directory: *i8 = joinPath(suite.work, "cli/wasm");
+  makeDirectories(directory) catch (e) {
+    return false;
+  };
+  let source: *i8 = joinPath(directory, "add.ode");
+  writeFile(source, "export fn add(a: i32, b: i32): i32 {\n  return a + b;\n}\n")
+      catch (e) {
+    return false;
+  };
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("--target").add("wasm32").add(source);
+  if (!ran(runCommand(command, directory, null, StderrMode.Inherit))) {
+    return false;
+  }
+
+  let module: *Builder = readBytes(joinPath(directory, "add.wasm")) catch (e) {
+    return false;
+  };
+  // `\0asm`, and somewhere after it the export's name.
+  return module.length > 8 && module.data[0] == 0 && module.data[1] == 'a' &&
+         module.data[2] == 's' && module.data[3] == 'm' &&
+         holdsBytes(module, "add");
+}
+
+fn holdsBytes(data: *Builder, text: *i8): bool {
+  let count: i64 = strlen(text);
+  let start: i64 = 0;
+  while (start + count <= data.length) {
+    let index: i64 = 0;
+    while (index < count && data.data[start + index] == text[index]) {
+      index = index + 1;
+    }
+    if (index == count) {
+      return true;
+    }
+    start = start + 1;
+  }
+  return false;
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -608,6 +651,9 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   }
   if (suite.selected("linux-executable")) {
     runCli(suite, "linux-executable", checkLinuxExecutable(suite));
+  }
+  if (suite.selected("wasm-module")) {
+    runCli(suite, "wasm-module", checkWasmModule(suite));
   }
   if (suite.selected("build-file")) {
     runCli(suite, "build-file", checkBuildFile(suite));
