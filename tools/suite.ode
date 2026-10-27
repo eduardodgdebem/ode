@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// `ode build test`: everything that needs the compiler as a program.
+// The regression suite: everything that needs the compiler as a program,
+// which `ode build test` runs in this repository (see build.ode).
 //
 // Most of what the compiler does is tested in-process, by the tests written
 // beside it in compiler/**/*.test.ode; this runs them, and the standard
@@ -24,28 +25,27 @@ import { strlen } from "std/c";
 import { alloc } from "std/mem";
 import { exists, writeFile } from "std/fs";
 import { Builder, equals, slice, endsWith, contains } from "std/text";
-import { fail } from "../diagnostics/report";
-import { line } from "../driver/options";
+import { fail } from "../compiler/diagnostics/report";
+import { line } from "../compiler/driver/options";
 import {
   joinPath, withSuffix, parentDirectory, isExecutable, readBytes, writeBytes,
   sameBytes, makeDirectories, removeTree, listDirectory, splitLines,
   makeTempDirectory,
-} from "../os/files";
-import { STDOUT, writeBuilder } from "../os/output";
+} from "../compiler/os/files";
+import { STDOUT, writeBuilder, colour } from "../compiler/os/output";
 import {
   TextList, StderrMode, runCommand, ran, setEnvironment, isTerminal, command,
-} from "../os/process";
-import { Workspace, complain, commandBuild } from "./build";
+} from "../compiler/os/process";
+import { complain } from "../compiler/tool/build";
 
 export struct TestOptions {
   filter: *i8,
   update: bool,
-  // The compiler to test, or null to build one and test that.
-  compiler: *i8,
 }
 
 struct Suite {
-  ws: *Workspace,
+  // The repository: where the examples and cases are.
+  root: *i8,
   compiler: *i8,
   work: *i8,
   filter: *i8,
@@ -160,16 +160,6 @@ struct Suite {
     runCommand(diff, null, output, StderrMode.Merge) ?? 0;
     writeIndented(output);
   }
-}
-
-export fn colour(code: *i8): *i8 {
-  let out: *Builder = Builder.new();
-  out.push(27);
-  out.push('[');
-  out.add(code);
-  out.push('m');
-
-  return out.take();
 }
 
 fn addPadded(out: *Builder, text: *i8, width: i32): void {
@@ -291,7 +281,7 @@ fn printsZero(path: *i8): bool {
 
 // A program that prints "0", which is what the driver checks build.
 fn exampleOne(suite: *Suite): *i8 {
-  return joinPath(suite.ws.root, "tests/cli/prints_zero.ode");
+  return joinPath(suite.root, "tests/cli/prints_zero.ode");
 }
 
 fn checkOutputFlag(suite: *Suite): bool {
@@ -420,7 +410,7 @@ fn runCompilerTests(suite: *Suite): void {
 
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "compiler"));
+  run.add(joinPath(suite.root, "compiler"));
   if (ran(runCommand(run, suite.work, output, StderrMode.Merge))) {
     suite.pass("tests", "compiler");
     return;
@@ -450,7 +440,7 @@ fn runLibraryTests(suite: *Suite, source: *i8, name: *i8): void {
 fn checkDirectoryInput(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let compile: *TextList = TextList.new().add(suite.compiler);
-  compile.add(joinPath(suite.ws.root, "compiler"));
+  compile.add(joinPath(suite.root, "compiler"));
   if ((runCommand(compile, suite.work, output, StderrMode.Merge) ?? -1) != 1 ||
       !contains(output.data, "cannot open input file")) {
     return false;
@@ -487,7 +477,7 @@ fn checkTestWithoutInput(suite: *Suite): bool {
 fn checkTestFilterMatchingNothing(suite: *Suite): bool {
   let output: *Builder = Builder.new();
   let run: *TextList = TextList.new().add(suite.compiler).add("test");
-  run.add(joinPath(suite.ws.root, "tests/runner/math.ode")).add("no test is named this");
+  run.add(joinPath(suite.root, "tests/runner/math.ode")).add("no test is named this");
   return ran(runCommand(run, suite.work, output, StderrMode.Merge)) &&
          contains(output.data, "0 passed; 0 failed; 5 filtered out");
 }
@@ -504,18 +494,11 @@ fn runCli(suite: *Suite, name: *i8, passed: bool): void {
 // The command.
 // ---------------------------------------------------------------------------
 
-export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
-  let compiler: *i8 = options.compiler;
-  if (compiler == null) {
-    if (commandBuild(ws, false) != 0) {
-      return 1;
-    }
-    compiler = ws.output;
-  }
-
+// Tests `compiler`, an `ode` binary, against the repository in `root`.
+export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   // The compiler under test may live anywhere, where it would not find the
   // repository's standard library on its own.
-  setEnvironment("ODE_STD", joinPath(ws.root, "std"));
+  setEnvironment("ODE_STD", joinPath(root, "std"));
 
   let work: *i8 = makeTempDirectory("ode-tests") catch (e) {
     complain("cannot create a temporary directory");
@@ -523,7 +506,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   };
 
   let suite: *Suite = alloc<Suite>(1);
-  suite.ws = ws;
+  suite.root = root;
   suite.compiler = compiler;
   suite.work = work;
   suite.filter = options.filter;
@@ -545,8 +528,8 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     suite.off = colour("0");
   }
 
-  let examples: *i8 = joinPath(ws.root, "examples");
-  let expectedExamples: *i8 = joinPath(ws.root, "tests/examples");
+  let examples: *i8 = joinPath(root, "examples");
+  let expectedExamples: *i8 = joinPath(root, "tests/examples");
   makeDirectories(expectedExamples) catch (e) {
     complain("cannot make tests/examples");
     return 1;
@@ -561,7 +544,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
     }
   }
 
-  let units: *i8 = joinPath(ws.root, "tests/runner");
+  let units: *i8 = joinPath(root, "tests/runner");
   names = listDirectory(units);
   for (index in 0..names.size()) {
     let file: *i8 = names.at(index);
@@ -575,7 +558,7 @@ export fn commandTest(ws: *Workspace, options: TestOptions): i32 {
   }
 
   if (suite.selected("std")) {
-    runLibraryTests(suite, joinPath(ws.root, "std"), "std");
+    runLibraryTests(suite, joinPath(root, "std"), "std");
   }
 
   if (suite.selected("output-flag")) {

@@ -20,9 +20,8 @@ import {
   SOURCE_PATH, Diagnostic, Diagnostics, DIAGS, FAILED, report,
 } from "./report";
 import { line } from "../driver/options";
-import { STDERR, writeBuilder } from "../os/output";
+import { STDERR, writeBuilder, colour } from "../os/output";
 import { isatty } from "../os/process";
-import { colour } from "../tool/testsuite";
 import { TypeKind, Type } from "../types/types";
 
 struct Source {

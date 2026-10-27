@@ -1,0 +1,26 @@
+// ---------------------------------------------------------------------------
+// How the compiler is built: as any Ode project is, by `ode build`.
+//
+//   ./build.sh                 build build/ode (after seeding one, if need be)
+//   ./build.sh test            then run the regression suite on it
+//   ./build.sh bootstrap       then rebuild it twice and require a fixed point
+//   ./build.sh seed            then refresh bootstrap/ode.ll from it
+//
+// `./build.sh test --filter math` runs only the cases whose name holds
+// "math"; the suite's other options go after `--`: `-- --update` re-records
+// the expectations, `-- --ode <compiler>` tests another compiler.
+// ---------------------------------------------------------------------------
+
+import { Build, Artifact } from "std/build";
+
+export fn build(b: *Build): void {
+  let ode: *Artifact = b.executable("ode", "compiler/main.ode");
+  let dev: *Artifact = b.tool("dev", "tools/dev.ode");
+
+  b.step("test", "run the regression suite on build/ode")
+      .run(dev).arg("suite").argOutput(ode);
+  b.step("bootstrap", "rebuild the compiler twice and require a fixed point")
+      .run(dev).arg("bootstrap").argOutput(ode);
+  b.step("seed", "refresh bootstrap/ode.ll from build/ode")
+      .run(dev).arg("seed").argOutput(ode);
+}

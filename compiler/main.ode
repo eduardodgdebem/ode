@@ -3,7 +3,7 @@
 //
 //   ode file.ode     compiles a program: driver/compile.ode
 //   ode test ...     runs a program's tests: driver/test.ode
-//   ode build ...    builds and tests the compiler itself: tool/build.ode
+//   ode build ...    builds a project as its build.ode says: tool/build.ode
 // ---------------------------------------------------------------------------
 
 import { equals } from "std/text";

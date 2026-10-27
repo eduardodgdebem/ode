@@ -31,6 +31,7 @@ ode build run game           # the one named, when there are several
 ode build -Dintel            # options build.ode reads with b.flag / b.option
 ode build --target aarch64-linux --sysroot ~/sysroots/arm64-linux
 ode build plan               # print what build.ode declared
+ode build --help             # the steps, with those build.ode adds
 ```
 
 Paths are relative to the directory `build.ode` is in, wherever `ode build`
@@ -57,6 +58,43 @@ is run from.
 
 Each method returns the artifact, so calls chain. A test artifact's target is
 never used, because tests run on the machine running them.
+
+## Steps
+
+`ode build <step>` runs a step. `build` builds every executable and `test`
+runs every test; a build file adds steps of its own, or adds to those two,
+by naming the programs they run:
+
+```rust
+let gen: *Artifact = b.tool("gen", "tools/gen.ode");
+b.step("tables", "regenerate the tables")
+    .run(gen).arg("--out").arg("src/tables.ode");
+```
+
+| | Does |
+|---|---|
+| `b.tool(name, root)` | an executable built only when a step runs it or is handed its output |
+| `b.step(name, description)` | the step `ode build <name>` runs; `build` and `test` exist already |
+| `step.run(program)` | runs `program`, after what the step did before |
+| `command.arg(text)` | an argument |
+| `command.argOutput(artifact)` | the path `artifact` is built to, building it first |
+
+A command runs in the directory `build.ode` is in, with the arguments given
+after `--` on the command line last. A command in the `test` step is handed
+`--filter` too.
+
+The compiler builds itself this way: its [`build.ode`](../build.ode) builds
+`build/ode`, and its `test`, `bootstrap` and `seed` steps run `tools/dev.ode`
+on it.
+
+## Up to date
+
+An executable is built again only when something it depends on has changed:
+the files it is made of, found by following its imports, the flags it is
+built with, and the C compiler and SDK. Their hash is kept in
+`<output>.stamp`. `--force` builds anyway. An executable whose output is the
+compiler doing the building is written beside it first and then moved into
+place, so a compiler can rebuild itself.
 
 ## How it works
 

@@ -99,13 +99,15 @@ compiler/          the compiler, written in Ode; main.ode is its entry
   codegen/         the LLVM IR emitter, and the C toolchain that links it
   diagnostics/     problems, their words, and how they are printed
   os/              processes, files, output
-  tool/            `ode build`: building, testing, bootstrapping
+  tool/            `ode build`: carrying out a project's build.ode
   testkit/         the tools the compiler's own tests use
 std/               the standard library, imported as "std/..."
+tools/             the suite, the bootstrap and the seed: build/dev
 bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite
 docs/              the documentation above
 editors/           tree-sitter grammar and Neovim support
+build.ode          how the compiler is built, as any Ode project is
 build.sh           turns the seed into a first compiler, then hands over
 ```

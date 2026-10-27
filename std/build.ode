@@ -9,6 +9,13 @@
 //     b.tests("src").linkLike(app);
 //   }
 //
+// A step is what `ode build <step>` does. `build` builds every executable,
+// `test` runs every test, and a build file adds steps of its own, or adds to
+// those, by naming the commands they run:
+//
+//   let gen: *Artifact = b.tool("gen", "tools/gen.ode");
+//   b.step("tables", "regenerate the tables").run(gen).arg("--out").arg("src/tables.ode");
+//
 // `ode build` compiles build.ode with a runner that hands `build` a *Build,
 // then prints what it declared as a plan, a fact a line. The compiler reads
 // the plan back and carries it out: nothing here builds anything, so a build
@@ -28,6 +35,9 @@ export let PLAN_HEADER: *i8 = "ode build plan 1";
 
 export enum ArtifactKind {
   Executable,
+  // An executable built only when a step runs it or names its output: a
+  // program the build uses, rather than one it makes.
+  Tool,
   // A file or a directory of files whose tests `ode build test` runs.
   Tests,
 }
@@ -105,11 +115,51 @@ export struct Artifact {
   }
 }
 
+// One program a step runs, in the directory build.ode is in.
+export struct Command {
+  program: *Artifact,
+  // Each argument is text, or the output of an artifact, which is then built
+  // before the command runs: the other is null.
+  texts: *List<*i8>,
+  outputs: *List<*Artifact>,
+
+  fn arg(self: *Command, text: *i8): *Command {
+    self.texts.push(text);
+    self.outputs.push(null);
+    return self;
+  }
+
+  // The path `artifact` is built to, building it first.
+  fn argOutput(self: *Command, artifact: *Artifact): *Command {
+    self.texts.push(null);
+    self.outputs.push(artifact);
+    return self;
+  }
+}
+
+export struct Step {
+  name: *i8,
+  description: *i8,
+  commands: *List<*Command>,
+
+  // Runs `program` when the step does, after what came before it, with the
+  // arguments given after `--` on the command line last.
+  fn run(self: *Step, program: *Artifact): *Command {
+    let command: *Command = alloc<Command>(1);
+    command.program = program;
+    command.texts = List<*i8>.new();
+    command.outputs = List<*Artifact>.new();
+    self.commands.push(command);
+    return command;
+  }
+}
+
 export struct Build {
   // `ode build --target`: what executables are built for unless they say.
   target: *i8,
   sysroot: *i8,
   artifacts: *List<*Artifact>,
+  steps: *List<*Step>,
   // `-Dname=value` and `-Dname`, as given.
   options: *List<*i8>,
 
@@ -118,6 +168,7 @@ export struct Build {
     b.target = null;
     b.sysroot = null;
     b.artifacts = List<*Artifact>.new();
+    b.steps = List<*Step>.new();
     b.options = List<*i8>.new();
     return b;
   }
@@ -129,6 +180,31 @@ export struct Build {
     artifact.sysroot = self.sysroot;
     self.artifacts.push(artifact);
     return artifact;
+  }
+
+  // An executable that is built only when a step needs it.
+  fn tool(self: *Build, name: *i8, root: *i8): *Artifact {
+    let artifact: *Artifact = self.executable(name, root);
+    artifact.kind = ArtifactKind.Tool;
+    return artifact;
+  }
+
+  // The step `ode build <name>` runs, made the first time it is asked for.
+  // `build` and `test` exist already, and what is added to them runs after
+  // what they do anyway.
+  fn step(self: *Build, name: *i8, description: *i8): *Step {
+    for (index in 0..self.steps.count) {
+      let step: *Step = self.steps.at(index);
+      if (equals(step.name, name)) {
+        return step;
+      }
+    }
+    let step: *Step = alloc<Step>(1);
+    step.name = name;
+    step.description = description;
+    step.commands = List<*Command>.new();
+    self.steps.push(step);
+    return step;
   }
 
   // The tests in `root`, a file or a directory, for `ode build test`.
@@ -187,11 +263,12 @@ export fn planOf(b: *Build): *i8 {
     let artifact: *Artifact = b.artifacts.at(index);
     let kind: *i8 = match (artifact.kind) {
       .Executable => "executable",
+      .Tool => "tool",
       .Tests => "tests",
     };
     addFact(out, kind, artifact.name);
     addFact(out, "root", artifact.root);
-    if (artifact.kind == ArtifactKind.Executable) {
+    if (artifact.kind != ArtifactKind.Tests) {
       addFact(out, "output", artifact.outputPath());
       addFact(out, "target", artifact.target);
       addFact(out, "sysroot", artifact.sysroot);
@@ -199,6 +276,23 @@ export fn planOf(b: *Build): *i8 {
     addFacts(out, "path", artifact.paths);
     addFacts(out, "library", artifact.libraries);
     addFacts(out, "framework", artifact.frameworks);
+  }
+  // Steps come after every artifact, so that what they name is known.
+  for (index in 0..b.steps.count) {
+    let step: *Step = b.steps.at(index);
+    addFact(out, "step", step.name);
+    addFact(out, "description", step.description);
+    for (each in 0..step.commands.count) {
+      let command: *Command = step.commands.at(each);
+      addFact(out, "run", command.program.name);
+      for (argument in 0..command.texts.count) {
+        if (command.outputs.at(argument) != null) {
+          addFact(out, "output-of", command.outputs.at(argument).name);
+        } else {
+          addFact(out, "arg", command.texts.at(argument));
+        }
+      }
+    }
   }
   return out.take();
 }
@@ -250,6 +344,27 @@ root src
 path vendor/lib
 library raylib
 framework Cocoa
+`);
+}
+
+test "a step lists the commands it runs and what they are handed" {
+  let b: *Build = Build.new();
+  let app: *Artifact = b.executable("app", "main.ode");
+  let gen: *Artifact = b.tool("gen", "gen.ode");
+  b.step("tables", "regenerate the tables").run(gen).arg("--for").argOutput(app);
+  assertEq(b.step("tables", "ignored").commands.count, 1);
+  assertEq(planOf(b), `ode build plan 1
+executable app
+root main.ode
+output build/app
+tool gen
+root gen.ode
+output build/gen
+step tables
+description regenerate the tables
+run gen
+arg --for
+output-of app
 `);
 }
 

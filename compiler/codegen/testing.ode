@@ -27,7 +27,6 @@ import { llvmTypeName } from "./layout";
 import { line } from "../driver/options";
 import { moduleDisplayPath, NameSet } from "../link/modules";
 import { NodeKind, callOf, itemAt, itemCount, nodeName } from "../syntax/ast";
-import { shown } from "../tool/build";
 import { TypeKind, Type } from "../types/types";
 
 // `path:line:column` of `node`, as a string constant.
