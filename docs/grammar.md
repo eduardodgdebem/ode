@@ -327,8 +327,8 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   and globals declared before it; any other global a literal or an earlier
   global. Every global is visible to every function in
   its file regardless of declaration order.
-- Structs may be passed and returned by value between Ode functions, but not
-  across `extern`, where the C ABI would need target-specific lowering.
+- Structs may be passed and returned by value between Ode functions, and
+  across `extern` as C passes them on the target, unless they hold a union.
 - `*i8` is Ode's string type, the one C's `char *` maps to.
 - An `extern` whose ParamList ends in `...` is variadic: it takes any number
   of arguments after the ones it names, each promoted as C promotes it

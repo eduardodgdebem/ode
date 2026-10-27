@@ -167,22 +167,26 @@ pointer to the same field is not seen, so a narrowed field changed by a
 function it is passed to keeps its narrowing. And an arm names whole members:
 one error of an error enum is told apart by a match on the enum inside it.
 
-### 6.3 Structs cannot cross `extern` by value
+### 6.3 Structs cross `extern` by value only one way
 
-```
-error: extern 'f' takes a struct by value: take a pointer instead
-```
+A struct passes to and comes back from an `extern` by value as C passes it
+on the target -- arm64's float aggregates and 16-byte rule, x86-64's 8-byte
+parts, wasm32's `byval` and `sret` (`compiler/codegen/abi.ode`). What is
+left out:
 
-Passing an aggregate across the C ABI needs target-specific lowering — `sret`,
-`byval`, register pairs — that this compiler does not implement. Emitting a
-plain LLVM aggregate would produce calls that disagree with the C side.
-Struct-by-value between two Ode functions is fine.
+- **C calling Ode.** A function value handed to C, as a callback, is called
+  by C's rules, but an Ode function taking or returning a struct by value
+  keeps Ode's own; nothing checks the two agree. A callback takes pointers.
+- **A struct holding a union**, whose layout C does not share, and a struct
+  through a variadic extern's `...`, for which C has no rule:
 
-The rules differ for every target `--target` takes: arm64 and x86-64 classify
-a struct differently, and wasm32 differently again, so the lowering would be
-written once per target, in `compiler/codegen/target.ode`'s terms. Until
-then a C library whose API passes structs by value can be bound only by
-declaring each one the way one target happens to pass it.
+  ```
+  error: extern 'f' takes a struct C cannot take by value
+  ```
+- **Running out of registers.** A struct is lowered alone, as if it had the
+  registers to itself; when earlier arguments have used them up, C's rule
+  for where it then goes is LLVM's, which agrees for the cases tested
+  (`tests/abi/`) but is not checked against clang argument by argument.
 
 ### 6.4 Modules are named imports only
 
@@ -389,7 +393,7 @@ to run:
   nothing calls it.
 - **What crosses to the host is numbers.** A string is an address in the
   exported `memory`, read out by the host; an `i64` reaches JavaScript as a
-  `BigInt`; structs cannot cross at all (6.3).
+  `BigInt`; a struct crosses only into and out of an `extern` (6.3).
 - **A failed check says little.** It traps, and the host gets a
   `RuntimeError` from the call. A program that declares `extern fn
   panic(where: *i8, message: *i8): void` is handed where it failed and an

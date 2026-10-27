@@ -69,11 +69,30 @@ test "duplicate struct field" {
   assertEq(found.at(0).facts.other, "x");
 }
 
-test "extern returns struct" {
+test "a struct crosses extern by value, both ways" {
   let found: *List<Diagnostic> = Scope.new()
       .declare(`
         struct Point {
           x: i32,
+        }
+
+        extern fn origin(): Point;
+        extern fn plot(point: Point): void;
+      `)
+      .returning("i32")
+      .run(`
+        return 0;
+      `);
+  assertEq(found.count, 0);
+}
+
+test "extern returns a struct holding a union" {
+  let found: *List<Diagnostic> = Scope.new()
+      .declare(`
+        error enum Oops { Bad }
+
+        struct Point {
+          x: i32 | Oops,
         }
 
         extern fn origin(): Point;
@@ -84,29 +103,36 @@ test "extern returns struct" {
       `);
   assertEq(found.count, 1);
   assertEq(found.at(0).problem, Problem.ExternReturnsStruct);
-  assertEq(found.at(0).line, 5);
+  assertEq(found.at(0).line, 7);
   assertEq(found.at(0).column, 1);
   assertEq(found.at(0).facts.name, "origin");
 }
 
-test "extern takes struct" {
+test "extern takes a struct holding a union, or one through a variadic" {
   let found: *List<Diagnostic> = Scope.new()
       .declare(`
+        error enum Oops { Bad }
+
         struct Point {
+          x: i32 | Oops,
+        }
+
+        struct Plain {
           x: i32,
         }
 
         extern fn plot(point: Point): void;
+        extern fn log(plain: Plain, ...): void;
       `)
       .returning("i32")
       .run(`
         return 0;
       `);
-  assertEq(found.count, 1);
+  assertEq(found.count, 2);
   assertEq(found.at(0).problem, Problem.ExternTakesStruct);
-  assertEq(found.at(0).line, 5);
-  assertEq(found.at(0).column, 1);
   assertEq(found.at(0).facts.name, "plot");
+  assertEq(found.at(1).problem, Problem.ExternTakesStruct);
+  assertEq(found.at(1).facts.name, "log");
 }
 
 test "function type unknown struct" {

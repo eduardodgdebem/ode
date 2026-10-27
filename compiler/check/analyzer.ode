@@ -22,6 +22,7 @@ import {
 import { ReceiverMode, registerMethods } from "./methods";
 import { analyzeRecovering } from "./statements";
 import { TEST_MODE } from "./testing";
+import { crossesExtern } from "../codegen/abi";
 import { targetsWasm } from "../codegen/target";
 import { Problem, Facts } from "../diagnostics/problems";
 import {
@@ -624,15 +625,19 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     analyzerValidateType(an, node, params[index], paramContext.data);
   }
 
-  // Passing a struct by value across the C ABI needs target-specific lowering
-  // that this compiler does not do, so require a pointer.
+  // A struct crosses the C ABI by value as the target passes it
+  // (codegen/abi.ode) -- unless it holds a union, whose layout C does not
+  // share, or the extern is variadic, where C has no rule for it.
   if (kind == NodeKind.Extern) {
-    if (returnType.isStruct()) {
+    let variadic: bool = isVariadic(an, node);
+    if (returnType.isStruct() &&
+        (variadic || !crossesExtern(an.structs, returnType))) {
       analyzerFail(an, node, Problem.ExternReturnsStruct, Facts.about(name));
     }
 
     for (index in 0..paramCount) {
-      if (params[index].isStruct()) {
+      if (params[index].isStruct() &&
+          (variadic || !crossesExtern(an.structs, params[index]))) {
         analyzerFail(an, node, Problem.ExternTakesStruct, Facts.about(name));
       }
     }

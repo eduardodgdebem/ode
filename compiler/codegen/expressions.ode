@@ -9,6 +9,7 @@
 
 import { strlen } from "std/c";
 import { alloc } from "std/mem";
+import { List } from "std/list";
 import { Builder, equals, fromInt } from "std/text";
 import { analyzerParseType } from "../check/analyzer";
 import { textHasDot } from "../check/expressions";
@@ -23,6 +24,7 @@ import {
   wrapInUnion, genVariable, genTry, genCoalesce, genCatch, genIs,
   narrowedAddress, memberAddress, convertUnion,
 } from "./errors";
+import { Lowered, lowerArgument, lowerReturn, pointerAttribute, scratchType } from "./abi";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genMatchValue } from "./statements";
 import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
@@ -36,7 +38,7 @@ import {
   itemCount, nodeName, unaryOf,
 } from "../syntax/ast";
 import { sizeOf } from "../types/layout";
-import { TypeKind, Type } from "../types/types";
+import { TypeKind, Type, StructTable } from "../types/types";
 
 export fn typeOfNode(e: *Emitter, node: i32): Type {
   return e.an.types[node];
@@ -656,6 +658,13 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
     }
   }
 
+  // An extern taking or returning a struct is called as C passes them.
+  if (named < 0 && e.an.callTargets[node] == CallTarget.Direct &&
+      e.externs.has(e.an.linkNames[node]) &&
+      passesStructs(returnType, types, argCount)) {
+    return genLoweredCall(e, callee, values, types, argCount, returnType);
+  }
+
   let line: *Builder = Builder.new();
   line.add("call ");
   line.add(llvmTypeName(returnType));
@@ -702,6 +711,112 @@ fn genCallWith(e: *Emitter, node: i32, callee: *i8, args: i32,
   }
 
   return emitAssign(e, line.data);
+}
+
+fn passesStructs(returnType: Type, types: *Type, count: i32): bool {
+  if (returnType.isStruct()) {
+    return true;
+  }
+  for (index in 0..count) {
+    if (types[index].isStruct()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// A call to an extern that passes structs (abi.ode). Each struct argument is
+// stored in a slot and read back as the parts the target passes it in, or
+// passed by the slot's address; a struct coming back is stored as it came
+// and read back as the struct, or was written through an `sret` slot.
+fn genLoweredCall(e: *Emitter, callee: *i8, values: **i8, types: *Type,
+                  count: i32, returnType: Type): *i8 {
+  let structs: *StructTable = e.an.structs;
+  let args: *List<*i8> = List<*i8>.new();
+  let result: *i8 = llvmTypeName(returnType);
+  let sret: *i8 = null;
+  if (returnType.isStruct()) {
+    result = lowerReturn(structs, returnType);
+    if (result == null) {
+      result = "void";
+      sret = emitAlloca(e, llvmTypeName(returnType));
+      args.push(argument(pointerAttribute(structs, "sret", returnType), sret));
+    }
+  }
+
+  for (index in 0..count) {
+    let type: Type = types[index];
+    if (!type.isStruct()) {
+      args.push(argument(llvmTypeName(type), values[index]));
+      continue;
+    }
+    let slot: *i8 = emitAlloca(e, scratchType(structs, type));
+    emitStore(e, type, values[index], slot);
+    let lowered: Lowered = lowerArgument(structs, type);
+    if (lowered.byAddress && lowered.byval) {
+      args.push(argument(pointerAttribute(structs, "byval", type), slot));
+    } else if (lowered.byAddress) {
+      args.push(argument("ptr", slot));
+    }
+    for (part in 0..lowered.parts.count) {
+      let address: *i8 = slot;
+      if (lowered.offsets.at(part) > 0) {
+        address = emitAssign(e, text3("getelementptr i8, ptr ", slot,
+                                      text2(", i64 ", fromInt(lowered.offsets.at(part)))));
+      }
+      let partType: *i8 = lowered.parts.at(part);
+      let value: *i8 = emitAssign(e, text3("load ", partType, text2(", ptr ", address)));
+      args.push(argument(text2(partType, lowered.attribute), value));
+    }
+  }
+
+  let line: *Builder = Builder.new();
+  line.add("call ");
+  line.add(result);
+  line.push(' ');
+  line.add(callee);
+  line.push('(');
+  for (index in 0..args.count) {
+    if (index > 0) {
+      line.add(", ");
+    }
+    line.add(args.at(index));
+  }
+  line.push(')');
+
+  if (equals(result, "void")) {
+    emitLine(e, line.data);
+    if (sret != null) {
+      return emitLoad(e, returnType, sret);
+    }
+    return "";
+  }
+  let value: *i8 = emitAssign(e, line.data);
+  if (!returnType.isStruct()) {
+    return value;
+  }
+  let slot: *i8 = emitAlloca(e, scratchType(structs, returnType));
+  emitLine(e, text3("store ", result, text3(" ", value, text2(", ptr ", slot))));
+  return emitLoad(e, returnType, slot);
+}
+
+fn argument(type: *i8, value: *i8): *i8 {
+  return text3(type, " ", value);
+}
+
+fn text2(a: *i8, b: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.add(a);
+  out.add(b);
+  return out.take();
+}
+
+fn text3(a: *i8, b: *i8, c: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.add(a);
+  out.add(b);
+  out.add(c);
+  return out.take();
 }
 
 fn genStructLiteral(e: *Emitter, node: i32): *i8 {

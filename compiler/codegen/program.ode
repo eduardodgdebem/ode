@@ -6,6 +6,7 @@
 // and method. genProgram puts them together into the text handed to clang.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { Builder, equals, fromInt } from "std/text";
 import { analyzerParseType, isVariadic } from "../check/analyzer";
 import { globalDeclOf } from "../check/constants";
@@ -16,6 +17,7 @@ import {
   declareLocal, llvmName, internString, lambdaValue,
 } from "./emitter";
 import { emitStore, genNumberLiteral, genCharLiteral } from "./expressions";
+import { Lowered, lowerArgument, lowerReturn, pointerAttribute } from "./abi";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genStatement } from "./statements";
 import { TARGET, targetsWasm } from "./target";
@@ -51,6 +53,10 @@ fn paramTypeOf(e: *Emitter, param: i32): Type {
 
 fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
   let returnType: Type = resultTypeOf(e, node);
+  if (e.ast.nodes[node].kind == NodeKind.Extern && takesStructs(e, node)) {
+    emitExternSignature(e, out, node, returnType);
+    return;
+  }
 
   out.add(keyword);
   out.push(' ');
@@ -87,6 +93,73 @@ fn emitSignature(e: *Emitter, out: *Builder, node: i32, keyword: *i8): void {
     out.add("...");
   }
 
+  out.push(')');
+}
+
+// Whether the extern `node` takes or returns a struct by value.
+fn takesStructs(e: *Emitter, node: i32): bool {
+  if (resultTypeOf(e, node).isStruct()) {
+    return true;
+  }
+  let params: i32 = paramsOf(e.ast, node);
+  if (params == NO_NODE) {
+    return false;
+  }
+  for (index in 0..itemCount(e.ast, params)) {
+    if (paramTypeOf(e, itemAt(e.ast, params, index)).isStruct()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// `declare` for an extern that passes structs, as the target passes them:
+// an `sret` pointer first for a struct coming back that way, and each struct
+// argument as its parts, or by address.
+fn emitExternSignature(e: *Emitter, out: *Builder, node: i32, returnType: Type): void {
+  let list: *List<*i8> = List<*i8>.new();
+  let result: *i8 = llvmTypeName(returnType);
+  if (returnType.isStruct()) {
+    result = lowerReturn(e.an.structs, returnType);
+    if (result == null) {
+      result = "void";
+      list.push(pointerAttribute(e.an.structs, "sret", returnType));
+    }
+  }
+  let paramList: i32 = paramsOf(e.ast, node);
+  if (paramList != NO_NODE) {
+    for (index in 0..itemCount(e.ast, paramList)) {
+      let type: Type = paramTypeOf(e, itemAt(e.ast, paramList, index));
+      if (!type.isStruct()) {
+        list.push(llvmTypeName(type));
+        continue;
+      }
+      let lowered: Lowered = lowerArgument(e.an.structs, type);
+      if (lowered.byAddress && lowered.byval) {
+        list.push(pointerAttribute(e.an.structs, "byval", type));
+      } else if (lowered.byAddress) {
+        list.push("ptr");
+      }
+      for (part in 0..lowered.parts.count) {
+        let text: *Builder = Builder.new();
+        text.add(lowered.parts.at(part));
+        text.add(lowered.attribute);
+        list.push(text.take());
+      }
+    }
+  }
+
+  out.add("declare ");
+  out.add(result);
+  out.push(' ');
+  out.add(llvmName('@', e.an.linkNames[node]));
+  out.push('(');
+  for (index in 0..list.count) {
+    if (index > 0) {
+      out.add(", ");
+    }
+    out.add(list.at(index));
+  }
   out.push(')');
 }
 
@@ -280,7 +353,7 @@ export fn genProgram(e: *Emitter, program: i32): *i8 {
   }
 
   // Several files may declare one extern, and LLVM takes one declaration.
-  let declared: *NameSet = NameSet.new();
+  let declared: *NameSet = e.externs;
   for (index in 0..count) {
     let statement: i32 = itemAt(e.ast, program, index);
     if (e.ast.nodes[statement].kind == NodeKind.Extern &&

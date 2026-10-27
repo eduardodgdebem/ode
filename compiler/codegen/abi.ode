@@ -1,0 +1,298 @@
+// ---------------------------------------------------------------------------
+// Structs across `extern`: how C passes one by value on the target, which is
+// how clang lowers it, so that a call from Ode and the C on the other side
+// agree on where every byte goes.
+//
+// A struct is flattened to its scalars, nested structs included, and then:
+//
+//   arm64      1-4 floats of one type (an HFA) are an array of them, and
+//              returned as the struct; anything else up to 8 bytes is an
+//              i64 (returned as an integer of its size), up to 16 two; past
+//              16 it goes by the address of a copy, and comes back through
+//              an `sret` pointer the caller provides.
+//   x86-64     up to 16 bytes is cut into 8-byte parts, each passed on its
+//              own: a part of floats alone goes in a float register --
+//              `float`, `<2 x float>` or `double` -- and any other in an
+//              integer one; two parts come back as a pair. Past 16 bytes it
+//              goes `byval`, and comes back through `sret`.
+//   wasm32     a struct of one scalar is that scalar; any other goes
+//              `byval`, and comes back through `sret`.
+//
+// A part is read out of the struct's own bytes: the value is stored in a
+// slot and read back as the part's type, at its offset, and a struct coming
+// back is stored as it came and read back as the struct.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { alloc } from "std/mem";
+import { Builder, fromInt } from "std/text";
+import { holdsSeveral } from "../check/errors";
+import { alignOf, sizeOf } from "../types/layout";
+import { TypeKind, Type, StructTable } from "../types/types";
+import { llvmTypeName } from "./layout";
+import { Arch, Os, Target, effectiveTarget } from "./target";
+
+export enum ScalarKind {
+  Integer,
+  F32,
+  F64,
+}
+
+struct Scalar {
+  offset: i64,
+  size: i64,
+  kind: ScalarKind,
+  // Its LLVM type, for wasm32's struct of one scalar.
+  llvm: *i8,
+}
+
+// How a struct argument is passed.
+export struct Lowered {
+  // Passed as these LLVM types, an argument each, read from these offsets.
+  parts: *List<*i8>,
+  offsets: *List<i64>,
+  // Written after each part's type: arm64 Linux's `alignstack(8)` on floats.
+  attribute: *i8,
+  // Passed by the address of a copy instead, `byval(%T)` where it says so.
+  byAddress: bool,
+  byval: bool,
+}
+
+fn alignUp(value: i64, alignment: i64): i64 {
+  return (value + alignment - 1) / alignment * alignment;
+}
+
+// The scalars of `type`, at their offsets from `base`, onto `out`. False when
+// it holds a union, whose layout C does not share.
+fn flatten(structs: *StructTable, type: Type, base: i64, out: *List<Scalar>): bool {
+  let structIndex: i32 = structs.indexOf(type.structName);
+  let offset: i64 = 0;
+  for (index in 0..structs.items[structIndex].count) {
+    let field: Type = structs.items[structIndex].fields[index].type;
+    offset = alignUp(offset, alignOf(structs, field) as i64);
+    let size: i64 = sizeOf(structs, field) as i64;
+    if (field.isUnion() || holdsSeveral(field)) {
+      return false;
+    }
+    if (field.isStruct()) {
+      if (!flatten(structs, field, base + offset, out)) {
+        return false;
+      }
+    } else {
+      let kind: ScalarKind = ScalarKind.Integer;
+      if (!field.isPointer() && field.kind == TypeKind.F32) {
+        kind = ScalarKind.F32;
+      } else if (!field.isPointer() && field.kind == TypeKind.F64) {
+        kind = ScalarKind.F64;
+      }
+      out.push(Scalar { offset: base + offset, size: size, kind: kind,
+                        llvm: llvmTypeName(field) });
+    }
+    offset = offset + size;
+  }
+  return true;
+}
+
+// Whether a struct can cross `extern` at all: not if it holds a union.
+export fn crossesExtern(structs: *StructTable, type: Type): bool {
+  return flatten(structs, type, 0, List<Scalar>.new());
+}
+
+fn scalarsOf(structs: *StructTable, type: Type): *List<Scalar> {
+  let scalars: *List<Scalar> = List<Scalar>.new();
+  flatten(structs, type, 0, scalars);
+  return scalars;
+}
+
+// 1 to 4 floats all of one kind -- an HFA -- as `[N x float]`, or null.
+fn homogeneousFloats(scalars: *List<Scalar>): *i8 {
+  if (scalars.count == 0 || scalars.count > 4) {
+    return null;
+  }
+  let kind: ScalarKind = scalars.at(0).kind;
+  if (kind == ScalarKind.Integer) {
+    return null;
+  }
+  for (index in 0..scalars.count) {
+    if (scalars.at(index).kind != kind) {
+      return null;
+    }
+  }
+  let out: *Builder = Builder.new();
+  out.push('[');
+  out.addInt(scalars.count);
+  if (kind == ScalarKind.F32) {
+    out.add(" x float]");
+  } else {
+    out.add(" x double]");
+  }
+  return out.take();
+}
+
+fn integerOf(bytes: i64): *i8 {
+  let out: *Builder = Builder.new();
+  out.push('i');
+  out.addInt(bytes * 8);
+  return out.take();
+}
+
+// x86-64's 8-byte part at `start` of a struct of `size` bytes.
+fn eightbyte(scalars: *List<Scalar>, start: i64, size: i64): *i8 {
+  let floats: i64 = 0;
+  let doubles: i64 = 0;
+  let integers: i64 = 0;
+  for (index in 0..scalars.count) {
+    let scalar: Scalar = scalars.at(index);
+    if (scalar.offset < start || scalar.offset >= start + 8) {
+      continue;
+    }
+    if (scalar.kind == ScalarKind.F32) {
+      floats = floats + 1;
+    } else if (scalar.kind == ScalarKind.F64) {
+      doubles = doubles + 1;
+    } else {
+      integers = integers + 1;
+    }
+  }
+  if (integers == 0 && doubles == 1) {
+    return "double";
+  }
+  if (integers == 0 && doubles == 0 && floats == 2) {
+    return "<2 x float>";
+  }
+  if (integers == 0 && doubles == 0 && floats == 1) {
+    return "float";
+  }
+  let bytes: i64 = size - start;
+  if (bytes > 8) {
+    bytes = 8;
+  }
+  return integerOf(bytes);
+}
+
+fn newLowered(): Lowered {
+  return Lowered {
+    parts: List<*i8>.new(), offsets: List<i64>.new(), attribute: "",
+    byAddress: false, byval: false,
+  };
+}
+
+// How `type`, a struct, is passed to an extern on the target.
+export fn lowerArgument(structs: *StructTable, type: Type): Lowered {
+  let target: Target = effectiveTarget();
+  let scalars: *List<Scalar> = scalarsOf(structs, type);
+  let size: i64 = sizeOf(structs, type) as i64;
+  let lowered: Lowered = newLowered();
+
+  if (target.arch == Arch.Wasm32) {
+    if (scalars.count == 1 && scalars.at(0).size == size) {
+      lowered.parts.push(scalars.at(0).llvm);
+      lowered.offsets.push(0);
+    } else {
+      lowered.byAddress = true;
+      lowered.byval = true;
+    }
+    return lowered;
+  }
+
+  if (target.arch == Arch.Aarch64) {
+    let floats: *i8 = homogeneousFloats(scalars);
+    if (floats != null) {
+      lowered.parts.push(floats);
+      lowered.offsets.push(0);
+      if (target.os == Os.Linux) {
+        lowered.attribute = " alignstack(8)";
+      }
+    } else if (size <= 8) {
+      lowered.parts.push("i64");
+      lowered.offsets.push(0);
+    } else if (size <= 16) {
+      lowered.parts.push("[2 x i64]");
+      lowered.offsets.push(0);
+    } else {
+      lowered.byAddress = true;
+    }
+    return lowered;
+  }
+
+  if (size > 16) {
+    lowered.byAddress = true;
+    lowered.byval = true;
+    return lowered;
+  }
+  let start: i64 = 0;
+  while (start < size) {
+    lowered.parts.push(eightbyte(scalars, start, size));
+    lowered.offsets.push(start);
+    start = start + 8;
+  }
+  return lowered;
+}
+
+// The LLVM type a struct comes back from an extern as, or null when it comes
+// back through an `sret` pointer instead.
+export fn lowerReturn(structs: *StructTable, type: Type): *i8 {
+  let target: Target = effectiveTarget();
+  let scalars: *List<Scalar> = scalarsOf(structs, type);
+  let size: i64 = sizeOf(structs, type) as i64;
+
+  if (target.arch == Arch.Wasm32) {
+    if (scalars.count == 1 && scalars.at(0).size == size) {
+      return scalars.at(0).llvm;
+    }
+    return null;
+  }
+
+  if (target.arch == Arch.Aarch64) {
+    if (homogeneousFloats(scalars) != null) {
+      return llvmTypeName(type);
+    }
+    if (size <= 8) {
+      return integerOf(size);
+    }
+    if (size <= 16) {
+      return "[2 x i64]";
+    }
+    return null;
+  }
+
+  if (size > 16) {
+    return null;
+  }
+  if (size <= 8) {
+    return eightbyte(scalars, 0, size);
+  }
+  let out: *Builder = Builder.new();
+  out.add("{ ");
+  out.add(eightbyte(scalars, 0, size));
+  out.add(", ");
+  out.add(eightbyte(scalars, 8, size));
+  out.add(" }");
+  return out.take();
+}
+
+// A slot big enough for `type` and anything it is read back as: its size,
+// rounded up to whole 8-byte words, as words, so it is 8-aligned.
+export fn scratchType(structs: *StructTable, type: Type): *i8 {
+  let words: i64 = (sizeOf(structs, type) as i64 + 7) / 8;
+  if (words < 2) {
+    words = 2;
+  }
+  let out: *Builder = Builder.new();
+  out.push('[');
+  out.addInt(words);
+  out.add(" x i64]");
+  return out.take();
+}
+
+// `byval(%T) align N` or `sret(%T) align N`, for `type`.
+export fn pointerAttribute(structs: *StructTable, kind: *i8, type: Type): *i8 {
+  let out: *Builder = Builder.new();
+  out.add("ptr ");
+  out.add(kind);
+  out.push('(');
+  out.add(llvmTypeName(type));
+  out.add(") align ");
+  out.addInt(alignOf(structs, type) as i64);
+  return out.take();
+}

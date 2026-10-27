@@ -37,6 +37,8 @@ import {
   TextList, StderrMode, runCommand, ran, setEnvironment, isTerminal, command,
 } from "../compiler/os/process";
 import { complain } from "../compiler/tool/build";
+import { findTool } from "../compiler/codegen/libc";
+import { ccCommand, ccProgram } from "../compiler/codegen/toolchain";
 
 export struct TestOptions {
   filter: *i8,
@@ -611,6 +613,69 @@ fn checkForeignTestsNeedRunner(suite: *Suite): bool {
   return status != 0 && contains(output.data, "cannot run here");
 }
 
+// tests/abi/shapes.c, built with the C compiler into libshapes.a in
+// `directory` -- for wasm32 when `wasm` says so, for this machine otherwise.
+fn buildShapes(suite: *Suite, directory: *i8, wasm: bool): bool {
+  makeDirectories(directory) catch (e) {
+    return false;
+  };
+  let object: *i8 = joinPath(directory, "shapes.o");
+  let compile: *TextList = ccCommand();
+  if (wasm) {
+    compile = TextList.new().add(ccProgram()).add("--target=wasm32-unknown-unknown");
+  }
+  compile.add("-O2").add("-c").add(joinPath(suite.root, "tests/abi/shapes.c"));
+  compile.add("-o").add(object);
+  let archiver: *i8 = findTool("llvm-ar");
+  if (archiver == null && !wasm) {
+    archiver = "ar";
+  }
+  if (archiver == null || !compileQuietly(suite, compile)) {
+    return false;
+  }
+  let archive: *TextList = TextList.new().add(archiver).add("rcs");
+  archive.add(joinPath(directory, "libshapes.a")).add(object);
+  return compileQuietly(suite, archive);
+}
+
+// Structs pass by value across extern as C passes them: tests/abi/abi.ode
+// calls shapes.c with every shape both ways, built here and for wasm32.
+fn checkExternStructs(suite: *Suite): bool {
+  let directory: *i8 = joinPath(suite.work, "cli/abi");
+  if (!buildShapes(suite, directory, false)) {
+    return false;
+  }
+  let program: *i8 = joinPath(directory, "abi");
+  let command: *TextList = TextList.new().add(suite.compiler);
+  command.add("-L").add(directory).add("-lshapes").add("-o").add(program);
+  command.add(joinPath(suite.root, "tests/abi/abi.ode"));
+  let output: *Builder = Builder.new();
+  if (!compileQuietly(suite, command) ||
+      !ran(runCommand(TextList.new().add(program), null, output,
+                      StderrMode.Merge)) ||
+      !equals(output.data, "0 failed\n")) {
+    return false;
+  }
+
+  let wasm: *i8 = joinPath(suite.work, "cli/abi-wasm");
+  if (!buildShapes(suite, wasm, true)) {
+    return false;
+  }
+  let module: *i8 = joinPath(wasm, "abi.wasm");
+  let build: *TextList = TextList.new().add(suite.compiler);
+  build.add("--target").add("wasm32").add("-L").add(wasm).add("-lshapes");
+  build.add("-o").add(module).add(joinPath(suite.root, "tests/abi/abi.ode"));
+  let run: *TextList = TextList.new().add("node").add("-e");
+  run.add(`const fs = require("fs");
+const module = new WebAssembly.Module(fs.readFileSync(process.argv[1]));
+process.stdout.write(new WebAssembly.Instance(module, {}).exports.run() + " failed\n");`);
+  run.add(module);
+  let said: *Builder = Builder.new();
+  return compileQuietly(suite, build) &&
+         ran(runCommand(run, null, said, StderrMode.Merge)) &&
+         equals(said.data, "0 failed\n");
+}
+
 fn checkNoInputFile(suite: *Suite): bool {
   return !compileQuietly(suite, TextList.new().add(suite.compiler));
 }
@@ -808,6 +873,9 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   }
   if (suite.selected("foreign-tests-need-runner")) {
     runCli(suite, "foreign-tests-need-runner", checkForeignTestsNeedRunner(suite));
+  }
+  if (suite.selected("extern-structs")) {
+    runCli(suite, "extern-structs", checkExternStructs(suite));
   }
   if (suite.selected("build-file")) {
     runCli(suite, "build-file", checkBuildFile(suite));
