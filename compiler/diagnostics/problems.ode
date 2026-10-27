@@ -83,6 +83,8 @@ export enum Problem {
   NotAssignable,
   TargetConstant,
   PanicSignature,
+  NoTestRunner,
+  WasmRunnerNotFound,
   ConditionNotBool,
   ForBoundsNotIntegers,
   ForBoundsDiffer,
@@ -553,6 +555,14 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .AssignmentMismatch => {
       return saysMore("type mismatch in assignment", expectedButGot(facts));
+    }
+    .NoTestRunner => {
+      return saysMore(text3("tests built for ", q(name), " cannot run here"),
+                      "give a program to run them with --runner, such as qemu-aarch64; wasm32 runs them in Node");
+    }
+    .WasmRunnerNotFound => {
+      return saysMore(text2("cannot find ", q(name)),
+                      "it goes beside the standard library's directory, as in the repository");
     }
     .PanicSignature => {
       return saysMore("a panic handler on wasm32 is 'extern fn panic(where: *i8, message: *i8): void'",

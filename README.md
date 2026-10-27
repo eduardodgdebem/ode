@@ -72,6 +72,16 @@ glibc is not bundled: `-gnu` takes the target's own `--sysroot`.
 macOS's C library comes with its SDK, and `--emit-object` stops at the
 object file for any target.
 
+`ode test` takes `--target` too. Tests built for wasm32 run in Node, one
+module instance per test; another machine's run through `--runner`, which
+is given the test program and the filter -- an emulator, or a script that
+runs it in a container:
+
+```bash
+./build/ode test --target wasm32 src
+./build/ode test --target aarch64-linux --runner qemu-aarch64 src
+```
+
 ### WebAssembly
 
 `--target wasm32` builds a module, `<stem>.wasm`, with no C library and no
@@ -158,6 +168,7 @@ compiler/          the compiler, written in Ode; main.ode is its entry
 std/               the standard library, imported as "std/..."
 tools/             the suite, the bootstrap and the seed: build/dev
 vendor/            musl and compiler-rt's builtins, for Linux targets
+runners/           what runs tests built for another machine: wasm32's, in Node
 bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite

@@ -349,12 +349,15 @@ to clang to guess at.
 - **The cache is never cleaned.** Each musl build stays in
   `~/.cache/ode/libc/` (or `$ODE_CACHE`) until it is deleted by hand; a new
   musl version builds beside the old one.
-- **What is built for another machine cannot be run from here.** `ode test`
-  takes no `--target`, `ode build test` runs tests on the machine running
-  them whatever their artifact says, and `ode build run` of a foreign
-  executable fails to start it. Running one needs that machine, or an
-  emulator run by hand -- there is no runner setting yet, as Zig's `-fqemu`
-  or Go's exec wrappers are.
+- **Tests for another machine need something to run them.** wasm32's run in
+  Node, which must be on `PATH`. Any other target's need `--runner` -- an
+  emulator such as `qemu-aarch64`, or a script that runs the program in a
+  container -- which Ode does not provide or find by itself, as Zig's
+  `-fqemu` does. `ode build run` has no runner at all: a foreign executable
+  fails to start.
+- **A wasm32 test is told less.** An `assertEq` that fails says where, not
+  its two values, and a test that calls into the host -- `std/io`, `std/fs`
+  -- fails, since the runner provides only the panic handler.
 - **Only code differs per target, not declarations.** A `match` on
   `std/target` picks code while compiling, but a struct, a global or an
   `extern` cannot be declared differently per target, so a C struct whose

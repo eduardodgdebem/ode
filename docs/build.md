@@ -58,9 +58,19 @@ is run from.
 | `.output` | where an executable goes |
 | `.target`, `.sysroot` | what it is built for: `arch-os[-abi]`, as `ode --target` takes it |
 | `.release` | whether it is optimised, as `ode --release` is |
+| `.runner` | for tests built for another machine: what runs them, as `ode test --runner` |
 
-Each method returns the artifact, so calls chain. A test artifact's target is
-never used, because tests run on the machine running them.
+Each method returns the artifact, so calls chain.
+
+Tests are built for their artifact's target too, which is `--target` unless
+it says otherwise. wasm32's run in Node, through Ode's runner; another
+machine's need a `.runner`, given the test program and the filter:
+
+```rust
+let arm: *Artifact = b.tests("src");
+arm.target = "aarch64-linux";
+arm.runner = "qemu-aarch64";
+```
 
 ## Steps
 

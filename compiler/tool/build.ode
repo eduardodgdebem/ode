@@ -287,6 +287,8 @@ export fn readPlan(plan: *Builder): *Build {
       artifact.target = value;
     } else if (equals(key, "sysroot")) {
       artifact.sysroot = value;
+    } else if (equals(key, "runner")) {
+      artifact.runner = value;
     } else if (equals(key, "path")) {
       artifact.paths.push(value);
     } else if (equals(key, "library")) {
@@ -342,6 +344,15 @@ export fn testCommand(compiler: *i8, artifact: *Artifact, filter: *i8): *TextLis
   let command: *TextList = TextList.new().add(compiler).add("test");
   if (artifact.release) {
     command.add("--release");
+  }
+  if (artifact.target != null) {
+    command.add("--target").add(artifact.target);
+  }
+  if (artifact.sysroot != null) {
+    command.add("--sysroot").add(artifact.sysroot);
+  }
+  if (artifact.runner != null) {
+    command.add("--runner").add(artifact.runner);
   }
   addLinking(command, artifact);
   command.add(artifact.root);
@@ -808,7 +819,7 @@ test "a plan reads back as the build that made it" {
   assertEq(joined(compileCommand("ode", read.artifacts.at(0), "build/app")),
            "ode --target aarch64-linux -L vendor -l raylib -framework Cocoa -o build/app src/main.ode");
   assertEq(joined(testCommand("ode", read.artifacts.at(1), "gui")),
-           "ode test -L vendor -l raylib -framework Cocoa src gui");
+           "ode test --target aarch64-linux -L vendor -l raylib -framework Cocoa src gui");
   assertEq(read.artifacts.at(2).kind, ArtifactKind.Tool);
   assertEq(planOf(read), planOf(b));
 }

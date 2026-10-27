@@ -10,7 +10,8 @@ import { dumpTokens } from "../syntax/dump";
 export let USAGE: *i8 = `
   usage: ode [-o <path>] [--keep-intermediates] [--emit-llvm | --emit-object] [--dump-tokens | --dump-ast | --dump-types]
              [--release] [--target <arch-os[-abi]>] [--sysroot <dir>] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode>
-         ode test [--release] [-l <lib>] [-L <dir>] [-framework <name>] <input.ode | directory> [filter]
+         ode test [--release] [--target <arch-os[-abi]> [--runner <command>]] [-l <lib>] [-L <dir>] [-framework <name>]
+                  <input.ode | directory> [filter]
                                                      runs the tests in a program, or in every file under a directory
          ode build [step] [options]   builds what build.ode declares, or this compiler in its repository (ode build --help)
 `;
@@ -152,23 +153,26 @@ export struct TestRunOptions {
   input: *i8,
   // Only tests whose name holds this run; null for all of them.
   filter: *i8,
-  // What the tests link against. Never a target: they run here.
+  // What the tests are built for and link against.
   build: BuildFlags,
+  // What runs them, when they are built for another machine: a command
+  // given the test program, and the filter after it. Null for none.
+  runner: *i8,
 }
 
 // `arguments` are the command line after `ode test`.
 export fn parseTestOptions(arguments: *List<*i8>): TestRunOptions | UsageError {
   let options: TestRunOptions = TestRunOptions {
-    input: null, filter: null, build: BuildFlags.new(),
+    input: null, filter: null, build: BuildFlags.new(), runner: null,
   };
 
   let index: i64 = 0;
   while (index < arguments.count) {
     let argument: *i8 = arguments.at(index);
     if (try parseBuildFlag(arguments, &index, &options.build)) {
-      if (options.build.target != null) {
-        return UsageError.UnknownFlag;
-      }
+      // Taken.
+    } else if (equals(argument, "--runner")) {
+      options.runner = try flagValue(arguments, &index, argument);
     } else if (argument[0] == '-') {
       return UsageError.UnknownFlag;
     } else if (options.input == null) {
@@ -269,7 +273,7 @@ test "a test run rejects what it cannot make sense of" {
   assertEq(parseTestOptions(line("")), UsageError.NoInput);
   assertEq(parseTestOptions(line("a b c")), UsageError.TooManyInputs);
   assertEq(parseTestOptions(line("--all")), UsageError.UnknownFlag);
-  assertEq(parseTestOptions(line("--target x86_64-linux a.ode")), UsageError.UnknownFlag);
+  assertEq(parseTestOptions(line("a.ode --runner")), UsageError.MissingValue);
 }
 
 test "a test run links what it is told to" {
@@ -280,4 +284,9 @@ test "a test run links what it is told to" {
   assertEq(options.input, "src");
   assertEq(options.filter, "gui");
   assertEq(options.build.link.libraries.at(0), "raylib");
+
+  let foreign: TestRunOptions = parseTestOptions(line(
+      "--target aarch64-linux --runner qemu-aarch64 src")) ?? options;
+  assertEq(foreign.build.target, "aarch64-linux");
+  assertEq(foreign.runner, "qemu-aarch64");
 }
