@@ -47,12 +47,6 @@ fn location(e: *Emitter, node: i32): *i8 {
 // module has neither, and traps: the host sees the failure as the call's.
 fn emitFailure(e: *Emitter, format: *i8, args: *Builder): void {
   e.usesChecks = true;
-  if (targetsWasm()) {
-    emitLine(e, "call void @llvm.trap()");
-    emitLine(e, "unreachable");
-    e.terminated = true;
-    return;
-  }
 
   let line: *Builder = Builder.new();
   line.add("call i32 (i32, ptr, ...) @dprintf(i32 2, ptr ");
@@ -62,6 +56,35 @@ fn emitFailure(e: *Emitter, format: *i8, args: *Builder): void {
   emitAssign(e, line.data);
 
   emitLine(e, "call void @exit(i32 1)");
+  emitLine(e, "unreachable");
+  e.terminated = true;
+}
+
+// A failed check on wasm32, which has no stderr and no exit: the program's
+// panic handler, if it has one, is handed `<where>: <what>` and the message,
+// or null, and then the module traps -- which the host sees as the call's.
+fn emitWasmFailure(e: *Emitter, node: i32, what: *i8, message: *i8): void {
+  e.usesChecks = true;
+  if (e.an.panicHandler != null) {
+    let text: *Builder = Builder.new();
+    text.add(moduleDisplayPath(e.ast.nodes[node].module));
+    text.push(':');
+    text.addInt(e.ast.nodes[node].line as i64);
+    text.push(':');
+    text.addInt(e.ast.nodes[node].column as i64);
+    text.add(": ");
+    text.add(what);
+    let call: *Builder = Builder.new();
+    call.add("call void ");
+    call.add(llvmName('@', e.an.panicHandler));
+    call.add("(ptr ");
+    call.add(internString(e, text.data, text.length));
+    call.add(", ptr ");
+    call.add(message);
+    call.push(')');
+    emitLine(e, call.data);
+  }
+  emitLine(e, "call void @llvm.trap()");
   emitLine(e, "unreachable");
   e.terminated = true;
 }
@@ -76,6 +99,16 @@ export fn genAssert(e: *Emitter, node: i32): *i8 {
   let failed: *i8 = freshLabel(e);
   emitCondBranch(e, condition, passed, failed);
   emitLabel(e, failed);
+
+  if (targetsWasm()) {
+    let message: *i8 = "null";
+    if (itemCount(e.ast, args) == 2) {
+      message = genExpr(e, itemAt(e.ast, args, 1));
+    }
+    emitWasmFailure(e, node, "assertion failed", message);
+    emitLabel(e, passed);
+    return "";
+  }
 
   let values: *Builder = Builder.new();
   values.add(", ptr ");
@@ -416,6 +449,13 @@ export fn genAssertEq(e: *Emitter, node: i32): *i8 {
   let failed: *i8 = freshLabel(e);
   emitCondBranch(e, equal, passed, failed);
   emitLabel(e, failed);
+
+  // The values are not shown: there is no snprintf to show them with.
+  if (targetsWasm()) {
+    emitWasmFailure(e, node, "assertEq failed", "null");
+    emitLabel(e, passed);
+    return "";
+  }
 
   let values: *Builder = Builder.new();
   values.add(", ptr ");

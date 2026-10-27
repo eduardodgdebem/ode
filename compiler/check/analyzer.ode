@@ -22,6 +22,7 @@ import {
 import { ReceiverMode, registerMethods } from "./methods";
 import { analyzeRecovering } from "./statements";
 import { TEST_MODE } from "./testing";
+import { targetsWasm } from "../codegen/target";
 import { Problem, Facts } from "../diagnostics/problems";
 import {
   SOURCE_PATH, FAILED, report, internalError,
@@ -101,6 +102,9 @@ export struct Analyzer {
   // Whether the program must have a `main`: it must, unless it is being
   // tested, or is only a fragment a test checks.
   requireMain: bool,
+  // The IR name of the program's `extern fn panic`, which a failed check on
+  // wasm32 calls before it traps; null when there is none.
+  panicHandler: *i8,
   currentReturnType: Type,
   // Where the locals of the function being checked start among the symbols,
   // its parameters first; past the end outside any function.
@@ -131,6 +135,7 @@ export struct Analyzer {
     an.loopDepth = 0;
     an.inFunction = false;
     an.requireMain = true;
+    an.panicHandler = null;
     an.currentReturnType = Type.make(TypeKind.Void, 0);
     an.localsFrom = 2147483647;
     an.captureFrom = 0;
@@ -633,6 +638,10 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
     }
   }
 
+  if (kind == NodeKind.Extern && targetsWasm() && equals(name, "panic")) {
+    checkPanicHandler(an, node, returnType, params, paramCount);
+  }
+
   let before: i32 = an.symbols.count;
   declareTopLevel(an, node, name, SymbolKind.Fn, returnType, params, paramCount);
 
@@ -644,6 +653,20 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
       an.symbols.items[before].variadic = true;
     }
   }
+}
+
+// On wasm32 a failed check has no stderr to say why on, so it hands the
+// program's `extern fn panic(where: *i8, message: *i8): void`, if it has one,
+// where it failed and the message it was given, before it traps.
+fn checkPanicHandler(an: *Analyzer, node: i32, returnType: Type, params: *Type,
+                     count: i32): void {
+  let text: Type = Type.make(TypeKind.I8, 1);
+  if (!returnType.isVoid() || count != 2 || !params[0].equals(text) ||
+      !params[1].equals(text)) {
+    analyzerFail(an, node, Problem.PanicSignature, Facts.none());
+    return;
+  }
+  an.panicHandler = "panic";
 }
 
 // Whether the function or extern `node` ends its parameters with `...`.
