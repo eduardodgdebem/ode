@@ -132,6 +132,16 @@ fn isText(type: Type): bool {
 
 // Whether two values of these types are equal, as an i1: as `==` decides,
 // but by the text for two strings.
+// `==` on a union, which holds no error: assertEq's comparison, but with
+// text compared as the pointers == compares it as.
+export fn genUnionEquality(e: *Emitter, left: *i8, leftType: Type, right: *i8,
+                           rightType: Type): *i8 {
+  e.comparingPointers = true;
+  let equal: *i8 = genEquals(e, left, leftType, right, rightType);
+  e.comparingPointers = false;
+  return equal;
+}
+
 fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
              rightType: Type): *i8 {
   if (rightType.isUnion() && !leftType.isUnion()) {
@@ -143,7 +153,13 @@ fn genEquals(e: *Emitter, left: *i8, leftType: Type, right: *i8,
 
   let line: *Builder = Builder.new();
 
-  if (isText(leftType) && isText(rightType)) {
+  // An empty struct has nothing to differ in.
+  if (leftType.isStruct() &&
+      e.an.structs.items[e.an.structs.indexOf(leftType.structName)].count == 0) {
+    return "true";
+  }
+
+  if (isText(leftType) && isText(rightType) && !e.comparingPointers) {
     e.usesChecks = true;
     line.add("call i1 @ode.textEquals(ptr ");
     line.add(left);

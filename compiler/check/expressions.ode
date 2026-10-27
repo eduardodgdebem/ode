@@ -20,7 +20,7 @@ import { globalDeclOf, isReadyGlobal } from "./constants";
 import { TARGET_MODULE, pointerBytes, targetConstant } from "../codegen/target";
 import { checkEnumMember, checkShorthand, isShorthand, checkMatchValue } from "./enums";
 import {
-  valueOf, valuesOf, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
+  valueOf, valuesOf, holdsErrors, checkTry, checkCoalesce, checkCatch, checkIs, pathOf,
   narrowedPath, Narrowing, narrowingsOf, applyNarrowings,
 } from "./errors";
 import {
@@ -600,7 +600,16 @@ fn checkEquality(an: *Analyzer, node: i32, left: Type, right: Type): Type {
     if (!left.isUnion()) {
       union = right;
     }
-    analyzerFail(an, node, Problem.UnionCompared, Facts.aboutType(union));
+    // One that may hold an error is to be handled, not compared. One that
+    // holds values alone is equal to another, or to one of its values, when
+    // it holds the same type and that is equal.
+    if (holdsErrors(left) || holdsErrors(right)) {
+      analyzerFail(an, node, Problem.UnionCompared, Facts.aboutType(union));
+    } else if (!left.accepts(right) && !right.accepts(left)) {
+      analyzerFail(an, node, Problem.EqualityTypes, Facts.aboutTypes(left, right));
+    } else if (!comparable(an, union)) {
+      analyzerFail(an, node, Problem.UnionStructCompared, Facts.aboutType(union));
+    }
     return Type.make(TypeKind.Bool, 0);
   }
   // `null` compares with any pointer, from either side.
@@ -658,10 +667,25 @@ fn checkPointerArithmetic(an: *Analyzer, node: i32, op: BinaryOp, left: Type,
 // What a literal operand is offered: the other side's type when that is a
 // number, so `n + 1` is in n's type, or else whatever the whole is.
 fn operandHint(other: Type, wanted: Type): Type {
-  if (other.isNumeric() || other.isEnum()) {
+  if (other.isNumeric() || other.isEnum() || other.isUnion()) {
     return other;
   }
   return wanted;
+}
+
+// Whether every value a union may hold can be compared: anything but a
+// struct with fields, there being no == on structs. An empty one -- a
+// `Nothing {}` -- is equal to itself.
+fn comparable(an: *Analyzer, union: Type): bool {
+  let values: *List<Type> = valuesOf(union);
+  for (index in 0..values.count) {
+    let value: Type = values.at(index);
+    if (value.isStruct() &&
+        an.structs.items[an.structs.indexOf(value.structName)].count > 0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // `got` is the type cast from, `expected` the one to.

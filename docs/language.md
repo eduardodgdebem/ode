@@ -562,8 +562,39 @@ the whole `holder` -- forgets what was found out about it, from there on: it
 may hold any member again until it is asked once more.
 
 A union is as big as its largest member and a code saying which member it
-holds; nothing is allocated, and `is` compares that code. Two unions are not
-compared with `==` -- ask with `is`, and compare what it holds.
+holds; nothing is allocated, and `is` compares that code.
+
+A union of values compares with `==`: two are equal when they hold the same
+member and it is equal, and one is equal to a value of a member it holds.
+An empty struct, the `Nothing {}` an optional value is made with, is equal
+to itself; a struct with fields has no `==`, so neither does a union that may
+hold one -- ask with `is`, and compare what it holds.
+
+```rust
+struct Nothing {}
+
+fn find(list: *List<i64>, wanted: i64): i64 | Nothing {
+  for (index in 0..list.count) {
+    if (list.at(index) == wanted) {
+      return index;
+    }
+  }
+  return Nothing {};
+}
+
+fn sameSpot(a: *List<i64>, b: *List<i64>): bool {
+  return find(a, 3) == find(b, 3);
+}
+
+fn atStart(a: *List<i64>): bool {
+  return find(a, 3) == 0;
+}
+```
+
+A union that may hold an error is different. It is not compared, and a call
+that gives one is not made for its effect alone: the error is passed on,
+replaced or handled ([Errors](#errors)). A union of values is only a value,
+and like any other may be dropped: `pomodoro.update(now);`.
 
 ## Errors
 

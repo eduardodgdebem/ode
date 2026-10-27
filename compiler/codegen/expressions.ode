@@ -27,7 +27,9 @@ import {
 import { Lowered, lowerArgument, lowerReturn, pointerAttribute, scratchType } from "./abi";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genMatchValue } from "./statements";
-import { genAssert, instruction, genAssertEq, genNameOf } from "./testing";
+import {
+  genAssert, instruction, genAssertEq, genNameOf, genUnionEquality,
+} from "./testing";
 import { genWasmBuiltin } from "./wasm";
 import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
@@ -477,6 +479,17 @@ fn genBinary(e: *Emitter, node: i32, binary: Binary): *i8 {
 
   let left: *i8 = genExpr(e, binary.left);
   let right: *i8 = genExpr(e, binary.right);
+
+  // A union, with no error in it, against another or one of its values.
+  if ((op == BinaryOp.Equal || op == BinaryOp.NotEqual) &&
+      (resultTypeOf(e, binary.left).isUnion() || resultTypeOf(e, binary.right).isUnion())) {
+    let equal: *i8 = genUnionEquality(e, left, resultTypeOf(e, binary.left), right,
+                                      resultTypeOf(e, binary.right));
+    if (op == BinaryOp.NotEqual) {
+      return instruction(e, "xor i1 ", equal, "true");
+    }
+    return equal;
+  }
 
   // A comparison of two pointers is an ordinary icmp; everything else is
   // pointer arithmetic.

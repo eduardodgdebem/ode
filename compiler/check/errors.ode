@@ -179,6 +179,12 @@ export fn valuesOf(type: Type): *List<Type> {
 
 // Whether a union may hold values of more than one type, which changes how
 // it is laid out; see codegen/errors.ode.
+// Whether a union holds an error at all -- and so is one that may fail,
+// rather than a value of one of several types.
+export fn holdsErrors(type: Type): bool {
+  return type.isUnion() && unionInfo(type).errors.count > 0;
+}
+
 export fn holdsSeveral(type: Type): bool {
   return type.isUnion() && valuesOf(type).count > 1;
 }

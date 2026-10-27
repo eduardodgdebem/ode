@@ -58,6 +58,9 @@ export struct Emitter {
   // Whether a check -- `assert`, `assertEq` -- was emitted, which needs the
   // declarations emitCheckSupport adds.
   usesChecks: bool,
+  // Whether text in a comparison being emitted is compared as pointers, as
+  // == compares it, rather than by what it says, as assertEq does.
+  comparingPointers: bool,
   // Whether wasm32's memory intrinsics have been declared.
   declaredWasmMemory: bool,
   // The IR names of the program's externs, whose struct arguments and
@@ -99,6 +102,7 @@ export struct Emitter {
     e.nextString = 0;
     e.terminated = false;
     e.usesChecks = false;
+    e.comparingPointers = false;
     e.declaredWasmMemory = false;
     e.externs = NameSet.new();
     e.usesErrorNames = false;

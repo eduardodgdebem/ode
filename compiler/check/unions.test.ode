@@ -140,10 +140,23 @@ test "try and ?? take what is left once the errors are gone" {
            Problem.CoalesceTypes);
 }
 
-test "a union is compared by asking which member it holds, not with ==" {
+test "a union of values compares with ==, one of structs or errors does not" {
   let scope: *Scope = shapes();
-  assertEq(scope.check("shape == shape").problem(), Problem.UnionCompared);
-  assertEq(scope.check("either == either").problem(), Problem.UnionCompared);
+  assertEq(scope.check("either == either").type.toText(), "bool");
+  assertEq(scope.check("either != 5").type.toText(), "bool");
+  assertEq(scope.check("shape == shape").problem(), Problem.UnionStructCompared);
+  assertEq(scope.check("checked == checked").problem(), Problem.UnionCompared);
+  assertEq(scope.check("either == shape").problem(), Problem.EqualityTypes);
+}
+
+test "a call giving a union of values may be made for what it does" {
+  let scope: *Scope = shapes().declare(`
+    fn pick(): i64 | *i8 {
+      return 1;
+    }
+  `).returning("i32");
+  assertEq(scope.run("pick(); return 0;").count, 0);
+  assertEq(scope.run("validated(shape); return 0;").at(0).problem, Problem.UnhandledError);
 }
 
 test "assertEq compares a union of plain values, and one of structs only to an error" {

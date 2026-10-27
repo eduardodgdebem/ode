@@ -15,7 +15,7 @@ import {
 } from "./analyzer";
 import { foldInteger, laterGlobalIn } from "./constants";
 import { analyzeMatch } from "./enums";
-import {
+import { holdsErrors,
   valueOf, alwaysLeaves, alwaysReturns, declaredTypeOf, narrow, pathOf, forget,
   Narrowing, narrowingsOf, applyNarrowings,
 } from "./errors";
@@ -132,10 +132,11 @@ export fn analyzeStatement(an: *Analyzer, node: i32): void {
 }
 
 // A call made for what it does. One that may fail cannot have its error
-// dropped on the floor: it is passed on, replaced, or handled.
+// dropped on the floor: it is passed on, replaced, or handled. A union with
+// no error in it is only a value, and may be dropped like any other.
 fn analyzeExpressionStatement(an: *Analyzer, node: i32, statement: ExprStmt): void {
   let type: Type = checkExpr(an, statement.value);
-  if (!FAILED && type.isUnion()) {
+  if (!FAILED && holdsErrors(type)) {
     analyzerFail(an, node, Problem.UnhandledError, Facts.aboutType(type));
   }
 }

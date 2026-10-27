@@ -1864,3 +1864,26 @@ parsed 'x'
 7 -1
 `);
 }
+
+test "a union of values compares with ==, by member and value" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+
+    struct Nothing {}
+
+    fn found(n: i64): i64 | Nothing {
+      if (n < 0) {
+        return Nothing {};
+      }
+      return n;
+    }
+
+    fn main(): i32 {
+      found(1);
+      printf("%d %d %d %d %d\n", (found(5) == found(5)) as i32,
+             (found(5) == found(6)) as i32, (found(5) == found(-1)) as i32,
+             (found(-1) == found(-2)) as i32, (found(5) != 5) as i32);
+      return 0;
+    }
+  `), "1 0 0 1 0\n");
+}
