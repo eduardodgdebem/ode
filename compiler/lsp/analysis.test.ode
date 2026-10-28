@@ -1,6 +1,7 @@
 import { Json } from "std/json";
 import { Builder, contains, indexOf, slice } from "std/text";
 import { STD_DIRECTORY } from "../link/modules";
+import { joinPath } from "../os/files";
 import { environment } from "../os/process";
 import {
   Checked, check, completionsAt, definitionAt, diagnosticsOf, hoverAt,
@@ -193,4 +194,17 @@ test "a file that does not parse still has its problems, and answers what it can
   let found: *i8 = completions("fn main(): i32 {\n  let x: i32 = ;\n  |\n}\n");
   assert(contains(found, " main "), "the file's functions");
   assert(contains(found, " let "), "keywords");
+}
+
+test "a file in std answers as any other" {
+  STD_DIRECTORY = environment("ODE_STD");
+  let path: *i8 = joinPath(STD_DIRECTORY, "lsp-probe.ode");
+  let source: *i8 = "fn twice(n: i32): i32 {\n  return n * 2;\n}\n\nfn main(): i32 {\n  return twice(1);\n}\n";
+  let program: Checked = check(path, source);
+  assertEq(startOf(definitionAt(program, 6, 10)), "0:3");
+  assert(contains(hoverText(hoverAt(program, 6, 10)), "fn twice(n: i32): i32"), "a hover");
+
+  // Its syntax errors are its own, under the name it goes by.
+  let broken: *i8 = "fn main(): i32 {\n  let x: i32 = ;\n}\n";
+  assert(diagnosticsOf(check(path, broken), broken).count() >= 1, "a syntax error");
 }

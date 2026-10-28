@@ -175,19 +175,21 @@ export fn loadProgram(ast: *Ast, root: i32, path: *i8, source: *i8): void {
   if (real == null) {
     real = path;
   }
-  moduleAdd(path, real);
-  registerSource(path, source);
-  SOURCE_PATH = path;
+  // Named as every diagnostic about it names it: a library file, entered
+  // directly, is `std/<name>.ode` like any other.
+  let shown: *i8 = moduleDisplayPath(moduleAdd(path, real));
+  registerSource(shown, source);
+  SOURCE_PATH = shown;
   let tokens: *TokenList = tokenize(source);
   // Tokens from a file that did not lex would only parse into more errors.
   if (hasErrors()) {
-    SOURCE_PATH = path;
+    SOURCE_PATH = shown;
     return;
   }
   parseModuleInto(Parser.new(tokens, ast), root);
 
   loadImports(ast, root);
-  SOURCE_PATH = path;
+  SOURCE_PATH = shown;
 }
 
 // Loads every file in `paths` onto `root`, with what they import, as one
