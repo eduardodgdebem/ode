@@ -54,7 +54,8 @@ file.ode` runs the `test` blocks written in a file and the files it imports.
 `ode lsp` is a language server, for an editor to run: it underlines the
 problems in a file as it is edited, shows what a name is on hover, goes to
 where it is declared, and completes names and members; see
-[editors](editors/tree-sitter-ode/README.md#the-language-server).
+[editors](editors/tree-sitter-ode/README.md#the-language-server), Neovim and
+Claude Code alike.
 
 `-l <lib>`, `-L <dir>` and `-framework <name>` link a C library, for `ode`
 and `ode test` alike. `--target <arch-os[-abi]>` builds for another machine:
@@ -178,7 +179,7 @@ bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite
 docs/              the documentation above
-editors/           tree-sitter grammar and Neovim support
+editors/           tree-sitter grammar, Neovim support, and the Claude Code plugin
 build.ode          how the compiler is built, as any Ode project is
 build.sh           turns the seed into a first compiler, then hands over
 ```
