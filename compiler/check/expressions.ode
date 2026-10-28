@@ -28,7 +28,8 @@ import {
 } from "./functions";
 import { checkLambda, isCaptured } from "./lambdas";
 import { checkWasmBuiltin, isWasmBuiltin } from "./wasm";
-import { checkMethodCall } from "./methods";
+import { checkMethodCall, structDeclOf, fieldDeclOf } from "./methods";
+import { noteCompletionScope } from "./completion";
 import {
   isAssert, checkAssert, isAssertEq, checkAssertEq, isNameOf, checkNameOf,
 } from "./testing";
@@ -138,6 +139,7 @@ fn inferExprType(an: *Analyzer, node: i32, expected: Type): Type {
 fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
   let name: *i8 = ident.name;
   let symbol: i32 = an.symbols.find(name);
+  noteCompletionScope(an, name);
 
   if (symbol < 0) {
     analyzerFail(an, node, Problem.UndefinedVariable, Facts.about(name));
@@ -147,6 +149,7 @@ fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
     analyzerFail(an, node, Problem.LambdaCapture, Facts.about(name));
     return Type.make(TypeKind.None, 0);
   }
+  an.declarations[node] = an.symbols.items[symbol].node;
   // A function's name, used other than to call it, is its value.
   if (an.symbols.items[symbol].kind == SymbolKind.Fn) {
     return checkFunctionRef(an, node, symbol);
@@ -267,6 +270,7 @@ fn checkCall(an: *Analyzer, node: i32, call: Call): Type {
     return Type.make(TypeKind.None, 0);
   }
   an.linkNames[node] = an.symbols.items[symbol].linkName;
+  an.declarations[node] = an.symbols.items[symbol].node;
 
   // A variable holding a function is called through.
   if (an.symbols.items[symbol].kind == SymbolKind.Var) {
@@ -882,6 +886,8 @@ fn checkFieldAccess(an: *Analyzer, node: i32, access: FieldAccess): Type {
                  Facts.aboutTwo(structType.structName, field));
     return Type.make(TypeKind.None, 0);
   }
+
+  an.declarations[node] = fieldDeclOf(an, structDeclOf(an, structType.structName), field);
 
   // A union field `is` or `match` has narrowed, read along the same path.
   let type: Type = an.structs.items[structIndex].fields[fieldIndex].type;

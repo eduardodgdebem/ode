@@ -35,6 +35,9 @@ export struct Symbol {
   // The type a variable was declared with. `type` differs from it where
   // `is` has narrowed the variable; see semantics/errors.ode.
   declared: Type,
+  // The node that declares it -- a `let`, a parameter, a function -- which
+  // is where an editor goes to find it; NO_NODE for one with none.
+  node: i32,
 }
 
 export struct SymbolTable {
@@ -112,7 +115,7 @@ export struct SymbolTable {
 
   fn declare(self: *SymbolTable, name: *i8, kind: SymbolKind, type: Type,
              params: *Type, paramCount: i32, line: i32,
-             column: i32): void {
+             column: i32, node: i32): void {
     if (self.findInScope(name) >= 0) {
       report(Problem.AlreadyDeclared, line, column, Facts.about(name));
       return;
@@ -132,6 +135,7 @@ export struct SymbolTable {
     self.items[index].linkName = null;
     self.items[index].variadic = false;
     self.items[index].declared = type;
+    self.items[index].node = node;
     self.count = index + 1;
   }
 
@@ -154,9 +158,9 @@ fn i32Type(): Type {
 test "a name is found in the innermost scope that declares it" {
   DIAGS = Diagnostics.new();
   let table: *SymbolTable = SymbolTable.new();
-  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 1, 1);
+  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 1, 1, -1);
   table.enterScope();
-  table.declare("x", SymbolKind.Var, Type.make(TypeKind.Bool, 0), null, 0, 2, 1);
+  table.declare("x", SymbolKind.Var, Type.make(TypeKind.Bool, 0), null, 0, 2, 1, -1);
   assert(table.items[table.find("x")].type.isBool());
   table.exitScope();
   assert(table.items[table.find("x")].type.equals(i32Type()));
@@ -167,8 +171,8 @@ test "a name is declared once in a scope" {
   DIAGS = Diagnostics.new();
   FAILED = false;
   let table: *SymbolTable = SymbolTable.new();
-  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 1, 1);
-  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 3, 5);
+  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 1, 1, -1);
+  table.declare("x", SymbolKind.Var, i32Type(), null, 0, 3, 5, -1);
   assertEq(DIAGS.count(), 1);
   assertEq(DIAGS.at(0).problem, Problem.AlreadyDeclared);
   assertEq(DIAGS.at(0).line, 3);
@@ -179,7 +183,7 @@ test "scopes a failure left open are closed again" {
   let table: *SymbolTable = SymbolTable.new();
   let depth: i32 = table.depth();
   table.enterScope();
-  table.declare("inner", SymbolKind.Var, i32Type(), null, 0, 1, 1);
+  table.declare("inner", SymbolKind.Var, i32Type(), null, 0, 1, 1, -1);
   table.enterScope();
   table.truncateScopes(depth);
   assertEq(table.depth(), depth);

@@ -1,0 +1,35 @@
+// ---------------------------------------------------------------------------
+// What is in scope at one place in a program, for an editor completing a
+// name there.
+//
+// The language server writes COMPLETION_NAME where the name being completed
+// is, and checks the program. When checking reaches that name, every symbol
+// in scope there is copied into COMPLETION_SCOPE -- the locals declared
+// before it, the parameters, and the file's own and imported declarations,
+// innermost last -- which is exactly what the name could have been.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { equals } from "std/text";
+import { Analyzer } from "./analyzer";
+import { isCaptured } from "./lambdas";
+import { Symbol } from "../types/symbols";
+
+// The name that stands in for the one being completed; null when nothing is.
+export let COMPLETION_NAME: *i8 = null;
+// What was in scope where it was, once checking has reached it.
+export let COMPLETION_SCOPE: *List<Symbol> = null;
+
+// Called for each name read as a value: when it is the stand-in, keeps what
+// is in scope.
+export fn noteCompletionScope(an: *Analyzer, name: *i8): void {
+  if (COMPLETION_NAME == null || !equals(name, COMPLETION_NAME)) {
+    return;
+  }
+  COMPLETION_SCOPE = List<Symbol>.new();
+  for (index in 0..an.symbols.count) {
+    if (!isCaptured(an, index)) {
+      COMPLETION_SCOPE.push(an.symbols.items[index]);
+    }
+  }
+}

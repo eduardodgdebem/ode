@@ -44,7 +44,8 @@ export fn registerSource(path: *i8, text: *i8): void {
   SOURCES.push(Source { path: path, text: text });
 }
 
-fn sourceOf(path: *i8): *i8 {
+// The text registered for `path`, or null.
+export fn sourceOf(path: *i8): *i8 {
   if (SOURCES == null) {
     return null;
   }
@@ -58,7 +59,7 @@ fn sourceOf(path: *i8): *i8 {
 
 // Line `number` of `text`, counting from 1, without its newline; null past
 // the end.
-fn lineOf(text: *i8, number: i32): *i8 {
+export fn lineOf(text: *i8, number: i32): *i8 {
   let start: i64 = 0;
   let line: i32 = 1;
   while (line < number) {
@@ -82,7 +83,7 @@ fn lineOf(text: *i8, number: i32): *i8 {
 // How many columns to underline for the token starting at `at` in `line`:
 // a word or number whole, a string or character to its closing quote, a
 // two-character operator both characters, anything else one.
-fn tokenWidth(line: *i8, at: i64): i64 {
+export fn tokenWidth(line: *i8, at: i64): i64 {
   let first: i8 = line[at];
   if (first == '\0') {
     return 1;

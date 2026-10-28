@@ -145,7 +145,7 @@ fn checkBody(an: *Analyzer, node: i32, types: *Type, count: i32, result: Type): 
     let param: i32 = itemAt(an.ast, params, index);
     an.symbols.declare(nodeName(an.ast, param), SymbolKind.Var, types[index],
                        null, 0, an.ast.nodes[param].line,
-                       an.ast.nodes[param].column);
+                       an.ast.nodes[param].column, param);
   }
   analyzeStatement(an, lambdaOf(an.ast, node).body);
   an.symbols.exitScope();

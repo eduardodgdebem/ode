@@ -293,7 +293,7 @@ fn enter(scope: *Scope): Fragment {
   for (index in 0..scope.locals.count) {
     let local: ScopeLocal = scope.locals.at(index);
     an.symbols.declare(local.name, SymbolKind.Var,
-                       typeFromText(an, program.root, local.type), null, 0, 0, 0);
+                       typeFromText(an, program.root, local.type), null, 0, 0, 0, -1);
   }
 
   return Fragment { an: an, root: program.root, firstNode: firstNode };

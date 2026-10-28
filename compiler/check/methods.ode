@@ -79,6 +79,22 @@ fn findMethod(an: *Analyzer, structNode: i32, name: *i8): i32 {
   return NO_NODE;
 }
 
+// The field of the struct declared at `structNode` named `name`, or NO_NODE.
+export fn fieldDeclOf(an: *Analyzer, structNode: i32, name: *i8): i32 {
+  if (structNode == NO_NODE) {
+    return NO_NODE;
+  }
+  for (index in 0..itemCount(an.ast, structNode)) {
+    let item: i32 = itemAt(an.ast, structNode, index);
+    if (an.ast.nodes[item].kind == NodeKind.Field &&
+        equals(nodeName(an.ast, item), name)) {
+      return item;
+    }
+  }
+
+  return NO_NODE;
+}
+
 // `Point.length`, which is how diagnostics name a method.
 fn methodName(an: *Analyzer, structNode: i32, method: i32): *i8 {
   let out: *Builder = Builder.new();
@@ -238,6 +254,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
     if (field >= 0) {
       let fieldType: Type = an.structs.items[structIndex].fields[field].type;
       an.callTargets[node] = CallTarget.Field;
+      an.declarations[node] = fieldDeclOf(an, structNode, name);
       return checkCallThrough(an, node, name, fieldType, methodCallOf(an.ast, node).args);
     }
   }
@@ -248,6 +265,7 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
     return Type.make(TypeKind.None, 0);
   }
 
+  an.declarations[node] = method;
   let fullName: *i8 = methodName(an, structNode, method);
   let self: SelfKind = methodSelf(an, structNode, method);
 
@@ -298,6 +316,7 @@ fn checkStaticCall(an: *Analyzer, node: i32, structNode: i32): Type {
                  Facts.aboutTwo(nodeName(an.ast, structNode), name));
     return Type.make(TypeKind.None, 0);
   }
+  an.declarations[node] = method;
 
   let paramCount: i32 = 0;
   let params: *Type = analyzerParamTypes(an, paramsOf(an.ast, method),
