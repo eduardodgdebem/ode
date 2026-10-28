@@ -840,6 +840,22 @@ Two builtins reach wasm32's memory, for an allocator to be built on, as
 or -1. On any other target there is no such memory, so the size is 0 and
 growing fails -- they belong in an arm of `match (ARCH)` that wasm32 picks.
 
+## Checks at run time
+
+A build without `--release` checks, as it runs, what C leaves undefined: a
+division by zero, an overflow of a signed integer's `+`, `-` or `*`, and a
+null pointer read or written through, `p.field`, `*p` or `p[i]`. Each stops
+the program, saying where:
+
+```
+main.ode:12:14: integer overflow
+```
+
+Unsigned integers wrap, as they do in C and Go, so a hash or a checksum is
+written with them. A `--release` build leaves the checks out, as Zig's
+ReleaseFast does: the same program, faster, and as undefined as C where a
+check would have stopped it.
+
 ## Tests
 
 Tests live in the file they test, as in Zig and Rust. A `test` block at the

@@ -1,0 +1,198 @@
+// ---------------------------------------------------------------------------
+// What a build without --release checks as it runs: a division by zero, an
+// overflow of a signed integer, and a null pointer read or written through.
+// Each stops the program with where it happened and what it was, as a
+// failed `assert` does:
+//
+//   main.ode:12:14: integer overflow
+//
+// A release build checks none of it: the same program, with the checks left
+// out. Unsigned integers wrap, as they do in C and Go -- a hash, or
+// `0 - magnitude`, means them to -- and signed ones would, unchecked.
+// ---------------------------------------------------------------------------
+
+import { Builder, equals } from "std/text";
+import { Emitter, freshLabel, emitCondBranch, emitLabel } from "./emitter";
+import { emitAssign } from "./expressions";
+import { llvmTypeName } from "./layout";
+import { targetsWasm } from "./target";
+import { emitFailureAt } from "./testing";
+import { RELEASE } from "./toolchain";
+import { BinaryOp } from "../syntax/ast";
+import { Type } from "../types/types";
+
+// Whether this build checks as it runs.
+export fn checksAtRunTime(): bool {
+  return !RELEASE;
+}
+
+// Goes on when `ok`, an i1, holds; stops the program, saying `what` at
+// `node`, when it does not.
+fn check(e: *Emitter, node: i32, ok: *i8, what: *i8): void {
+  let passed: *i8 = freshLabel(e);
+  let failed: *i8 = freshLabel(e);
+  emitCondBranch(e, ok, passed, failed);
+  emitLabel(e, failed);
+  emitFailureAt(e, node, what);
+  emitLabel(e, passed);
+}
+
+fn compare(e: *Emitter, predicate: *i8, type: *i8, left: *i8, right: *i8): *i8 {
+  let line: *Builder = Builder.new();
+  line.add("icmp ");
+  line.add(predicate);
+  line.push(' ');
+  line.add(type);
+  line.push(' ');
+  line.add(left);
+  line.add(", ");
+  line.add(right);
+  return emitAssign(e, line.data);
+}
+
+// `pointer`, once it is known not to be null: the address `node` reads or
+// writes through.
+export fn checkNotNull(e: *Emitter, node: i32, pointer: *i8): *i8 {
+  if (checksAtRunTime()) {
+    check(e, node, compare(e, "ne", "ptr", pointer, "null"), "null pointer dereference");
+  }
+  return pointer;
+}
+
+// Whether `op` on values of `type` is checked: + - * on a signed integer,
+// and / and % on any integer.
+export fn isCheckedArithmetic(op: BinaryOp, type: Type): bool {
+  if (!checksAtRunTime() || type.isPointer() || !type.isInteger() || type.isBool()) {
+    return false;
+  }
+  if (op == BinaryOp.Divide || op == BinaryOp.Remainder) {
+    return true;
+  }
+  return type.isSigned() &&
+         (op == BinaryOp.Add || op == BinaryOp.Subtract || op == BinaryOp.Multiply);
+}
+
+// The smallest value of a signed integer of `bits` bits, as IR text.
+fn smallest(bits: i32): *i8 {
+  return match (bits) {
+    8 => "-128",
+    16 => "-32768",
+    32 => "-2147483648",
+    else => "-9223372036854775808",
+  };
+}
+
+// `left op right`, checked: an overflow of + - *, through LLVM's
+// with.overflow intrinsics, and a division by zero -- or the one division
+// that overflows, the smallest value by -1 -- before / and %.
+export fn genCheckedArithmetic(e: *Emitter, node: i32, op: BinaryOp, type: Type,
+                               opcode: *i8, left: *i8, right: *i8): *i8 {
+  let name: *i8 = llvmTypeName(type);
+  if (op == BinaryOp.Divide || op == BinaryOp.Remainder) {
+    check(e, node, compare(e, "ne", name, right, "0"), "division by zero");
+    if (type.isSigned()) {
+      let lowest: *i8 = compare(e, "eq", name, left, smallest(type.bitWidth()));
+      let minusOne: *i8 = compare(e, "eq", name, right, "-1");
+      let both: *i8 = emitAssign(e, text4("and i1 ", lowest, ", ", minusOne));
+      check(e, node, emitAssign(e, text4("xor i1 ", both, ", ", "true")),
+            "integer overflow");
+    }
+    return emitAssign(e, text4(text4(opcode, " ", name, " "), left, ", ", right));
+  }
+
+  // smul.with.overflow.i64 is a call into compiler-rt on wasm32, which a
+  // module has no C library to import from: there the product is checked
+  // by dividing it back instead, which wasm does itself.
+  if (op == BinaryOp.Multiply && type.bitWidth() == 64 && targetsWasm()) {
+    return genCheckedProduct(e, node, name, left, right);
+  }
+
+  let intrinsic: *i8 = overflowIntrinsic(e, op, name);
+  let pair: *Builder = Builder.new();
+  pair.add("{ ");
+  pair.add(name);
+  pair.add(", i1 }");
+  let call: *Builder = Builder.new();
+  call.add("call ");
+  call.add(pair.data);
+  call.push(' ');
+  call.add(intrinsic);
+  call.push('(');
+  call.add(name);
+  call.push(' ');
+  call.add(left);
+  call.add(", ");
+  call.add(name);
+  call.push(' ');
+  call.add(right);
+  call.push(')');
+  let result: *i8 = emitAssign(e, call.data);
+  let overflowed: *i8 = emitAssign(e, text4("extractvalue ", pair.data, " ",
+                                            text4(result, ", 1", "", "")));
+  check(e, node, emitAssign(e, text4("xor i1 ", overflowed, ", ", "true")),
+        "integer overflow");
+  return emitAssign(e, text4("extractvalue ", pair.data, " ", text4(result, ", 0", "", "")));
+}
+
+// `left * right` on i64s, checked without a 128-bit multiply: the product
+// overflowed when dividing it by `left` does not give back `right`, or when
+// it is the one product division cannot tell, the smallest value by -1.
+fn genCheckedProduct(e: *Emitter, node: i32, name: *i8, left: *i8, right: *i8): *i8 {
+  let product: *i8 = emitAssign(e, text4(text4("mul ", name, " ", left), ", ", right, ""));
+  // Divided by 1 where `left` is 0, whose product is always 0 and right.
+  let zero: *i8 = compare(e, "eq", name, left, "0");
+  let divisor: *i8 = emitAssign(e, text4(text4("select i1 ", zero, ", i64 1, i64 ", left), "", "", ""));
+  let back: *i8 = emitAssign(e, text4(text4("sdiv ", name, " ", product), ", ", divisor, ""));
+  let same: *i8 = compare(e, "eq", name, back, right);
+  let fine: *i8 = emitAssign(e, text4(text4("or i1 ", zero, ", ", same), "", "", ""));
+  let minusOne: *i8 = compare(e, "eq", name, left, "-1");
+  let lowest: *i8 = compare(e, "eq", name, right, smallest(64));
+  let edge: *i8 = emitAssign(e, text4("and i1 ", minusOne, ", ", lowest));
+  let notEdge: *i8 = emitAssign(e, text4("xor i1 ", edge, ", ", "true"));
+  check(e, node, emitAssign(e, text4("and i1 ", fine, ", ", notEdge)), "integer overflow");
+  return product;
+}
+
+fn text4(a: *i8, b: *i8, c: *i8, d: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.add(a);
+  out.add(b);
+  out.add(c);
+  out.add(d);
+  return out.take();
+}
+
+// `@llvm.sadd.with.overflow.i32` and the like, declared the first time it is
+// used.
+fn overflowIntrinsic(e: *Emitter, op: BinaryOp, name: *i8): *i8 {
+  let what: *i8 = match (op) {
+    .Add => "sadd",
+    .Subtract => "ssub",
+    else => "smul",
+  };
+  let out: *Builder = Builder.new();
+  out.add("@llvm.");
+  out.add(what);
+  out.add(".with.overflow.");
+  out.add(name);
+  let intrinsic: *i8 = out.take();
+
+  for (index in 0..e.intrinsics.count) {
+    if (equals(e.intrinsics.at(index), intrinsic)) {
+      return intrinsic;
+    }
+  }
+  e.intrinsics.push(intrinsic);
+  let declaration: *Builder = Builder.new();
+  declaration.add("declare { ");
+  declaration.add(name);
+  declaration.add(", i1 } ");
+  declaration.add(intrinsic);
+  declaration.push('(');
+  declaration.add(name);
+  declaration.add(", ");
+  declaration.add(name);
+  declaration.add(")\n");
+  e.head.add(declaration.data);
+  return intrinsic;
+}

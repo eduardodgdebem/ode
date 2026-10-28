@@ -6,6 +6,7 @@
 // from checking alone is tested where the checking is.
 // ---------------------------------------------------------------------------
 
+import { Builder, contains, indexOf } from "std/text";
 import { outputOf } from "../testkit/testkit";
 
 test "arrays" {
@@ -837,9 +838,10 @@ test "literal types" {
       let tab: u8 = '\t';
       printf("%u\n", tab);
 
-      // With nothing to go by, a literal is still an i32: this wraps.
-      let wrapped: i64 = (2147483647 + 1) as i64;
-      printf("%lld\n", wrapped);
+      // With nothing to go by, a literal is still an i32, so this is
+      // widened first: (2147483647 + 1) would overflow, as an i32.
+      let widened: i64 = 2147483647 as i64 + 1;
+      printf("%lld\n", widened);
 
       // Casts still read wide literals as themselves.
       printf("%lld\n", -3000000000 as i64);
@@ -868,7 +870,7 @@ test "literal types" {
              65
              55
              9
-             -2147483648
+             2147483648
              -3000000000
              3000000000.000000
            `);
@@ -2018,4 +2020,43 @@ test "a statement at the top level, beside a struct" {
       return 0;
     }
   `), "3\n");
+}
+
+test "a build without --release stops at an overflow, a division by zero, a null" {
+  let source: *i8 = `
+    extern fn printf(format: *i8, ...): i32;
+    extern fn atoi(text: *i8): i32;
+
+    struct Point { x: i32 }
+
+    fn run(which: i32): i32 {
+      let zero: i32 = which - which;
+      let big: i64 = 9223372036854775807;
+      let nothing: *Point = null;
+      let wrapping: u8 = 0;
+      if (which == 0) { return 10 / zero; }
+      if (which == 1) { return (big + which as i64) as i32; }
+      if (which == 2) { return nothing.x; }
+      printf("%u\n", wrapping - 1);
+      return 0;
+    }
+
+    fn main(): i32 {
+      return run(OVERFLOW);
+    }
+  `;
+  assert(contains(outputOf(replaced(source, "0")), "division by zero"));
+  assert(contains(outputOf(replaced(source, "1")), "integer overflow"));
+  assert(contains(outputOf(replaced(source, "2")), "null pointer dereference"));
+  assertEq(outputOf(replaced(source, "3")), "255\n");
+}
+
+// `source` with OVERFLOW written as `which`.
+fn replaced(source: *i8, which: *i8): *i8 {
+  let at: i64 = indexOf(source, "OVERFLOW");
+  let out: *Builder = Builder.new();
+  out.addBytes(source, at);
+  out.add(which);
+  out.add(source + at + 8);
+  return out.take();
 }

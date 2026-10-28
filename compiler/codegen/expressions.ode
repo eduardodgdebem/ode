@@ -25,6 +25,7 @@ import {
   narrowedAddress, memberAddress, convertUnion,
 } from "./errors";
 import { Lowered, lowerArgument, lowerReturn, pointerAttribute, scratchType } from "./abi";
+import { checkNotNull, genCheckedArithmetic, isCheckedArithmetic } from "./checks";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genMatchValue } from "./statements";
 import {
@@ -212,7 +213,7 @@ export fn genAddress(e: *Emitter, node: i32): *i8 {
 
   // For `*p` the address to read or write is simply the value of `p`.
   if (kind == NodeKind.Unary) {
-    return genExpr(e, unaryOf(e.ast, node).operand);
+    return checkNotNull(e, node, genExpr(e, unaryOf(e.ast, node).operand));
   }
 
   codegenFault(e, node, "expression does not denote an addressable location");
@@ -228,7 +229,7 @@ fn genFieldAddress(e: *Emitter, object: i32, field: *i8): *i8 {
   let base: *i8 = null;
   let structType: Type = objectType.base();
   if (objectType.isPointer()) {
-    base = genStructPointer(e, object);
+    base = genStructPointerChecked(e, object);
   } else {
     base = genAddress(e, object);
   }
@@ -245,6 +246,19 @@ fn genFieldAddress(e: *Emitter, object: i32, field: *i8): *i8 {
   line.addInt(fieldIndex as i64);
 
   return emitAssign(e, line.data);
+}
+
+// genStructPointer, for a field read or written there: each pointer on the
+// way is checked not to be null before it is followed.
+fn genStructPointerChecked(e: *Emitter, object: i32): *i8 {
+  let objectType: Type = typeOfNode(e, object);
+  let pointer: *i8 = checkNotNull(e, object, genExpr(e, object));
+
+  for (level in 1..objectType.pointerDepth) {
+    pointer = checkNotNull(e, object, emitLoad(e, codePointer(), pointer));
+  }
+
+  return pointer;
 }
 
 // The address of the struct `object` points at, through however many
@@ -289,7 +303,7 @@ fn genFieldValue(e: *Emitter, object: i32, field: *i8): *i8 {
 fn genIndexAddress(e: *Emitter, index: Index): *i8 {
   let base: i32 = index.base;
   let baseType: Type = typeOfNode(e, base);
-  let pointer: *i8 = genExpr(e, base);
+  let pointer: *i8 = checkNotNull(e, base, genExpr(e, base));
 
   let indexNode: i32 = index.index;
   let offset: *i8 = emitCast(e, genExpr(e, indexNode), typeOfNode(e, indexNode),
@@ -497,6 +511,11 @@ fn genBinary(e: *Emitter, node: i32, binary: Binary): *i8 {
     return genPointerArithmetic(e, op, left, right, leftType, rightType);
   }
 
+  if (isCheckedArithmetic(op, leftType)) {
+    return genCheckedArithmetic(e, node, op, leftType, binaryOpcode(op, leftType), left,
+                                right);
+  }
+
   let line: *Builder = Builder.new();
   line.add(binaryOpcode(op, leftType));
   line.push(' ');
@@ -516,7 +535,7 @@ fn genUnary(e: *Emitter, node: i32, unary: Unary): *i8 {
       return genAddress(e, operand);
     }
     .Deref => {
-      return emitLoad(e, typeOfNode(e, node), genExpr(e, operand));
+      return emitLoad(e, typeOfNode(e, node), checkNotNull(e, node, genExpr(e, operand)));
     }
     .Plus => {
       return genExpr(e, operand);

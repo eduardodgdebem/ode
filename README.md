@@ -47,7 +47,9 @@ You need `clang`. Nothing else.
 executable named after it. `-o <path>` puts the executable elsewhere, and the
 `--keep-intermediates` keeps the `.ll` and `.o` it was built from beside it.
 `--release` optimises, as clang's `-O2` does; without it a build is
-unoptimised, which is quicker to build and easier to debug.
+unoptimised, which is quicker to build and easier to debug, and checks as it
+runs: a division by zero, a signed overflow, or a null pointer read through
+stops the program, saying where.
 `--emit-llvm` prints the IR instead of linking, and `--dump-tokens`,
 `--dump-ast` and `--dump-types` print what a phase produced. `ode test
 file.ode` runs the `test` blocks written in a file and the files it imports.

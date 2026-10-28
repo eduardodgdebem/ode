@@ -89,6 +89,23 @@ fn emitWasmFailure(e: *Emitter, node: i32, what: *i8, message: *i8): void {
   e.terminated = true;
 }
 
+// A check that failed at `node`: `<where>: <what>` on stderr and exit 1,
+// or on wasm32 the panic handler and a trap.
+export fn emitFailureAt(e: *Emitter, node: i32, what: *i8): void {
+  if (targetsWasm()) {
+    emitWasmFailure(e, node, what, "null");
+    return;
+  }
+  let format: *Builder = Builder.new();
+  format.add("%s: ");
+  format.add(what);
+  format.add("\n");
+  let values: *Builder = Builder.new();
+  values.add(", ptr ");
+  values.add(location(e, node));
+  emitFailure(e, format.data, values);
+}
+
 // `assert(cond)` and `assert(cond, message)`. The message is only evaluated
 // when the condition fails.
 export fn genAssert(e: *Emitter, node: i32): *i8 {
