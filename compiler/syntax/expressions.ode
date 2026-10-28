@@ -13,7 +13,7 @@ import { line } from "../driver/options";
 import { List } from "std/list";
 import {
   NO_NODE, NodeKind, Args, Binary, BinaryOp, Block, BoolLit, Call, CallValue, Cast,
-  Catch, CharLit, ErrorNode, FieldAccess, FieldInit, Ident, Index, Is, Lambda,
+  Catch, CharLit, ErrorNode, FieldAccess, FieldInit, Ident, Index, Is, Lambda, Slicing,
   MethodCall, NullLit, NumberLit, Param, Params, Return, Sizeof, StringLit, StructLit,
   Syntax, Try, TypeArgs, TypeRef, Unary, UnaryOp,
 } from "./ast";
@@ -370,7 +370,27 @@ fn parsePostfix(parser: *Parser): i32 {
       let column: i32 = bracket.column;
       parser.advance();
 
-      let index: i32 = parseExpr(parser);
+      // `base[start..end]`, either end left out for the start or the end of
+      // what is sliced.
+      let index: i32 = NO_NODE;
+      if (parser.kind() != TokenKind.DotDot) {
+        index = parseExpr(parser);
+      }
+      if (parser.kind() == TokenKind.DotDot && !FAILED) {
+        parser.advance();
+        let end: i32 = NO_NODE;
+        if (parser.kind() != TokenKind.RBracket) {
+          end = parseExpr(parser);
+        }
+        parser.expect(TokenKind.RBracket, "]");
+        if (FAILED) {
+          return expr;
+        }
+        let slicing: i32 = parser.ast.add(NodeKind.Slicing, line, column, ErrorNode {});
+        parser.ast.nodes[slicing].syntax = Slicing { base: expr, start: index, end: end };
+        expr = slicing;
+        continue;
+      }
       parser.expect(TokenKind.RBracket, "]");
       if (FAILED) {
         return expr;

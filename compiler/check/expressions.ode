@@ -38,8 +38,9 @@ import { FAILED } from "../diagnostics/report";
 import { functionTemplateIn } from "../link/generics";
 import {
   NO_NODE, NodeKind, Binary, BinaryOp, BoolLit, Call, CallValue, Cast, Catch, CharLit,
-  FieldAccess, Ident, Index, Is, Lambda, MethodCall, NullLit, NumberLit, Sizeof,
-  StringLit, StructLit, Syntax, Try, Unary, UnaryOp, binaryOpText, fieldInitOf, itemAt,
+  FieldAccess, Ident, Index, Is, Lambda, MethodCall, NullLit, NumberLit, Sizeof, Slicing,
+  StringLit, StructLit, Syntax, Try, Unary, UnaryOp, binaryOpText, fieldAccessOf, fieldInitOf,
+  itemAt,
   itemCount, negated, nodeName, nodeTextLength, setNodeName,
 } from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
@@ -168,6 +169,15 @@ fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
 // The globals of std/target say what the program is built for, and are
 // constants: nothing may assign to them, and a match on one picks its arm
 // while compiling.
+// Whether `node` is `s.length` or `s.data` of a slice.
+fn isSliceField(an: *Analyzer, node: i32): bool {
+  if (an.ast.nodes[node].kind != NodeKind.FieldAccess) {
+    return false;
+  }
+  let object: i32 = fieldAccessOf(an.ast, node).object;
+  return object != NO_NODE && an.types[object].base().isSlice();
+}
+
 fn isTargetConstant(an: *Analyzer, node: i32): bool {
   return an.ast.nodes[node].kind == NodeKind.Ident && an.isConstant[node] != 0 &&
          !an.types[node].isNone();
@@ -237,6 +247,12 @@ export fn checkAssignTarget(an: *Analyzer, at: i32, target: i32): Type {
   }
 
   let type: Type = checkExpr(an, target);
+
+  // A slice's length and data are read, not set: a new slice is made by
+  // slicing.
+  if (!FAILED && isSliceField(an, target)) {
+    analyzerFail(an, at, Problem.NotAssignable, Facts.none());
+  }
 
   // `Color.Red` reads like a field but is a constant, with nowhere to store
   // to; that is only known once it has been checked.
@@ -379,6 +395,7 @@ fn checkSyntax(an: *Analyzer, node: i32, expected: Type): Type {
     Unary => checkUnaryOp(an, node, syntax, expected),
     Cast => checkCast(an, node, syntax),
     Index => checkIndex(an, node, syntax),
+    Slicing => checkSlicing(an, node, syntax),
     Sizeof => checkSizeof(an, node, syntax, expected),
     Try => checkTry(an, node, syntax),
     Is => checkIs(an, node, syntax),
@@ -435,6 +452,9 @@ fn checkUnaryOp(an: *Analyzer, node: i32, unary: Unary, expected: Type): Type {
     }
 
     let addressed: Type = checkExpr(an, operand);
+    if (!FAILED && isSliceField(an, operand)) {
+      analyzerFail(an, node, Problem.AddressOfTemporary, Facts.none());
+    }
     if (!FAILED && isTargetConstant(an, operand)) {
       analyzerFail(an, node, Problem.TargetConstant,
                    Facts.about(nodeName(an.ast, operand)));
@@ -634,6 +654,11 @@ fn checkEquality(an: *Analyzer, node: i32, left: Type, right: Type): Type {
   // its own.
   if (left.isStruct()) {
     analyzerFail(an, node, Problem.CompareStructs, Facts.about(left.structName));
+  }
+  // Equal would have to mean the same memory or the same items; it is left
+  // to the program to say which, as Go does.
+  if (left.isSlice()) {
+    analyzerFail(an, node, Problem.CompareSlices, Facts.aboutType(left));
   }
   return Type.make(TypeKind.Bool, 0);
 }
@@ -873,6 +898,9 @@ fn checkFieldAccess(an: *Analyzer, node: i32, access: FieldAccess): Type {
   if (FAILED) {
     return Type.make(TypeKind.None, 0);
   }
+  if (structType.isSlice()) {
+    return checkSliceField(an, node, structType, field);
+  }
   if (!structType.isStruct()) {
     analyzerFail(an, node, Problem.FieldOfNonStruct,
                  Facts.about(field).withType(objectType));
@@ -915,6 +943,13 @@ fn checkIndex(an: *Analyzer, node: i32, index: Index): Type {
   let baseType: Type = checkExpr(an, index.base);
   let indexType: Type = checkExpr(an, index.index);
 
+  if (baseType.isSlice()) {
+    if (!indexType.isInteger()) {
+      analyzerFail(an, node, Problem.IndexNotInteger, Facts.aboutType(indexType));
+    }
+    return baseType.element();
+  }
+
   if (!baseType.isPointer()) {
     analyzerFail(an, node, Problem.IndexNonPointer, Facts.aboutType(baseType));
   }
@@ -926,6 +961,52 @@ fn checkIndex(an: *Analyzer, node: i32, index: Index): Type {
   }
 
   return baseType.pointee();
+}
+
+// `base[start..end]`: of a slice, the same slice type; of a pointer, a
+// slice of what it points at, which needs an end, as a pointer has none of
+// its own to go to.
+fn checkSlicing(an: *Analyzer, node: i32, slicing: Slicing): Type {
+  let baseType: Type = checkExpr(an, slicing.base);
+  if (FAILED) {
+    return Type.make(TypeKind.None, 0);
+  }
+  let bounds: *List<i32> = List<i32>.new();
+  bounds.push(slicing.start);
+  bounds.push(slicing.end);
+  for (index in 0..bounds.count) {
+    let bound: i32 = bounds.at(index);
+    if (bound != NO_NODE) {
+      let boundType: Type = checkExprAs(an, bound, Type.make(TypeKind.I64, 0));
+      if (!FAILED && !boundType.isInteger()) {
+        analyzerFail(an, bound, Problem.IndexNotInteger, Facts.aboutType(boundType));
+      }
+    }
+  }
+  if (baseType.isSlice()) {
+    return baseType;
+  }
+  if (!baseType.isPointer() || baseType.pointee().isVoid()) {
+    analyzerFail(an, node, Problem.SliceOfNonPointer, Facts.aboutType(baseType));
+    return Type.make(TypeKind.None, 0);
+  }
+  if (slicing.end == NO_NODE) {
+    analyzerFail(an, node, Problem.SliceNeedsEnd, Facts.aboutType(baseType));
+    return Type.make(TypeKind.None, 0);
+  }
+  return Type.sliceOf(baseType.pointee());
+}
+
+// `slice.length` and `slice.data`, through any pointers to it.
+fn checkSliceField(an: *Analyzer, node: i32, slice: Type, field: *i8): Type {
+  if (equals(field, "length")) {
+    return Type.make(TypeKind.I64, 0);
+  }
+  if (equals(field, "data")) {
+    return slice.element().pointerTo();
+  }
+  analyzerFail(an, node, Problem.SliceField, Facts.about(field));
+  return Type.make(TypeKind.None, 0);
 }
 
 fn checkStructLiteral(an: *Analyzer, node: i32): Type {

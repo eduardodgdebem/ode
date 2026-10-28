@@ -36,6 +36,10 @@ export fn alignOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return pointerBytes();
   }
+  // A slice is { pointer, i64 length }.
+  if (type.isSlice()) {
+    return 8;
+  }
   // A union is laid out as { i32 code, value }, or { i32 tag, [n x i64] }
   // when it may hold several types.
   if (holdsSeveral(type)) {
@@ -86,6 +90,9 @@ fn alignUp(value: i32, alignment: i32): i32 {
 export fn sizeOf(structs: *StructTable, type: Type): i32 {
   if (type.isPointer() || type.isFunction()) {
     return pointerBytes();
+  }
+  if (type.isSlice()) {
+    return 16;
   }
   if (holdsSeveral(type)) {
     return 8 + payloadWords(type) * 8;

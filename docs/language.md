@@ -735,6 +735,44 @@ values[0] = 41;
 printf("%d\n", values[0]);
 ```
 
+## Slices
+
+A slice, `[]T`, is a pointer and how many values are there: what a pointer
+and a count passed side by side become in one value, as in Go and Zig. It
+is made by slicing a pointer, or another slice, from a start up to, not
+including, an end:
+
+```rust
+let data: *i64 = alloc<i64>(5);
+let all: []i64 = data[0..5];       // five i64s at data
+let middle: []i64 = all[1..4];     // the same memory, three of them
+let rest: []i64 = all[2..];        // from 2 to the end
+let first: []i64 = all[..2];       // and up to 2
+
+fn sum(values: []i64): i64 {
+  let total: i64 = 0;
+  for (i in 0..values.length) {
+    total = total + values[i];
+  }
+  return total;
+}
+```
+
+`values.length` is how many there are and `values.data` where they start,
+both read rather than set. A slice is a view, not a copy: writing
+`middle[0]` writes `all[1]`. Indexing and slicing a slice are checked to stay
+in it, unless `--release` -- the bounds check a pointer cannot have -- and a
+slice of a pointer needs its end written, since the pointer has none:
+
+```
+main.ode:12:9: index out of range
+```
+
+Two slices are not compared with `==`: whether that means the same memory
+or the same items is the program's to say. C has no slices, so an `extern`
+takes the data and the length apart, and a slice cannot yet be a type
+argument, `List<[]i8>`; a generic's own `[]T` is fine.
+
 ## Globals
 
 A `let` at program level is a global, visible to every function regardless of

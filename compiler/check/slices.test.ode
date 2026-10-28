@@ -1,0 +1,67 @@
+// ---------------------------------------------------------------------------
+// Slices: `[]T`, a pointer and a length, made by slicing a pointer or
+// another slice, and what checking says about each.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Problem } from "../diagnostics/problems";
+import { Diagnostic } from "../diagnostics/report";
+import { Scope } from "../testkit/testkit";
+
+fn slices(): *Scope {
+  return Scope.new()
+      .local("pointer", "*i64")
+      .local("values", "[]i64")
+      .local("held", "*[]i64")
+      .local("text", "*i8");
+}
+
+test "a slice's type, its items, its length and its data" {
+  let scope: *Scope = slices();
+  assertEq(scope.check("values").type.toText(), "[]i64");
+  assertEq(scope.check("values[2]").type.toText(), "i64");
+  assertEq(scope.check("values.length").type.toText(), "i64");
+  assertEq(scope.check("values.data").type.toText(), "*i64");
+  assertEq(scope.check("held.length").type.toText(), "i64");
+  assertEq(scope.check("text[1..3]").type.toText(), "[]i8");
+}
+
+test "slicing a slice, either end left out, keeps its type" {
+  let scope: *Scope = slices();
+  assertEq(scope.check("pointer[0..4]").type.toText(), "[]i64");
+  assertEq(scope.check("values[1..3]").type.toText(), "[]i64");
+  assertEq(scope.check("values[1..]").type.toText(), "[]i64");
+  assertEq(scope.check("values[..2]").type.toText(), "[]i64");
+}
+
+test "what a slice is not" {
+  let scope: *Scope = slices();
+  assertEq(scope.check("pointer[1..]").problem(), Problem.SliceNeedsEnd);
+  assertEq(scope.check("values.size").problem(), Problem.SliceField);
+  assertEq(scope.check("values == values").problem(), Problem.CompareSlices);
+  assertEq(scope.check("values[true]").problem(), Problem.IndexNotInteger);
+}
+
+test "a slice cannot be sliced from a value, changed in place, or cross extern" {
+  let notPointer: *List<Diagnostic> = Scope.new().returning("i32").run(`
+    let count: i64 = 5;
+    let bad: []i64 = count[0..1];
+    return 0;
+  `);
+  assertEq(notPointer.count, 1);
+  assertEq(notPointer.at(0).problem, Problem.SliceOfNonPointer);
+
+  let fixed: *List<Diagnostic> = slices().returning("i32").run(`
+    values.length = 3;
+    return 0;
+  `);
+  assertEq(fixed.count, 1);
+  assertEq(fixed.at(0).problem, Problem.NotAssignable);
+
+  let external: *List<Diagnostic> = Scope.new()
+      .declare("extern fn takes(values: []i64): void;")
+      .returning("i32")
+      .run("return 0;");
+  assertEq(external.count, 1);
+  assertEq(external.at(0).problem, Problem.SliceAcrossExtern);
+}

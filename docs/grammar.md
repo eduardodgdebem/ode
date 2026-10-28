@@ -96,7 +96,7 @@ cycles.
 - **Factor** → Cast ((`*` | `/` | `%`) Cast)*
 - **Cast** → Unary (`as` Type)*
 - **Unary** → (`-` | `+` | `!` | `*` | `&`) Unary | Postfix
-- **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]` | `(` ArgList? `)`)*
+- **Postfix** → Primary (`.` IDENT | `.` IDENT `(` ArgList? `)` | `[` Expr `]` | `[` Expr? `..` Expr? `]` | `(` ArgList? `)`)*
 - **Primary** → NUMBER | STRING | CHAR | BOOLEAN | `null` | IDENT | FuncCall | StructLiteral | SizeOf | Lambda | Match | `.` IDENT | `(` Expr `)`
 - **Lambda** → `(` (LambdaParam (`,` LambdaParam)*)? `)` (`:` DeclaredType)? `=>` (Block | Expr)
 - **LambdaParam** → IDENT (`:` DeclaredType)?
@@ -108,7 +108,7 @@ cycles.
 
 ## Types
 
-- **Type** → `*`* (BaseType | IDENT TypeArgs? | FnType | `(` FnType `)`)
+- **Type** → `*`* (BaseType | IDENT TypeArgs? | FnType | `(` FnType `)` | `[` `]` Type)
 - **FnType** → `(` (DeclaredType (`,` DeclaredType)*)? `)` `=>` DeclaredType
 - **BaseType** → IntType | FloatType | `bool` | `void`
 - **IntType** → `i8` | `u8` | `i16` | `u16` | `i32` | `u32` | `i64` | `u64` | `isize` | `usize`
@@ -223,6 +223,9 @@ parsed yet; anywhere else it is bitwise and, and `&&` is a separate token.
   same type. `*void` supports neither arithmetic nor dereference; cast it to
   a concrete pointer type first.
 - `a[i]` is `*(a + i)`, so indexing works on any pointer and is assignable.
+  On a slice, `[]T`, it is bounds-checked, unless `--release`.
+- `a[start..end]` is a slice: of a pointer, which needs both ends, or of a
+  slice, either end left out for its start or its end.
 - Struct declarations may appear in any order and may refer to each other. A
   struct that contains itself *by value* is rejected; go through a pointer.
 - A function's name used other than to call it is a value of its function

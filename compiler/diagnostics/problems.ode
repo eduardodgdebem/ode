@@ -65,6 +65,7 @@ export enum Problem {
   VoidParameter,
   ExternReturnsStruct,
   ExternTakesStruct,
+  SliceAcrossExtern,
   VariadicFunction,
   VariadicMethod,
   GlobalNotConstant,
@@ -115,6 +116,7 @@ export enum Problem {
   EqualityTypes,
   CompareVoid,
   CompareStructs,
+  CompareSlices,
   ComparisonTypes,
   OrderBoolOrVoid,
   OrderEnum,
@@ -134,6 +136,9 @@ export enum Problem {
   IndexNonPointer,
   IndexVoidPointer,
   IndexNotInteger,
+  SliceOfNonPointer,
+  SliceNeedsEnd,
+  SliceField,
 
   // Casts and numbers. `got` is the type cast from, `expected` the one to.
   CastFromVoid,
@@ -727,6 +732,26 @@ export fn describe(problem: Problem, facts: Facts): Description {
     }
     .IndexVoidPointer => {
       return saysMore("cannot index '*void'", CONCRETE_POINTER);
+    }
+    .SliceOfNonPointer => {
+      return saysMore(text3("cannot slice ", typeText(facts.got), ""),
+                      "a slice is made from a pointer or another slice: `p[0..n]`");
+    }
+    .SliceNeedsEnd => {
+      return saysMore(text2("a slice of a pointer needs an end: ", typeText(facts.got)),
+                      "a pointer has no length of its own to run to; write `p[start..end]`");
+    }
+    .SliceField => {
+      return saysMore(text3("a slice has no field ", q(name), ""),
+                      "it has 'length' and 'data'");
+    }
+    .CompareSlices => {
+      return saysMore(text3("cannot compare ", typeText(facts.got), " values"),
+                      "compare their data and length, or their items one by one");
+    }
+    .SliceAcrossExtern => {
+      return saysMore(text3("extern ", q(name), " takes or returns a slice"),
+                      "C has no slices: pass its data and length apart");
     }
     .IndexNotInteger => {
       return saysMore("index must be an integer", gotOne(facts));

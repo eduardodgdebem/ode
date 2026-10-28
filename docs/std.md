@@ -67,6 +67,7 @@ end stops the program.
 | `at(index)`, `set(index, item)` | reads, writes |
 | `ref(index)` | where the item is, to change it in place: `list.ref(0).count += 1`; valid until the list grows |
 | `insert(index, item)`, `removeAt(index)` | adds or takes out an item in the middle, moving the rest along |
+| `asSlice()` | the items as a `[]T` -- the list's own, good until it grows |
 | `last()`, `pop()` | the last item; `pop` also removes it |
 | `truncate(count)`, `clear()` | drops items from the end |
 | `isEmpty()` | whether `count` is 0 |
@@ -119,6 +120,7 @@ string the caller owns.
 | `startsWith(text, prefix)`, `endsWith(text, suffix)`, `contains(text, part)` | |
 | `indexOf(text, part)` | where `part` starts, or -1 |
 | `slice(text, start, count)`, `copy(text)` | new strings |
+| `bytesOf(text)` | its bytes before the NUL, as a `[]i8` of the same memory |
 | `trim(text)` | without the spaces, tabs and line breaks at either end |
 | `split(text, separator)`, `words(text)` | the parts between each separator, empty ones included; the words between runs of spaces -- both a `*List<*i8>` |
 | `toLower(text)`, `toUpper(text)` | A to Z changed; every other byte, UTF-8 included, kept |

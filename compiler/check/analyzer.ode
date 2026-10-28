@@ -36,7 +36,7 @@ import {
   declareImports,
 } from "../link/modules";
 import {
-  NO_NODE, NodeKind, Ast, Binary, CallValue, Cast, FieldAccess, Index, MethodCall,
+  NO_NODE, NodeKind, Ast, Binary, CallValue, Cast, FieldAccess, Index, MethodCall, SliceTypeRef,
   Params, Syntax, itemAt, itemCount, nodeName, paramsOf, returnTypeOf, typeDepth,
   typeNodeOf,
 } from "../syntax/ast";
@@ -293,6 +293,15 @@ export fn analyzerParseType(an: *Analyzer, node: i32): Type {
   }
   if (node != NO_NODE && an.ast.nodes[node].kind == NodeKind.UnionType) {
     return parseUnionType(an, node);
+  }
+  if (node != NO_NODE && an.ast.nodes[node].kind == NodeKind.SliceType) {
+    let syntax: Syntax = an.ast.nodes[node].syntax;
+    if (syntax is SliceTypeRef) {
+      let element: Type = analyzerParseType(an, syntax.element);
+      let slice: Type = Type.sliceOf(element);
+      slice.pointerDepth = syntax.depth;
+      return slice;
+    }
   }
   if (node == NO_NODE || an.ast.nodes[node].kind != NodeKind.Type) {
     internalError(0, 0, "expected type annotation");
@@ -644,11 +653,18 @@ fn hoistSignature(an: *Analyzer, node: i32): void {
         (variadic || !crossesExtern(an.structs, returnType))) {
       analyzerFail(an, node, Problem.ExternReturnsStruct, Facts.about(name));
     }
+    // C has no slices: its side takes the pointer and the length apart.
+    if (returnType.isSlice()) {
+      analyzerFail(an, node, Problem.SliceAcrossExtern, Facts.about(name));
+    }
 
     for (index in 0..paramCount) {
       if (params[index].isStruct() &&
           (variadic || !crossesExtern(an.structs, params[index]))) {
         analyzerFail(an, node, Problem.ExternTakesStruct, Facts.about(name));
+      }
+      if (params[index].isSlice()) {
+        analyzerFail(an, node, Problem.SliceAcrossExtern, Facts.about(name));
       }
     }
   }

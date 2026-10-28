@@ -186,6 +186,7 @@ module.exports = grammar({
 
     type: $ => choice(
       $.pointer_type,
+      $.slice_type,
       $.function_type,
       $.primitive_type,
       $.generic_type,
@@ -207,6 +208,9 @@ module.exports = grammar({
     ),
 
     pointer_type: $ => prec.right(seq('*', $.type)),
+
+    // `[]T`: a pointer to T and how many there are.
+    slice_type: $ => prec.right(seq('[', ']', field('element', $.type))),
 
     primitive_type: $ => choice(
       'i8', 'u8', 'i16', 'u16', 'i32', 'u32', 'i64', 'u64',
@@ -318,6 +322,7 @@ module.exports = grammar({
       $.cast_expression,
       $.field_expression,
       $.index_expression,
+      $.slice_expression,
       $.call_expression,
       $.method_call_expression,
       $.generic_expression,
@@ -395,6 +400,16 @@ module.exports = grammar({
       field('object', $._expression),
       '[',
       field('index', $._expression),
+      ']',
+    )),
+
+    // `base[start..end]`, either end left out.
+    slice_expression: $ => prec.left(PREC.postfix, seq(
+      field('object', $._expression),
+      '[',
+      optional(field('start', $._expression)),
+      '..',
+      optional(field('end', $._expression)),
       ']',
     )),
 

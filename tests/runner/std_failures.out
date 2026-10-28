@@ -2,9 +2,9 @@ std/list.ode:47:5: assertion failed: list index out of range
 test reading past the end of a list stops ... FAILED
 std/list.ode:52:5: assertion failed: list index out of range
 test a negative index stops ... FAILED
-std/list.ode:95:5: assertion failed: pop from an empty list
+std/list.ode:101:5: assertion failed: pop from an empty list
 test pop from an empty list stops ... FAILED
-std/list.ode:89:5: assertion failed: last of an empty list
+std/list.ode:95:5: assertion failed: last of an empty list
 test last of an emptied list stops ... FAILED
 std/text.ode:59:3: assertion failed: slice out of range
 test a slice past the end of its text stops ... FAILED

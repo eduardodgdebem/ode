@@ -12,7 +12,7 @@ import { Problem, Facts } from "../diagnostics/problems";
 import { FAILED, report, fail } from "../diagnostics/report";
 import { List } from "std/list";
 import {
-  NodeKind, Ast, ErrorNode, FnTypeRef, Syntax, TypeParam, TypeParams, TypeRef,
+  NodeKind, Ast, ErrorNode, FnTypeRef, SliceTypeRef, Syntax, TypeParam, TypeParams, TypeRef,
   UnionTypeRef,
 } from "./ast";
 import { TokenKind, Token, TokenList } from "./token";
@@ -173,6 +173,15 @@ export fn parseType(parser: *Parser): i32 {
 
   if (parser.kind() == TokenKind.LParen) {
     return parseFnType(parser, depth, startLine, startColumn);
+  }
+
+  // `[]T`, a slice: `[` and `]` with nothing between, then what it holds.
+  if (parser.kind() == TokenKind.LBracket && parser.peek().kind == TokenKind.RBracket) {
+    parser.advance();
+    parser.advance();
+    let element: i32 = parseType(parser);
+    return parser.ast.add(NodeKind.SliceType, startLine, startColumn,
+                          SliceTypeRef { element: element, depth: depth });
   }
 
   // `fn(i32): i32`, the way function types used to be written. It is

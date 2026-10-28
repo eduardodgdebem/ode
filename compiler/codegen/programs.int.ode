@@ -2051,12 +2051,57 @@ test "a build without --release stops at an overflow, a division by zero, a null
   assertEq(outputOf(replaced(source, "3")), "255\n");
 }
 
-// `source` with OVERFLOW written as `which`.
+// `source` with its marker -- OVERFLOW, or WHICH -- written as `which`.
 fn replaced(source: *i8, which: *i8): *i8 {
   let at: i64 = indexOf(source, "OVERFLOW");
+  let size: i64 = 8;
+  if (at < 0) {
+    at = indexOf(source, "WHICH");
+    size = 5;
+  }
   let out: *Builder = Builder.new();
   out.addBytes(source, at);
   out.add(which);
-  out.add(source + at + 8);
+  out.add(source + at + size);
   return out.take();
+}
+
+test "slices: made from a pointer, sliced again, indexed, and checked" {
+  let source: *i8 = `
+    extern fn printf(format: *i8, ...): i32;
+    import { alloc } from "std/mem";
+
+    struct Window {
+      values: []i64,
+    }
+
+    fn sum(values: []i64): i64 {
+      let total: i64 = 0;
+      for (i in 0..values.length) {
+        total = total + values[i];
+      }
+      return total;
+    }
+
+    fn main(): i32 {
+      let data: *i64 = alloc<i64>(5);
+      for (i in 0..5) {
+        data[i] = (i as i64 + 1) * 10;
+      }
+      let all: []i64 = data[0..5];
+      let middle: []i64 = all[1..4];
+      middle[0] = 99;
+      let window: Window = Window { values: all[3..] };
+      let held: *Window = &window;
+      printf("%lld %lld %lld %lld %lld\n", sum(all), sum(middle), all[1], held.values.length,
+             all[..2].length);
+      let text: *i8 = "hello";
+      let bytes: []i8 = text[1..4];
+      printf("%.*s\n", bytes.length as i32, bytes.data);
+      return all[WHICH] as i32;
+    }
+  `;
+  assertEq(outputOf(replaced(source, "0")), "229 169 99 2 2\nell\nexit 10\n");
+  assert(contains(outputOf(replaced(source, "5")), "index out of range"));
+  assert(contains(outputOf(replaced(source, "-1")), "index out of range"));
 }
