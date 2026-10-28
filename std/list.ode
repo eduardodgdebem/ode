@@ -60,6 +60,12 @@ export struct List<T> {
     return self.items + index;
   }
 
+  // The items, as a slice: the list's own, not a copy, and good until the
+  // list grows.
+  fn asSlice(self: *List<T>): []T {
+    return self.items[0..self.count];
+  }
+
   // Puts `item` at `index`, moving the ones from there on along by one;
   // `index` may be `count`, which is `push`.
   fn insert(self: *List<T>, index: i64, item: T): void {
@@ -523,5 +529,17 @@ test "an item is changed in place through ref" {
   first.count = first.count + 1;
   assertEq(counters.at(0).count, 1);
   assertEq(counters.at(1).count, 5);
+}
+
+test "a list's items as a slice, which sees what the list holds" {
+  let list: *List<i64> = List<i64>.new();
+  list.push(3);
+  list.push(4);
+  let items: []i64 = list.asSlice();
+  assertEq(items.length, 2);
+  assertEq(items[1], 4);
+  items[0] = 30;
+  assertEq(list.at(0), 30);
+  assertEq(List<i64>.new().asSlice().length, 0);
 }
 

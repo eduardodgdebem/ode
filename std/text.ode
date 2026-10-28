@@ -79,6 +79,11 @@ fn isSpaceByte(c: i8): bool {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\x0b' || c == '\x0c';
 }
 
+// The bytes of `text`, before its NUL, as a slice of it -- not a copy.
+export fn bytesOf(text: *i8): []i8 {
+  return text[0..textLength(text)];
+}
+
 // `text` without the spaces, tabs and line breaks at either end.
 export fn trim(text: *i8): *i8 {
   let start: i64 = 0;
@@ -708,5 +713,12 @@ test "decimals are read without a C library too" {
   assert(decimalValue("-1e3") == -1000.0, "an exponent");
   assert(decimalValue("0.001") == 0.001, "small");
   assert(decimalValue("123456789") == 123456789.0, "whole");
+}
+
+test "a string's bytes as a slice" {
+  let bytes: []i8 = bytesOf("ode");
+  assertEq(bytes.length, 3);
+  assertEq(bytes[2], 'e');
+  assertEq(bytesOf("").length, 0);
 }
 
