@@ -189,7 +189,7 @@ fn main(): i32 {
 | `use(middleware)` | runs before the routes, in the order added; returning `false` means it answered |
 | `serveStatic(prefix, dir)` | GET and HEAD under `prefix` from the files in `dir`; a directory is its `index.html` |
 | `notFound` | the handler when nothing else answers; 404 by default |
-| `log` | whether each request is printed with its status; on by default |
+| `log` | whether `listen` prints where it serves and a line per request -- time, method, status, target, duration -- coloured on a terminal unless `NO_COLOR` is set; on by default |
 | `data` | anything the handlers share |
 | `handle(request, response)` | runs a request through the app without a network, for tests |
 | `listen(port)` | serves until the process ends: `void \| ServeError` |

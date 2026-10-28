@@ -40,6 +40,7 @@ import { fopen, fclose, fread } from "std/c";
 import { matchRoute } from "./http/route";
 import { readRequest, sameIgnoringCase, queryValue } from "./http/parse";
 import { serveFile, sizeOf } from "./http/static";
+import { nowMicros, logInColor, logLine, listeningLine } from "./http/log";
 import { listenOn, acceptOn, ignoreSignals, setReadTimeout, writeAll, closeFd, forkChild, exitChild } from "./http/net";
 
 export enum Method {
@@ -242,7 +243,8 @@ export struct App {
   mounts: *List<Mount>,
   // What answers when nothing else does.
   notFound: Handler,
-  // Whether each request is printed, with its status.
+  // Whether each request is printed: when it came, its method, status and
+  // target, and how long it took (http/log.ode).
   log: bool,
   // Whatever the handlers share, as they cannot capture it.
   data: *i8,
@@ -348,6 +350,10 @@ export struct App {
     if (server < 0) {
       return ServeError.CannotListen;
     }
+    if (self.log) {
+      println(listeningLine(port, logInColor()));
+      flush();
+    }
     while (true) {
       let client: i32 = acceptOn(server);
       if (client < 0) {
@@ -369,6 +375,10 @@ export struct App {
     setReadTimeout(client, READ_TIMEOUT_SECONDS);
     let response: *Response = Response.new();
     let read: *Request | HttpError = readRequest(client);
+    // Timed from when the request has come in, not from when the
+    // connection opened: browsers open some before they have anything to
+    // send.
+    let start: i64 = nowMicros();
     if (read is HttpError) {
       if (read != HttpError.Closed) {
         if (read == HttpError.TooLarge) {
@@ -377,6 +387,7 @@ export struct App {
           response.text(400, "bad request");
         }
         writeResponse(client, Request.empty(), response);
+        self.logRequest(start, "-", "-", response);
       }
       closeFd(client);
       return;
@@ -384,14 +395,12 @@ export struct App {
     self.handle(read, response);
     writeResponse(client, read, response);
     closeFd(client);
+    self.logRequest(start, read.methodName, read.target, response);
+  }
+
+  fn logRequest(self: *App, start: i64, method: *i8, target: *i8, response: *Response): void {
     if (self.log) {
-      let line: *Builder = Builder.new();
-      line.addInt(response.status as i64);
-      line.add(" ");
-      line.add(read.methodName);
-      line.add(" ");
-      line.add(read.target);
-      println(line.take());
+      println(logLine(start, method, response.status, target, nowMicros() - start, logInColor()));
     }
   }
 }
