@@ -1,0 +1,323 @@
+// ---------------------------------------------------------------------------
+// A hash map from K to V, kept behind a pointer as List is:
+//
+//   let ages: *Map<*i8, i64> = textMap<i64>();
+//   ages.set("ada", 36);
+//   let age: i64 = ages.get("ada") ?? 0;       // `none` when it is not there
+//   ages.remove("ada");
+//
+// A key type has no hash or equality of its own to ask for, as Ode has no
+// interfaces, so a map is made with the two functions it needs:
+// `Map<K, V>.new(hash, same)`. `textMap` and `intMap` hand them in for the
+// keys most maps have, text compared by what it says and integers.
+//
+// Underneath, an open-addressed table, probed one slot at a time, of a
+// power-of-two size that doubles before it is three quarters full. A removed
+// key leaves a marker so that the keys past it are still found, and the
+// table is rebuilt without them as it grows.
+// ---------------------------------------------------------------------------
+
+import { List } from "./list";
+import { allocZeroed, release } from "./mem";
+import { equals } from "./text";
+
+// What a slot holds.
+let EMPTY: i8 = 0;
+let FULL: i8 = 1;
+let REMOVED: i8 = 2;
+
+export struct Map<K, V> {
+  keys: *K,
+  values: *V,
+  // EMPTY, FULL or REMOVED, for each slot.
+  states: *i8,
+  capacity: i64,
+  // The keys held, and the slots a removal left marked.
+  count: i64,
+  removed: i64,
+  hash: (K) => u64,
+  same: (K, K) => bool,
+
+  fn new(hash: (K) => u64, same: (K, K) => bool): *Map<K, V> {
+    let map: *Map<K, V> = allocZeroed<Map<K, V>>(1);
+    map.hash = hash;
+    map.same = same;
+    map.capacity = 0;
+    return map;
+  }
+
+  // Where `key` is held, or -1. A table with no slots holds nothing.
+  fn find(self: *Map<K, V>, key: K): i64 {
+    if (self.capacity == 0) {
+      return -1;
+    }
+    let mask: u64 = (self.capacity - 1) as u64;
+    let at: i64 = (self.hash(key) & mask) as i64;
+    for (probe in 0..self.capacity) {
+      let state: i8 = self.states[at];
+      if (state == EMPTY) {
+        return -1;
+      }
+      if (state == FULL && self.same(self.keys[at], key)) {
+        return at;
+      }
+      at = (at + 1) & (self.capacity - 1);
+    }
+    return -1;
+  }
+
+  // The table at `capacity` slots, with every key put back and the
+  // markers removals left behind gone.
+  fn resize(self: *Map<K, V>, capacity: i64): void {
+    let keys: *K = self.keys;
+    let values: *V = self.values;
+    let states: *i8 = self.states;
+    let old: i64 = self.capacity;
+
+    self.keys = allocZeroed<K>(capacity);
+    self.values = allocZeroed<V>(capacity);
+    self.states = allocZeroed<i8>(capacity);
+    self.capacity = capacity;
+    self.count = 0;
+    self.removed = 0;
+
+    for (index in 0..old) {
+      if (states[index] == FULL) {
+        self.set(keys[index], values[index]);
+      }
+    }
+    if (old > 0) {
+      release<K>(keys);
+      release<V>(values);
+      release<i8>(states);
+    }
+  }
+
+  // Sets the value for `key`, adding it if it is not there.
+  fn set(self: *Map<K, V>, key: K, value: V): void {
+    let found: i64 = self.find(key);
+    if (found >= 0) {
+      self.values[found] = value;
+      return;
+    }
+    // Room first: a slot for every key, and three quarters full at most,
+    // counting the markers, which slow every search down as keys do.
+    if ((self.count + self.removed + 1) * 4 > self.capacity * 3) {
+      let capacity: i64 = 8;
+      while ((self.count + 1) * 4 > capacity * 3) {
+        capacity = capacity * 2;
+      }
+      if (capacity < self.capacity) {
+        capacity = self.capacity;
+      }
+      self.resize(capacity * 2);
+    }
+    let mask: u64 = (self.capacity - 1) as u64;
+    let at: i64 = (self.hash(key) & mask) as i64;
+    while (self.states[at] == FULL) {
+      at = (at + 1) & (self.capacity - 1);
+    }
+    if (self.states[at] == REMOVED) {
+      self.removed = self.removed - 1;
+    }
+    self.keys[at] = key;
+    self.values[at] = value;
+    self.states[at] = FULL;
+    self.count = self.count + 1;
+  }
+
+  // The value for `key`, or `none` when it has none.
+  fn get(self: *Map<K, V>, key: K): V | none {
+    let found: i64 = self.find(key);
+    if (found < 0) {
+      return none;
+    }
+    return self.values[found];
+  }
+
+  fn has(self: *Map<K, V>, key: K): bool {
+    return self.find(key) >= 0;
+  }
+
+  // Takes `key` out; false when it was not there.
+  fn remove(self: *Map<K, V>, key: K): bool {
+    let found: i64 = self.find(key);
+    if (found < 0) {
+      return false;
+    }
+    self.states[found] = REMOVED;
+    self.count = self.count - 1;
+    self.removed = self.removed + 1;
+    return true;
+  }
+
+  fn isEmpty(self: *Map<K, V>): bool {
+    return self.count == 0;
+  }
+
+  // Takes every key out, keeping the room they took.
+  fn clear(self: *Map<K, V>): void {
+    for (index in 0..self.capacity) {
+      self.states[index] = EMPTY;
+    }
+    self.count = 0;
+    self.removed = 0;
+  }
+
+  // The keys, in no particular order, as a new list.
+  fn keyList(self: *Map<K, V>): *List<K> {
+    let found: *List<K> = List<K>.withCapacity(self.count);
+    for (index in 0..self.capacity) {
+      if (self.states[index] == FULL) {
+        found.push(self.keys[index]);
+      }
+    }
+    return found;
+  }
+
+  // Calls `visit` with each key and its value, in no particular order. The
+  // map is not to be changed while it does.
+  fn each(self: *Map<K, V>, visit: (K, V) => void): void {
+    for (index in 0..self.capacity) {
+      if (self.states[index] == FULL) {
+        visit(self.keys[index], self.values[index]);
+      }
+    }
+  }
+
+  // Frees the map; neither it nor anything it handed out may be used
+  // afterwards. The keys and values themselves are the caller's.
+  fn release(self: *Map<K, V>): void {
+    if (self.capacity > 0) {
+      release<K>(self.keys);
+      release<V>(self.values);
+      release<i8>(self.states);
+    }
+    release<Map<K, V>>(self);
+  }
+}
+
+// FNV-1a over the bytes of `text`, up to its NUL.
+export fn hashText(text: *i8): u64 {
+  let hash: u64 = 14695981039346656037;
+  let at: i64 = 0;
+  while (text[at] != 0) {
+    hash = (hash ^ ((text[at] as u64) & 0xff)) * 1099511628211;
+    at = at + 1;
+  }
+  return hash;
+}
+
+export fn sameText(a: *i8, b: *i8): bool {
+  return equals(a, b);
+}
+
+// An integer spread over all 64 bits, so that keys counting up do not land
+// in neighbouring slots: SplitMix64's finaliser.
+export fn hashInt(value: i64): u64 {
+  let mixed: u64 = value as u64;
+  mixed = (mixed ^ (mixed >> 30)) * 0xbf58476d1ce4e5b9;
+  mixed = (mixed ^ (mixed >> 27)) * 0x94d049bb133111eb;
+  return mixed ^ (mixed >> 31);
+}
+
+export fn sameInt(a: i64, b: i64): bool {
+  return a == b;
+}
+
+// A map whose keys are text, compared by what it says.
+export fn textMap<V>(): *Map<*i8, V> {
+  return Map<*i8, V>.new(hashText, sameText);
+}
+
+// A map whose keys are integers.
+export fn intMap<V>(): *Map<i64, V> {
+  return Map<i64, V>.new(hashInt, sameInt);
+}
+
+// ---------------------------------------------------------------------------
+
+import { Builder } from "./text";
+
+test "set, get, overwrite and remove" {
+  let ages: *Map<*i8, i64> = textMap<i64>();
+  assert(ages.isEmpty());
+  assertEq(ages.get("ada") ?? -1, -1);
+  ages.set("ada", 36);
+  ages.set("alan", 41);
+  assertEq(ages.get("ada") ?? -1, 36);
+  assertEq(ages.count, 2);
+  ages.set("ada", 37);
+  assertEq(ages.get("ada") ?? -1, 37);
+  assertEq(ages.count, 2);
+  assert(ages.remove("ada"));
+  assert(!ages.remove("ada"));
+  assert(!ages.has("ada"));
+  assert(ages.has("alan"));
+  assertEq(ages.count, 1);
+}
+
+test "keys are compared by what they say, not where they are" {
+  let counts: *Map<*i8, i64> = textMap<i64>();
+  let built: *Builder = Builder.new();
+  built.add("od");
+  built.push('e');
+  counts.set("ode", 1);
+  assertEq(counts.get(built.take()) ?? 0, 1);
+}
+
+test "many keys, removed and added again, are all still found" {
+  let squares: *Map<i64, i64> = intMap<i64>();
+  for (i in 0..1000) {
+    squares.set(i as i64, (i * i) as i64);
+  }
+  assertEq(squares.count, 1000);
+  for (i in 0..1000) {
+    if (i % 2 == 0) {
+      squares.remove(i as i64);
+    }
+  }
+  assertEq(squares.count, 500);
+  for (i in 0..1000) {
+    if (i % 2 == 0) {
+      assert(!squares.has(i as i64), "removed");
+    } else {
+      assertEq(squares.get(i as i64) ?? -1, (i * i) as i64);
+    }
+  }
+  for (i in 0..1000) {
+    squares.set(i as i64, -1);
+  }
+  assertEq(squares.count, 1000);
+  assertEq(squares.get(998) ?? 0, -1);
+}
+
+let VISITED: i64 = 0;
+
+test "each key once, with its value, and the keys as a list" {
+  let lengths: *Map<*i8, i64> = textMap<i64>();
+  lengths.set("a", 1);
+  lengths.set("bb", 2);
+  lengths.set("ccc", 3);
+  VISITED = 0;
+  lengths.each((key, value) => {
+    VISITED = VISITED + value;
+  });
+  assertEq(VISITED, 6);
+  assertEq(lengths.keyList().count, 3);
+  lengths.clear();
+  assert(lengths.isEmpty());
+  assert(!lengths.has("a"));
+  lengths.set("a", 9);
+  assertEq(lengths.get("a") ?? 0, 9);
+}
+
+test "a map with keys of its own type, and how they are hashed" {
+  let byLength: *Map<i64, *i8> = Map<i64, *i8>.new((n) => n as u64, sameInt);
+  byLength.set(3, "ode");
+  byLength.set(11, "eleven");
+  assertEq(byLength.get(3) ?? "", "ode");
+  assert(hashText("ode") != hashText("edo"), "different text, different hash");
+  assertEq(hashText(""), 14695981039346656037);
+  assert(hashInt(1) != hashInt(2), "spread");
+}
