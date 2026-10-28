@@ -1,0 +1,7 @@
+{
+  "ode": {
+    "command": "ode",
+    "args": ["lsp"],
+    "extensionToLanguage": { ".ode": "ode" }
+  }
+}

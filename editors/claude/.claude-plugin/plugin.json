@@ -1,0 +1,8 @@
+{
+  "name": "ode",
+  "description": "Code intelligence for Ode: the compiler's language server, `ode lsp`, for problems after edits, hovers and definitions",
+  "author": {
+    "name": "Eduardo Goulart de Bem"
+  },
+  "repository": "https://github.com/eduardodgdebem/ode"
+}
