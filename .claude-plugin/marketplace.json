@@ -1,0 +1,14 @@
+{
+  "name": "ode",
+  "owner": {
+    "name": "Eduardo Goulart de Bem"
+  },
+  "description": "The Ode language's own plugins: code intelligence through its compiler",
+  "plugins": [
+    {
+      "name": "ode",
+      "source": "./editors/claude",
+      "description": "Code intelligence for Ode, through `ode lsp`"
+    }
+  ]
+}

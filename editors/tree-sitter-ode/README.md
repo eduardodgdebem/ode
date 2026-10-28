@@ -58,6 +58,23 @@ completes, and `vim.diagnostic` shows the problems. It needs `ode` on the
 `PATH`, built with the server -- `build/ode` in the repository -- and finds
 the standard library as `ode` always does.
 
+### Claude Code
+
+`editors/claude/` is a Claude Code plugin that runs the same server, and the
+repository is the marketplace it is listed in. Claude then sees the problems
+its own edits bring into a `.ode` file, on the turn after the edit, and its
+`LSP` tool hovers and goes to definitions:
+
+```sh
+claude plugin marketplace add eduardodgdebem/ode   # or the path of a checkout
+claude plugin install ode@ode
+```
+
+Added from a checkout, the plugin runs from `editors/claude` in place. Like
+the Neovim client it needs `ode` on the `PATH`. Of the `LSP` tool's
+operations the server answers hover and definition; references, symbols
+and call hierarchies it does not provide yet.
+
 ## Working on the grammar
 
 ```sh
