@@ -997,6 +997,10 @@ fn genSyntax(e: *Emitter, node: i32): *i8 {
       if (e.an.functionRefs[node] != 0) {
         return direct(e, node);
       }
+      // `none` is the one value of an empty struct.
+      if (e.an.isConstant[node] != 0 && typeOfNode(e, node).isNone()) {
+        return "zeroinitializer";
+      }
       return genVariable(e, node);
     }
     Lambda => lambdaValue(e, node),

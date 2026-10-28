@@ -43,7 +43,7 @@ import {
   itemCount, negated, nodeName, nodeTextLength, setNodeName,
 } from "../syntax/ast";
 import { SymbolKind } from "../types/symbols";
-import { TypeKind, Type, fitsIn, parseMagnitude } from "../types/types";
+import { NONE, TypeKind, Type, fitsIn, parseMagnitude } from "../types/types";
 
 // Only identifiers, fields, indices and pointer dereferences denote storage
 // that can be assigned to or have its address taken.
@@ -141,6 +141,11 @@ fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
   let symbol: i32 = an.symbols.find(name);
   noteCompletionScope(an, name);
 
+  // `none`, unless something in scope has its name.
+  if (symbol < 0 && equals(name, NONE)) {
+    an.isConstant[node] = 1;
+    return Type.none();
+  }
   if (symbol < 0) {
     analyzerFail(an, node, Problem.UndefinedVariable, Facts.about(name));
     return Type.make(TypeKind.None, 0);
@@ -164,7 +169,8 @@ fn checkIdent(an: *Analyzer, node: i32, ident: Ident): Type {
 // constants: nothing may assign to them, and a match on one picks its arm
 // while compiling.
 fn isTargetConstant(an: *Analyzer, node: i32): bool {
-  return an.ast.nodes[node].kind == NodeKind.Ident && an.isConstant[node] != 0;
+  return an.ast.nodes[node].kind == NodeKind.Ident && an.isConstant[node] != 0 &&
+         !an.types[node].isNone();
 }
 
 // Their values come from what the compiler wrote into the module, since a

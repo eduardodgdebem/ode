@@ -1957,3 +1957,65 @@ test "a pointer method on a temporary works on a copy of it" {
     }
   `), "42 1 1\n");
 }
+
+test "none stands in for a missing value, and ?? fills it in" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+    import { parseInt, ParseError } from "std/text";
+
+    struct Task {
+      startedAt: f64 | none,
+    }
+
+    fn find(wanted: i64): i64 | none {
+      if (wanted == 5) {
+        return 1;
+      }
+      return none;
+    }
+
+    fn parsed(text: *i8): i64 | none | ParseError {
+      if (text[0] == 0) {
+        return none;
+      }
+      return parseInt(text);
+    }
+
+    fn describe(at: i64 | none): *i8 {
+      return match (at) {
+        none => "missing",
+        i64 => "found",
+      };
+    }
+
+    fn main(): i32 {
+      let at: i64 | none = find(5);
+      let missing: i64 | none = find(9);
+      printf("%lld %lld %s %s\n", at ?? -1, missing ?? -1, describe(at), describe(missing));
+      printf("%d %d %d\n", (missing is none) as i32, (at == missing) as i32,
+             (missing == none) as i32);
+      printf("%lld %lld %lld\n", parsed("") ?? 7, parsed("x") ?? 8, parsed("42") ?? 9);
+      let task: Task = Task { startedAt: none };
+      let before: f64 = task.startedAt ?? 0.5;
+      task.startedAt = 12.5;
+      printf("%.1f %.1f\n", before, task.startedAt ?? 0.5);
+      return 0;
+    }
+  `), "1 -1 found missing\n1 0 1\n7 8 42\n0.5 12.5\n");
+}
+
+test "a statement at the top level, beside a struct" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+
+    (1 + 6);
+
+    struct Point { x: i32 }
+
+    fn main(): i32 {
+      let p: Point = Point { x: 3 };
+      printf("%d\n", p.x);
+      return 0;
+    }
+  `), "3\n");
+}

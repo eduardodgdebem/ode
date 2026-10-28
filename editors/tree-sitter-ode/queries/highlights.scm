@@ -39,6 +39,12 @@
 (boolean_literal) @boolean
 (null_literal) @constant.builtin
 
+; `none` is a predeclared name, not a keyword: a local of that name hides it.
+((identifier) @constant.builtin
+  (#eq? @constant.builtin "none"))
+((type_identifier) @type.builtin
+  (#eq? @type.builtin "none"))
+
 (string_literal) @string
 
 (char_literal) @character

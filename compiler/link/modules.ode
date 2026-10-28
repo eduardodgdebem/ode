@@ -34,11 +34,11 @@ import { SOURCE_PATH, FAILED, report } from "../diagnostics/report";
 import { markTemplates, instantiateGenerics } from "./generics";
 import { stemOf, realpath } from "../os/files";
 import {
-  NO_NODE, NodeKind, FieldAccess, ImportName, MethodCall, Syntax, importModule, itemAt,
-  itemCount, nodeName, setNodeName,
+  NO_NODE, NodeKind, FieldAccess, ImportName, MethodCall, StructDecl, Syntax, importModule,
+  itemAt, itemCount, nodeItems, nodeName, setNodeName,
 } from "../syntax/ast";
 import { Symbol, SymbolTable } from "../types/symbols";
-import { TypeKind, typeKindFromName } from "../types/types";
+import { NONE, TypeKind, typeKindFromName } from "../types/types";
 
 struct Module {
   // As diagnostics show it: the path given on the command line for the entry
@@ -301,14 +301,12 @@ export fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
     let item: i32 = itemAt(an.ast, program, index);
     let kind: NodeKind = an.ast.nodes[item].kind;
 
-    if (an.ast.nodes[item].module == module &&
+    // The kind first: a statement at the top level, `(1 + 6);`, has no name.
+    let wanted: bool = (wantStruct && isTypeDecl(kind)) ||
+                       (!wantStruct && isValueDecl(kind));
+    if (wanted && an.ast.nodes[item].module == module &&
         equals(nodeName(an.ast, item), name)) {
-      if (wantStruct && isTypeDecl(kind)) {
-        return item;
-      }
-      if (!wantStruct && isValueDecl(kind)) {
-        return item;
-      }
+      return item;
     }
   }
 
@@ -481,7 +479,22 @@ fn resolveStructName(an: *Analyzer, program: i32, module: i32,
     }
   }
 
+  // `none` is every file's without an import.
+  if (equals(name, NONE)) {
+    return NONE;
+  }
   return null;
+}
+
+// `struct none {}`, which every program has: written into the entry file's
+// top level, at no line, before any name is given out.
+fn declareNone(an: *Analyzer, program: i32): void {
+  let node: i32 = an.ast.add(NodeKind.Struct, 0, 0, StructDecl {
+    name: NONE, typeParams: NO_NODE, members: List<i32>.new(),
+  });
+  an.ast.nodes[node].module = 0;
+  nodeItems(an.ast, program).insert(0, node);
+  an.growNodeArrays();
 }
 
 // The first struct declared anywhere under `name`, for the diagnostic that
@@ -608,6 +621,7 @@ export fn rewriteNodeNames(an: *Analyzer, program: i32, node: i32,
 }
 
 export fn linkModules(an: *Analyzer, program: i32): void {
+  declareNone(an, program);
   assignLinkNames(an, program);
   checkImports(an, program);
   rewriteStructNames(an, program);

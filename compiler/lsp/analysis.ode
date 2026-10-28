@@ -601,7 +601,7 @@ let ITEM_KEYWORD: i64 = 14;
 let ITEM_ENUM_MEMBER: i64 = 20;
 let ITEM_STRUCT: i64 = 22;
 
-let KEYWORDS: *i8 = "let fn return if else while for in break continue struct enum error type import export from extern match true false null test defer try catch is as sizeof";
+let KEYWORDS: *i8 = "let fn return if else while for in break continue struct enum error type import export from extern match true false null none test defer try catch is as sizeof";
 
 fn item(label: *i8, kind: i64, detail: *i8): *Json {
   let json: *Json = jsonObject().set("label", jsonText(label)).set("kind", jsonInt(kind));

@@ -14,7 +14,7 @@ import { Builder, equals, fromInt } from "std/text";
 import { analyzerParseType } from "../check/analyzer";
 import {
   unionInfo, valueOf, valuesOf, errorCodeRange, holdsError, holdsSeveral,
-  memberFor, valueTag,
+  memberFor, valueTag, holdsValue,
 } from "../check/errors";
 import {
   Emitter, freshLabel, emitAlloca, emitLine, emitLabel, emitBranch,
@@ -278,8 +278,8 @@ export fn genTry(e: *Emitter, attempt: Try): *i8 {
   return convertUnion(e, value, union, valueOf(union));
 }
 
-// `value ?? fallback`: the fallback only runs when the value is an error, or
-// a null pointer.
+// `value ?? fallback`: the fallback only runs when the value is an error,
+// `none`, or a null pointer.
 export fn genCoalesce(e: *Emitter, node: i32, coalesce: Binary): *i8 {
   let left: i32 = coalesce.left;
   let leftType: Type = typeOfNode(e, left);
@@ -288,7 +288,16 @@ export fn genCoalesce(e: *Emitter, node: i32, coalesce: Binary): *i8 {
 
   let value: *i8 = genExpr(e, left);
   let present: *i8 = "";
-  if (leftType.isUnion()) {
+  if (leftType.isUnion() && holdsValue(leftType, Type.none())) {
+    // A value, and not the one that is `none`.
+    let code: *i8 = extract(e, leftType, value, 0);
+    let both: *Builder = Builder.new();
+    both.add("and i1 ");
+    both.add(compare(e, "sle", "i32", code, "0"));
+    both.add(", ");
+    both.add(compare(e, "ne", "i32", code, fromInt(valueTag(Type.none()))));
+    present = emitAssign(e, both.data);
+  } else if (leftType.isUnion()) {
     present = compare(e, "sle", "i32", extract(e, leftType, value, 0), "0");
   } else {
     present = compare(e, "ne", "ptr", value, "null");
