@@ -430,7 +430,7 @@ fn binaryOpcode(op: BinaryOp, type: Type): *i8 {
 
     // The comparisons. A pointer compares as an unsigned integer.
     .Equal => { if (float) { return "fcmp oeq"; } return "icmp eq"; }
-    .NotEqual => { if (float) { return "fcmp one"; } return "icmp ne"; }
+    .NotEqual => { if (float) { return "fcmp une"; } return "icmp ne"; }
     .Less => {
       if (float) { return "fcmp olt"; }
       if (signed) { return "icmp slt"; }
@@ -612,6 +612,12 @@ fn genMethodCall(e: *Emitter, node: i32, call: MethodCall): *i8 {
   if (mode == ReceiverMode.Address) {
     return genCallWith(e, node, direct(e, node), call.args, "ptr",
                        genAddress(e, object));
+  }
+
+  if (mode == ReceiverMode.Temporary) {
+    let slot: *i8 = emitAlloca(e, llvmTypeName(objectType));
+    emitStore(e, objectType, genExpr(e, object), slot);
+    return genCallWith(e, node, direct(e, node), call.args, "ptr", slot);
   }
 
   if (mode == ReceiverMode.Load) {

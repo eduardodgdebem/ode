@@ -186,7 +186,6 @@ export enum Problem {
   MethodOfNonStruct,
   NoSuchMethod,
   NoSelf,
-  MethodOnTemporary,
 
   // Generics.
   WrongTypeArgumentCount,
@@ -882,10 +881,6 @@ export fn describe(problem: Problem, facts: Facts): Description {
     .NoSelf => {
       return saysMore(text2(q(name), " has no 'self' parameter"),
                       text3("call it on the struct instead: '", name, "(...)'"));
-    }
-    .MethodOnTemporary => {
-      return saysMore(text3("cannot call ", q(name), " on a temporary value"),
-                      "it takes 'self' by pointer, so store the value first");
     }
 
     .WrongTypeArgumentCount => {

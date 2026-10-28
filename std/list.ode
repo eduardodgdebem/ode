@@ -53,6 +53,38 @@ export struct List<T> {
     self.items[index] = item;
   }
 
+  // Where the item at `index` is, so it can be changed in place:
+  // `list.ref(0).count += 1`. It stays valid until the list grows.
+  fn ref(self: *List<T>, index: i64): *T {
+    assert(index >= 0 && index < self.count, "list index out of range");
+    return self.items + index;
+  }
+
+  // Puts `item` at `index`, moving the ones from there on along by one;
+  // `index` may be `count`, which is `push`.
+  fn insert(self: *List<T>, index: i64, item: T): void {
+    assert(index >= 0 && index <= self.count, "list index out of range");
+    self.push(item);
+    let at: i64 = self.count - 1;
+    while (at > index) {
+      self.items[at] = self.items[at - 1];
+      at = at - 1;
+    }
+    self.items[index] = item;
+  }
+
+  // Takes the item at `index` out and returns it, moving the ones after it
+  // back by one.
+  fn removeAt(self: *List<T>, index: i64): T {
+    assert(index >= 0 && index < self.count, "list index out of range");
+    let item: T = self.items[index];
+    for (at in index..self.count - 1) {
+      self.items[at] = self.items[at + 1];
+    }
+    self.count = self.count - 1;
+    return item;
+  }
+
   fn last(self: *List<T>): T {
     assert(self.count > 0, "last of an empty list");
     return self.items[self.count - 1];
@@ -457,3 +489,39 @@ test "sort orders many items, every one kept" {
   }
   assertEq(reduce<i64, i64>(list, 0, (total, n) => total + n), sum);
 }
+
+struct Counter {
+  name: *i8,
+  count: i64,
+}
+
+test "items are inserted and removed in the middle" {
+  let list: *List<i64> = List<i64>.new();
+  list.push(1);
+  list.push(3);
+  list.insert(1, 2);
+  list.insert(0, 0);
+  list.insert(list.count, 4);
+  assertEq(list.count, 5);
+  for (index in 0..list.count) {
+    assertEq(list.at(index), index);
+  }
+  assertEq(list.removeAt(0), 0);
+  assertEq(list.removeAt(1), 2);
+  assertEq(list.removeAt(list.count - 1), 4);
+  assertEq(list.count, 2);
+  assertEq(list.at(0), 1);
+  assertEq(list.at(1), 3);
+}
+
+test "an item is changed in place through ref" {
+  let counters: *List<Counter> = List<Counter>.new();
+  counters.push(Counter { name: "a", count: 0 });
+  counters.push(Counter { name: "b", count: 0 });
+  counters.ref(1).count = 5;
+  let first: *Counter = counters.ref(0);
+  first.count = first.count + 1;
+  assertEq(counters.at(0).count, 1);
+  assertEq(counters.at(1).count, 5);
+}
+

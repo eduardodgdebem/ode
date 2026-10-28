@@ -1912,3 +1912,48 @@ test "a match on a bool, and on text by what it says" {
     }
   `), "yes 1 2 0 0\n");
 }
+
+test "a NaN is unequal to everything, itself included" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let zero: f64 = 0.0;
+      let nan: f64 = zero / zero;
+      let inf: f64 = 1.0 / zero;
+      printf("%d %d %d %d %d\n", (nan != nan) as i32, (nan == nan) as i32,
+             (inf - inf != 0.0) as i32, (nan < 1.0) as i32, (2.5 != 2.5) as i32);
+      return 0;
+    }
+  `), "1 0 1 0 0\n");
+}
+
+test "a pointer method on a temporary works on a copy of it" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+    import { List } from "std/list";
+
+    struct Counter {
+      count: i64,
+
+      fn bump(self: *Counter): i64 {
+        self.count = self.count + 1;
+        return self.count;
+      }
+    }
+
+    fn fresh(): Counter {
+      return Counter { count: 41 };
+    }
+
+    fn main(): i32 {
+      let counters: *List<Counter> = List<Counter>.new();
+      counters.push(Counter { count: 0 });
+      let fromCall: i64 = fresh().bump();
+      let fromCopy: i64 = counters.at(0).bump();
+      counters.ref(0).bump();
+      printf("%lld %lld %lld\n", fromCall, fromCopy, counters.at(0).count);
+      return 0;
+    }
+  `), "42 1 1\n");
+}
