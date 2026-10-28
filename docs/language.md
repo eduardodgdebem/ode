@@ -415,7 +415,10 @@ printf("%d\n", p.lengthSquared());  // passed *p
 ```
 
 As in Go, the receiver is adapted to `self`: a variable is passed by address
-to a `*Vec2` method, and a pointer is followed for a `Vec2` one. `self` is an
+to a `*Vec2` method, and a pointer is followed for a `Vec2` one. A value with
+no address of its own -- `Vec2.new(1, 2).scale(2)`, `list.at(0).reset()` --
+is copied into a slot for the call, and the method changes that copy;
+`list.ref(0).reset()` changes the item itself. `self` is an
 ordinary, explicitly typed parameter, as in Zig, so `Vec2.scale(&v, 2)` is the
 same call written out. Methods come with their struct, so importing the
 struct is enough to call them. [`examples/methods.ode`](../examples/methods.ode) shows the rest.

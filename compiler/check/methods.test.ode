@@ -116,7 +116,7 @@ test "method self wrong type" {
   assertEq(found.at(1).facts.other, "Point");
 }
 
-test "pointer method on temporary" {
+test "a pointer method is called on a temporary, through a slot of its own" {
   let found: *List<Diagnostic> = Scope.new()
       .declare(`
         struct Point {
@@ -125,10 +125,6 @@ test "pointer method on temporary" {
 
           fn new(x: i32, y: i32): Point {
             return Point { x: x, y: y };
-          }
-
-          fn sum(self: Point): i32 {
-            return self.x + self.y;
           }
 
           fn shift(self: *Point, by: i32): void {
@@ -141,11 +137,7 @@ test "pointer method on temporary" {
         Point.new(1, 2).shift(5);
         return 0;
       `);
-  assertEq(found.count, 1);
-  assertEq(found.at(0).problem, Problem.MethodOnTemporary);
-  assertEq(found.at(0).line, 1);
-  assertEq(found.at(0).column, 17);
-  assertEq(found.at(0).facts.name, "Point.shift");
+  assertEq(found.count, 0);
 }
 
 test "static method not found" {

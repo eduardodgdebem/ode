@@ -40,6 +40,10 @@ export enum ReceiverMode {
   Address,
   // The struct a pointer points at, to a struct `self`.
   Load,
+  // A value with no address of its own -- a call's result, `list.at(0)` --
+  // to a pointer `self`: it is stored in a slot of the call's own, and the
+  // slot's address is passed. What the method changes there is gone after.
+  Temporary,
 }
 // How a method call passes its receiver.
 
@@ -281,12 +285,12 @@ export fn checkMethodCall(an: *Analyzer, node: i32): Type {
   let receivesPointer: bool = objectType.isPointer();
 
   if (self == SelfKind.Pointer && !receivesPointer) {
-    // `self` is the value's address, and a temporary has none to take.
-    if (!isLValue(an, object)) {
-      analyzerFail(an, node, Problem.MethodOnTemporary, Facts.about(fullName));
-      return Type.make(TypeKind.None, 0);
+    // `self` is the value's address; a temporary is given one.
+    if (isLValue(an, object)) {
+      an.receivers[node] = ReceiverMode.Address;
+    } else {
+      an.receivers[node] = ReceiverMode.Temporary;
     }
-    an.receivers[node] = ReceiverMode.Address;
   } else if (self == SelfKind.Value && receivesPointer) {
     an.receivers[node] = ReceiverMode.Load;
   } else {

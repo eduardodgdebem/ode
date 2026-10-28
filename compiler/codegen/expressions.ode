@@ -614,6 +614,12 @@ fn genMethodCall(e: *Emitter, node: i32, call: MethodCall): *i8 {
                        genAddress(e, object));
   }
 
+  if (mode == ReceiverMode.Temporary) {
+    let slot: *i8 = emitAlloca(e, llvmTypeName(objectType));
+    emitStore(e, objectType, genExpr(e, object), slot);
+    return genCallWith(e, node, direct(e, node), call.args, "ptr", slot);
+  }
+
   if (mode == ReceiverMode.Load) {
     let structType: Type = objectType.base();
     let value: *i8 = emitLoad(e, structType, genStructPointer(e, object));
