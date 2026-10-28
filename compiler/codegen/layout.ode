@@ -21,6 +21,9 @@ export fn llvmTypeName(type: Type): *i8 {
   if (type.kind == TypeKind.Struct) {
     return llvmName('%', type.structName);
   }
+  if (type.isSlice()) {
+    return "{ ptr, i64 }";
+  }
 
   // A union is its code -- 0 for the value, the error's number otherwise --
   // and its value. One that may hold several types keeps the value in as
@@ -61,7 +64,7 @@ export fn llvmTypeName(type: Type): *i8 {
 export fn zeroValue(type: Type): *i8 {
   if (type.isPointer() || type.isFunction()) { return "null"; }
   return match (type.kind) {
-    .Struct, .Union => "zeroinitializer",
+    .Struct, .Union, .Slice => "zeroinitializer",
     .Bool => "false",
     .F32, .F64 => "0.0",
     else => "0",

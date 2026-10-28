@@ -59,6 +59,27 @@ export fn checkNotNull(e: *Emitter, node: i32, pointer: *i8): *i8 {
   return pointer;
 }
 
+// An index into a slice, `offset` an i64, checked to be in it: one compare,
+// unsigned, so a negative index is as out of range as one past the end.
+export fn checkInBounds(e: *Emitter, node: i32, offset: *i8, length: *i8): void {
+  if (checksAtRunTime()) {
+    check(e, node, compare(e, "ult", "i64", offset, length), "index out of range");
+  }
+}
+
+// `[start..end]`: running forwards from 0, and, of a slice, ending in it.
+export fn checkSliceBounds(e: *Emitter, node: i32, start: *i8, end: *i8, ofSlice: bool,
+                           length: *i8): void {
+  if (!checksAtRunTime()) {
+    return;
+  }
+  check(e, node, compare(e, "sle", "i64", "0", start), "slice out of range");
+  check(e, node, compare(e, "sle", "i64", start, end), "slice out of range");
+  if (ofSlice) {
+    check(e, node, compare(e, "sle", "i64", end, length), "slice out of range");
+  }
+}
+
 // Whether `op` on values of `type` is checked: + - * on a signed integer,
 // and / and % on any integer.
 export fn isCheckedArithmetic(op: BinaryOp, type: Type): bool {

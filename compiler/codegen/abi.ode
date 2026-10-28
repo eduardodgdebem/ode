@@ -71,7 +71,7 @@ fn flatten(structs: *StructTable, type: Type, base: i64, out: *List<Scalar>): bo
     let field: Type = structs.items[structIndex].fields[index].type;
     offset = alignUp(offset, alignOf(structs, field) as i64);
     let size: i64 = sizeOf(structs, field) as i64;
-    if (field.isUnion() || holdsSeveral(field)) {
+    if (field.isUnion() || holdsSeveral(field) || field.isSlice()) {
       return false;
     }
     if (field.isStruct()) {

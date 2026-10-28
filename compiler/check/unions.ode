@@ -110,7 +110,7 @@ fn patternType(an: *Analyzer, pattern: i32, subject: Type): Type {
     an.ast.nodes[pattern].syntax = TypeRef { name: resolved, depth: 0, args: List<i32>.new() };
     kind = NodeKind.Type;
   }
-  if (kind != NodeKind.Type && kind != NodeKind.FnType) {
+  if (kind != NodeKind.Type && kind != NodeKind.FnType && kind != NodeKind.SliceType) {
     analyzerFail(an, pattern, Problem.PatternNotType, Facts.about(subject.toText()));
     return Type.make(TypeKind.None, 0);
   }

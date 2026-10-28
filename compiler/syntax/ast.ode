@@ -353,6 +353,21 @@ export struct FnTypeRef {
   depth: i32,
 }
 
+// `[]T`: a slice of T, a pointer and a length.
+export struct SliceTypeRef {
+  element: i32,
+  depth: i32,
+}
+
+// `base[start..end]`: the slice of a pointer or of another slice from
+// `start` up to, not including, `end`. Either may be NO_NODE -- `s[..n]`,
+// `s[k..]` -- for the start or the end of what is sliced.
+export struct Slicing {
+  base: i32,
+  start: i32,
+  end: i32,
+}
+
 // `i64 | ParseError`.
 export struct UnionTypeRef {
   members: *List<i32>,
@@ -380,7 +395,8 @@ export type Syntax = Program | Block | VarDecl | Assign | If | While | For | Bre
     Match | Arm | Call | CallValue | MethodCall | FieldAccess | StructLit |
     FieldInit | Args | Lambda | Binary | Unary | Cast | Index | Sizeof | Try |
     Is | Catch | NumberLit | StringLit | CharLit | BoolLit | NullLit | Ident |
-    TypeRef | FnTypeRef | UnionTypeRef | TypeParams | TypeParam | TypeArgs |
+    TypeRef | FnTypeRef | SliceTypeRef | Slicing | UnionTypeRef | TypeParams | TypeParam |
+    TypeArgs |
     ErrorNode;
 
 fn listOf(first: i32, second: i32): *List<i32> {
@@ -451,6 +467,8 @@ export fn syntaxChildren(syntax: Syntax): *List<i32> {
     Catch => listOf(syntax.value, syntax.block),
     TypeRef => joined(List<i32>.new(), syntax.args),
     FnTypeRef => joined(single(syntax.result), syntax.params),
+    SliceTypeRef => single(syntax.element),
+    Slicing => joined(listOf(syntax.base, syntax.start), single(syntax.end)),
     UnionTypeRef => joined(List<i32>.new(), syntax.members),
     TypeParams => joined(List<i32>.new(), syntax.names),
     TypeArgs => joined(List<i32>.new(), syntax.types),
@@ -523,6 +541,8 @@ export fn withChildren(syntax: Syntax, children: *List<i32>): Syntax {
     TypeRef => TypeRef { name: syntax.name, depth: syntax.depth, args: rest(children, 0) },
     FnTypeRef => FnTypeRef { params: rest(children, 1), result: children.at(0),
                              depth: syntax.depth },
+    SliceTypeRef => SliceTypeRef { element: children.at(0), depth: syntax.depth },
+    Slicing => Slicing { base: children.at(0), start: children.at(1), end: children.at(2) },
     UnionTypeRef => UnionTypeRef { members: rest(children, 0) },
     TypeParams => TypeParams { names: rest(children, 0) },
     TypeArgs => TypeArgs { types: rest(children, 0) },
@@ -701,6 +721,7 @@ export fn typeDepth(ast: *Ast, node: i32): i32 {
   return match (syntax) {
     TypeRef => syntax.depth,
     FnTypeRef => syntax.depth,
+    SliceTypeRef => syntax.depth,
     else => 0,
   };
 }
@@ -968,6 +989,9 @@ export enum NodeKind {
   Is,
   // The `<i64>` of a generic call, `max<i64>(a, b)`.
   TypeArgs,
+  // `[]T`, and `base[start..end]`.
+  SliceType,
+  Slicing,
 }
 
 struct Node {
@@ -1075,6 +1099,8 @@ export fn nodeKindName(kind: NodeKind): *i8 {
     .Match => "match",
     .Arm => "arm",
     .FnType => "fntype",
+    .SliceType => "slicetype",
+    .Slicing => "slicing",
     .Lambda => "lambda",
     .TypeAlias => "typealias",
     .CallValue => "callvalue",

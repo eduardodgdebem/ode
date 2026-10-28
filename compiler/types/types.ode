@@ -40,11 +40,51 @@ export enum TypeKind {
   // A value or one of some errors, `i64 | ParseError`. Written out
   // canonically, that is its name; see semantics/errors.ode.
   Union,
+  // `[]T`: a pointer to T and how many there are. `[]` and T's text is its
+  // name, by which T is found again; see sliceOf.
+  Slice,
 }
 // Not a type: the entry for a node that is not an expression.
 
 
 let MAX_U64: u64 = 18446744073709551615;
+
+// What each slice type holds, by the slice's name.
+struct SliceElement {
+  name: *i8,
+  element: Type,
+}
+
+let SLICE_ELEMENTS: *SliceElement = null;
+let SLICE_COUNT: i64 = 0;
+let SLICE_CAPACITY: i64 = 0;
+
+fn rememberElement(name: *i8, element: Type): void {
+  for (index in 0..SLICE_COUNT) {
+    if (equals(SLICE_ELEMENTS[index].name, name)) {
+      return;
+    }
+  }
+  if (SLICE_COUNT == SLICE_CAPACITY) {
+    SLICE_CAPACITY = SLICE_CAPACITY * 2 + 8;
+    if (SLICE_ELEMENTS == null) {
+      SLICE_ELEMENTS = alloc<SliceElement>(SLICE_CAPACITY);
+    } else {
+      SLICE_ELEMENTS = grow<SliceElement>(SLICE_ELEMENTS, SLICE_CAPACITY);
+    }
+  }
+  SLICE_ELEMENTS[SLICE_COUNT] = SliceElement { name: name, element: element };
+  SLICE_COUNT = SLICE_COUNT + 1;
+}
+
+fn elementNamed(name: *i8): Type {
+  for (index in 0..SLICE_COUNT) {
+    if (equals(SLICE_ELEMENTS[index].name, name)) {
+      return SLICE_ELEMENTS[index].element;
+    }
+  }
+  return Type.make(TypeKind.None, 0);
+}
 
 // The name of the built-in `none`, as a type and as its value. It is a
 // name rather than a keyword, as Go's `nil` is: a local of that name hides
@@ -91,6 +131,33 @@ export struct Type {
 
   fn isEnum(self: Type): bool {
     return self.kind == TypeKind.Enum && self.pointerDepth == 0;
+  }
+
+  // A slice of `element`.
+  fn sliceOf(element: Type): Type {
+    let name: *Builder = Builder.new();
+    name.add("[]");
+    let text: *i8 = element.toText();
+    // `[](i32) => i32` would read as a slice of something taking an i32.
+    if (element.kind == TypeKind.Function || element.isUnion()) {
+      name.push('(');
+      name.add(text);
+      name.push(')');
+    } else {
+      name.add(text);
+    }
+    let type: Type = Type { kind: TypeKind.Slice, pointerDepth: 0, structName: name.take() };
+    rememberElement(type.structName, element);
+    return type;
+  }
+
+  fn isSlice(self: Type): bool {
+    return self.kind == TypeKind.Slice && self.pointerDepth == 0;
+  }
+
+  // What a slice holds.
+  fn element(self: Type): Type {
+    return elementNamed(self.structName);
   }
 
   fn isNone(self: Type): bool {
@@ -209,7 +276,8 @@ export struct Type {
     // Only a struct or an enum has a name, and two of them are the same type
     // only when they are the same declaration.
     if (self.kind != TypeKind.Struct && self.kind != TypeKind.Enum &&
-        self.kind != TypeKind.Function && self.kind != TypeKind.Union) {
+        self.kind != TypeKind.Function && self.kind != TypeKind.Union &&
+        self.kind != TypeKind.Slice) {
       return true;
     }
 
@@ -235,6 +303,7 @@ export struct Type {
       .Enum => self.structName,
       .Function => self.structName,
       .Union => self.structName,
+      .Slice => self.structName,
       else => "unknown",
     };
   }

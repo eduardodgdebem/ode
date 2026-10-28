@@ -25,7 +25,9 @@ import {
   narrowedAddress, memberAddress, convertUnion,
 } from "./errors";
 import { Lowered, lowerArgument, lowerReturn, pointerAttribute, scratchType } from "./abi";
-import { checkNotNull, genCheckedArithmetic, isCheckedArithmetic } from "./checks";
+import {
+  checkInBounds, checkNotNull, checkSliceBounds, genCheckedArithmetic, isCheckedArithmetic,
+} from "./checks";
 import { llvmTypeName, zeroValue } from "./layout";
 import { genMatchValue } from "./statements";
 import {
@@ -36,7 +38,7 @@ import { internalError } from "../diagnostics/report";
 import { line } from "../driver/options";
 import {
   NO_NODE, NodeKind, Binary, BinaryOp, BoolLit, Call, CallValue, Cast, Catch, CharLit,
-  FieldAccess, Ident, Index, Is, Lambda, MethodCall, NullLit, NumberLit, Sizeof,
+  FieldAccess, Ident, Index, Is, Lambda, MethodCall, NullLit, NumberLit, Sizeof, Slicing,
   StringLit, StructLit, Syntax, Try, Unary, UnaryOp, fieldAccessOf, fieldInitOf, itemAt,
   itemCount, nodeName, unaryOf,
 } from "../syntax/ast";
@@ -299,10 +301,26 @@ fn genFieldValue(e: *Emitter, object: i32, field: *i8): *i8 {
   return emitLoad(e, fieldType, genFieldAddress(e, object, field));
 }
 
-// The address of element `b` of the pointer `a`.
+// The address of element `b` of the pointer `a`, or of the slice `a` --
+// checked to be in it, unless --release.
 fn genIndexAddress(e: *Emitter, index: Index): *i8 {
   let base: i32 = index.base;
   let baseType: Type = typeOfNode(e, base);
+  if (baseType.isSlice()) {
+    let slice: *i8 = genExpr(e, base);
+    let data: *i8 = sliceData(e, slice);
+    let offset: *i8 = emitCast(e, genExpr(e, index.index), typeOfNode(e, index.index),
+                               Type.make(TypeKind.I64, 0));
+    checkInBounds(e, index.index, offset, sliceLength(e, slice));
+    let line: *Builder = Builder.new();
+    line.add("getelementptr inbounds ");
+    line.add(llvmTypeName(baseType.element()));
+    line.add(", ptr ");
+    line.add(data);
+    line.add(", i64 ");
+    line.add(offset);
+    return emitAssign(e, line.data);
+  }
   let pointer: *i8 = checkNotNull(e, base, genExpr(e, base));
 
   let indexNode: i32 = index.index;
@@ -318,6 +336,74 @@ fn genIndexAddress(e: *Emitter, index: Index): *i8 {
   line.add(offset);
 
   return emitAssign(e, line.data);
+}
+
+fn sliceData(e: *Emitter, slice: *i8): *i8 {
+  return emitAssign(e, text2("extractvalue { ptr, i64 } ", text2(slice, ", 0")));
+}
+
+fn sliceLength(e: *Emitter, slice: *i8): *i8 {
+  return emitAssign(e, text2("extractvalue { ptr, i64 } ", text2(slice, ", 1")));
+}
+
+// The slice of `data` holding `length` elements.
+fn makeSlice(e: *Emitter, data: *i8, length: *i8): *i8 {
+  let first: *i8 = emitAssign(e, text2(text2("insertvalue { ptr, i64 } undef, ptr ", data),
+                                       ", 0"));
+  return emitAssign(e, text2(text2(text2("insertvalue { ptr, i64 } ", first), ", i64 "),
+                             text2(length, ", 1")));
+}
+
+// A bound of `base[start..end]`, as an i64: `otherwise` when it is left out.
+fn genBound(e: *Emitter, bound: i32, otherwise: *i8): *i8 {
+  if (bound == NO_NODE) {
+    return otherwise;
+  }
+  return emitCast(e, genExpr(e, bound), typeOfNode(e, bound), Type.make(TypeKind.I64, 0));
+}
+
+// `base[start..end]`: what it starts at, moved along by `start`, and
+// `end - start` long; checked, unless --release, to run forwards and, of a
+// slice, to stay in it.
+fn genSlicing(e: *Emitter, node: i32, slicing: Slicing): *i8 {
+  let baseType: Type = typeOfNode(e, slicing.base);
+  let base: *i8 = genExpr(e, slicing.base);
+  let data: *i8 = base;
+  let length: *i8 = "0";
+  let element: Type = baseType.pointee();
+  if (baseType.isSlice()) {
+    data = sliceData(e, base);
+    length = sliceLength(e, base);
+    element = baseType.element();
+  }
+  let start: *i8 = genBound(e, slicing.start, "0");
+  let end: *i8 = genBound(e, slicing.end, length);
+  checkSliceBounds(e, node, start, end, baseType.isSlice(), length);
+
+  let moved: *Builder = Builder.new();
+  moved.add("getelementptr inbounds ");
+  moved.add(llvmTypeName(element));
+  moved.add(", ptr ");
+  moved.add(data);
+  moved.add(", i64 ");
+  moved.add(start);
+  let count: *i8 = emitAssign(e, text2(text2(text2("sub i64 ", end), ", "), start));
+  return makeSlice(e, emitAssign(e, moved.data), count);
+}
+
+// `slice.length` or `slice.data`, of a slice or through pointers to one.
+fn genSliceField(e: *Emitter, object: i32, field: *i8): *i8 {
+  let objectType: Type = typeOfNode(e, object);
+  let slice: *i8 = "";
+  if (objectType.isPointer()) {
+    slice = emitLoad(e, objectType.base(), genStructPointerChecked(e, object));
+  } else {
+    slice = genExpr(e, object);
+  }
+  if (equals(field, "length")) {
+    return sliceLength(e, slice);
+  }
+  return sliceData(e, slice);
 }
 
 // `&&` and `||` evaluate their right operand only when the left does not
@@ -1027,6 +1113,7 @@ fn genSyntax(e: *Emitter, node: i32): *i8 {
     MethodCall => genMethodCall(e, node, syntax),
     CallValue => genCallValue(e, node, syntax),
     StructLit => genStructLiteral(e, node),
+    Slicing => genSlicing(e, node, syntax),
     FieldAccess => genFieldRead(e, node, syntax),
     else => {
       codegenFault(e, node, "unsupported expression in code generation");
@@ -1041,6 +1128,9 @@ fn genSyntax(e: *Emitter, node: i32): *i8 {
 fn genFieldRead(e: *Emitter, node: i32, access: FieldAccess): *i8 {
   if (e.an.isConstant[node] != 0) {
     return fromInt(e.an.values[node]);
+  }
+  if (typeOfNode(e, access.object).base().isSlice()) {
+    return genSliceField(e, access.object, access.field);
   }
   let value: *i8 = genFieldValue(e, access.object, access.field);
   if (e.an.narrowedFrom[node].kind != TypeKind.None) {

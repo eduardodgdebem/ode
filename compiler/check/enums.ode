@@ -309,7 +309,7 @@ export fn checkMatchValue(an: *Analyzer, node: i32, expected: Type): Type {
 fn checkPattern(an: *Analyzer, pattern: i32, subject: Type): void {
   // A type names what a union holds, and is no value to match against.
   let kind: NodeKind = an.ast.nodes[pattern].kind;
-  if (kind == NodeKind.Type || kind == NodeKind.FnType) {
+  if (kind == NodeKind.Type || kind == NodeKind.FnType || kind == NodeKind.SliceType) {
     analyzerFail(an, pattern, Problem.PatternNotLiteral, Facts.none());
     return;
   }
