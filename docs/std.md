@@ -108,6 +108,34 @@ type arguments written out rather than methods:
 A lambda captures nothing, so one that needs a value from around it -- the
 name being searched for, say -- cannot get it; that search is still a loop.
 
+## `std/map`
+
+`Map<K, V>`, a hash map kept behind a pointer, as `List` is.
+
+```rust
+let ages: *Map<*i8, i64> = textMap<i64>();
+ages.set("ada", 36);
+let age: i64 = ages.get("ada") ?? 0;     // none when it is not there
+if (ages.has("alan")) { ... }
+ages.remove("ada");
+```
+
+| Method | Does |
+|---|---|
+| `Map<K, V>.new(hash, same)` | an empty map, given how to hash a key, `(K) => u64`, and when two are the same, `(K, K) => bool` |
+| `set(key, value)` | adds the key, or changes its value |
+| `get(key)` | its value: `V \| none` |
+| `has(key)`, `remove(key)` | whether it is there; takes it out, false when it was not |
+| `count`, `isEmpty()`, `clear()` | how many keys; none left |
+| `keyList()`, `each(visit)` | the keys as a new list; `visit(key, value)` for each, in no particular order |
+| `release()` | frees it |
+
+Ode has no interfaces for a key type to say how it hashes, so the map is
+given the two functions. `textMap<V>()` and `intMap<V>()` give it them for
+text, compared by what it says (`hashText`, `sameText`), and for `i64`s
+(`hashInt`, `sameInt`). Underneath, it is an open-addressed table of a
+power-of-two size, kept under three quarters full.
+
 ## `std/text`
 
 Strings are NUL-terminated `*i8`. A function that makes one returns a new

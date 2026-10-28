@@ -152,7 +152,7 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 
 - [The language](docs/language.md) -- a tour, feature by feature
 - [Grammar](docs/grammar.md) -- the syntax, in EBNF
-- [The standard library](docs/std.md) -- `std/...`: memory, lists, text, I/O, files, JSON, an HTTP server
+- [The standard library](docs/std.md) -- `std/...`: memory, lists, maps, text, I/O, files, JSON, an HTTP server
 - [Building a project](docs/build.md) -- `build.ode`, `ode build`, targets and libraries
 - [Limitations](docs/limitations.md) -- what is missing, and what is left out on purpose
 - [Working on Ode](docs/development.md) -- building, testing, the bootstrap

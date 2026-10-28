@@ -243,9 +243,9 @@ Linux but not Windows.
 
 ### 6.8 The standard library is small
 
-`std/` has memory, a list, text, terminal I/O, whole files and an HTTP/1.1
+`std/` has memory, a list, a map, text, terminal I/O, whole files and an HTTP/1.1
 server -- what the examples, the tests and the first programs needed. There
-is no map or set, no time, no HTTP client,
+is no set, no time, no HTTP client,
 and no processes beyond `exit` (the server forks, but keeps that to itself). A function that
 can fail returns an error -- `parseInt` a `ParseError`, the file functions a
 `FileError` -- and one that must not -- an index out of range, running out
