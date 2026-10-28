@@ -587,30 +587,43 @@ may hold any member again until it is asked once more.
 A union is as big as its largest member and a code saying which member it
 holds; nothing is allocated, and `is` compares that code.
 
-A union of values compares with `==`: two are equal when they hold the same
-member and it is equal, and one is equal to a value of a member it holds.
-An empty struct, the `Nothing {}` an optional value is made with, is equal
-to itself; a struct with fields has no `==`, so neither does a union that may
-hold one -- ask with `is`, and compare what it holds.
+A value that may be missing is a union with `none`, a type every program
+has, whose one value is also called `none` -- Ode's `Option`, written the
+way TypeScript writes `T | undefined`:
 
 ```rust
-struct Nothing {}
-
-fn find(list: *List<i64>, wanted: i64): i64 | Nothing {
+fn find(list: *List<i64>, wanted: i64): i64 | none {
   for (index in 0..list.count) {
     if (list.at(index) == wanted) {
       return index;
     }
   }
-  return Nothing {};
+  return none;
 }
 
+let at: i64 = find(list, 3) ?? -1;        // the value, or this when it is none
+if (find(list, 9) is none) { ... }        // or ask, and narrow
+let started: f64 | none = none;           // as a field's type, too
+```
+
+`??` takes `none` for missing as it does an error, so `i64 | none |
+ParseError` has a fallback for both, and `match` gives `none` an arm of its
+own. `none` is a name rather than a keyword, as Go's `nil` is: a local
+called `none` hides it, and a method may still be called `none`.
+
+A union of values compares with `==`: two are equal when they hold the same
+member and it is equal, and one is equal to a value of a member it holds.
+`none` and any other empty struct are equal to themselves; a struct with
+fields has no `==`, so neither does a union that may hold one -- ask with
+`is`, and compare what it holds.
+
+```rust
 fn sameSpot(a: *List<i64>, b: *List<i64>): bool {
   return find(a, 3) == find(b, 3);
 }
 
-fn atStart(a: *List<i64>): bool {
-  return find(a, 3) == 0;
+fn missing(a: *List<i64>): bool {
+  return find(a, 3) == none;
 }
 ```
 

@@ -540,3 +540,49 @@ test "&& and || narrow only where they say something" {
   assertEq(found.at(1).problem, Problem.NoSuchField);
   assertEq(found.at(1).line, 4);
 }
+
+test "none is a value of its own, in a union with what it stands in for" {
+  let scope: *Scope = Scope.new()
+      .declare(`
+        error enum Bad { Negative }
+        fn find(): i64 | none {
+          return none;
+        }
+        fn parsed(): i64 | none | Bad {
+          return none;
+        }
+      `)
+      .local("maybe", "i64 | none")
+      .local("pointer", "*i8 | none");
+  assertEq(scope.check("none").type.toText(), "none");
+  assertEq(scope.check("find()").type.toText(), "i64 | none");
+  // `??` takes it for missing, as it does an error.
+  assertEq(scope.check("maybe ?? 0").type.toText(), "i64");
+  assertEq(scope.check("parsed() ?? 0").type.toText(), "i64");
+  assertEq(scope.check("pointer ?? \"\"").type.toText(), "*i8");
+  assertEq(scope.check("maybe is none").type.toText(), "bool");
+  assertEq(scope.check("maybe == none").type.toText(), "bool");
+  assertEq(scope.check("maybe ?? true").problem(), Problem.CoalesceTypes);
+}
+
+test "none cannot be assigned or pointed at, and a local hides it" {
+  let fixed: *List<Diagnostic> = Scope.new().returning("i32").run(`
+    none = none;
+    return 0;
+  `);
+  assertEq(fixed.count, 1);
+  assertEq(fixed.at(0).problem, Problem.NotAssignable);
+
+  let pointed: *List<Diagnostic> = Scope.new().returning("i32").run(`
+    let p: *none = &none;
+    return 0;
+  `);
+  assertEq(pointed.count, 1);
+  assertEq(pointed.at(0).problem, Problem.AddressOfTemporary);
+
+  let hidden: *List<Diagnostic> = Scope.new().returning("i32").run(`
+    let none: i32 = 3;
+    return none;
+  `);
+  assertEq(hidden.count, 0);
+}

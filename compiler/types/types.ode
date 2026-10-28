@@ -46,6 +46,11 @@ export enum TypeKind {
 
 let MAX_U64: u64 = 18446744073709551615;
 
+// The name of the built-in `none`, as a type and as its value. It is a
+// name rather than a keyword, as Go's `nil` is: a local of that name hides
+// it, and `none` stays free as a method's or field's name.
+export let NONE: *i8 = "none";
+
 export struct Type {
   kind: TypeKind,
   pointerDepth: i32,
@@ -61,6 +66,12 @@ export struct Type {
     return Type { kind: TypeKind.Struct, pointerDepth: pointerDepth,
                   structName: name };
   }
+  // `none`: the empty struct every program has, whose one value is also
+  // called `none` -- what `T | none` holds when it holds no T.
+  fn none(): Type {
+    return Type.ofStruct(NONE, 0);
+  }
+
   fn ofEnum(name: *i8, pointerDepth: i32): Type {
     return Type { kind: TypeKind.Enum, pointerDepth: pointerDepth,
                   structName: name };
@@ -80,6 +91,10 @@ export struct Type {
 
   fn isEnum(self: Type): bool {
     return self.kind == TypeKind.Enum && self.pointerDepth == 0;
+  }
+
+  fn isNone(self: Type): bool {
+    return self.isStruct() && equals(self.structName, NONE);
   }
 
   fn isNull(self: Type): bool {

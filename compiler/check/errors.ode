@@ -233,7 +233,7 @@ export fn holdsError(type: Type, errorEnum: *i8): bool {
   return false;
 }
 
-fn holdsValue(type: Type, value: Type): bool {
+export fn holdsValue(type: Type, value: Type): bool {
   let values: *List<Type> = valuesOf(type);
   for (index in 0..values.count) {
     if (values.at(index).equals(value)) {
@@ -421,7 +421,8 @@ export fn checkTry(an: *Analyzer, node: i32, attempt: Try): Type {
   return valueOf(type);
 }
 
-// `value ?? fallback`: a union's value, or a pointer that is not null.
+// `value ?? fallback`: a union's value -- when it holds neither an error
+// nor `none` -- or a pointer that is not null.
 export fn checkCoalesce(an: *Analyzer, node: i32, coalesce: Binary): Type {
   let left: Type = checkExpr(an, coalesce.left);
   if (FAILED) {
@@ -429,7 +430,12 @@ export fn checkCoalesce(an: *Analyzer, node: i32, coalesce: Binary): Type {
   }
 
   let result: Type = left;
-  if (left.isUnion()) {
+  if (left.isUnion() && holdsValue(left, Type.none())) {
+    result = without(left, Type.none());
+    if (result.isUnion()) {
+      result = valueOf(result);
+    }
+  } else if (left.isUnion()) {
     result = valueOf(left);
   } else if (!left.isPointer()) {
     analyzerFail(an, node, Problem.CoalesceNotFallible, Facts.aboutType(left));
