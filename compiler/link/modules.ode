@@ -678,7 +678,8 @@ export fn declareImports(an: *Analyzer, program: i32, module: i32): void {
                           symbols.items[found].params,
                           symbols.items[found].paramCount,
                           an.ast.nodes[importName].line,
-                          an.ast.nodes[importName].column);
+                          an.ast.nodes[importName].column,
+                          symbols.items[found].node);
             if (an.symbols.count > before) {
               an.symbols.items[before].linkName = symbols.items[found].linkName;
               an.symbols.items[before].variadic = symbols.items[found].variadic;

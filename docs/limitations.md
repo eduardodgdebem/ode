@@ -432,3 +432,21 @@ for wasm32 the module is `<stem>.wasm`. `--keep-intermediates` keeps the
 written to disk on the way, because clang is handed files, so a build always
 touches the filesystem beyond its output. `--emit-llvm` prints the IR without
 building anything, and `--emit-object` stops at `<path>.o`.
+
+### 8.7 The language server
+
+`ode lsp` checks a file the way `ode test` would, each time it changes, and
+answers from that. What it leaves out:
+
+- **Whole files.** The editor sends all of a file on each change, and every
+  answer checks the file again, with what it imports -- about half a second
+  for a file that pulls in most of the compiler, and less for most.
+- **A file at a time.** It shows the problems in the file being edited, and
+  a problem in a file it imports on the import; it does not check the rest of
+  a project.
+- **A file that does not parse** gets its syntax errors, but a hover, a
+  definition or member completion needs it to parse first, since the checker
+  does not run on a tree with holes in it. Completing a name still offers
+  the file's declarations and the keywords.
+- **Four answers.** Problems, hovers, definitions and completion; no
+  references, renaming, formatting, signature help or symbols.

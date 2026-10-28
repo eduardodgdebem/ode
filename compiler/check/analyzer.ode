@@ -92,6 +92,10 @@ export struct Analyzer {
   // Per field read: the union a field was declared as, where `is` or `match`
   // narrowed the read to one of its members; None elsewhere.
   narrowedFrom: *Type,
+  // Per name used -- a variable, a call, a field, a method, an enum member:
+  // the node that declares what it names, or NO_NODE. Nothing compiled
+  // reads it; it is what an editor follows to a definition.
+  declarations: *i32,
   // How many nodes the per-node tables above have room for.
   nodeCapacity: i32,
   // Set when making a generic's instances never finished, which leaves the
@@ -171,6 +175,7 @@ export struct Analyzer {
       self.coerceTo = alloc<Type>(size);
       self.narrowedFrom = alloc<Type>(size);
       self.variadicAfter = alloc<i32>(size);
+      self.declarations = alloc<i32>(size);
     } else {
       self.types = grow<Type>(self.types, size);
       self.isGlobal = grow<i8>(self.isGlobal, size);
@@ -184,6 +189,7 @@ export struct Analyzer {
       self.coerceTo = grow<Type>(self.coerceTo, size);
       self.narrowedFrom = grow<Type>(self.narrowedFrom, size);
       self.variadicAfter = grow<i32>(self.variadicAfter, size);
+      self.declarations = grow<i32>(self.declarations, size);
     }
 
     for (index in old..count) {
@@ -199,6 +205,7 @@ export struct Analyzer {
       self.narrowedFrom[index] = Type.make(TypeKind.None, 0);
       self.values[index] = 0;
       self.variadicAfter[index] = 0;
+      self.declarations[index] = NO_NODE;
     }
 
     self.nodeCapacity = count;
@@ -582,7 +589,7 @@ fn declareTopLevel(an: *Analyzer, node: i32, name: *i8, kind: SymbolKind, type: 
                    params: *Type, paramCount: i32): void {
   let before: i32 = an.symbols.count;
   an.symbols.declare(name, kind, type, params, paramCount,
-                     an.ast.nodes[node].line, an.ast.nodes[node].column);
+                     an.ast.nodes[node].line, an.ast.nodes[node].column, node);
 
   if (an.symbols.count > before) {
     an.symbols.items[before].linkName = an.linkNames[node];

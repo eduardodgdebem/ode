@@ -185,6 +185,7 @@ export fn checkEnumMember(an: *Analyzer, node: i32, enumName: *i8): Type {
     if (equals(nodeName(an.ast, member), memberName)) {
       an.isConstant[node] = 1;
       an.values[node] = an.values[member];
+      an.declarations[node] = member;
       return Type.ofEnum(enumName, 0);
     }
   }

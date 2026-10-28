@@ -1,0 +1,346 @@
+// ---------------------------------------------------------------------------
+// The Language Server Protocol's framing, and what its positions mean.
+//
+// A message is a header naming its length, `Content-Length: <n>`, a blank
+// line, and then n bytes of JSON-RPC. Positions count lines from 0, and a
+// character within a line in UTF-16 code units, where the compiler counts
+// both from 1, and columns in bytes; the functions at the end turn one into
+// the other.
+// ---------------------------------------------------------------------------
+
+import { alloc, grow, move } from "std/mem";
+import { read, write } from "std/c";
+import { Json, parseJson, stringify } from "std/json";
+import { Builder, indexOf, parseInt, slice } from "std/text";
+
+export error enum ProtocolError {
+  // The input has ended.
+  Ended,
+  // A header with no Content-Length, or a body that is not JSON.
+  Malformed,
+}
+
+// Where messages are read from, with what has been read of the next ones.
+export struct Input {
+  fd: i32,
+  buffer: *i8,
+  used: i64,
+  capacity: i64,
+
+  fn new(fd: i32): *Input {
+    let input: *Input = alloc<Input>(1);
+    input.fd = fd;
+    input.capacity = 65536;
+    input.buffer = alloc<i8>(input.capacity);
+    input.used = 0;
+    input.buffer[0] = 0;
+    return input;
+  }
+
+  // One more read; false at the end of the input. What is read stays
+  // NUL-terminated, so a header can be searched as text.
+  fn readMore(self: *Input): bool {
+    if (self.used + 4096 >= self.capacity) {
+      self.capacity = self.capacity * 2;
+      self.buffer = grow<i8>(self.buffer, self.capacity);
+    }
+    let got: isize = read(self.fd, self.buffer + self.used,
+                          (self.capacity - self.used - 1) as isize);
+    if (got <= 0) {
+      return false;
+    }
+    self.used += got as i64;
+    self.buffer[self.used] = 0;
+    return true;
+  }
+
+  // Forgets the first `count` bytes, which have been read as a message.
+  fn drop(self: *Input, count: i64): void {
+    move<i8>(self.buffer, self.buffer + count, self.used - count);
+    self.used -= count;
+    self.buffer[self.used] = 0;
+  }
+}
+
+// The next message. A body that is not JSON is still read past, so the one
+// after it can be read.
+export fn readMessage(input: *Input): *Json | ProtocolError {
+  let headEnd: i64 = indexOf(input.buffer, "\r\n\r\n");
+  while (headEnd < 0) {
+    if (!input.readMore()) {
+      return ProtocolError.Ended;
+    }
+    headEnd = indexOf(input.buffer, "\r\n\r\n");
+  }
+
+  let head: *i8 = slice(input.buffer, 0, headEnd);
+  let length: i64 = contentLength(head);
+  let total: i64 = headEnd + 4 + length;
+  if (length < 0) {
+    input.drop(headEnd + 4);
+    return ProtocolError.Malformed;
+  }
+  while (input.used < total) {
+    if (!input.readMore()) {
+      return ProtocolError.Ended;
+    }
+  }
+  let body: *i8 = slice(input.buffer, headEnd + 4, length);
+  input.drop(total);
+  return parseJson(body) catch (e) {
+    return ProtocolError.Malformed;
+  };
+}
+
+// The Content-Length a header gives, its name in any case; -1 for none.
+fn contentLength(head: *i8): i64 {
+  let at: i64 = 0;
+  while (head[at] != 0) {
+    if (startsWithIgnoringCase(head + at, "content-length:")) {
+      let value: i64 = at + 15;
+      while (head[value] == ' ') {
+        value += 1;
+      }
+      let end: i64 = value;
+      while (head[end] >= '0' && head[end] <= '9') {
+        end += 1;
+      }
+      return parseInt(slice(head, value, end - value)) ?? -1;
+    }
+    while (head[at] != 0 && head[at] != '\n') {
+      at += 1;
+    }
+    if (head[at] == '\n') {
+      at += 1;
+    }
+  }
+  return -1;
+}
+
+fn startsWithIgnoringCase(text: *i8, prefix: *i8): bool {
+  let i: i64 = 0;
+  while (prefix[i] != 0) {
+    let c: i8 = text[i];
+    if (c >= 'A' && c <= 'Z') {
+      c = (c + 32) as i8;
+    }
+    if (c != prefix[i]) {
+      return false;
+    }
+    i += 1;
+  }
+  return true;
+}
+
+// `message`, framed, on `fd`.
+export fn writeMessage(fd: i32, message: *Json): void {
+  let body: *i8 = stringify(message);
+  let out: *Builder = Builder.new();
+  out.add("Content-Length: ");
+  let length: i64 = 0;
+  while (body[length] != 0) {
+    length += 1;
+  }
+  out.addInt(length);
+  out.add("\r\n\r\n");
+  out.add(body);
+  let sent: i64 = 0;
+  while (sent < out.length) {
+    let wrote: isize = write(fd, out.data + sent, (out.length - sent) as isize);
+    if (wrote <= 0) {
+      return;
+    }
+    sent += wrote as i64;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// URIs. An editor names a file by a `file://` URI, with anything a URI
+// cannot hold as itself written as `%XX`.
+// ---------------------------------------------------------------------------
+
+fn hexValue(c: i8): i32 {
+  if (c >= '0' && c <= '9') {
+    return (c - '0') as i32;
+  }
+  if (c >= 'a' && c <= 'f') {
+    return (c - 'a') as i32 + 10;
+  }
+  if (c >= 'A' && c <= 'F') {
+    return (c - 'A') as i32 + 10;
+  }
+  return -1;
+}
+
+// The path a `file://` URI names, decoded; null for any other scheme.
+export fn pathOfUri(uri: *i8): *i8 {
+  if (uri == null || indexOf(uri, "file://") != 0) {
+    return null;
+  }
+  let out: *Builder = Builder.new();
+  let i: i64 = 7;
+  while (uri[i] != 0) {
+    let c: i8 = uri[i];
+    if (c == '%' && hexValue(uri[i + 1]) >= 0 && hexValue(uri[i + 2]) >= 0) {
+      out.push((hexValue(uri[i + 1]) * 16 + hexValue(uri[i + 2])) as i8);
+      i += 3;
+    } else {
+      out.push(c);
+      i += 1;
+    }
+  }
+  return out.take();
+}
+
+let HEX: *i8 = "0123456789ABCDEF";
+
+// `path`, absolute, as a `file://` URI.
+export fn uriOfPath(path: *i8): *i8 {
+  let out: *Builder = Builder.new();
+  out.add("file://");
+  let i: i64 = 0;
+  while (path[i] != 0) {
+    let c: i8 = path[i];
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+        c == '/' || c == '-' || c == '.' || c == '_' || c == '~') {
+      out.push(c);
+    } else {
+      out.push('%');
+      out.push(HEX[((c >> 4) & 15) as i64]);
+      out.push(HEX[(c & 15) as i64]);
+    }
+    i += 1;
+  }
+  return out.take();
+}
+
+// ---------------------------------------------------------------------------
+// Positions.
+// ---------------------------------------------------------------------------
+
+// Where line `line`, counting from 0, starts in `text`: the end of the text
+// past its last line.
+export fn lineStart(text: *i8, line: i64): i64 {
+  let at: i64 = 0;
+  let current: i64 = 0;
+  while (current < line && text[at] != 0) {
+    if (text[at] == '\n') {
+      current += 1;
+    }
+    at += 1;
+  }
+  return at;
+}
+
+// How many bytes the UTF-8 character starting with `lead` takes. (In
+// decimal: the seed the compiler is built from predates hex literals.)
+fn bytesOf(lead: i8): i64 {
+  let byte: i32 = (lead as i32) & 255;
+  if (byte < 128) {
+    return 1;
+  }
+  if (byte >= 240) {
+    return 4;
+  }
+  if (byte >= 224) {
+    return 3;
+  }
+  if (byte >= 192) {
+    return 2;
+  }
+  return 1;
+}
+
+// The byte offset in `text` of an editor's position: `line` from 0 and
+// `character` in UTF-16 units. A character past the end of its line is the
+// end of the line.
+export fn offsetOf(text: *i8, line: i64, character: i64): i64 {
+  let at: i64 = lineStart(text, line);
+  let units: i64 = 0;
+  while (units < character && text[at] != 0 && text[at] != '\n') {
+    let size: i64 = bytesOf(text[at]);
+    if (size == 4) {
+      units += 2;
+    } else {
+      units += 1;
+    }
+    at += size;
+  }
+  return at;
+}
+
+// The UTF-16 character, within its line, of `column` bytes into the line
+// starting at `start`.
+export fn characterOf(text: *i8, start: i64, column: i64): i64 {
+  let at: i64 = start;
+  let units: i64 = 0;
+  while (at < start + column && text[at] != 0 && text[at] != '\n') {
+    let size: i64 = bytesOf(text[at]);
+    if (size == 4) {
+      units += 2;
+    } else {
+      units += 1;
+    }
+    at += size;
+  }
+  return units;
+}
+
+// ---------------------------------------------------------------------------
+
+extern fn pipe(fds: *i32): i32;
+extern fn close(fd: i32): i32;
+
+// An Input holding `text`, as if an editor had sent it.
+fn inputOf(text: *i8): *Input {
+  let fds: *i32 = alloc<i32>(2);
+  pipe(fds);
+  let size: i64 = 0;
+  while (text[size] != 0) {
+    size += 1;
+  }
+  write(fds[1], text, size as isize);
+  close(fds[1]);
+  return Input.new(fds[0]);
+}
+
+test "messages are read one at a time, however they arrive" {
+  let input: *Input = inputOf("Content-Length: 8\r\n\r\n{\"a\":1}\ncontent-length:2\r\nContent-Type: x\r\n\r\n[]");
+  let first: *Json = readMessage(input) catch (e) {
+    assert(false, "the first message");
+    return;
+  };
+  assertEq(first.get("a").asInt(0), 1);
+  let second: *Json = readMessage(input) catch (e) {
+    assert(false, "the second message");
+    return;
+  };
+  assertEq(second.count(), 0);
+  assertEq(readMessage(input), ProtocolError.Ended);
+}
+
+test "a body that is not JSON is read past" {
+  let input: *Input = inputOf("Content-Length: 3\r\n\r\n{{{Content-Length: 2\r\n\r\n{}");
+  assertEq(readMessage(input), ProtocolError.Malformed);
+  assert(readMessage(input) is *Json, "the next message is read");
+}
+
+test "file URIs and paths" {
+  assertEq(pathOfUri("file:///Users/me/my%20project/a.ode"), "/Users/me/my project/a.ode");
+  assert(pathOfUri("untitled:Untitled-1") == null, "not a file");
+  assertEq(uriOfPath("/Users/me/my project/a.ode"), "file:///Users/me/my%20project/a.ode");
+  assertEq(pathOfUri(uriOfPath("/a b/c#d.ode")), "/a b/c#d.ode");
+}
+
+test "positions in UTF-16 units and bytes" {
+  // "µ" is two bytes and one unit; "😀" four bytes and two units.
+  let text: *i8 = "ab\nµx😀y\n";
+  assertEq(lineStart(text, 1), 3);
+  assertEq(offsetOf(text, 1, 0), 3);
+  assertEq(offsetOf(text, 1, 1), 5);
+  assertEq(offsetOf(text, 1, 4), 10);
+  assertEq(offsetOf(text, 1, 99), 11);
+  assertEq(characterOf(text, 3, 2), 1);
+  assertEq(characterOf(text, 3, 7), 4);
+  assertEq(lineStart(text, 9), 12);
+}

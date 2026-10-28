@@ -464,7 +464,7 @@ export fn checkCatch(an: *Analyzer, node: i32, caught: Catch): Type {
   an.symbols.enterScope();
   an.symbols.declare(caught.name, SymbolKind.Var,
                      Type.ofEnum(errors.at(0), 0), null, 0,
-                     an.ast.nodes[node].line, an.ast.nodes[node].column);
+                     an.ast.nodes[node].line, an.ast.nodes[node].column, node);
   analyzeStatement(an, block);
   an.symbols.exitScope();
   if (FAILED) {
@@ -718,7 +718,7 @@ export fn narrow(an: *Analyzer, subject: i32, type: Type): void {
   }
   an.symbols.push(Symbol { name: name, kind: SymbolKind.Var, type: type,
                            params: null as *Type, paramCount: 0, linkName: null,
-                           variadic: false, declared: declared });
+                           variadic: false, declared: declared, node: subject });
 }
 
 // The type a field read along `path` has been narrowed to, or None.

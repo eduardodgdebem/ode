@@ -4,6 +4,7 @@
 // and the test harness runs it on snippets.
 // ---------------------------------------------------------------------------
 
+import { List } from "std/list";
 import { readFile, writeFile, removeFile } from "std/fs";
 import { equals } from "std/text";
 import { before } from "../check/analyzer";
@@ -72,6 +73,50 @@ fn loadTargetModule(ast: *Ast, program: i32, item: i32): void {
   setImportModule(ast, item, TARGET_MODULE);
 }
 
+// Files an editor has open, by their real paths, with what it holds for
+// them: an import reads one of these rather than the file on disk, which
+// may not have been saved. Only the language server sets any.
+struct EditedFile {
+  real: *i8,
+  source: *i8,
+}
+
+let EDITED: *List<EditedFile> = null;
+
+// What the editor holds for the file at `real`, until it is set again;
+// null forgets it.
+export fn setEditedSource(real: *i8, source: *i8): void {
+  if (EDITED == null) {
+    EDITED = List<EditedFile>.new();
+  }
+  for (index in 0..EDITED.count) {
+    if (equals(EDITED.at(index).real, real)) {
+      if (source == null) {
+        EDITED.set(index, EDITED.last());
+        EDITED.pop();
+      } else {
+        EDITED.set(index, EditedFile { real: real, source: source });
+      }
+      return;
+    }
+  }
+  if (source != null) {
+    EDITED.push(EditedFile { real: real, source: source });
+  }
+}
+
+fn editedSource(real: *i8): *i8 {
+  if (EDITED == null) {
+    return null;
+  }
+  for (index in 0..EDITED.count) {
+    if (equals(EDITED.at(index).real, real)) {
+      return EDITED.at(index).source;
+    }
+  }
+  return null;
+}
+
 // Finds the file an import names, loading it the first time any file asks.
 fn loadImport(ast: *Ast, program: i32, item: i32): void {
   let importer: *i8 = modulePath(ast.nodes[item].module);
@@ -94,7 +139,10 @@ fn loadImport(ast: *Ast, program: i32, item: i32): void {
       return;
     }
     // A file that cannot be read is reported below as one that is missing.
-    source = readFile(path) ?? null;
+    source = editedSource(real);
+    if (source == null) {
+      source = readFile(path) ?? null;
+    }
   }
 
   if (source == null) {
@@ -127,19 +175,21 @@ export fn loadProgram(ast: *Ast, root: i32, path: *i8, source: *i8): void {
   if (real == null) {
     real = path;
   }
-  moduleAdd(path, real);
-  registerSource(path, source);
-  SOURCE_PATH = path;
+  // Named as every diagnostic about it names it: a library file, entered
+  // directly, is `std/<name>.ode` like any other.
+  let shown: *i8 = moduleDisplayPath(moduleAdd(path, real));
+  registerSource(shown, source);
+  SOURCE_PATH = shown;
   let tokens: *TokenList = tokenize(source);
   // Tokens from a file that did not lex would only parse into more errors.
   if (hasErrors()) {
-    SOURCE_PATH = path;
+    SOURCE_PATH = shown;
     return;
   }
   parseModuleInto(Parser.new(tokens, ast), root);
 
   loadImports(ast, root);
-  SOURCE_PATH = path;
+  SOURCE_PATH = shown;
 }
 
 // Loads every file in `paths` onto `root`, with what they import, as one

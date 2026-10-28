@@ -223,6 +223,43 @@ request is refused as malformed); a request's head may be 16 KiB and its
 body 8 MiB; a response is built whole in memory, or streamed from a file. It
 runs on macOS and Linux.
 
+## `std/json`
+
+JSON read into a tree of `Json` values, and written back on one line.
+
+```rust
+let message: *Json = parseJson(`{"id": 1, "params": {"name": "ode"}}`) catch (e) {
+  return 1;
+};
+let name: *i8 = message.get("params").get("name").asText();     // "ode"
+
+let reply: *Json = jsonObject().set("id", jsonInt(1)).set("ok", jsonBool(true));
+println(stringify(reply));                                      // {"id":1,"ok":true}
+```
+
+| Function | Does |
+|---|---|
+| `parseJson(text)` | the value `text` holds: `*Json \| JsonError` -- `Malformed` for anything that is not JSON, text after the value, or nesting past 512 |
+| `stringify(value)`, `writeJson(out, value)` | the value as text, on one line; `writeJson` adds it to a `Builder` |
+| `jsonNull()`, `jsonBool(b)`, `jsonInt(n)`, `jsonNumber(f)`, `jsonText(s)`, `jsonArray()`, `jsonObject()` | a new value |
+
+| Method | Does |
+|---|---|
+| `get(key)`, `at(index)` | an object's value, an array's item; null when not there |
+| `count()` | an array's items, an object's keys |
+| `set(key, value)`, `push(value)` | adds to an object, replacing a key it has, or to an array; returns it, for chaining |
+| `asText()` | the text, or null |
+| `asInt(otherwise)`, `asNumber(otherwise)`, `asBool(otherwise)` | the value, or `otherwise` when it is not one |
+| `isNull()` | JSON's null, or not there at all |
+
+Every reader takes null for what is not there, so a path through the tree is
+one chain: a missing step makes the rest of it null, and `asText` of null is
+null. `kind` says which of `JsonKind`'s values a `Json` is. An object keeps
+its keys in order. A number is an `f64`, and also an exact `i64` when it was
+written without a fraction or exponent. Text is UTF-8, and `\u` escapes are
+turned into it -- except `\u0000`, which is dropped, since a string ends at a
+NUL.
+
 ## `std/heap`
 
 Memory and bytes on every target, which `std/mem` and `std/text` are built

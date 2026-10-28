@@ -1,0 +1,309 @@
+// ---------------------------------------------------------------------------
+// `ode lsp`: a language server, over standard input and output.
+//
+// It keeps the files the editor has open, as the editor has them, and
+// answers from checking them: the problems in a file, every time it
+// changes; what a name is, on hover; where it is declared; and what could
+// be written at the cursor.
+//
+// Each answer is worked out in a child forked for it, which writes the
+// answer and exits. The compiler keeps its state in globals and never frees
+// what it allocates, which suits a run that ends, not a server that runs all
+// day: forking gives every check a fresh compiler, gives its memory back
+// when it is done, and keeps a crash in the compiler from taking the server
+// with it -- the editor is told nothing was found.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { alloc } from "std/mem";
+import { fflush } from "std/c";
+import { Json, jsonArray, jsonBool, jsonInt, jsonNull, jsonObject, jsonText } from "std/json";
+import { equals } from "std/text";
+import { setEditedSource } from "../driver/pipeline";
+import { realpath } from "../os/files";
+import { STDERR, writeText } from "../os/output";
+import {
+  Checked, check, completionsAt, definitionAt, diagnosticsOf, hoverAt,
+} from "./analysis";
+import {
+  Input, ProtocolError, characterOf, lineStart, offsetOf, pathOfUri, readMessage,
+  writeMessage,
+} from "./protocol";
+
+extern fn fork(): i32;
+extern fn waitpid(pid: i32, status: *i32, options: i32): i32;
+extern fn _exit(code: i32): void;
+
+let STDOUT_FD: i32 = 1;
+
+// JSON-RPC's error codes.
+let PARSE_ERROR: i64 = -32700;
+let METHOD_NOT_FOUND: i64 = -32601;
+
+struct Document {
+  uri: *i8,
+  path: *i8,
+  text: *i8,
+}
+
+struct Server {
+  input: *Input,
+  documents: *List<Document>,
+  // Whether the editor has asked it to shut down, after which `exit` is a
+  // clean one.
+  shutDown: bool,
+}
+
+// What the child working out an answer is answering. A lambda captures
+// nothing, so the work it is handed reads these.
+let SERVER: *Server = null;
+let REQUEST_ID: *Json = null;
+let REQUEST_METHOD: *i8 = null;
+let REQUEST_PARAMS: *Json = null;
+
+export fn lspMain(argc: i32, argv: **i8): i32 {
+  let server: *Server = alloc<Server>(1);
+  server.input = Input.new(0);
+  server.documents = List<Document>.new();
+  server.shutDown = false;
+  SERVER = server;
+
+  while (true) {
+    let message: *Json = readMessage(server.input) catch (e) {
+      if (e == ProtocolError.Ended) {
+        return 1;
+      }
+      sendError(jsonNull(), PARSE_ERROR, "a message that is not JSON");
+      continue;
+    };
+    let method: *i8 = message.get("method").asText();
+    // A response: this server sends no requests, so none is waited for.
+    if (method == null) {
+      continue;
+    }
+    if (equals(method, "exit")) {
+      if (server.shutDown) {
+        return 0;
+      }
+      return 1;
+    }
+    handle(server, method, message.get("id"), message.get("params"));
+  }
+  return 0;
+}
+
+fn handle(server: *Server, method: *i8, id: *Json, params: *Json): void {
+  if (equals(method, "initialize")) {
+    sendResult(id, capabilities());
+  } else if (equals(method, "shutdown")) {
+    server.shutDown = true;
+    sendResult(id, jsonNull());
+  } else if (equals(method, "textDocument/didOpen")) {
+    let document: *Json = params.get("textDocument");
+    remember(server, document.get("uri").asText(), document.get("text").asText());
+    publish(server, document.get("uri").asText());
+  } else if (equals(method, "textDocument/didChange")) {
+    // Whole files are asked for, so the last change holds all of it.
+    let changes: *Json = params.get("contentChanges");
+    let uri: *i8 = params.get("textDocument").get("uri").asText();
+    let text: *i8 = changes.at(changes.count() - 1).get("text").asText();
+    if (text != null) {
+      remember(server, uri, text);
+      publish(server, uri);
+    }
+  } else if (equals(method, "textDocument/didSave")) {
+    let uri: *i8 = params.get("textDocument").get("uri").asText();
+    let text: *i8 = params.get("text").asText();
+    if (text != null) {
+      remember(server, uri, text);
+    }
+    publish(server, uri);
+  } else if (equals(method, "textDocument/didClose")) {
+    let uri: *i8 = params.get("textDocument").get("uri").asText();
+    forget(server, uri);
+    sendDiagnostics(uri, jsonArray());
+  } else if (equals(method, "textDocument/hover") ||
+             equals(method, "textDocument/definition") ||
+             equals(method, "textDocument/completion")) {
+    REQUEST_ID = id;
+    REQUEST_METHOD = method;
+    REQUEST_PARAMS = params;
+    if (!inChild(answer)) {
+      sendResult(id, jsonNull());
+    }
+  } else if (id != null) {
+    sendError(id, METHOD_NOT_FOUND, method);
+  }
+}
+
+// What this server does: whole files are sent on each change, and it
+// hovers, finds definitions, and completes, with `.` as a reason to.
+fn capabilities(): *Json {
+  let sync: *Json = jsonObject()
+      .set("openClose", jsonBool(true))
+      .set("change", jsonInt(1))
+      .set("save", jsonObject().set("includeText", jsonBool(true)));
+  let completion: *Json = jsonObject()
+      .set("triggerCharacters", jsonArray().push(jsonText(".")));
+  return jsonObject()
+      .set("capabilities", jsonObject()
+          .set("textDocumentSync", sync)
+          .set("hoverProvider", jsonBool(true))
+          .set("definitionProvider", jsonBool(true))
+          .set("completionProvider", completion))
+      .set("serverInfo", jsonObject().set("name", jsonText("ode")));
+}
+
+// ---------------------------------------------------------------------------
+// Documents.
+// ---------------------------------------------------------------------------
+
+fn find(server: *Server, uri: *i8): i64 {
+  for (index in 0..server.documents.count) {
+    if (equals(server.documents.at(index).uri, uri)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+fn remember(server: *Server, uri: *i8, text: *i8): void {
+  let path: *i8 = pathOfUri(uri);
+  if (uri == null || text == null || path == null) {
+    return;
+  }
+  let document: Document = Document { uri: uri, path: path, text: text };
+  let at: i64 = find(server, uri);
+  if (at >= 0) {
+    server.documents.set(at, document);
+  } else {
+    server.documents.push(document);
+  }
+}
+
+fn forget(server: *Server, uri: *i8): void {
+  let at: i64 = find(server, uri);
+  if (at >= 0) {
+    server.documents.set(at, server.documents.last());
+    server.documents.pop();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Answering, in a child.
+// ---------------------------------------------------------------------------
+
+// Runs `work` in a child that has every open document as the compiler's
+// source for its file. False when the child could not be made, or ended
+// without exiting cleanly, having answered nothing.
+fn inChild(work: () => void): bool {
+  fflush(null);
+  let pid: i32 = fork();
+  if (pid < 0) {
+    return false;
+  }
+  if (pid == 0) {
+    for (index in 0..SERVER.documents.count) {
+      let document: Document = SERVER.documents.at(index);
+      let real: *i8 = realpath(document.path, null);
+      if (real == null) {
+        real = document.path;
+      }
+      setEditedSource(real, document.text);
+    }
+    work();
+    fflush(null);
+    _exit(0);
+  }
+  let status: *i32 = alloc<i32>(1);
+  waitpid(pid, status, 0);
+  return *status == 0;
+}
+
+let PUBLISHING: *Document = null;
+
+// Checks the open document at `uri`, and sends the editor its problems.
+fn publish(server: *Server, uri: *i8): void {
+  let at: i64 = find(server, uri);
+  if (at < 0) {
+    return;
+  }
+  PUBLISHING = alloc<Document>(1);
+  *PUBLISHING = server.documents.at(at);
+  if (!inChild(publishChecked)) {
+    writeText(STDERR, "ode lsp: checking a file crashed\n");
+  }
+}
+
+fn publishChecked(): void {
+  let checked: Checked = check(PUBLISHING.path, PUBLISHING.text);
+  sendDiagnostics(PUBLISHING.uri, diagnosticsOf(checked, PUBLISHING.text));
+}
+
+// The document a request is about, or null when it is not open.
+fn requestDocument(): *Document {
+  let at: i64 = find(SERVER, REQUEST_PARAMS.get("textDocument").get("uri").asText());
+  if (at < 0) {
+    return null;
+  }
+  let document: *Document = alloc<Document>(1);
+  *document = SERVER.documents.at(at);
+  return document;
+}
+
+// A hover, a definition or completions, at the request's position.
+fn answer(): void {
+  let document: *Document = requestDocument();
+  if (document == null) {
+    sendResult(REQUEST_ID, jsonNull());
+    return;
+  }
+  let position: *Json = REQUEST_PARAMS.get("position");
+  let line: i64 = position.get("line").asInt(0);
+  let offset: i64 = offsetOf(document.text, line, position.get("character").asInt(0));
+
+  if (equals(REQUEST_METHOD, "textDocument/completion")) {
+    sendResult(REQUEST_ID, completionsAt(document.path, document.text, offset));
+    return;
+  }
+  // The compiler's line and byte column, from 1.
+  let column: i32 = (offset - lineStart(document.text, line)) as i32 + 1;
+  let checked: Checked = check(document.path, document.text);
+  let found: *Json = null;
+  if (equals(REQUEST_METHOD, "textDocument/hover")) {
+    found = hoverAt(checked, (line + 1) as i32, column);
+  } else {
+    found = definitionAt(checked, (line + 1) as i32, column);
+  }
+  if (found == null) {
+    found = jsonNull();
+  }
+  sendResult(REQUEST_ID, found);
+}
+
+// ---------------------------------------------------------------------------
+// Sending.
+// ---------------------------------------------------------------------------
+
+fn sendResult(id: *Json, result: *Json): void {
+  writeMessage(STDOUT_FD, jsonObject()
+      .set("jsonrpc", jsonText("2.0"))
+      .set("id", id)
+      .set("result", result));
+}
+
+fn sendError(id: *Json, code: i64, message: *i8): void {
+  writeMessage(STDOUT_FD, jsonObject()
+      .set("jsonrpc", jsonText("2.0"))
+      .set("id", id)
+      .set("error", jsonObject().set("code", jsonInt(code))
+                                .set("message", jsonText(message))));
+}
+
+fn sendDiagnostics(uri: *i8, diagnostics: *Json): void {
+  writeMessage(STDOUT_FD, jsonObject()
+      .set("jsonrpc", jsonText("2.0"))
+      .set("method", jsonText("textDocument/publishDiagnostics"))
+      .set("params", jsonObject().set("uri", jsonText(uri))
+                                 .set("diagnostics", diagnostics)));
+}

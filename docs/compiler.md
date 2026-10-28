@@ -46,6 +46,7 @@ with the pieces around them on either side:
 | `diagnostics/` | `problems.ode` (every `Problem`, its `Facts`, and `describe()`, the only place one becomes words), `report.ode` (collecting them), `render.ode` (printing them as Zig does) |
 | `os/` | `process.ode` (running programs, forking, the environment), `files.ode` (paths, directories, scratch space), `output.ode` |
 | `tool/` | `ode build`: running a project's `build.ode` and carrying out its plan |
+| `lsp/` | `ode lsp`: `protocol.ode` (the framing, URIs, and LSP's positions against the compiler's), `analysis.ode` (diagnostics, definitions, hovers and completion, from a checked file), `server.ode` (the open files, and a forked child per answer) |
 | `testkit/` | the tests' tools; only test files import it, so it is never part of the compiler |
 
 The compiler is built on the [standard library](std.md), as any Ode program

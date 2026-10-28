@@ -1,0 +1,724 @@
+// ---------------------------------------------------------------------------
+// JSON: text read into a tree of values, and a tree written back as text.
+//
+//   let message: *Json = parseJson(`{"id": 1, "params": {"name": "ode"}}`) catch (e) {
+//     return 1;
+//   };
+//   let name: *i8 = message.get("params").get("name").asText();   // "ode"
+//
+//   let reply: *Json = jsonObject().set("id", jsonInt(1)).set("ok", jsonBool(true));
+//   println(stringify(reply));                                    // {"id":1,"ok":true}
+//
+// Reading a part that is not there gives null, and every reader takes null
+// for what is not there, so a path through the tree is one chain: a missing
+// step makes the rest of it null too, and `asText` of null is null.
+//
+// An object keeps its keys in the order they came, and `set` replaces a key
+// it already has. A number is kept as an f64, and also exactly as an i64 when
+// it is written without a fraction or exponent and fits. Text is UTF-8;
+// `\u` escapes are turned into it, all but `\u0000`, which a NUL-terminated
+// string cannot hold and is dropped.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { alloc } from "std/mem";
+import { Builder, equals } from "std/text";
+import { strtod, snprintf } from "std/c";
+
+export enum JsonKind {
+  Null,
+  Bool,
+  Number,
+  Text,
+  Array,
+  Object,
+}
+
+export error enum JsonError {
+  // Not JSON: a value cut short, a character where none belongs, text left
+  // over after the value, or arrays and objects nested deeper than 512.
+  Malformed,
+}
+
+export struct Json {
+  kind: JsonKind,
+  flag: bool,
+  number: f64,
+  // The number exactly, when `isInteger`.
+  integer: i64,
+  isInteger: bool,
+  text: *i8,
+  // An array's items, or an object's values, in order.
+  items: *List<*Json>,
+  // An object's keys, one for each of its items.
+  keys: *List<*i8>,
+
+  // An object's value for `key`, or null when it has none or is not an
+  // object.
+  fn get(self: *Json, key: *i8): *Json {
+    if (self == null || self.kind != JsonKind.Object) {
+      return null;
+    }
+    for (i in 0..self.keys.count) {
+      if (equals(self.keys.at(i), key)) {
+        return self.items.at(i);
+      }
+    }
+    return null;
+  }
+
+  // An array's item at `index`, or null when it has none or is not an
+  // array.
+  fn at(self: *Json, index: i64): *Json {
+    if (self == null || self.kind != JsonKind.Array || index < 0 ||
+        index >= self.items.count) {
+      return null;
+    }
+    return self.items.at(index);
+  }
+
+  // How many items an array holds, or keys an object; 0 for anything else.
+  fn count(self: *Json): i64 {
+    if (self == null || (self.kind != JsonKind.Array && self.kind != JsonKind.Object)) {
+      return 0;
+    }
+    return self.items.count;
+  }
+
+  // Sets `key` on an object, replacing what it held; the object, for
+  // chaining.
+  fn set(self: *Json, key: *i8, value: *Json): *Json {
+    for (i in 0..self.keys.count) {
+      if (equals(self.keys.at(i), key)) {
+        self.items.set(i, value);
+        return self;
+      }
+    }
+    self.keys.push(key);
+    self.items.push(value);
+    return self;
+  }
+
+  // Adds `value` to the end of an array; the array, for chaining.
+  fn push(self: *Json, value: *Json): *Json {
+    self.items.push(value);
+    return self;
+  }
+
+  // Text's text, or null for anything else.
+  fn asText(self: *Json): *i8 {
+    if (self == null || self.kind != JsonKind.Text) {
+      return null;
+    }
+    return self.text;
+  }
+
+  // A number as an i64 -- exactly when it was written as one, cut toward
+  // zero when not -- or `otherwise` for anything else.
+  fn asInt(self: *Json, otherwise: i64): i64 {
+    if (self == null || self.kind != JsonKind.Number) {
+      return otherwise;
+    }
+    if (self.isInteger) {
+      return self.integer;
+    }
+    return self.number as i64;
+  }
+
+  // A number, or `otherwise` for anything else.
+  fn asNumber(self: *Json, otherwise: f64): f64 {
+    if (self == null || self.kind != JsonKind.Number) {
+      return otherwise;
+    }
+    return self.number;
+  }
+
+  // A boolean, or `otherwise` for anything else.
+  fn asBool(self: *Json, otherwise: bool): bool {
+    if (self == null || self.kind != JsonKind.Bool) {
+      return otherwise;
+    }
+    return self.flag;
+  }
+
+  // Whether it is JSON's null, or not there at all.
+  fn isNull(self: *Json): bool {
+    return self == null || self.kind == JsonKind.Null;
+  }
+}
+
+fn value(kind: JsonKind): *Json {
+  let json: *Json = alloc<Json>(1);
+  json.kind = kind;
+  json.flag = false;
+  json.number = 0.0;
+  json.integer = 0;
+  json.isInteger = false;
+  json.text = null;
+  json.items = null;
+  json.keys = null;
+  return json;
+}
+
+export fn jsonNull(): *Json {
+  return value(JsonKind.Null);
+}
+
+export fn jsonBool(flag: bool): *Json {
+  let json: *Json = value(JsonKind.Bool);
+  json.flag = flag;
+  return json;
+}
+
+export fn jsonInt(number: i64): *Json {
+  let json: *Json = value(JsonKind.Number);
+  json.number = number as f64;
+  json.integer = number;
+  json.isInteger = true;
+  return json;
+}
+
+export fn jsonNumber(number: f64): *Json {
+  let json: *Json = value(JsonKind.Number);
+  json.number = number;
+  return json;
+}
+
+export fn jsonText(text: *i8): *Json {
+  let json: *Json = value(JsonKind.Text);
+  json.text = text;
+  return json;
+}
+
+export fn jsonArray(): *Json {
+  let json: *Json = value(JsonKind.Array);
+  json.items = List<*Json>.new();
+  return json;
+}
+
+export fn jsonObject(): *Json {
+  let json: *Json = value(JsonKind.Object);
+  json.items = List<*Json>.new();
+  json.keys = List<*i8>.new();
+  return json;
+}
+
+// ---------------------------------------------------------------------------
+// Reading.
+// ---------------------------------------------------------------------------
+
+let MAX_DEPTH: i32 = 512;
+
+// The numbers below that would read better in hex -- UTF-8's byte patterns,
+// UTF-16's surrogates -- are in decimal: the compiler imports this module,
+// and the seed it is first built from predates hex literals.
+
+struct Reader {
+  text: *i8,
+  at: i64,
+  depth: i32,
+}
+
+// The value `text` holds, all of it: anything but space after the value is
+// Malformed.
+export fn parseJson(text: *i8): *Json | JsonError {
+  let reader: *Reader = alloc<Reader>(1);
+  reader.text = text;
+  reader.at = 0;
+  reader.depth = 0;
+  let json: *Json = try readValue(reader);
+  skipSpace(reader);
+  if (text[reader.at] != 0) {
+    return JsonError.Malformed;
+  }
+  return json;
+}
+
+fn skipSpace(reader: *Reader): void {
+  while (true) {
+    let c: i8 = reader.text[reader.at];
+    if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+      return;
+    }
+    reader.at += 1;
+  }
+}
+
+// Whether `word` is next; if so, it is read.
+fn readWord(reader: *Reader, word: *i8): bool {
+  let i: i64 = 0;
+  while (word[i] != 0) {
+    if (reader.text[reader.at + i] != word[i]) {
+      return false;
+    }
+    i += 1;
+  }
+  reader.at += i;
+  return true;
+}
+
+fn readValue(reader: *Reader): *Json | JsonError {
+  skipSpace(reader);
+  let c: i8 = reader.text[reader.at];
+  if (c == '{') {
+    return readObject(reader);
+  }
+  if (c == '[') {
+    return readArray(reader);
+  }
+  if (c == '"') {
+    let text: *i8 = try readText(reader);
+    return jsonText(text);
+  }
+  if (c == '-' || (c >= '0' && c <= '9')) {
+    return readNumber(reader);
+  }
+  if (readWord(reader, "true")) {
+    return jsonBool(true);
+  }
+  if (readWord(reader, "false")) {
+    return jsonBool(false);
+  }
+  if (readWord(reader, "null")) {
+    return jsonNull();
+  }
+  return JsonError.Malformed;
+}
+
+fn readObject(reader: *Reader): *Json | JsonError {
+  reader.depth += 1;
+  if (reader.depth > MAX_DEPTH) {
+    return JsonError.Malformed;
+  }
+  reader.at += 1;
+  let object: *Json = jsonObject();
+  skipSpace(reader);
+  if (reader.text[reader.at] == '}') {
+    reader.at += 1;
+    reader.depth -= 1;
+    return object;
+  }
+  while (true) {
+    skipSpace(reader);
+    if (reader.text[reader.at] != '"') {
+      return JsonError.Malformed;
+    }
+    let key: *i8 = try readText(reader);
+    skipSpace(reader);
+    if (reader.text[reader.at] != ':') {
+      return JsonError.Malformed;
+    }
+    reader.at += 1;
+    let item: *Json = try readValue(reader);
+    object.set(key, item);
+    skipSpace(reader);
+    let next: i8 = reader.text[reader.at];
+    reader.at += 1;
+    if (next == '}') {
+      reader.depth -= 1;
+      return object;
+    }
+    if (next != ',') {
+      return JsonError.Malformed;
+    }
+  }
+  return object;
+}
+
+fn readArray(reader: *Reader): *Json | JsonError {
+  reader.depth += 1;
+  if (reader.depth > MAX_DEPTH) {
+    return JsonError.Malformed;
+  }
+  reader.at += 1;
+  let array: *Json = jsonArray();
+  skipSpace(reader);
+  if (reader.text[reader.at] == ']') {
+    reader.at += 1;
+    reader.depth -= 1;
+    return array;
+  }
+  while (true) {
+    let item: *Json = try readValue(reader);
+    array.push(item);
+    skipSpace(reader);
+    let next: i8 = reader.text[reader.at];
+    reader.at += 1;
+    if (next == ']') {
+      reader.depth -= 1;
+      return array;
+    }
+    if (next != ',') {
+      return JsonError.Malformed;
+    }
+  }
+  return array;
+}
+
+fn hexValue(c: i8): i32 {
+  if (c >= '0' && c <= '9') {
+    return (c - '0') as i32;
+  }
+  if (c >= 'a' && c <= 'f') {
+    return (c - 'a') as i32 + 10;
+  }
+  if (c >= 'A' && c <= 'F') {
+    return (c - 'A') as i32 + 10;
+  }
+  return -1;
+}
+
+// The four hex digits after a `\u`, or -1.
+fn readHex4(reader: *Reader): i32 {
+  let code: i32 = 0;
+  for (i in 0..4) {
+    let digit: i32 = hexValue(reader.text[reader.at]);
+    if (digit < 0) {
+      return -1;
+    }
+    code = code * 16 + digit;
+    reader.at += 1;
+  }
+  return code;
+}
+
+// `code` as UTF-8.
+fn addCodePoint(out: *Builder, code: i32): void {
+  if (code < 128) {
+    out.push(code as i8);
+  } else if (code < 2048) {
+    out.push((192 | (code >> 6)) as i8);
+    out.push((128 | (code & 63)) as i8);
+  } else if (code < 65536) {
+    out.push((224 | (code >> 12)) as i8);
+    out.push((128 | ((code >> 6) & 63)) as i8);
+    out.push((128 | (code & 63)) as i8);
+  } else {
+    out.push((240 | (code >> 18)) as i8);
+    out.push((128 | ((code >> 12) & 63)) as i8);
+    out.push((128 | ((code >> 6) & 63)) as i8);
+    out.push((128 | (code & 63)) as i8);
+  }
+}
+
+// A string, from its opening quote to past its closing one.
+fn readText(reader: *Reader): *i8 | JsonError {
+  reader.at += 1;
+  let out: *Builder = Builder.new();
+  while (true) {
+    let c: i8 = reader.text[reader.at];
+    if (c == 0 || (c >= 0 && c < 32)) {
+      return JsonError.Malformed;
+    }
+    reader.at += 1;
+    if (c == '"') {
+      return out.take();
+    }
+    if (c != '\\') {
+      out.push(c);
+      continue;
+    }
+    let escape: i8 = reader.text[reader.at];
+    reader.at += 1;
+    if (escape == 'u') {
+      let code: i32 = readHex4(reader);
+      if (code < 0) {
+        return JsonError.Malformed;
+      }
+      // A UTF-16 surrogate pair is one character, written as two escapes.
+      if (code >= 55296 && code < 56320 && readWord(reader, "\\u")) {
+        let low: i32 = readHex4(reader);
+        if (low < 56320 || low >= 57344) {
+          return JsonError.Malformed;
+        }
+        code = 65536 + ((code - 55296) << 10) + (low - 56320);
+      }
+      if (code != 0) {
+        addCodePoint(out, code);
+      }
+      continue;
+    }
+    let meant: i8 = match (escape) {
+      '"' => '"',
+      '\\' => '\\',
+      '/' => '/',
+      'b' => '\x08',
+      'f' => '\x0c',
+      'n' => '\n',
+      'r' => '\r',
+      't' => '\t',
+      else => '\0',
+    };
+    if (meant == 0) {
+      return JsonError.Malformed;
+    }
+    out.push(meant);
+  }
+  return out.take();
+}
+
+fn isDigit(c: i8): bool {
+  return c >= '0' && c <= '9';
+}
+
+// `-? (0 | [1-9][0-9]*) (. [0-9]+)? ([eE] [+-]? [0-9]+)?`
+fn readNumber(reader: *Reader): *Json | JsonError {
+  let text: *i8 = reader.text;
+  let start: i64 = reader.at;
+  let at: i64 = start;
+  if (text[at] == '-') {
+    at += 1;
+  }
+  if (text[at] == '0') {
+    at += 1;
+  } else if (isDigit(text[at])) {
+    while (isDigit(text[at])) {
+      at += 1;
+    }
+  } else {
+    return JsonError.Malformed;
+  }
+  let integral: bool = true;
+  if (text[at] == '.') {
+    integral = false;
+    at += 1;
+    if (!isDigit(text[at])) {
+      return JsonError.Malformed;
+    }
+    while (isDigit(text[at])) {
+      at += 1;
+    }
+  }
+  if (text[at] == 'e' || text[at] == 'E') {
+    integral = false;
+    at += 1;
+    if (text[at] == '+' || text[at] == '-') {
+      at += 1;
+    }
+    if (!isDigit(text[at])) {
+      return JsonError.Malformed;
+    }
+    while (isDigit(text[at])) {
+      at += 1;
+    }
+  }
+  reader.at = at;
+
+  let json: *Json = jsonNumber(strtod(text + start, null));
+  if (integral) {
+    // Exactly, unless it is too long for an i64 to hold.
+    let negative: bool = text[start] == '-';
+    let digits: i64 = start;
+    if (negative) {
+      digits += 1;
+    }
+    if (at - digits <= 18) {
+      let exact: i64 = 0;
+      for (i in digits..at) {
+        exact = exact * 10 + (text[i] - '0') as i64;
+      }
+      if (negative) {
+        exact = -exact;
+      }
+      json.integer = exact;
+      json.isInteger = true;
+    }
+  }
+  return json;
+}
+
+// ---------------------------------------------------------------------------
+// Writing.
+// ---------------------------------------------------------------------------
+
+// `json` as JSON text, on one line, with no space between its parts.
+export fn stringify(json: *Json): *i8 {
+  let out: *Builder = Builder.new();
+  writeJson(out, json);
+  return out.take();
+}
+
+// stringify, onto the end of `out`. A null `json` is written as null.
+export fn writeJson(out: *Builder, json: *Json): void {
+  if (json == null) {
+    out.add("null");
+    return;
+  }
+  match (json.kind) {
+    .Null => {
+      out.add("null");
+    }
+    .Bool => {
+      if (json.flag) {
+        out.add("true");
+      } else {
+        out.add("false");
+      }
+    }
+    .Number => {
+      writeNumber(out, json);
+    }
+    .Text => {
+      writeText(out, json.text);
+    }
+    .Array => {
+      out.push('[');
+      for (i in 0..json.items.count) {
+        if (i > 0) {
+          out.push(',');
+        }
+        writeJson(out, json.items.at(i));
+      }
+      out.push(']');
+    }
+    .Object => {
+      out.push('{');
+      for (i in 0..json.items.count) {
+        if (i > 0) {
+          out.push(',');
+        }
+        writeText(out, json.keys.at(i));
+        out.push(':');
+        writeJson(out, json.items.at(i));
+      }
+      out.push('}');
+    }
+  }
+}
+
+fn writeNumber(out: *Builder, json: *Json): void {
+  if (json.isInteger) {
+    out.addInt(json.integer);
+    return;
+  }
+  // JSON has no infinity and no NaN.
+  let number: f64 = json.number;
+  if (number != number || number - number != 0.0) {
+    out.add("null");
+    return;
+  }
+  let buffer: *i8 = alloc<i8>(32);
+  snprintf(buffer, 32, "%.17g", number);
+  out.add(buffer);
+}
+
+let HEX: *i8 = "0123456789abcdef";
+
+// `text` in quotes, with what JSON must escape escaped: quotes, backslashes
+// and control characters. Anything else, UTF-8 included, is written as it is.
+export fn writeText(out: *Builder, text: *i8): void {
+  out.push('"');
+  let i: i64 = 0;
+  while (text[i] != 0) {
+    let c: i8 = text[i];
+    if (c == '"') {
+      out.add("\\\"");
+    } else if (c == '\\') {
+      out.add("\\\\");
+    } else if (c == '\n') {
+      out.add("\\n");
+    } else if (c == '\r') {
+      out.add("\\r");
+    } else if (c == '\t') {
+      out.add("\\t");
+    } else if (c >= 0 && c < 32) {
+      out.add("\\u00");
+      out.push(HEX[(c >> 4) as i64]);
+      out.push(HEX[(c & 15) as i64]);
+    } else {
+      out.push(c);
+    }
+    i += 1;
+  }
+  out.push('"');
+}
+
+// ---------------------------------------------------------------------------
+
+fn parsed(text: *i8): *Json {
+  return parseJson(text) catch (e) {
+    assert(false, "parses");
+    return null;
+  };
+}
+
+test "values of every kind read back" {
+  let json: *Json = parsed(` { "a": 1, "b": [true, false, null], "c": "x", "d": -2.5e1 } `);
+  assertEq(json.kind, JsonKind.Object);
+  assertEq(json.count(), 4);
+  assertEq(json.get("a").asInt(0), 1);
+  assertEq(json.get("b").count(), 3);
+  assert(json.get("b").at(0).asBool(false), "true");
+  assert(!json.get("b").at(1).asBool(true), "false");
+  assert(json.get("b").at(2).isNull(), "null");
+  assertEq(json.get("c").asText(), "x");
+  assert(json.get("d").asNumber(0.0) == -25.0, "an exponent");
+  assert(!json.get("d").isInteger, "written with a fraction");
+}
+
+test "what is not there is null, all along a path" {
+  let json: *Json = parsed(`{"params": {"textDocument": {"uri": "file:///a.ode"}}}`);
+  assertEq(json.get("params").get("textDocument").get("uri").asText(), "file:///a.ode");
+  assert(json.get("nope").get("deeper").at(3).asText() == null, "a missing path");
+  assertEq(json.get("nope").asInt(-1), -1);
+  assert(json.get("params").at(0) == null, "an object is not an array");
+}
+
+test "escapes, and \\u as UTF-8" {
+  assertEq(parsed(`"a\"b\\c\/d\n"`).asText(), "a\"b\\c/d\n");
+  assertEq(parsed(`"é"`).asText(), "\xc3\xa9");
+  assertEq(parsed(`"✓"`).asText(), "\xe2\x9c\x93");
+  assertEq(parsed(`"😀"`).asText(), "\xf0\x9f\x98\x80");
+  assertEq(parsed(`"a\u0000b"`).asText(), "ab");
+}
+
+test "numbers, exactly when they are integers" {
+  assertEq(parsed("0").asInt(-1), 0);
+  assertEq(parsed("-42").asInt(0), -42);
+  assertEq(parsed("123456789012345678").asInt(0), 123456789012345678);
+  assert(parsed("1e3").asNumber(0.0) == 1000.0, "an exponent");
+  assertEq(parsed("1.9").asInt(0), 1);
+}
+
+test "what is not JSON is Malformed" {
+  assert(parseJson("") is JsonError, "nothing");
+  assert(parseJson("{") is JsonError, "cut short");
+  assert(parseJson(`{"a" 1}`) is JsonError, "no colon");
+  assert(parseJson("[1,]") is JsonError, "a trailing comma");
+  assert(parseJson("01") is JsonError, "a leading zero");
+  assert(parseJson("1.") is JsonError, "a bare point");
+  assert(parseJson("tru") is JsonError, "half a word");
+  assert(parseJson(`"a`) is JsonError, "an open string");
+  assert(parseJson("\"a\nb\"") is JsonError, "a raw newline in a string");
+  assert(parseJson(`"\q"`) is JsonError, "an unknown escape");
+  assert(parseJson("1 2") is JsonError, "text after the value");
+}
+
+test "nesting past the limit is refused, not a crash" {
+  let deep: *Builder = Builder.new();
+  for (i in 0..600) {
+    deep.push('[');
+  }
+  assert(parseJson(deep.data) is JsonError, "too deep");
+}
+
+test "values are written back compactly, keys in order" {
+  let json: *Json = jsonObject()
+      .set("id", jsonInt(7))
+      .set("ok", jsonBool(true))
+      .set("list", jsonArray().push(jsonNull()).push(jsonText("two")))
+      .set("half", jsonNumber(0.5));
+  assertEq(stringify(json), `{"id":7,"ok":true,"list":[null,"two"],"half":0.5}`);
+  json.set("id", jsonInt(8));
+  assertEq(stringify(json), `{"id":8,"ok":true,"list":[null,"two"],"half":0.5}`);
+}
+
+test "text is escaped where JSON needs it" {
+  assertEq(stringify(jsonText("a\"b\\c\nd\te\x01")), `"a\"b\\c\nd\te\u0001"`);
+  assertEq(stringify(jsonText("\xc3\xa9")), "\"\xc3\xa9\"");
+}
+
+test "what is written reads back the same" {
+  let text: *i8 = `{"a":[1,-2,3.25,"x\ny",{"b":null}],"c":false}`;
+  assertEq(stringify(parsed(text)), text);
+}
