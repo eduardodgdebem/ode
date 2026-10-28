@@ -48,6 +48,9 @@ export extern fn fgetc(stream: *i8): i32;
 export extern fn fputs(text: *i8, stream: *i8): i32;
 export extern fn fflush(stream: *i8): i32;
 export extern fn ferror(stream: *i8): i32;
+// `whence` is 0 from the start, 1 from where it is, 2 from the end.
+export extern fn fseek(stream: *i8, offset: isize, whence: i32): i32;
+export extern fn ftell(stream: *i8): isize;
 
 // Files, unbuffered, by descriptor.
 export extern fn write(fd: i32, buffer: *i8, count: isize): isize;

@@ -28,7 +28,7 @@ The C library's functions, declared once, with C's types spelled in Ode: a
 | Memory | `malloc` `calloc` `realloc` `free` `memcpy` `memmove` `memset` `memcmp` |
 | Strings | `strlen` `strcmp` `strncmp` `strstr` `strtol` `strtod` |
 | Output | `printf` `dprintf` `snprintf` `putchar` `getchar` `puts` |
-| Streams | `fopen` `fdopen` `fclose` `fread` `fwrite` `fgetc` `fputs` `fflush` |
+| Streams | `fopen` `fdopen` `fclose` `fread` `fwrite` `fgetc` `fputs` `fflush` `ferror` `fseek` `ftell` |
 | Descriptors | `read` `write` |
 | Process | `exit` `abort` `getenv` |
 
@@ -153,6 +153,75 @@ let source: *i8 = readFile("config.txt") catch (e) {
 };
 let port: i64 = parseInt(field(source, "port")) ?? 8080;
 ```
+
+## `std/http`
+
+A web server: routes with path parameters, middleware, requests and
+responses, and static files. Its parts are in `std/http/`; a program imports
+`std/http` alone.
+
+```rust
+import { Builder } from "std/text";
+import { App, Request, Response } from "std/http";
+
+fn hello(request: *Request, response: *Response): void {
+  let out: *Builder = Builder.new();
+  out.add("hello, ");
+  out.add(request.param("name"));
+  response.text(200, out.take());
+}
+
+fn main(): i32 {
+  let app: *App = App.new();
+  app.get("/hello/:name", hello);
+  app.serveStatic("/", "public");
+  app.listen(8080) catch (e) {
+    return 1;
+  };
+  return 0;
+}
+```
+
+| `App` | Does |
+|---|---|
+| `App.new()` | an app with no routes |
+| `get`, `post`, `put`, `patch`, `delete(pattern, handler)` | a route; `route(method, pattern, handler)` for any `Method` |
+| `use(middleware)` | runs before the routes, in the order added; returning `false` means it answered |
+| `serveStatic(prefix, dir)` | GET and HEAD under `prefix` from the files in `dir`; a directory is its `index.html` |
+| `notFound` | the handler when nothing else answers; 404 by default |
+| `log` | whether each request is printed with its status; on by default |
+| `data` | anything the handlers share |
+| `handle(request, response)` | runs a request through the app without a network, for tests |
+| `listen(port)` | serves until the process ends: `void \| ServeError` |
+
+**Patterns**: `/about` matches itself, `/users/:id` takes any one part as
+`id`, and `/files/*` takes the rest of the path as `*`. A slash at the end of
+a path is ignored. The first route to match wins; a path that matches only
+other methods' routes is 405. HEAD is answered by the GET route, without the
+body. A static path holding `..` is refused.
+
+**`Request`**: `method` (a `Method`) and `methodName`, `path` (decoded),
+`query` and `target` (as sent), `version`, `headers`, `body` and
+`bodyLength`; `header(name)`, `param(name)` and `queryParam(name)`, each null
+when absent. Header names ignore case.
+
+**`Response`**: `status`, `headers` and `body` (a `Builder`), filled in by
+`text`, `html`, `json`, `send(status, contentType, body)` and
+`redirect(location)`, or directly; `setHeader(name, value)` replaces a header
+of the same name.
+
+Each connection is answered by a process forked from the server, then
+closed: one request per connection. A slow connection holds up only its own
+process, and a crash takes down only its own request -- but **a handler's
+changes to globals end with its process**, so anything that must outlive a
+request belongs in a file or a database. A lambda captures nothing, so
+handlers are plain functions, and what they share is reached through
+`request.app.data`.
+
+It speaks HTTP/1.1 without keep-alive, TLS or chunked bodies (a chunked
+request is refused as malformed); a request's head may be 16 KiB and its
+body 8 MiB; a response is built whole in memory, or streamed from a file. It
+runs on macOS and Linux.
 
 ## `std/heap`
 
