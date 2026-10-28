@@ -301,14 +301,12 @@ export fn findTopLevel(an: *Analyzer, program: i32, module: i32, name: *i8,
     let item: i32 = itemAt(an.ast, program, index);
     let kind: NodeKind = an.ast.nodes[item].kind;
 
-    if (an.ast.nodes[item].module == module &&
+    // The kind first: a statement at the top level, `(1 + 6);`, has no name.
+    let wanted: bool = (wantStruct && isTypeDecl(kind)) ||
+                       (!wantStruct && isValueDecl(kind));
+    if (wanted && an.ast.nodes[item].module == module &&
         equals(nodeName(an.ast, item), name)) {
-      if (wantStruct && isTypeDecl(kind)) {
-        return item;
-      }
-      if (!wantStruct && isValueDecl(kind)) {
-        return item;
-      }
+      return item;
     }
   }
 

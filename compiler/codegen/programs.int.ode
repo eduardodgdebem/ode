@@ -1957,3 +1957,19 @@ test "a pointer method on a temporary works on a copy of it" {
     }
   `), "42 1 1\n");
 }
+
+test "a statement at the top level, beside a struct" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+
+    (1 + 6);
+
+    struct Point { x: i32 }
+
+    fn main(): i32 {
+      let p: Point = Point { x: 3 };
+      printf("%d\n", p.x);
+      return 0;
+    }
+  `), "3\n");
+}
