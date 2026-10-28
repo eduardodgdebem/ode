@@ -1,0 +1,808 @@
+// ---------------------------------------------------------------------------
+// What the language server knows about a file: the compiler's checking of
+// it, and what an editor asks of that -- the problems in it, where a name is
+// declared, what it is, and what could be written where the cursor is.
+//
+// A file is checked as the entry of a program, with whatever it imports, the
+// way `ode test` checks one: its tests too, and no `main` required. Every
+// answer comes from the tree and the analyzer's tables, positions from the
+// tree's nodes, and names as they are written in the source -- linking gives
+// declarations other names, which no one wrote.
+// ---------------------------------------------------------------------------
+
+import { List } from "std/list";
+import { Json, jsonArray, jsonObject, jsonInt, jsonText } from "std/json";
+import { Builder, equals, slice, startsWith } from "std/text";
+import { Analyzer, analyze } from "../check/analyzer";
+import { COMPLETION_NAME, COMPLETION_SCOPE } from "../check/completion";
+import { structDeclOf, fieldDeclOf } from "../check/methods";
+import { TEST_MODE } from "../check/testing";
+import { Description, describe } from "../diagnostics/problems";
+import { lineOf, sourceOf, tokenWidth } from "../diagnostics/render";
+import {
+  SOURCE_PATH, Diagnostic, DIAGS, hasErrors, resetDiagnostics,
+} from "../diagnostics/report";
+import { loadProgram } from "../driver/pipeline";
+import {
+  moduleCount, moduleDisplayPath, modulePath, resetModules,
+} from "../link/modules";
+import {
+  NO_NODE, NodeKind, Ast, Program, fieldAccessOf, importModule, itemAt, itemCount,
+  methodCallOf, nodeName, paramsOf, syntaxChildren,
+} from "../syntax/ast";
+import { Symbol, SymbolKind } from "../types/symbols";
+import { TypeKind, Type } from "../types/types";
+import { characterOf, lineStart, uriOfPath } from "./protocol";
+
+export struct Checked {
+  ast: *Ast,
+  an: *Analyzer,
+  root: i32,
+  // Whether the analyzer ran: not on a file that did not lex or parse,
+  // whose tree has holes in it.
+  analyzed: bool,
+  path: *i8,
+}
+
+// `source`, as the file at `path`, checked with what it imports.
+export fn check(path: *i8, source: *i8): Checked {
+  resetModules();
+  resetDiagnostics();
+  SOURCE_PATH = path;
+  TEST_MODE = true;
+  let ast: *Ast = Ast.new();
+  let root: i32 = ast.add(NodeKind.Program, 0, 0, Program { items: List<i32>.new() });
+  loadProgram(ast, root, path, source);
+  let an: *Analyzer = Analyzer.new(ast);
+  an.requireMain = false;
+  let analyzed: bool = false;
+  if (!hasErrors()) {
+    analyze(an, root);
+    analyzed = true;
+  }
+  return Checked { ast: ast, an: an, root: root, analyzed: analyzed, path: path };
+}
+
+// ---------------------------------------------------------------------------
+// Where things are written.
+// ---------------------------------------------------------------------------
+
+// Where a name is written: its line and byte column, both from 1, and its
+// length in bytes.
+struct Span {
+  line: i32,
+  column: i32,
+  length: i32,
+}
+
+fn sourceOfModule(module: i32): *i8 {
+  return sourceOf(moduleDisplayPath(module));
+}
+
+fn isWord(c: i8): bool {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+         c == '_';
+}
+
+// The keywords a declaration starts with, before its name.
+fn leadingWords(kind: NodeKind): *List<*i8> {
+  let words: *List<*i8> = List<*i8>.new();
+  match (kind) {
+    .VarDecl => { words.push("let"); }
+    .Fn => { words.push("fn"); }
+    .Extern => {
+      words.push("extern");
+      words.push("fn");
+    }
+    .Struct => { words.push("struct"); }
+    .Enum => {
+      words.push("error");
+      words.push("enum");
+    }
+    .TypeAlias => { words.push("type"); }
+    .For => { words.push("for"); }
+    .Catch => { words.push("catch"); }
+    else => {}
+  }
+  return words;
+}
+
+// Where `node`'s name is written, found from where the node starts: past
+// the keywords its kind starts with, and past `*`, `(` and spaces. A length
+// of 0 for a node with no name written there.
+fn spanOf(ast: *Ast, node: i32): Span {
+  let none: Span = Span { line: 0, column: 0, length: 0 };
+  let source: *i8 = sourceOfModule(ast.nodes[node].module);
+  if (source == null || ast.nodes[node].line <= 0) {
+    return none;
+  }
+  let line: *i8 = lineOf(source, ast.nodes[node].line);
+  if (line == null) {
+    return none;
+  }
+  let at: i64 = (ast.nodes[node].column - 1) as i64;
+  let words: *List<*i8> = leadingWords(ast.nodes[node].kind);
+  for (index in 0..words.count) {
+    while (line[at] == ' ' || line[at] == '\t') {
+      at += 1;
+    }
+    let word: *i8 = words.at(index);
+    if (startsWith(line + at, word) && !isWord(line[at + length(word)])) {
+      at += length(word);
+    }
+  }
+  while (line[at] == ' ' || line[at] == '\t' || line[at] == '*' || line[at] == '(') {
+    at += 1;
+  }
+  let end: i64 = at;
+  while (isWord(line[end])) {
+    end += 1;
+  }
+  return Span { line: ast.nodes[node].line, column: (at + 1) as i32,
+                length: (end - at) as i32 };
+}
+
+fn length(text: *i8): i64 {
+  let n: i64 = 0;
+  while (text[n] != 0) {
+    n += 1;
+  }
+  return n;
+}
+
+// The name of `node` as its source spells it.
+fn writtenName(ast: *Ast, node: i32): *i8 {
+  let span: Span = spanOf(ast, node);
+  let source: *i8 = sourceOfModule(ast.nodes[node].module);
+  if (span.length == 0 || source == null) {
+    return nodeName(ast, node);
+  }
+  return slice(lineOf(source, span.line), (span.column - 1) as i64, span.length as i64);
+}
+
+// An LSP range over `length` bytes from `column` (from 1) on `line` (from
+// 1) of `source`.
+fn rangeOf(source: *i8, line: i32, column: i32, length: i64): *Json {
+  let start: i64 = lineStart(source, (line - 1) as i64);
+  let first: i64 = characterOf(source, start, (column - 1) as i64);
+  let last: i64 = characterOf(source, start, (column - 1) as i64 + length);
+  return jsonObject()
+      .set("start", jsonObject().set("line", jsonInt((line - 1) as i64))
+                                .set("character", jsonInt(first)))
+      .set("end", jsonObject().set("line", jsonInt((line - 1) as i64))
+                              .set("character", jsonInt(last)));
+}
+
+fn rangeOfSpan(ast: *Ast, node: i32): *Json {
+  let span: Span = spanOf(ast, node);
+  return rangeOf(sourceOfModule(ast.nodes[node].module), span.line, span.column,
+                 span.length as i64);
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics.
+// ---------------------------------------------------------------------------
+
+fn messageOf(diagnostic: Diagnostic): *i8 {
+  let description: Description = describe(diagnostic.problem, diagnostic.facts);
+  if (description.note == null) {
+    return description.message;
+  }
+  let out: *Builder = Builder.new();
+  out.add(description.message);
+  out.add("\n");
+  out.add(description.note);
+  return out.take();
+}
+
+fn diagnosticJson(source: *i8, line: i32, column: i32, message: *i8): *Json {
+  if (line < 1) {
+    line = 1;
+  }
+  if (column < 1) {
+    column = 1;
+  }
+  let width: i64 = 1;
+  let text: *i8 = lineOf(source, line);
+  if (text != null) {
+    width = tokenWidth(text, (column - 1) as i64);
+  }
+  return jsonObject()
+      .set("range", rangeOf(source, line, column, width))
+      .set("severity", jsonInt(1))
+      .set("source", jsonText("ode"))
+      .set("message", jsonText(message));
+}
+
+// The problems checking found in the file, for the editor to underline. A
+// problem in a file it imports is shown on the import, once for each.
+export fn diagnosticsOf(checked: Checked, source: *i8): *Json {
+  let found: *Json = jsonArray();
+  let entry: *i8 = checked.path;
+  if (moduleCount() > 0) {
+    entry = moduleDisplayPath(0);
+  }
+  let shown: *List<i32> = List<i32>.new();
+  for (index in 0..DIAGS.items.count) {
+    let diagnostic: Diagnostic = DIAGS.items.at(index);
+    if (equals(diagnostic.path, entry)) {
+      found.push(diagnosticJson(source, diagnostic.line, diagnostic.column,
+                                messageOf(diagnostic)));
+      continue;
+    }
+    let at: i32 = importOf(checked, diagnostic.path);
+    if (at == NO_NODE || contains(shown, at)) {
+      continue;
+    }
+    shown.push(at);
+    let message: *Builder = Builder.new();
+    message.add(diagnostic.path);
+    message.push(':');
+    message.addInt(diagnostic.line as i64);
+    message.add(": ");
+    message.add(messageOf(diagnostic));
+    found.push(diagnosticJson(source, checked.ast.nodes[at].line,
+                              checked.ast.nodes[at].column, message.take()));
+  }
+  return found;
+}
+
+fn contains(list: *List<i32>, value: i32): bool {
+  for (index in 0..list.count) {
+    if (list.at(index) == value) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The entry file's import of the file diagnostics call `path`, or NO_NODE.
+fn importOf(checked: Checked, path: *i8): i32 {
+  for (index in 0..itemCount(checked.ast, checked.root)) {
+    let item: i32 = itemAt(checked.ast, checked.root, index);
+    if (checked.ast.nodes[item].module != 0) {
+      break;
+    }
+    if (checked.ast.nodes[item].kind == NodeKind.Import) {
+      let module: i32 = importModule(checked.ast, item);
+      if (module >= 0 && equals(moduleDisplayPath(module), path)) {
+        return item;
+      }
+    }
+  }
+  return NO_NODE;
+}
+
+// ---------------------------------------------------------------------------
+// The name at a position.
+// ---------------------------------------------------------------------------
+
+// Whether a node of `kind` has a name an editor can point at.
+fn isNamed(kind: NodeKind): bool {
+  return match (kind) {
+    .Ident => true,
+    .Call => true,
+    .MethodCall => true,
+    .FieldAccess => true,
+    .Type => true,
+    .StructLit => true,
+    .FieldInit => true,
+    .ImportName => true,
+    .VarDecl => true,
+    .Param => true,
+    .Field => true,
+    .Fn => true,
+    .Extern => true,
+    .Struct => true,
+    .Enum => true,
+    .EnumMember => true,
+    .TypeAlias => true,
+    .For => true,
+    else => false,
+  };
+}
+
+// The node whose name is written at `line` and byte `column` (both from 1)
+// of the entry file, or NO_NODE. A generic's instances are copies of it, at
+// its positions; the one checking said most about wins.
+export fn nodeAt(checked: Checked, line: i32, column: i32): i32 {
+  let best: i32 = NO_NODE;
+  for (node in 0..checked.ast.count) {
+    if (checked.ast.nodes[node].module != 0 || checked.ast.nodes[node].line != line ||
+        !isNamed(checked.ast.nodes[node].kind)) {
+      continue;
+    }
+    let span: Span = spanOf(checked.ast, node);
+    if (span.length == 0 || column < span.column || column > span.column + span.length) {
+      continue;
+    }
+    if (best == NO_NODE || knownMore(checked, node, best)) {
+      best = node;
+    }
+  }
+  return best;
+}
+
+fn knownMore(checked: Checked, node: i32, than: i32): bool {
+  if (!checked.analyzed) {
+    return false;
+  }
+  let an: *Analyzer = checked.an;
+  if (an.declarations[node] != NO_NODE && an.declarations[than] == NO_NODE) {
+    return true;
+  }
+  return an.types[node].kind != TypeKind.None && an.types[than].kind == TypeKind.None;
+}
+
+// The struct, enum or alias declared by the name `name`, or NO_NODE.
+fn typeDeclNamed(checked: Checked, name: *i8): i32 {
+  for (index in 0..itemCount(checked.ast, checked.root)) {
+    let item: i32 = itemAt(checked.ast, checked.root, index);
+    let kind: NodeKind = checked.ast.nodes[item].kind;
+    if ((kind == NodeKind.Struct || kind == NodeKind.Enum || kind == NodeKind.TypeAlias) &&
+        equals(nodeName(checked.ast, item), name)) {
+      return item;
+    }
+  }
+  return NO_NODE;
+}
+
+// The node `child` is a part of, or NO_NODE.
+fn parentOf(ast: *Ast, child: i32): i32 {
+  for (node in 0..ast.count) {
+    let children: *List<i32> = syntaxChildren(ast.nodes[node].syntax);
+    for (index in 0..children.count) {
+      if (children.at(index) == child) {
+        return node;
+      }
+    }
+  }
+  return NO_NODE;
+}
+
+// What `node` names: the node that declares it, or NO_NODE when that is not
+// known. A declaration names itself.
+export fn declarationOf(checked: Checked, node: i32): i32 {
+  let ast: *Ast = checked.ast;
+  if (checked.analyzed && checked.an.declarations[node] != NO_NODE) {
+    return checked.an.declarations[node];
+  }
+  let kind: NodeKind = ast.nodes[node].kind;
+  if (kind == NodeKind.Type || kind == NodeKind.StructLit) {
+    return typeDeclNamed(checked, nodeName(ast, node));
+  }
+  if (kind == NodeKind.FieldInit) {
+    let literal: i32 = parentOf(ast, node);
+    if (literal == NO_NODE || ast.nodes[literal].kind != NodeKind.StructLit) {
+      return NO_NODE;
+    }
+    let structNode: i32 = typeDeclNamed(checked, nodeName(ast, literal));
+    if (structNode == NO_NODE || !checked.analyzed) {
+      return NO_NODE;
+    }
+    return fieldDeclOf(checked.an, structNode, nodeName(ast, node));
+  }
+  if (kind == NodeKind.ImportName) {
+    return importedDeclaration(checked, node);
+  }
+  if (kind == NodeKind.VarDecl || kind == NodeKind.Param || kind == NodeKind.Field ||
+      kind == NodeKind.Fn || kind == NodeKind.Extern || kind == NodeKind.Struct ||
+      kind == NodeKind.Enum || kind == NodeKind.EnumMember ||
+      kind == NodeKind.TypeAlias || kind == NodeKind.For) {
+    return node;
+  }
+  return NO_NODE;
+}
+
+// The declaration an import's name brings in, from the file it imports.
+fn importedDeclaration(checked: Checked, node: i32): i32 {
+  let ast: *Ast = checked.ast;
+  let statement: i32 = parentOf(ast, node);
+  if (statement == NO_NODE || ast.nodes[statement].kind != NodeKind.Import) {
+    return NO_NODE;
+  }
+  let module: i32 = importModule(ast, statement);
+  let name: *i8 = nodeName(ast, node);
+  for (index in 0..itemCount(ast, checked.root)) {
+    let item: i32 = itemAt(ast, checked.root, index);
+    if (ast.nodes[item].module == module && ast.nodes[item].exported &&
+        equals(writtenName(ast, item), name)) {
+      return item;
+    }
+  }
+  return NO_NODE;
+}
+
+// ---------------------------------------------------------------------------
+// Definitions and hovers.
+// ---------------------------------------------------------------------------
+
+// Where what is at `line` and `column` (from 1, bytes) is declared, as an
+// LSP Location; null when nothing there names anything.
+export fn definitionAt(checked: Checked, line: i32, column: i32): *Json {
+  let node: i32 = nodeAt(checked, line, column);
+  if (node == NO_NODE) {
+    return null;
+  }
+  let declaration: i32 = declarationOf(checked, node);
+  if (declaration == NO_NODE) {
+    return null;
+  }
+  return jsonObject()
+      .set("uri", jsonText(uriOfPath(modulePath(checked.ast.nodes[declaration].module))))
+      .set("range", rangeOfSpan(checked.ast, declaration));
+}
+
+// The characters a declaration's header ends at: a function's at its body,
+// a variable's at its value, a parameter's or field's at the next one.
+fn endsHeader(kind: NodeKind, c: i8, depth: i32): bool {
+  if (depth > 0) {
+    return false;
+  }
+  return match (kind) {
+    .VarDecl => c == '=' || c == ';',
+    .Param => c == ',' || c == ')',
+    .Field => c == ',' || c == ';' || c == '}' || c == '\n',
+    .EnumMember => c == ',' || c == '}' || c == '\n',
+    .TypeAlias => c == ';',
+    else => c == '{' || c == ';',
+  };
+}
+
+// The declaration as written up to its body or value, on one line:
+// `fn twice(n: i32): i32`, `let p: Point`.
+fn headerOf(ast: *Ast, declaration: i32): *i8 {
+  let source: *i8 = sourceOfModule(ast.nodes[declaration].module);
+  if (source == null) {
+    return nodeName(ast, declaration);
+  }
+  let kind: NodeKind = ast.nodes[declaration].kind;
+  let at: i64 = lineStart(source, (ast.nodes[declaration].line - 1) as i64) +
+                (ast.nodes[declaration].column - 1) as i64;
+  if (kind == NodeKind.For) {
+    return writtenName(ast, declaration);
+  }
+  let out: *Builder = Builder.new();
+  let depth: i32 = 0;
+  let space: bool = false;
+  while (source[at] != 0 && out.length < 300) {
+    let c: i8 = source[at];
+    // `=>` and `==` are not where a value starts.
+    let arrow: bool = c == '=' && (source[at + 1] == '>' || source[at + 1] == '=' ||
+                                   (at > 0 && source[at - 1] == '='));
+    if (!arrow && endsHeader(kind, c, depth)) {
+      break;
+    }
+    if (c == '(' || c == '[' || c == '<') {
+      depth += 1;
+    } else if ((c == ')' || c == ']' || (c == '>' && source[at - 1] != '=')) && depth > 0) {
+      depth -= 1;
+    }
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+      space = out.length > 0;
+    } else {
+      if (space) {
+        out.push(' ');
+        space = false;
+      }
+      out.push(c);
+    }
+    at += 1;
+  }
+  return out.take();
+}
+
+// The comment written on the lines just above a declaration, without its
+// slashes; null for none.
+fn commentAbove(ast: *Ast, declaration: i32): *i8 {
+  let source: *i8 = sourceOfModule(ast.nodes[declaration].module);
+  if (source == null) {
+    return null;
+  }
+  let first: i32 = ast.nodes[declaration].line;
+  while (first > 1 && isComment(lineOf(source, first - 1))) {
+    first -= 1;
+  }
+  if (first == ast.nodes[declaration].line) {
+    return null;
+  }
+  let out: *Builder = Builder.new();
+  for (line in first..ast.nodes[declaration].line) {
+    let text: *i8 = lineOf(source, line);
+    let at: i64 = 0;
+    while (text[at] == ' ' || text[at] == '\t') {
+      at += 1;
+    }
+    at += 2;
+    if (text[at] == ' ') {
+      at += 1;
+    }
+    if (out.length > 0) {
+      out.push('\n');
+    }
+    out.add(text + at);
+  }
+  return out.take();
+}
+
+fn isComment(text: *i8): bool {
+  if (text == null) {
+    return false;
+  }
+  let at: i64 = 0;
+  while (text[at] == ' ' || text[at] == '\t') {
+    at += 1;
+  }
+  // A rule of dashes frames a file's header, and says nothing.
+  return text[at] == '/' && text[at + 1] == '/' && text[at + 3] != '-';
+}
+
+// Whether a declaration of this kind holds a value whose type is worth
+// showing as checked: a variable's may have been narrowed.
+fn isValue(kind: NodeKind): bool {
+  return kind == NodeKind.VarDecl || kind == NodeKind.Param || kind == NodeKind.For ||
+         kind == NodeKind.Field || kind == NodeKind.Catch;
+}
+
+// What the name at `line` and `column` is, as markdown: its declaration's
+// header, or its name and type, then the comment above its declaration.
+export fn hoverAt(checked: Checked, line: i32, column: i32): *Json {
+  let node: i32 = nodeAt(checked, line, column);
+  if (node == NO_NODE) {
+    return null;
+  }
+  let ast: *Ast = checked.ast;
+  let declaration: i32 = declarationOf(checked, node);
+  let text: *Builder = Builder.new();
+  text.add("```ode\n");
+  if (declaration != NO_NODE && isValue(ast.nodes[declaration].kind) &&
+      checked.analyzed && checked.an.types[node].kind != TypeKind.None &&
+      ast.nodes[node].kind != NodeKind.VarDecl) {
+    text.add(writtenName(ast, node));
+    text.add(": ");
+    text.add(checked.an.types[node].toText());
+  } else if (declaration != NO_NODE) {
+    text.add(headerOf(ast, declaration));
+  } else if (checked.analyzed && checked.an.types[node].kind != TypeKind.None) {
+    text.add(writtenName(ast, node));
+    text.add(": ");
+    text.add(checked.an.types[node].toText());
+  } else {
+    return null;
+  }
+  text.add("\n```");
+  if (declaration != NO_NODE) {
+    let comment: *i8 = commentAbove(ast, declaration);
+    if (comment != null) {
+      text.add("\n\n");
+      text.add(comment);
+    }
+  }
+  return jsonObject()
+      .set("contents", jsonObject().set("kind", jsonText("markdown"))
+                                   .set("value", jsonText(text.take())))
+      .set("range", rangeOfSpan(ast, node));
+}
+
+// ---------------------------------------------------------------------------
+// Completion.
+// ---------------------------------------------------------------------------
+
+// What stands in for the name being completed while the file is checked.
+export let PLACEHOLDER: *i8 = "odeCompletionHere";
+
+// CompletionItemKind, as LSP numbers it.
+let ITEM_METHOD: i64 = 2;
+let ITEM_FUNCTION: i64 = 3;
+let ITEM_FIELD: i64 = 5;
+let ITEM_VARIABLE: i64 = 6;
+let ITEM_ENUM: i64 = 13;
+let ITEM_KEYWORD: i64 = 14;
+let ITEM_ENUM_MEMBER: i64 = 20;
+let ITEM_STRUCT: i64 = 22;
+
+let KEYWORDS: *i8 = "let fn return if else while for in break continue struct enum error type import export from extern match true false null test defer try catch is as sizeof";
+
+fn item(label: *i8, kind: i64, detail: *i8): *Json {
+  let json: *Json = jsonObject().set("label", jsonText(label)).set("kind", jsonInt(kind));
+  if (detail != null) {
+    json.set("detail", jsonText(detail));
+  }
+  return json;
+}
+
+// Adds `json` unless an item of its label is already there.
+fn addItem(items: *Json, json: *Json): void {
+  let label: *i8 = json.get("label").asText();
+  for (index in 0..items.count()) {
+    if (equals(items.at(index).get("label").asText(), label)) {
+      return;
+    }
+  }
+  items.push(json);
+}
+
+// What could be written at `offset` in `source`, the file at `path`: after
+// a `.`, the fields and methods of what is before it, or an enum's members;
+// anywhere else, the names in scope there, the file's types and keywords.
+export fn completionsAt(path: *i8, source: *i8, offset: i64): *Json {
+  let start: i64 = offset;
+  while (start > 0 && isWord(source[start - 1])) {
+    start -= 1;
+  }
+  let end: i64 = offset;
+  while (isWord(source[end])) {
+    end += 1;
+  }
+  let member: bool = start > 0 && source[start - 1] == '.' &&
+                     !(start > 1 && source[start - 2] == '.');
+
+  // The name being written is swapped for one checking will recognise --
+  // ended as a statement, when nothing follows it on the line.
+  let patched: *Builder = Builder.new();
+  patched.addBytes(source, start);
+  patched.add(PLACEHOLDER);
+  let rest: i64 = end;
+  while (source[rest] == ' ' || source[rest] == '\t' || source[rest] == '\r') {
+    rest += 1;
+  }
+  if (source[rest] == '\n' || source[rest] == 0) {
+    patched.push(';');
+  }
+  patched.add(source + end);
+
+  COMPLETION_NAME = PLACEHOLDER;
+  COMPLETION_SCOPE = null;
+  let checked: Checked = check(path, patched.take());
+  COMPLETION_NAME = null;
+
+  let items: *Json = jsonArray();
+  if (member) {
+    if (checked.analyzed) {
+      memberItems(checked, items);
+    }
+    return items;
+  }
+  scopeItems(checked, items);
+  let words: *i8 = KEYWORDS;
+  let at: i64 = 0;
+  while (words[at] != 0) {
+    let wordEnd: i64 = at;
+    while (words[wordEnd] != 0 && words[wordEnd] != ' ') {
+      wordEnd += 1;
+    }
+    addItem(items, item(slice(words, at, wordEnd - at), ITEM_KEYWORD, null));
+    at = wordEnd;
+    if (words[at] == ' ') {
+      at += 1;
+    }
+  }
+  return items;
+}
+
+// The members after `object.`: an enum's when it names one, a struct's
+// functions without `self` when it names a struct, and otherwise the fields
+// and methods of the struct its value is, or points at.
+fn memberItems(checked: Checked, items: *Json): void {
+  let ast: *Ast = checked.ast;
+  let an: *Analyzer = checked.an;
+  let node: i32 = NO_NODE;
+  let object: i32 = NO_NODE;
+  for (index in 0..ast.count) {
+    let kind: NodeKind = ast.nodes[index].kind;
+    if (ast.nodes[index].module == 0 &&
+        (kind == NodeKind.FieldAccess || kind == NodeKind.MethodCall) &&
+        equals(nodeName(ast, index), PLACEHOLDER)) {
+      node = index;
+      if (kind == NodeKind.FieldAccess) {
+        object = fieldAccessOf(ast, index).object;
+      } else {
+        object = methodCallOf(ast, index).receiver;
+      }
+    }
+  }
+  if (node == NO_NODE || object == NO_NODE) {
+    return;
+  }
+
+  let named: *i8 = an.structRefs[node];
+  if (named != null && an.types[object].kind == TypeKind.None) {
+    let declaration: i32 = typeDeclNamed(checked, named);
+    if (declaration != NO_NODE && ast.nodes[declaration].kind == NodeKind.Enum) {
+      for (index in 0..itemCount(ast, declaration)) {
+        let value: i32 = itemAt(ast, declaration, index);
+        addItem(items, item(writtenName(ast, value), ITEM_ENUM_MEMBER, null));
+      }
+      return;
+    }
+    if (declaration != NO_NODE && ast.nodes[declaration].kind == NodeKind.Struct) {
+      structItems(checked, declaration, false, items);
+      return;
+    }
+  }
+
+  let type: Type = an.types[object].base();
+  if (type.isStruct()) {
+    let declaration: i32 = structDeclOf(an, type.structName);
+    if (declaration != NO_NODE) {
+      structItems(checked, declaration, true, items);
+    }
+  }
+}
+
+// Whether the function declared at `function` takes `self` first.
+fn takesSelf(ast: *Ast, function: i32): bool {
+  let params: i32 = paramsOf(ast, function);
+  return params != NO_NODE && itemCount(ast, params) > 0 &&
+         equals(nodeName(ast, itemAt(ast, params, 0)), "self");
+}
+
+// A struct's fields and methods, on a value of it; its other functions, on
+// its name.
+fn structItems(checked: Checked, declaration: i32, onValue: bool, items: *Json): void {
+  let ast: *Ast = checked.ast;
+  for (index in 0..itemCount(ast, declaration)) {
+    let member: i32 = itemAt(ast, declaration, index);
+    let kind: NodeKind = ast.nodes[member].kind;
+    if (kind == NodeKind.Field && onValue) {
+      addItem(items, item(writtenName(ast, member), ITEM_FIELD, headerOf(ast, member)));
+    } else if (kind == NodeKind.Fn && takesSelf(ast, member) == onValue) {
+      let itemKind: i64 = ITEM_FUNCTION;
+      if (onValue) {
+        itemKind = ITEM_METHOD;
+      }
+      addItem(items, item(writtenName(ast, member), itemKind, headerOf(ast, member)));
+    }
+  }
+}
+
+// The names in scope where the cursor is, innermost first, and then the
+// types the file declares and imports.
+fn scopeItems(checked: Checked, items: *Json): void {
+  let ast: *Ast = checked.ast;
+  if (COMPLETION_SCOPE != null) {
+    let index: i64 = COMPLETION_SCOPE.count - 1;
+    while (index >= 0) {
+      let symbol: Symbol = COMPLETION_SCOPE.at(index);
+      index -= 1;
+      if (equals(symbol.name, PLACEHOLDER) || symbol.name[0] == 0) {
+        continue;
+      }
+      if (symbol.kind == SymbolKind.Fn) {
+        let detail: *i8 = null;
+        if (symbol.node != NO_NODE) {
+          detail = headerOf(ast, symbol.node);
+        }
+        addItem(items, item(symbol.name, ITEM_FUNCTION, detail));
+      } else {
+        addItem(items, item(symbol.name, ITEM_VARIABLE, symbol.type.toText()));
+      }
+    }
+  }
+  for (index in 0..itemCount(ast, checked.root)) {
+    let declaration: i32 = itemAt(ast, checked.root, index);
+    if (ast.nodes[declaration].module != 0) {
+      break;
+    }
+    let kind: NodeKind = ast.nodes[declaration].kind;
+    if (kind == NodeKind.Struct || kind == NodeKind.TypeAlias) {
+      addItem(items, item(writtenName(ast, declaration), ITEM_STRUCT, null));
+    } else if (kind == NodeKind.Enum) {
+      addItem(items, item(writtenName(ast, declaration), ITEM_ENUM, null));
+    } else if (kind == NodeKind.Fn || kind == NodeKind.Extern) {
+      addItem(items, item(writtenName(ast, declaration), ITEM_FUNCTION,
+                          headerOf(ast, declaration)));
+    } else if (kind == NodeKind.Import) {
+      for (name in 0..itemCount(ast, declaration)) {
+        // What an import brings in is a type when it is capitalised, as
+        // types are, and a function or value otherwise.
+        let imported: *i8 = writtenName(ast, itemAt(ast, declaration, name));
+        let itemKind: i64 = ITEM_FUNCTION;
+        if (imported[0] >= 'A' && imported[0] <= 'Z') {
+          itemKind = ITEM_STRUCT;
+        }
+        addItem(items, item(imported, itemKind, null));
+      }
+    }
+  }
+}

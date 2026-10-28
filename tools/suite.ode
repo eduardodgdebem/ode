@@ -759,6 +759,57 @@ fn checkTestFilterMatchingNothing(suite: *Suite): bool {
          contains(output.data, "0 passed; 0 failed; 5 filtered out");
 }
 
+// `ode lsp` answers an editor's session: what it can do, the problems in a
+// file it opens, a hover, and a clean shutdown -- run as an editor runs it,
+// with the session on its standard input.
+fn checkLanguageServer(suite: *Suite): bool {
+  let directory: *i8 = joinPath(suite.work, "cli/lsp");
+  makeDirectories(directory) catch (e) {
+    return false;
+  };
+  let file: *i8 = joinPath(directory, "main.ode");
+  let uri: *Builder = Builder.new();
+  uri.add("file://");
+  uri.add(file);
+
+  let session: *Builder = Builder.new();
+  frame(session, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}");
+  let open: *Builder = Builder.new();
+  open.add("{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"");
+  open.add(uri.data);
+  open.add("\",\"text\":\"fn twice(n: i32): i32 {\\n  return n * 2;\\n}\\n\\nfn main(): i32 {\\n  return twice(true);\\n}\\n\"}}}");
+  frame(session, open.data);
+  let hover: *Builder = Builder.new();
+  hover.add("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{\"textDocument\":{\"uri\":\"");
+  hover.add(uri.data);
+  hover.add("\"},\"position\":{\"line\":5,\"character\":10}}}");
+  frame(session, hover.data);
+  frame(session, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"shutdown\"}");
+  frame(session, "{\"jsonrpc\":\"2.0\",\"method\":\"exit\"}");
+  let input: *i8 = joinPath(directory, "session");
+  writeFile(input, session.data) catch (e) {
+    return false;
+  };
+
+  let run: *TextList = TextList.new().add("sh").add("-c").add("exec \"$0\" lsp < \"$1\"");
+  run.add(suite.compiler).add(input);
+  let output: *Builder = Builder.new();
+  return ran(runCommand(run, directory, output, StderrMode.Merge)) &&
+         contains(output.data, "\"hoverProvider\":true") &&
+         contains(output.data, "textDocument/publishDiagnostics") &&
+         contains(output.data, "\"range\":{\"start\":{\"line\":5,\"character\":15}") &&
+         contains(output.data, "fn twice(n: i32): i32") &&
+         contains(output.data, "\"id\":3,\"result\":null");
+}
+
+// `body` as an LSP message: its length, a blank line, and it.
+fn frame(out: *Builder, body: *i8): void {
+  out.add("Content-Length: ");
+  out.addInt(strlen(body) as i64);
+  out.add("\r\n\r\n");
+  out.add(body);
+}
+
 fn runCli(suite: *Suite, name: *i8, passed: bool): void {
   if (passed) {
     suite.pass("cli", name);
@@ -892,6 +943,9 @@ export fn commandTest(root: *i8, compiler: *i8, options: TestOptions): i32 {
   if (suite.selected("test-filter-matching-nothing")) {
     runCli(suite, "test-filter-matching-nothing",
            checkTestFilterMatchingNothing(suite));
+  }
+  if (suite.selected("language-server")) {
+    runCli(suite, "language-server", checkLanguageServer(suite));
   }
 
   removeTree(work);

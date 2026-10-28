@@ -4,6 +4,7 @@
 //   ode file.ode     compiles a program: driver/compile.ode
 //   ode test ...     runs a program's tests: driver/test.ode
 //   ode build ...    builds a project as its build.ode says: tool/build.ode
+//   ode lsp          a language server for editors: lsp/server.ode
 // ---------------------------------------------------------------------------
 
 import { equals } from "std/text";
@@ -11,6 +12,7 @@ import { compileMain } from "./driver/compile";
 import { findStdDirectory } from "./driver/library";
 import { testMain } from "./driver/test";
 import { STD_DIRECTORY } from "./link/modules";
+import { lspMain } from "./lsp/server";
 import { buildMain } from "./tool/build";
 
 fn main(argc: i32, argv: **i8): i32 {
@@ -21,6 +23,9 @@ fn main(argc: i32, argv: **i8): i32 {
   }
   if (argc >= 2 && equals(argv[1], "test")) {
     return testMain(argc, argv);
+  }
+  if (argc >= 2 && equals(argv[1], "lsp")) {
+    return lspMain(argc, argv);
   }
   return compileMain(argc, argv);
 }

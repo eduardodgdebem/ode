@@ -209,6 +209,10 @@ export fn jsonObject(): *Json {
 
 let MAX_DEPTH: i32 = 512;
 
+// The numbers below that would read better in hex -- UTF-8's byte patterns,
+// UTF-16's surrogates -- are in decimal: the compiler imports this module,
+// and the seed it is first built from predates hex literals.
+
 struct Reader {
   text: *i8,
   at: i64,
@@ -380,20 +384,20 @@ fn readHex4(reader: *Reader): i32 {
 
 // `code` as UTF-8.
 fn addCodePoint(out: *Builder, code: i32): void {
-  if (code < 0x80) {
+  if (code < 128) {
     out.push(code as i8);
-  } else if (code < 0x800) {
-    out.push((0xc0 | (code >> 6)) as i8);
-    out.push((0x80 | (code & 0x3f)) as i8);
-  } else if (code < 0x10000) {
-    out.push((0xe0 | (code >> 12)) as i8);
-    out.push((0x80 | ((code >> 6) & 0x3f)) as i8);
-    out.push((0x80 | (code & 0x3f)) as i8);
+  } else if (code < 2048) {
+    out.push((192 | (code >> 6)) as i8);
+    out.push((128 | (code & 63)) as i8);
+  } else if (code < 65536) {
+    out.push((224 | (code >> 12)) as i8);
+    out.push((128 | ((code >> 6) & 63)) as i8);
+    out.push((128 | (code & 63)) as i8);
   } else {
-    out.push((0xf0 | (code >> 18)) as i8);
-    out.push((0x80 | ((code >> 12) & 0x3f)) as i8);
-    out.push((0x80 | ((code >> 6) & 0x3f)) as i8);
-    out.push((0x80 | (code & 0x3f)) as i8);
+    out.push((240 | (code >> 18)) as i8);
+    out.push((128 | ((code >> 12) & 63)) as i8);
+    out.push((128 | ((code >> 6) & 63)) as i8);
+    out.push((128 | (code & 63)) as i8);
   }
 }
 
@@ -403,7 +407,7 @@ fn readText(reader: *Reader): *i8 | JsonError {
   let out: *Builder = Builder.new();
   while (true) {
     let c: i8 = reader.text[reader.at];
-    if (c == 0 || (c >= 0 && c < 0x20)) {
+    if (c == 0 || (c >= 0 && c < 32)) {
       return JsonError.Malformed;
     }
     reader.at += 1;
@@ -422,12 +426,12 @@ fn readText(reader: *Reader): *i8 | JsonError {
         return JsonError.Malformed;
       }
       // A UTF-16 surrogate pair is one character, written as two escapes.
-      if (code >= 0xd800 && code < 0xdc00 && readWord(reader, "\\u")) {
+      if (code >= 55296 && code < 56320 && readWord(reader, "\\u")) {
         let low: i32 = readHex4(reader);
-        if (low < 0xdc00 || low >= 0xe000) {
+        if (low < 56320 || low >= 57344) {
           return JsonError.Malformed;
         }
-        code = 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00);
+        code = 65536 + ((code - 55296) << 10) + (low - 56320);
       }
       if (code != 0) {
         addCodePoint(out, code);
@@ -617,7 +621,7 @@ export fn writeText(out: *Builder, text: *i8): void {
       out.add("\\r");
     } else if (c == '\t') {
       out.add("\\t");
-    } else if (c >= 0 && c < 0x20) {
+    } else if (c >= 0 && c < 32) {
       out.add("\\u00");
       out.push(HEX[(c >> 4) as i64]);
       out.push(HEX[(c & 15) as i64]);

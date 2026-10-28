@@ -14,6 +14,7 @@ export let USAGE: *i8 = `
                   <input.ode | directory> [filter]
                                                      runs the tests in a program, or in every file under a directory
          ode build [step] [options]   builds what build.ode declares, or this compiler in its repository (ode build --help)
+         ode lsp                      a language server, for an editor to run, over standard input and output
 `;
 
 export error enum UsageError {

@@ -1,0 +1,196 @@
+import { Json } from "std/json";
+import { Builder, contains, indexOf, slice } from "std/text";
+import { STD_DIRECTORY } from "../link/modules";
+import { environment } from "../os/process";
+import {
+  Checked, check, completionsAt, definitionAt, diagnosticsOf, hoverAt,
+} from "./analysis";
+
+let PROGRAM: *i8 = `import { List } from "std/list";
+
+// A point on the plane.
+struct Point {
+  x: i32,
+  y: i32,
+
+  fn sum(self: *Point): i32 {
+    return self.x + self.y;
+  }
+
+  fn origin(): Point {
+    return Point { x: 0, y: 0 };
+  }
+}
+
+enum Color { Red, Green }
+
+// Twice n.
+fn twice(n: i32): i32 {
+  return n * 2;
+}
+
+fn main(): i32 {
+  let p: Point = Point { x: 1, y: 2 };
+  let q: *Point = &p;
+  let items: *List<i32> = List<i32>.new();
+  items.push(twice(p.x));
+  return q.sum() + p.y;
+}
+`;
+
+fn checked(source: *i8): Checked {
+  STD_DIRECTORY = environment("ODE_STD");
+  return check("/lsp-test/main.ode", source);
+}
+
+// Where a definition is: "line:character", from 0.
+fn startOf(location: *Json): *i8 {
+  let out: *Builder = Builder.new();
+  out.addInt(location.get("range").get("start").get("line").asInt(-1));
+  out.push(':');
+  out.addInt(location.get("range").get("start").get("character").asInt(-1));
+  return out.take();
+}
+
+fn hoverText(hover: *Json): *i8 {
+  return hover.get("contents").get("value").asText();
+}
+
+test "a name goes to where it is declared" {
+  let program: Checked = checked(PROGRAM);
+  assert(program.analyzed, "the program checks");
+  // `p` in `items.push(twice(p.x))` is the `let p` above it.
+  assertEq(startOf(definitionAt(program, 28, 20)), "24:6");
+  // `x` there is Point's field.
+  assertEq(startOf(definitionAt(program, 28, 22)), "4:2");
+  // `twice` is the function.
+  assertEq(startOf(definitionAt(program, 28, 14)), "19:3");
+  // `sum` in `q.sum()` is the method.
+  assertEq(startOf(definitionAt(program, 29, 12)), "7:5");
+  // `Point` in `*Point` is the struct.
+  assertEq(startOf(definitionAt(program, 26, 12)), "3:7");
+  // `items` is its `let`.
+  assertEq(startOf(definitionAt(program, 28, 6)), "26:6");
+  assert(definitionAt(program, 2, 1) == null, "a blank line names nothing");
+}
+
+test "a definition in another file is in that file" {
+  let program: Checked = checked(PROGRAM);
+  // `List` in `List<i32>.new()` is std/list's.
+  let location: *Json = definitionAt(program, 27, 27);
+  assert(location != null, "found");
+  assert(contains(location.get("uri").asText(), "std/list.ode"), "in std/list");
+}
+
+test "a hover shows the declaration and the comment above it" {
+  let program: Checked = checked(PROGRAM);
+  let function: *i8 = hoverText(hoverAt(program, 28, 14));
+  assert(contains(function, "fn twice(n: i32): i32"), "the signature");
+  assert(contains(function, "Twice n."), "the comment");
+
+  assertEq(hoverText(hoverAt(program, 28, 20)), "```ode\np: Point\n```");
+  let type: *i8 = hoverText(hoverAt(program, 26, 12));
+  assert(contains(type, "struct Point"), "the struct");
+  assert(contains(type, "A point on the plane."), "its comment");
+}
+
+// The labels completing at the `|` in `source` offers, between spaces.
+fn completions(source: *i8): *i8 {
+  let at: i64 = indexOf(source, "|");
+  let text: *Builder = Builder.new();
+  text.addBytes(source, at);
+  text.add(source + at + 1);
+  STD_DIRECTORY = environment("ODE_STD");
+  let items: *Json = completionsAt("/lsp-test/main.ode", text.data, at);
+  let out: *Builder = Builder.new();
+  out.push(' ');
+  for (index in 0..items.count()) {
+    out.add(items.at(index).get("label").asText());
+    out.push(' ');
+  }
+  return out.take();
+}
+
+let SHAPES: *i8 = `struct Point {
+  x: i32,
+  y: i32,
+
+  fn sum(self: *Point): i32 {
+    return self.x + self.y;
+  }
+
+  fn origin(): Point {
+    return Point { x: 0, y: 0 };
+  }
+}
+
+enum Color { Red, Green }
+
+fn main(): i32 {
+  let p: Point = Point { x: 1, y: 2 };
+  BODY
+  let q: i32 = 3;
+  return 0;
+}
+`;
+
+fn withBody(body: *i8): *i8 {
+  let at: i64 = indexOf(SHAPES, "BODY");
+  let out: *Builder = Builder.new();
+  out.addBytes(SHAPES, at);
+  out.add(body);
+  out.add(SHAPES + at + 4);
+  return out.take();
+}
+
+test "after a dot, a value's fields and methods" {
+  let found: *i8 = completions(withBody("p.|"));
+  assert(contains(found, " x "), "a field");
+  assert(contains(found, " y "), "the other");
+  assert(contains(found, " sum "), "a method");
+  assert(!contains(found, " origin "), "not a function without self");
+  assert(contains(completions(withBody("p.s|")), " sum "), "a name half written");
+  assert(contains(completions(withBody("let n: i32 = p.|x + 1;")), " y "), "inside a line");
+}
+
+test "after a type's name, its other functions, or an enum's members" {
+  let statics: *i8 = completions(withBody("Point.|"));
+  assert(contains(statics, " origin "), "a function without self");
+  assert(!contains(statics, " sum "), "not a method");
+  let members: *i8 = completions(withBody("let c: Color = Color.|"));
+  assert(contains(members, " Red "), "a member");
+  assert(contains(members, " Green "), "the other");
+}
+
+test "anywhere else, what is in scope there" {
+  let found: *i8 = completions(withBody("|"));
+  assert(contains(found, " p "), "a local declared before");
+  assert(!contains(found, " q "), "not one declared after");
+  assert(contains(found, " main "), "a function");
+  assert(contains(found, " Point "), "a struct");
+  assert(contains(found, " Color "), "an enum");
+  assert(contains(found, " return "), "a keyword");
+}
+
+test "problems are ranges in the file, in the editor's units" {
+  let source: *i8 = "fn main(): i32 {\n  return true;\n}\n";
+  let found: *Json = diagnosticsOf(checked(source), source);
+  assertEq(found.count(), 1);
+  let range: *Json = found.at(0).get("range");
+  assertEq(range.get("start").get("line").asInt(-1), 1);
+  assertEq(range.get("start").get("character").asInt(-1), 9);
+  assertEq(range.get("end").get("character").asInt(-1), 13);
+  assertEq(found.at(0).get("severity").asInt(0), 1);
+}
+
+test "a file that does not parse still has its problems, and answers what it can" {
+  let source: *i8 = "fn main(): i32 {\n  let x: i32 = ;\n  return 0;\n}\n";
+  let program: Checked = checked(source);
+  assert(!program.analyzed, "not checked");
+  assert(diagnosticsOf(program, source).count() >= 1, "the syntax error");
+  hoverAt(program, 1, 4);
+  definitionAt(program, 1, 4);
+  let found: *i8 = completions("fn main(): i32 {\n  let x: i32 = ;\n  |\n}\n");
+  assert(contains(found, " main "), "the file's functions");
+  assert(contains(found, " let "), "keywords");
+}

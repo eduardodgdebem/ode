@@ -51,6 +51,10 @@ unoptimised, which is quicker to build and easier to debug.
 `--emit-llvm` prints the IR instead of linking, and `--dump-tokens`,
 `--dump-ast` and `--dump-types` print what a phase produced. `ode test
 file.ode` runs the `test` blocks written in a file and the files it imports.
+`ode lsp` is a language server, for an editor to run: it underlines the
+problems in a file as it is edited, shows what a name is on hover, goes to
+where it is declared, and completes names and members; see
+[editors](editors/tree-sitter-ode/README.md#the-language-server).
 
 `-l <lib>`, `-L <dir>` and `-framework <name>` link a C library, for `ode`
 and `ode test` alike. `--target <arch-os[-abi]>` builds for another machine:
@@ -145,7 +149,7 @@ broken.ode:11:3: error: if condition must be boolean: got 'i32'
 
 - [The language](docs/language.md) -- a tour, feature by feature
 - [Grammar](docs/grammar.md) -- the syntax, in EBNF
-- [The standard library](docs/std.md) -- `std/...`: memory, lists, text, I/O, files, an HTTP server
+- [The standard library](docs/std.md) -- `std/...`: memory, lists, text, I/O, files, JSON, an HTTP server
 - [Building a project](docs/build.md) -- `build.ode`, `ode build`, targets and libraries
 - [Limitations](docs/limitations.md) -- what is missing, and what is left out on purpose
 - [Working on Ode](docs/development.md) -- building, testing, the bootstrap
@@ -164,6 +168,7 @@ compiler/          the compiler, written in Ode; main.ode is its entry
   diagnostics/     problems, their words, and how they are printed
   os/              processes, files, output
   tool/            `ode build`: carrying out a project's build.ode
+  lsp/             `ode lsp`: the language server editors run
   testkit/         the tools the compiler's own tests use
 std/               the standard library, imported as "std/..."
 tools/             the suite, the bootstrap and the seed: build/dev

@@ -32,6 +32,32 @@ rest:
 Re-run the script after editing `grammar.js` or any query; it regenerates the
 parser when `grammar.js` is the newer file.
 
+## The language server
+
+`ode lsp` is a language server: it underlines the problems in a file as it
+is edited, shows a name's declaration and the comment above it on hover,
+goes to where a name is declared, in whatever file, and completes names in
+scope and, after a `.`, fields, methods and enum members. It speaks the
+Language Server Protocol over standard input and output, so any editor with
+an LSP client can run it.
+
+In Neovim (0.11 or later), add to `after/ftplugin/ode.lua`:
+
+```lua
+if vim.fn.executable("ode") == 1 then
+  vim.lsp.start({
+    name = "ode",
+    cmd = { "ode", "lsp" },
+    root_dir = vim.fs.root(0, { "build.ode", ".git" }),
+  })
+end
+```
+
+`K` then hovers, `<C-]>` goes to a definition, `<C-x><C-o>`
+completes, and `vim.diagnostic` shows the problems. It needs `ode` on the
+`PATH`, built with the server -- `build/ode` in the repository -- and finds
+the standard library as `ode` always does.
+
 ## Working on the grammar
 
 ```sh
