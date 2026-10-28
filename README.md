@@ -179,7 +179,7 @@ bootstrap/ode.ll   the compiler's own IR, which a fresh checkout starts from
 examples/          programs that show the language off
 tests/             the regression suite
 docs/              the documentation above
-editors/           tree-sitter grammar and Neovim support
+editors/           tree-sitter grammar, Neovim support, and the Claude Code plugin
 build.ode          how the compiler is built, as any Ode project is
 build.sh           turns the seed into a first compiler, then hands over
 ```
