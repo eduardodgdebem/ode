@@ -242,9 +242,10 @@ Linux but not Windows.
 
 ### 6.8 The standard library is small
 
-`std/` has memory, a list, text, terminal I/O and whole files -- what the
-examples and tests needed first. There is no map or set, no formatting
-beyond `printf`, no time, and no processes beyond `exit`. A function that
+`std/` has memory, a list, text, terminal I/O, whole files and an HTTP/1.1
+server -- what the examples, the tests and the first programs needed. There
+is no map or set, no formatting beyond `printf`, no time, no HTTP client,
+and no processes beyond `exit` (the server forks, but keeps that to itself). A function that
 can fail returns an error -- `parseInt` a `ParseError`, the file functions a
 `FileError` -- and one that must not -- an index out of range, running out
 of memory -- stops the program. A test cannot say that it expects to stop; such a test lives in
