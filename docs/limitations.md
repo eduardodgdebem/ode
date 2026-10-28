@@ -244,7 +244,7 @@ Linux but not Windows.
 
 `std/` has memory, a list, text, terminal I/O, whole files and an HTTP/1.1
 server -- what the examples, the tests and the first programs needed. There
-is no map or set, no formatting beyond `printf`, no time, no HTTP client,
+is no map or set, no time, no HTTP client,
 and no processes beyond `exit` (the server forks, but keeps that to itself). A function that
 can fail returns an error -- `parseInt` a `ParseError`, the file functions a
 `FileError` -- and one that must not -- an index out of range, running out

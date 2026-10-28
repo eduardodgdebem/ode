@@ -65,6 +65,8 @@ end stops the program.
 | `List<T>.new()`, `List<T>.withCapacity(n)` | an empty list |
 | `push(item)` | adds to the end |
 | `at(index)`, `set(index, item)` | reads, writes |
+| `ref(index)` | where the item is, to change it in place: `list.ref(0).count += 1`; valid until the list grows |
+| `insert(index, item)`, `removeAt(index)` | adds or takes out an item in the middle, moving the rest along |
 | `last()`, `pop()` | the last item; `pop` also removes it |
 | `truncate(count)`, `clear()` | drops items from the end |
 | `isEmpty()` | whether `count` is 0 |
@@ -117,12 +119,30 @@ string the caller owns.
 | `startsWith(text, prefix)`, `endsWith(text, suffix)`, `contains(text, part)` | |
 | `indexOf(text, part)` | where `part` starts, or -1 |
 | `slice(text, start, count)`, `copy(text)` | new strings |
+| `trim(text)` | without the spaces, tabs and line breaks at either end |
+| `split(text, separator)`, `words(text)` | the parts between each separator, empty ones included; the words between runs of spaces -- both a `*List<*i8>` |
+| `toLower(text)`, `toUpper(text)` | A to Z changed; every other byte, UTF-8 included, kept |
+| `equalsIgnoringCase(a, b)`, `indexOfIgnoringCase(text, part)` | `equals` and `indexOf`, but for the case of A to Z |
 | `fromInt(value)` | decimal text |
 | `parseInt(text)` | the decimal in `text`: `i64 \| ParseError` -- `Empty`, `NotANumber` or `OutOfRange` |
+| `parseFloat(text)` | the number in `text` -- `12`, `-0.5`, `.5`, `1e-3`: `f64 \| ParseError` |
 
 `Builder` puts a string together: `Builder.new()`, then `add(text)`,
 `push(byte)`, `addInt(value)` and `addBytes(bytes, count)`, and `take()`
-hands over the string and frees the builder.
+hands over the string and frees the builder. Two more cover what `printf`'s
+formats were needed for:
+
+| Method | Adds |
+|---|---|
+| `addPadded(value, width, fill)` | an integer, padded on the left to `width`: `addPadded(7, 2, '0')` is `07`, and -7 to 3 is `-07` |
+| `addFloat(value, decimals)` | a float with that many digits after the point, rounded: `addFloat(3.14159, 2)` is `3.14`; `nan`, `inf`, and an exponent past 1e18, `1.50e21` |
+
+```rust
+let clock: *Builder = Builder.new();
+clock.addPadded(minutes, 2, '0');
+clock.push(':');
+clock.addPadded(seconds, 2, '0');      // 04:07
+```
 
 ## `std/io`
 
