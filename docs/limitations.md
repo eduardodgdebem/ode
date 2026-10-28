@@ -80,7 +80,8 @@ let bytes: *i8 = malloc(sizeof(Node) * 4);
 A value that already has a type never changes it silently, though: an `i32`
 variable used where an `i64` is wanted still needs `as i64`. With nothing to
 go by — `(2147483647 + 1) as i64`, say — a literal is `i32`, and the
-arithmetic wraps there before the cast.
+arithmetic overflows there before the cast: a debug build stops, and a
+release one wraps. Widen first: `2147483647 as i64 + 1`.
 
 ### 4.2 A constant global folds integers only
 
@@ -272,18 +273,27 @@ passed in. State that has to travel with a function goes in a parameter:
 
 ## 7. Codegen and runtime
 
-### 7.1 No runtime checks
+### 7.1 Runtime checks, without --release only
 
-Division by zero produces garbage rather than a diagnostic or a trap:
+A build without `--release` stops at a division by zero, an overflow of a
+signed integer's `+`, `-` or `*`, and a null pointer read or written
+through -- `p.field`, `*p`, `p[i]` -- saying where:
 
-```rust
-let z: i32 = 0;
-printf("%d\n", 10 / z);  // prints an arbitrary value
+```
+main.ode:12:14: integer overflow
 ```
 
-There are also no bounds checks on indexing, no null checks on dereference,
-and no integer overflow detection. `example6` relies on the last of these —
-`fib(47)` overflows `i32` and prints a negative number.
+What it does not check:
+
+- **Bounds.** A pointer has no length to check an index against; `List`
+  checks its own, and a string read past its NUL reads on.
+- **Unsigned arithmetic** wraps, as in C and Go, and so does `-x` of a
+  signed integer's smallest value.
+- **A release build** checks none of it: a signed overflow wraps there and a
+  division by zero is whatever the machine does.
+
+The checks cost: the compiler, built without `--release`, takes about half
+as long again to compile itself with them as without.
 
 ### 7.2 Identical string literals are not shared
 
@@ -295,9 +305,8 @@ twice is stored twice. Irrelevant at current scale.
 A build is unoptimised, or with `--release` -- on `ode`, `ode test` and `ode
 build`, and as an artifact's `.release` -- optimised by clang at `-O2`.
 There is nothing between or beyond: no `-O1`, `-O3` or size-first `-Os`, no
-LTO across what a program links, and no LLVM pass pipeline of its own. And
-since Ode has no runtime checks to begin with (7.1), a release build gives
-up none: it is the same program, faster.
+LTO across what a program links, and no LLVM pass pipeline of its own. A
+release build also leaves out the checks at run time (7.1).
 
 ### 7.4 Only `//` comments
 

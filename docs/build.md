@@ -57,7 +57,7 @@ is run from.
 | `.linkLike(other)` | links everything `other` links so far |
 | `.output` | where an executable goes |
 | `.target`, `.sysroot` | what it is built for: `arch-os[-abi]`, as `ode --target` takes it |
-| `.release` | whether it is optimised, as `ode --release` is |
+| `.release` | whether it is optimised, with its checks at run time left out, as `ode --release` is |
 | `.runner` | for tests built for another machine: what runs them, as `ode test --runner` |
 
 Each method returns the artifact, so calls chain.

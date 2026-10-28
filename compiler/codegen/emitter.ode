@@ -63,6 +63,8 @@ export struct Emitter {
   comparingPointers: bool,
   // Whether wasm32's memory intrinsics have been declared.
   declaredWasmMemory: bool,
+  // The overflow intrinsics declared so far, by name; see checks.ode.
+  intrinsics: *List<*i8>,
   // The IR names of the program's externs, whose struct arguments and
   // results are passed as C passes them (abi.ode).
   externs: *NameSet,
@@ -104,6 +106,7 @@ export struct Emitter {
     e.usesChecks = false;
     e.comparingPointers = false;
     e.declaredWasmMemory = false;
+    e.intrinsics = List<*i8>.new();
     e.externs = NameSet.new();
     e.usesErrorNames = false;
     e.returnType = Type.make(TypeKind.Void, 0);
