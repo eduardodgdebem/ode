@@ -232,20 +232,19 @@ export fn lineStart(text: *i8, line: i64): i64 {
   return at;
 }
 
-// How many bytes the UTF-8 character starting with `lead` takes. (In
-// decimal: the seed the compiler is built from predates hex literals.)
+// How many bytes the UTF-8 character starting with `lead` takes.
 fn bytesOf(lead: i8): i64 {
-  let byte: i32 = (lead as i32) & 255;
-  if (byte < 128) {
+  let byte: i32 = (lead as i32) & 0xff;
+  if (byte < 0x80) {
     return 1;
   }
-  if (byte >= 240) {
+  if (byte >= 0xf0) {
     return 4;
   }
-  if (byte >= 224) {
+  if (byte >= 0xe0) {
     return 3;
   }
-  if (byte >= 192) {
+  if (byte >= 0xc0) {
     return 2;
   }
   return 1;
