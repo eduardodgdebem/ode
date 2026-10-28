@@ -1912,3 +1912,18 @@ test "a match on a bool, and on text by what it says" {
     }
   `), "yes 1 2 0 0\n");
 }
+
+test "a NaN is unequal to everything, itself included" {
+  assertEq(outputOf(`
+    extern fn printf(format: *i8, ...): i32;
+
+    fn main(): i32 {
+      let zero: f64 = 0.0;
+      let nan: f64 = zero / zero;
+      let inf: f64 = 1.0 / zero;
+      printf("%d %d %d %d %d\n", (nan != nan) as i32, (nan == nan) as i32,
+             (inf - inf != 0.0) as i32, (nan < 1.0) as i32, (2.5 != 2.5) as i32);
+      return 0;
+    }
+  `), "1 0 1 0 0\n");
+}

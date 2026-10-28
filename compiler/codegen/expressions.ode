@@ -430,7 +430,7 @@ fn binaryOpcode(op: BinaryOp, type: Type): *i8 {
 
     // The comparisons. A pointer compares as an unsigned integer.
     .Equal => { if (float) { return "fcmp oeq"; } return "icmp eq"; }
-    .NotEqual => { if (float) { return "fcmp one"; } return "icmp ne"; }
+    .NotEqual => { if (float) { return "fcmp une"; } return "icmp ne"; }
     .Less => {
       if (float) { return "fcmp olt"; }
       if (signed) { return "icmp slt"; }
