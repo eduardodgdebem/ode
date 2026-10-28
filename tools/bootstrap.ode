@@ -91,8 +91,11 @@ export fn commandBootstrap(root: *i8, compiler: *i8): i32 {
 // starts using a language feature the committed seed predates.
 export fn commandSeed(root: *i8, compiler: *i8): i32 {
   let ir: *Builder = Builder.new();
+  // Without the checks a build makes as it runs: the seed only has to build
+  // the first compiler, which builds the rest -- checks included -- and
+  // with them it is twice the size.
   let command: *TextList = TextList.new().add(compiler);
-  command.add("--emit-llvm").add(joinPath(root, "compiler/main.ode"));
+  command.add("--release").add("--emit-llvm").add(joinPath(root, "compiler/main.ode"));
   if (!ran(runCommand(command, null, ir, StderrMode.Inherit))) {
     complain("the compiler could not emit its own IR");
     return 1;
