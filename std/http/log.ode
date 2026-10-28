@@ -1,0 +1,229 @@
+// ---------------------------------------------------------------------------
+// The request log: a line per request, as it was answered.
+//
+//   14:02:31  GET     200  /hello/ode           1.4 ms
+//   14:02:33  POST    201  /echo                312 µs
+//   14:02:40  -       400  -                     88 µs
+//
+// The time it came in, the method, the status, what was asked for, and how
+// long the answer took. On a terminal the status is coloured by its class --
+// green for 2xx, cyan 3xx, yellow 4xx, red 5xx -- and the time and duration
+// are dimmed; piped to a file, or with NO_COLOR set, it is plain text.
+// ---------------------------------------------------------------------------
+
+import { Builder, length } from "std/text";
+import { allocZeroed } from "std/mem";
+import { getenv } from "std/c";
+
+extern fn gettimeofday(time: *i8, zone: *i8): i32;
+extern fn localtime_r(seconds: *i64, out: *i8): *i8;
+extern fn isatty(fd: i32): i32;
+
+// Wide enough for every method but the longest few, which push the rest of
+// their line along rather than being cut.
+let METHOD_WIDTH: i64 = 7;
+let TARGET_WIDTH: i64 = 18;
+let DURATION_WIDTH: i64 = 8;
+
+let RESET: *i8 = "\x1b[0m";
+let DIM: *i8 = "\x1b[2m";
+let BOLD: *i8 = "\x1b[1m";
+
+// Microseconds since the epoch.
+export fn nowMicros(): i64 {
+  // struct timeval: seconds, then microseconds -- an i32 at offset 8 on
+  // macOS and the low half of an i64 there on Linux, zeroed either way.
+  let time: *i64 = allocZeroed<i64>(2);
+  gettimeofday(time as *i8, null);
+  let micros: *i32 = time as *i32;
+  return time[0] * 1000000 + micros[2] as i64;
+}
+
+// Whether the log should be coloured: standard output is a terminal, and
+// NO_COLOR is not set.
+export fn logInColor(): bool {
+  return isatty(1) == 1 && getenv("NO_COLOR") == null;
+}
+
+// "14:02:31", the local time at `micros`.
+fn clockOf(micros: i64): *i8 {
+  let seconds: *i64 = allocZeroed<i64>(1);
+  seconds[0] = micros / 1000000;
+  // struct tm starts with seconds, minutes and hours, as ints.
+  let parts: *i32 = allocZeroed<i32>(16);
+  localtime_r(seconds, parts as *i8);
+  let out: *Builder = Builder.new();
+  addTwoDigits(out, parts[2] as i64);
+  out.push(':');
+  addTwoDigits(out, parts[1] as i64);
+  out.push(':');
+  addTwoDigits(out, parts[0] as i64);
+  return out.take();
+}
+
+fn addTwoDigits(out: *Builder, value: i64): void {
+  if (value < 10) {
+    out.push('0');
+  }
+  out.addInt(value);
+}
+
+// "312 µs", "1.4 ms", "2.05 s".
+export fn durationOf(micros: i64): *i8 {
+  let out: *Builder = Builder.new();
+  if (micros < 1000) {
+    out.addInt(micros);
+    out.add(" µs");
+  } else if (micros < 1000000) {
+    addTenths(out, micros / 100);
+    out.add(" ms");
+  } else {
+    out.addInt(micros / 1000000);
+    out.push('.');
+    addTwoDigits(out, micros / 10000 % 100);
+    out.add(" s");
+  }
+  return out.take();
+}
+
+fn addTenths(out: *Builder, tenths: i64): void {
+  out.addInt(tenths / 10);
+  out.push('.');
+  out.addInt(tenths % 10);
+}
+
+// What a status is coloured: by its class.
+fn colorOf(status: i32): *i8 {
+  if (status >= 500) {
+    return "\x1b[31m";
+  }
+  if (status >= 400) {
+    return "\x1b[33m";
+  }
+  if (status >= 300) {
+    return "\x1b[36m";
+  }
+  return "\x1b[32m";
+}
+
+// Columns count characters, not bytes: "µ" is two bytes and one column.
+fn columnsOf(text: *i8): i64 {
+  let columns: i64 = 0;
+  let i: i64 = 0;
+  while (text[i] != 0) {
+    if (((text[i] as i32) & 0xc0) != 0x80) {
+      columns += 1;
+    }
+    i += 1;
+  }
+  return columns;
+}
+
+fn pad(out: *Builder, count: i64): void {
+  for (i in 0..count) {
+    out.push(' ');
+  }
+}
+
+fn addLeft(out: *Builder, text: *i8, width: i64): void {
+  out.add(text);
+  pad(out, width - columnsOf(text));
+}
+
+fn addRight(out: *Builder, text: *i8, width: i64): void {
+  pad(out, width - columnsOf(text));
+  out.add(text);
+}
+
+// The line for a request that came in at `startMicros` and was answered in
+// `micros`; `method` and `target` are "-" for one that could not be read.
+export fn logLine(startMicros: i64, method: *i8, status: i32, target: *i8, micros: i64,
+                  color: bool): *i8 {
+  let out: *Builder = Builder.new();
+  if (color) {
+    out.add(DIM);
+  }
+  out.add(clockOf(startMicros));
+  if (color) {
+    out.add(RESET);
+  }
+  out.add("  ");
+
+  if (color) {
+    out.add(BOLD);
+  }
+  addLeft(out, method, METHOD_WIDTH);
+  if (color) {
+    out.add(RESET);
+  }
+  out.push(' ');
+
+  if (color) {
+    out.add(colorOf(status));
+  }
+  out.addInt(status as i64);
+  if (color) {
+    out.add(RESET);
+  }
+  out.add("  ");
+
+  addLeft(out, target, TARGET_WIDTH);
+  out.push(' ');
+  if (color) {
+    out.add(DIM);
+  }
+  addRight(out, durationOf(micros), DURATION_WIDTH);
+  if (color) {
+    out.add(RESET);
+  }
+  return out.take();
+}
+
+// The line `listen` starts with.
+export fn listeningLine(port: i32, color: bool): *i8 {
+  let out: *Builder = Builder.new();
+  out.add("listening on ");
+  if (color) {
+    out.add(BOLD);
+  }
+  out.add("http://localhost:");
+  out.addInt(port as i64);
+  if (color) {
+    out.add(RESET);
+  }
+  return out.take();
+}
+
+test "durations in the unit that reads best" {
+  assertEq(durationOf(0), "0 µs");
+  assertEq(durationOf(312), "312 µs");
+  assertEq(durationOf(1450), "1.4 ms");
+  assertEq(durationOf(999999), "999.9 ms");
+  assertEq(durationOf(2050000), "2.05 s");
+  assertEq(durationOf(61000000), "61.00 s");
+}
+
+test "a plain line lines up in columns" {
+  let line: *i8 = logLine(nowMicros(), "GET", 200, "/hello/ode", 1450, false);
+  // "HH:MM:SS  " then the method.
+  assertEq(line[2], ':');
+  assertEq(line + 8, "  GET     200  /hello/ode           1.4 ms");
+  let short: *i8 = logLine(nowMicros(), "POST", 201, "/echo", 312, false);
+  assertEq(short + 8, "  POST    201  /echo                312 µs");
+  assertEq(columnsOf(line), columnsOf(short));
+}
+
+test "a long target pushes the duration along" {
+  let line: *i8 = logLine(nowMicros(), "DELETE", 404, "/a/very/long/path/indeed", 5, false);
+  assertEq(line + 8, "  DELETE  404  /a/very/long/path/indeed     5 µs");
+}
+
+test "in color, the status by its class" {
+  let line: *i8 = logLine(nowMicros(), "GET", 503, "/", 5, true);
+  let plain: *i8 = logLine(nowMicros(), "GET", 503, "/", 5, false);
+  assert(length(line) > length(plain), "escapes added");
+  assertEq(colorOf(201), "\x1b[32m");
+  assertEq(colorOf(304), "\x1b[36m");
+  assertEq(colorOf(404), "\x1b[33m");
+  assertEq(colorOf(500), "\x1b[31m");
+}
