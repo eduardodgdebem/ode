@@ -1,0 +1,3 @@
+# Shell scripts run in bash, also on Windows through WSL, where a CRLF
+# checkout would break every line of them.
+*.sh text eol=lf
