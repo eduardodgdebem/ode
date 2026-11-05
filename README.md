@@ -33,15 +33,25 @@ methods, generics, enums and `match`, functions as values, modules with `import`
 test, a small [standard library](docs/std.md), and direct calls into C through `extern`. It has no garbage collector and no implicit conversions: what it compiles
 to is close to what is written.
 
-## Quick start
-
-You need `clang`. Nothing else.
+## Installing
 
 ```bash
-./build.sh                       # build the compiler into build/ode
-./build/ode examples/hello.ode   # compile a program...
+./install.sh                     # build Ode and install it under ~/.local
+ode examples/hello.ode           # compile a program...
 ./hello                          # ...and run it
 ```
+
+It runs on macOS and Linux, on arm64 and x86_64, and on Windows through
+WSL: `.\install.ps1` from PowerShell runs the same installer there. What it
+needs is `clang`, and on Linux `lld` and `llvm` as well, since every Linux
+program is linked with them against the musl Ode bundles; `./install.sh
+--check` says what the machine has, and how to get what it lacks.
+
+`--prefix <dir>` installs somewhere else than `~/.local` (`/usr/local` as
+root), `--debug` installs a compiler that checks as it runs, and
+`./install.sh uninstall` takes it out again. An installed Ode is
+`<prefix>/bin/ode`, with its library, the bundled musl and the wasm test
+runner in `<prefix>/lib/ode`.
 
 `ode file.ode` compiles the file and every file it imports, and links an
 executable named after it. `-o <path>` puts the executable elsewhere, and the
@@ -183,5 +193,6 @@ tests/             the regression suite
 docs/              the documentation above
 editors/           tree-sitter grammar, Neovim support, and the Claude Code plugin
 build.ode          how the compiler is built, as any Ode project is
-build.sh           turns the seed into a first compiler, then hands over
+install.sh         turns the seed into a first compiler, and installs it
+install.ps1        the same, on Windows, run in WSL
 ```

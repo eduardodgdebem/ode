@@ -8,18 +8,20 @@ repository.
 
 ## Building
 
-You need `clang` on your `PATH`. Nothing else.
+You need `clang` on your `PATH`, and on Linux `lld` and `llvm` -- `./install.sh
+--check` says what is there.
 
 ```bash
-./build.sh
+./install.sh build
 ```
 
 The compiler is written in the language it compiles, so something has to
-compile it first. On a fresh checkout `build.sh` turns `bootstrap/ode.ll` -- a
-checked-in copy of the compiler's own output -- into a first compiler with
-clang, and that compiler builds the real one into `build/ode`. That one step
-is all the script does; after it, `./build.sh <step>` is the same as
-`./build/ode build <step>`:
+compile it first. On a fresh checkout `install.sh` turns `bootstrap/ode.ll` --
+a checked-in copy of the compiler's own output -- into a first compiler with
+clang, and that compiler builds the real one into `build/ode`. Given a step,
+that is all it does; after it, `./install.sh <step>` is the same as
+`./build/ode build <step>`. Without one, it installs the compiler instead:
+see the [README](../README.md#installing).
 
 ```bash
 ./build/ode build              # rebuild build/ode, if anything changed

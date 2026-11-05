@@ -1,12 +1,12 @@
 // ---------------------------------------------------------------------------
 // How the compiler is built: as any Ode project is, by `ode build`.
 //
-//   ./build.sh                 build build/ode (after seeding one, if need be)
-//   ./build.sh test            then run the regression suite on it
-//   ./build.sh bootstrap       then rebuild it twice and require a fixed point
-//   ./build.sh seed            then refresh bootstrap/ode.ll from it
+//   ./install.sh build         build build/ode (after seeding one, if need be)
+//   ./install.sh test          then run the regression suite on it
+//   ./install.sh bootstrap     then rebuild it twice and require a fixed point
+//   ./install.sh seed          then refresh bootstrap/ode.ll from it
 //
-// `./build.sh test --filter math` runs only the cases whose name holds
+// `./install.sh test --filter math` runs only the cases whose name holds
 // "math"; the suite's other options go after `--`: `-- --update` re-records
 // the expectations, `-- --ode <compiler>` tests another compiler.
 // ---------------------------------------------------------------------------

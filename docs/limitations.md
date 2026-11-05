@@ -239,7 +239,8 @@ be:
 A test has a name and a body, and nothing else: no setup or teardown, no
 parameters, no skipping, and no matchers beyond `assert` and `assertEq`.
 Each test runs in a child made with `fork`, so `ode test` runs on macOS and
-Linux but not Windows.
+Linux, and on Windows only through WSL -- as the compiler itself does: it
+builds for macOS, Linux and wasm32, and has no Windows target.
 
 ### 6.8 The standard library is small
 

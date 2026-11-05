@@ -35,7 +35,7 @@ jobs:
       # From nothing but the checked-in seed and clang, as a fresh checkout
       # would.
       - name: Build from the seed
-        run: ./build.sh
+        run: ./install.sh build
 
       # Apple's clang has no WebAssembly backend, so the suite, which builds
       # wasm modules, runs with Homebrew's on macOS.
@@ -49,3 +49,13 @@ jobs:
       # The compiler must reproduce itself byte for byte.
       - name: Bootstrap
         run: ./build/ode build bootstrap
+
+      # Installed, it builds and runs a program from anywhere, finding its
+      # library beside itself.
+      - name: Install
+        run: |
+          ./install.sh --prefix "$RUNNER_TEMP/ode"
+          cd "$RUNNER_TEMP"
+          printf 'fn main(): i32 {\n  return 0;\n}\n' > hello.ode
+          "$RUNNER_TEMP/ode/bin/ode" hello.ode -o hello
+          ./hello
