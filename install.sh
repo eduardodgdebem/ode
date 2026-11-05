@@ -8,6 +8,12 @@
 #   ./install.sh uninstall           take an installed Ode out again
 #   ./install.sh --check             say what this machine has and lacks, and stop
 #
+# Or with no checkout at all, which fetches one to build from and removes it
+# afterwards -- ODE_REF=<branch or tag> picks which:
+#
+#   curl -fsSL https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.sh | bash
+#   curl -fsSL .../install.sh | bash -s -- --prefix /usr/local
+#
 # For working on Ode itself, the steps build.ode declares, run with the
 # compiler in build/ -- seeded from bootstrap/ode.ll the first time:
 #
@@ -20,16 +26,45 @@
 # runners/, which runs wasm32 tests in Node.
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="$ROOT_DIR/build"
-ODE="$BUILD_DIR/ode"
-
 say() { printf '%s\n' "$*"; }
 warn() { printf 'install: %s\n' "$*" >&2; }
 die() { warn "$*"; exit 1; }
 
+REPOSITORY="${ODE_REPO:-https://github.com/eduardodgdebem/ode}"
+
+# Piped into bash, as `curl ... | bash`, this script is no file in a
+# checkout: there is no seed or source beside it to build. One is fetched
+# instead -- cloned with git, or the archive GitHub serves when there is no
+# git -- and the copy of this script in it runs, and removes it when done.
+SCRIPT="${BASH_SOURCE[0]:-}"
+if [ -z "$SCRIPT" ] || [ ! -f "$(dirname "$SCRIPT")/bootstrap/ode.ll" ]; then
+  ref="${ODE_REF:-main}"
+  fetched="$(mktemp -d "${TMPDIR:-/tmp}/ode-source.XXXXXX")"
+  say "fetching Ode ($ref) from $REPOSITORY"
+  if command -v git >/dev/null 2>&1; then
+    git clone --quiet --depth 1 --branch "$ref" "$REPOSITORY" "$fetched/ode" ||
+      die "cannot clone $REPOSITORY at $ref"
+  elif command -v curl >/dev/null 2>&1; then
+    mkdir -p "$fetched/ode"
+    curl -fsSL "$REPOSITORY/archive/$ref.tar.gz" | tar -xz -C "$fetched/ode" --strip-components 1 ||
+      die "cannot download $REPOSITORY/archive/$ref.tar.gz"
+  else
+    die "fetching Ode needs git or curl"
+  fi
+  ODE_FETCHED="$fetched" exec bash "$fetched/ode/install.sh" "$@"
+fi
+
+ROOT_DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
+BUILD_DIR="$ROOT_DIR/build"
+ODE="$BUILD_DIR/ode"
+
+# A checkout fetched for this install is not kept.
+if [ -n "${ODE_FETCHED:-}" ]; then
+  trap 'rm -rf "$ODE_FETCHED"' EXIT
+fi
+
 usage() {
-  sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,28p' "$SCRIPT" | sed 's/^# \{0,1\}//'
 }
 
 # ---------------------------------------------------------------------------
