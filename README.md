@@ -35,35 +35,92 @@ to is close to what is written.
 
 ## Installing
 
+On macOS or Linux:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.sh | bash
 ```
 
-That fetches the source, builds the compiler from it and installs it under
-`~/.local`; from a checkout, `./install.sh` does the same with what is
-there. Options go after `bash -s --`: `... | bash -s -- --prefix /usr/local`.
 On Windows, from PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.ps1 | iex
 ```
 
+Either one fetches the source, builds the compiler from it, installs it under
+`~/.local`, builds and runs a small program with it to make sure it works, and
+removes the source again. Then, with this in `hello.ode`:
+
+```rust
+import { println } from "std/io";
+
+fn main(): i32 {
+  println("hello, ode");
+  return 0;
+}
+```
+
 ```bash
-ode examples/hello.ode           # compile a program...
+ode hello.ode                    # compile it...
 ./hello                          # ...and run it
 ```
 
-It runs on macOS and Linux, on arm64 and x86_64, and on Windows through
-WSL: `.\install.ps1` from PowerShell runs the same installer there. What it
-needs is `clang`, and on Linux `lld` and `llvm` as well, since every Linux
-program is linked with them against the musl Ode bundles; `./install.sh
---check` says what the machine has, and how to get what it lacks.
+From a checkout, `./install.sh` does the same with what is there. To work on
+Ode itself, `./install.sh build`, `test`, `bootstrap` and `seed` build and
+check the compiler in `build/` instead of installing it; see
+[development](docs/development.md).
 
-`--prefix <dir>` installs somewhere else than `~/.local` (`/usr/local` as
-root), `--debug` installs a compiler that checks as it runs, and
-`./install.sh uninstall` takes it out again. An installed Ode is
-`<prefix>/bin/ode`, with its library, the bundled musl and the wasm test
-runner in `<prefix>/lib/ode`.
+### What it needs
+
+| Platform | Needs | Without it |
+|---|---|---|
+| macOS | `clang` and the SDK: `xcode-select --install` | -- |
+| macOS, to build for Linux | `lld` and `llvm`: `brew install llvm lld` | `--target *-linux` does not link |
+| Linux | `clang`, `lld` and `llvm`: `sudo apt-get install clang lld llvm`, or dnf, pacman, apk | every Linux program is linked with them, against the musl Ode bundles |
+| Windows | WSL and a Linux in it: `wsl --install` | -- |
+| wasm32 tests | `node` | `ode test --target wasm32` builds, but cannot run its tests |
+
+`./install.sh --check` says what the machine has, and how to get what it
+lacks. Both arm64 and x86_64 are supported.
+
+### Options
+
+| | |
+|---|---|
+| `--prefix <dir>` | install there instead of `~/.local` (`/usr/local` when run as root) |
+| `--debug` | install a compiler that checks as it runs, as a build without `--release` does |
+| `--check` | say what the machine has and lacks, and stop |
+| `uninstall` | take an installed Ode out again |
+| `ODE_REF=<branch or tag>` | install that version rather than `main`, when fetching the source |
+
+Piped from `curl`, options go after `bash -s --`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.sh | bash -s -- --prefix /usr/local
+```
+
+The source is fetched with `git` when there is one, or as GitHub's archive
+with `curl` when not.
+
+### Windows
+
+The compiler and the programs it builds are POSIX ones -- they fork, and
+link against a C library Windows does not have -- so on Windows they run in
+WSL, where Ode builds for and runs on Linux. `install.ps1` checks that WSL
+and a Linux distribution are there, and runs the installer in it. Then
+`ode` works from a WSL shell, and `wsl ode file.ode` from PowerShell. A
+Windows target of its own is not there yet.
+
+### What is installed
+
+`<prefix>/bin/ode`, and beside it in `<prefix>/lib/ode` what it reads: `std/`,
+the standard library; `vendor/`, musl's and compiler-rt's sources, which a
+Linux program is linked against; and `runners/`, which runs wasm32 tests in
+Node. The musl built for each target is kept in `~/.cache/ode`, and stays
+there after `uninstall`. If `<prefix>/bin` is not on the `PATH`, the
+installer says what to add.
+
+## Using the compiler
 
 `ode file.ode` compiles the file and every file it imports, and links an
 executable named after it. `-o <path>` puts the executable elsewhere, and the
@@ -87,10 +144,10 @@ and `ode test` alike. `--target <arch-os[-abi]>` builds for another machine:
 default, or `gnu`; or `wasm32`, for WebAssembly.
 
 ```bash
-./build/ode -L vendor/lib -lraylib -framework Cocoa game.ode
-./build/ode --target x86_64-macos game.ode       # an Intel Mac binary, from any Mac
-./build/ode --target aarch64-linux game.ode      # a static Linux binary, from anywhere
-./build/ode --target x86_64-linux-gnu --sysroot /path/to/sysroot game.ode   # against glibc
+ode -L vendor/lib -lraylib -framework Cocoa game.ode
+ode --target x86_64-macos game.ode       # an Intel Mac binary, from any Mac
+ode --target aarch64-linux game.ode      # a static Linux binary, from anywhere
+ode --target x86_64-linux-gnu --sysroot /path/to/sysroot game.ode   # against glibc
 ```
 
 A Linux program links statically against musl, so it runs on any Linux of
@@ -107,8 +164,8 @@ is given the test program and the filter -- an emulator, or a script that
 runs it in a container:
 
 ```bash
-./build/ode test --target wasm32 src
-./build/ode test --target aarch64-linux --runner qemu-aarch64 src
+ode test --target wasm32 src
+ode test --target aarch64-linux --runner qemu-aarch64 src
 ```
 
 ### WebAssembly
