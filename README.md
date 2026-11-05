@@ -36,7 +36,19 @@ to is close to what is written.
 ## Installing
 
 ```bash
-./install.sh                     # build Ode and install it under ~/.local
+curl -fsSL https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.sh | bash
+```
+
+That fetches the source, builds the compiler from it and installs it under
+`~/.local`; from a checkout, `./install.sh` does the same with what is
+there. Options go after `bash -s --`: `... | bash -s -- --prefix /usr/local`.
+On Windows, from PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.ps1 | iex
+```
+
+```bash
 ode examples/hello.ode           # compile a program...
 ./hello                          # ...and run it
 ```

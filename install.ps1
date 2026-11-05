@@ -4,6 +4,10 @@
 #   .\install.ps1 --prefix /usr/local, --debug, uninstall, --check, ...
 #                                    whatever install.sh takes, handed to it
 #
+# Or with no checkout, from PowerShell, which has WSL fetch one:
+#
+#   irm https://raw.githubusercontent.com/eduardodgdebem/ode/main/install.ps1 | iex
+#
 # Ode's compiler and the programs it builds are POSIX ones -- they fork, and
 # link against a C library Windows does not have -- so on Windows they run
 # in WSL, where Ode builds for and runs on Linux. This runs install.sh there,
@@ -30,6 +34,16 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host "install: WSL has no Linux distribution yet."
   Write-Host "  wsl --install -d Ubuntu     then open it once to finish setting it up, then run this again"
   exit 1
+}
+
+# Run as `irm ... | iex`, this is no file in a checkout: install.sh is
+# fetched in WSL instead, and fetches the rest itself. $env:ODE_REF picks
+# the branch or tag, as it does there.
+if (-not $PSScriptRoot -or -not (Test-Path (Join-Path $PSScriptRoot 'install.sh'))) {
+  $ref = if ($env:ODE_REF) { $env:ODE_REF } else { 'main' }
+  $url = "https://raw.githubusercontent.com/eduardodgdebem/ode/$ref/install.sh"
+  & $wsl --exec bash -c "curl -fsSL '$url' | ODE_REF='$ref' bash -s -- $($args -join ' ')"
+  exit $LASTEXITCODE
 }
 
 # The tools install.sh needs, installed from inside WSL if they are missing.
